@@ -1,0 +1,48 @@
+#!/bin/bash
+main(){
+    isDir=false
+    file="$1"
+    # zip files or directory
+    if [ "$#" -gt 1 ] || ([ -d "$file" ] && [ "$#" -eq 1 ]) ; then
+        zip -FSr archive.zip "${@:2}" >/dev/null
+        file=archive.zip 
+        isDir=true
+    fi
+    dunstify "Upload started"
+    case "${file#*.}" in
+        txt|sh|py)
+            ptpb;;
+        jpg|jpeg|png|gif)
+            boring;;
+        *)
+            anon;;
+    esac
+
+url=$(curl -sF 'shorten='"$url" http://0x0.st)
+echo -n "$url" | xclip -selection clipboard
+dunstify "Link copied to clipboard!"
+$BROWSER "$url" >/dev/null
+
+if [ $isDir = true ]; then
+    rm -rf "$file"
+fi
+
+}
+printHelp(){
+printf "Usage:
+      upload <files>      Uploads a file/folder via several different hosts
+      depending on the filetype\n"
+}
+ptpb(){
+    # Will be destroyed after 1h
+    url=$(cat "$file" | curl -s -F p=1 -sF sunset=3600 -F c=@- https://ptpb.pw/?u=1)
+}
+boring(){
+    url=$(curl -sF "file=@""$file" https://api.boring.host/api/upload | python3 -c \
+        "import sys, json; print(json.load(sys.stdin)['data']['direct_url'])")
+}
+anon(){
+    resp=$(curl -sF "file=@"$file"" https://anonfile.com/api/upload) 
+    url=$(echo "$resp" | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['file']['url']['full'])")
+}
+main "$@"

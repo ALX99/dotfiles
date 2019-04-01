@@ -1,0 +1,55 @@
+Xcursor.size: 14
+
+! special
+*.foreground:   #cccccc
+*.background:   #111111
+*.cursorColor:  #cccccc
+
+! black
+*.color0:       #222222
+*.color8:       #666666
+
+! red
+*.color1:       #e84f4f
+*.color9:       #d23d3d
+
+! green
+*.color2:       #b7ce42
+*.color10:      #bde077
+
+! yellow
+*.color3:       #fea63c
+*.color11:      #ffe863
+
+! blue
+*.color4:       #66a9b9
+*.color12:      #aaccbb
+
+! magenta
+*.color5:       #b7416e
+*.color13:      #e16a98
+
+! cyan
+*.color6:       #6d878d
+*.color14:      #42717b
+
+! white
+*.color7:       #cccccc
+*.color15:      #ffffff
+
+! URXVT stuff
+urxvt.depth: 32
+URxvt.background: [70]black
+urxvt.font: xft:Noto Sans Mono:style=Regular:pixelsize=14, 4xft:FontAwesome5Free:style=Solid:pixelsize=14:antialias=true
+urxvt.letterSpace: -1
+urxvt.scrollBar:	false
+urxvt.cursorColor:	green
+urxvt.cursorBlink:	true
+urxvt.cursorUnderline:	1
+urxvt.url-launcher: 	/usr/bin/chromium
+urxvt.perl-ext-common: resize-font,matcher,default
+urxvt.matcher.button:	1
+urxvt.matcher.rend.0: Uline Bold fg3
+urxvt.keysym.C-n: resize-font:bigger
+urxvt.keysym.C-e: resize-font:smaller
+urxvt.keysym.C-i: resize-font:reset

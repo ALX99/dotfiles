@@ -1,0 +1,81 @@
+#!/bin/bash
+# https://github.com/ALX99
+
+pkgList=~/dotfiles/.pkgList
+
+main(){
+    logo
+    case "$1" in
+        -i|--install)
+            sudo pacman -S "${@:2}"
+            getStatus
+            if [ "$eStatus" -eq 0 ]; then
+                addPkgs "${@:2}"
+            fi;;
+        -r|--remove)
+            sudo pacman -Rns "${@:2}"
+            getStatus
+            if [ "$eStatus" -eq 0 ]; then
+                removePkgs "${@:2}"
+            fi;;
+        -u|--update)
+            notify "Updating the system."
+            arch_updates.sh --update;;
+        -li|--list-installed)
+            notify "Listing all installed packages." 
+            comm -23 <(pacman -Qe | sort) <(pacman -Qgq base base-devel | sort);;
+        -lt|--list-tracked)
+            notify "Listing all traked packages." 
+            cat "$pkgList";;
+        -rm|--refresh-mirrors)
+            notify "Refreshing pacman mirrors." 
+            sudo reflector --protocol https --sort rate --save /etc/pacman.d/mirrorlist --verbose;;
+        *)
+            printHelp
+            exit 0;;
+    esac
+}
+logo(){
+    clear
+    echo "              ______                              
+             (_____ \                             
+              _____) ) _____   ____   ____  _   _ 
+             |  ____/ (____ | / ___) / ___)| | | |
+             | |      / ___ |( (___ ( (___ | |_| |
+             |_|      \_____| \____) \____) \__  |
+                                            (____/"
+}
+notify(){
+    echo "[•] "$@""
+}
+printHelp(){
+
+    printf "Descrption:
+    Paccy, a pacman wrapper that adds several useful features for managing packages.\nUsage:
+    Paccy --install <package names>     Installs specified package names
+    Paccy --remove  <package names>     Removes specified package names
+    Paccy --update                      Updates all packages
+    Pacy  --list-installed              Lists all non devel and base-devel packaes
+    Pacy  --list-tracked                Lists all tracked packaes
+    Paccy --refresh-mirrors             Refreshes the mirror list
+    \n"
+}
+getStatus(){
+    eStatus="$(echo $?)"
+}
+addPkgs(){
+    # Write the packages to the pkgList
+    for arg in "$@"; do
+        echo "$arg" >> "$pkgList"
+    done
+
+    # Sort and remove dupes
+    local sorted="$(cat "$pkgList" | sort -u)"
+    echo "$sorted" > "$pkgList"
+}
+removePkgs(){
+    for arg in "$@"; do
+        sed -i '/'"$arg"'/d' "$pkgList" 
+    done
+}
+main "$@"

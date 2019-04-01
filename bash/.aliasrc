@@ -1,0 +1,33 @@
+#!/bin/sh
+alias q=exit
+alias c=clear
+alias r=ranger
+alias e=$EDITOR
+alias sudo='sudo -A'
+alias h='cd ~ && clear'
+alias ls='clear && ls -A --group-directories-first --color=auto'
+alias l.='clear && ls .?* --color=auto'
+alias dir='ls --group-directories-first --color=auto --format=long'
+alias lt='ls  ~/.local/share/Trash/'
+alias grep='grep --color=auto'
+alias p=pacman
+alias sp='sudo pacman'
+alias rm='rm -i'
+
+hgrep(){ history | grep "$@" ;}
+
+se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
+# Move to trash
+t(){ mv --backup=t "$@" ~/.local/share/Trash/files ;}
+# Clear trash
+ct() {
+    ls -1 ~/.local/share/Trash/files/
+    read -s -n 1 -p "Do you want to delete files and folders? (y/N): " confirm
+    echo
+    if [[ "$confirm" =~ ^([Yy]) ]]; then
+        rm -rf ~/.local/share/Trash/files/*
+        echo "Files deleted!"
+    else
+        echo "Okay, aborting!"
+    fi 
+}
