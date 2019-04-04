@@ -50,7 +50,7 @@ bindsym $mod+$mod1+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 ### --- Useful Keybindings --- ###
 ##################################
 bindsym $mod+Return exec $term 
-bindsym $mod+Shift+w exec wal -i Nextcloud/Wallpapers/1920x1080/ -a 80 
+bindsym $mod+Shift+w exec wal -i OneDrive/Wallpapers/1920x1080/ -a 80 
 
 # Audio
 bindsym $mod+Shift+a exec amixer -c 1 set Master 5+
@@ -80,7 +80,8 @@ bindsym $mod+2 workspace 2
 bindsym $mod+3 workspace 3
 bindsym $mod+4 workspace 4
 bindsym $mod+5 workspace 5
-
+bindsym $mod+u workspace next
+bindsym $mod+l workspace prev
 
 ######################################
 ### --- Navigation Keybindings --- ###
@@ -102,19 +103,8 @@ bindsym $mod+Shift+2 move container to workspace 2
 bindsym $mod+Shift+3 move container to workspace 3
 bindsym $mod+Shift+4 move container to workspace 4
 bindsym $mod+Shift+5 move container to workspace 5
-
-
-######################################
-### --- Navigation Keybindings --- ###
-######################################
-
-# Audio
-bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase 
-bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
-
-# Brightness 
-bindsym XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
-bindsym XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightness
+bindsym $mod+Shift+u move container to workspace next
+bindsym $mod+Shift+l move container to workspace prev
 
 ##########################################
 ### --- Launching additional stuff --- ###
@@ -123,10 +113,10 @@ bindsym XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightne
 exec --no-startup-id dunst
 exec --no-startup-id  compton -b
 exec --no-startup-id ~/.config/polybar/launch.sh
-exec --no-startup-id wal -i Nextcloud/Wallpapers/1920x1080/ -a 80
+exec --no-startup-id wal -i OneDrive/Wallpapers/1920x1080/ -a 80
 #exec --no-startup-id i3-msg 'workspace 2: ; exec chromium'
-exec --no-startup-id nextcloud
 exec --no-startup-id xset r rate 210 30 
+exec --no-startup-id ~/.scripts/administrative/entr
 
 
 ###################################
@@ -163,6 +153,14 @@ client.background		$black
 ####################
 ### --- Misc --- ###
 ####################
+
+# Audio
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase 
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
+
+# Brightness 
+bindsym XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
+bindsym XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightness
 
 # resize mode is not currently used, use mod + right click if you wanna resize
 mode "resize" {

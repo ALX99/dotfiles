@@ -66,7 +66,8 @@ nnoremap <leader>/  :noh<CR>            " space + / remove highlighed searches
 " Pressing * searches for the current selection
 vnoremap <silent> * :<C-u>call VisualSelection('', '')<CR>/<C-R>=@/<CR><CR>
 
-autocmd BufWritePost ~/.Xresources,~/.Xdefaults !xrdb %
+" reload the Xresources file on save
+autocmd BufWritePost ~/.Xresources !xrdb %
 
 " Function for searching
 function! VisualSelection(direction, extra_filter) range

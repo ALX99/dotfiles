@@ -1,0 +1,3 @@
+#!/usr/bin/sh
+# Resyncs onedrive on sync list change
+ls ~/dotfiles/onedrive/.config/onedrive/sync_list | entr -p dunstify OneDrive "Resyncing changes" && onedrive --synchronize --resync

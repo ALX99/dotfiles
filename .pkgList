@@ -4,6 +4,7 @@ cmatrix
 code
 compton
 dunst
+entr
 feh
 fzf
 intel-ucode
@@ -16,7 +17,6 @@ mlocate
 mpv
 neofetch
 neovim
-nextcloud-client
 noto-fonts
 noto-fonts-cjk
 openssh
