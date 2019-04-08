@@ -53,3 +53,6 @@ urxvt.matcher.rend.0: Uline Bold fg3
 urxvt.keysym.C-n: resize-font:bigger
 urxvt.keysym.C-e: resize-font:smaller
 urxvt.keysym.C-i: resize-font:reset
+urxvt*scrollTtyOutput:      false
+urxvt*scrollWithBuffer:     true
+urxvt*scrollTtyKeypress:    true
