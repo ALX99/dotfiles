@@ -1,0 +1,32 @@
+#!/bin/bash
+# Script should only be run once after cloning the dotfiles
+checkPkg(){
+    sudo -A pacman -S $1 --needed --noconfirm >/dev/null 2>&1 || yay -S $1 --needed --noconfirm 
+}
+yay_check(){
+if ! pacman -Qi yay >/dev/null 2>&1; then
+    git clone https://aur.archlinux.org/yay.git ~/yay
+    cd ~/yay
+    makepkg -si --noconfirm
+    rm -rf ~/yay
+fi
+}
+keyboard(){
+    sudo -A cp ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+}
+one_drive(){
+    onedrive --synchronize --resync
+    systemctl --user enable onedrive
+    systemctl --user start onedrive
+}
+
+stow $(echo */)
+sudo -A pacman -S $(cat .pkgList) --needed --noconfirm 
+
+checkPkg git
+yay_check
+keyboard
+checkPkg onedrive-abraunegg-git
+checkPkg polybar
+
+one_drive
