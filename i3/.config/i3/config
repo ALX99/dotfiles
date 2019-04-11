@@ -49,15 +49,16 @@ bindsym $mod+$mod1+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 ##################################
 ### --- Useful Keybindings --- ###
 ##################################
-bindsym $mod+Return exec $term 
-bindsym $mod+Shift+w exec wal -i OneDrive/Wallpapers/1920x1080/ -a 80 
+bindSym $mod+Return exec $term 
+bindsym $mod+Shift+w exec feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ 
+
 
 # Audio
 bindsym $mod+Shift+a exec amixer -c 1 set Master 5+
 bindsym $mod+a       exec amixer -c 1 set Master 5-
 
 # Configure Keyboard
-bindsym $mod+$mod1+1 exec setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && xset -r 135a && dunstify "Keyboard layout: QWERTY"
+bindsym $mod+$mod1+1 exec setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && dunstify "Keyboard layout: QWERTY"
 bindsym $mod+$mod1+2 exec setxkbmap colemak && dunstify "Keyboard layout: COLEMAK-DH"
 
 
@@ -92,6 +93,7 @@ bindsym $mod+k focus left
 bindsym $mod+n focus down
 bindsym $mod+e focus up
 bindsym $mod+i focus right
+
 bindsym $mod+Shift+k move left 30
 bindsym $mod+Shift+n move down 30
 bindsym $mod+Shift+e move up 30
@@ -111,10 +113,9 @@ bindsym $mod+Shift+l move container to workspace prev
 ##########################################
 
 exec --no-startup-id dunst
-exec --no-startup-id  compton -b
+exec --no-startup-id compton -b
 exec --no-startup-id ~/.config/polybar/launch.sh
-exec --no-startup-id wal -i OneDrive/Wallpapers/1920x1080/ -a 80
-#exec --no-startup-id i3-msg 'workspace 2: ; exec chromium'
+exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ 
 exec --no-startup-id xset r rate 210 30 
 exec --no-startup-id ~/.scripts/administrative/entr
 
