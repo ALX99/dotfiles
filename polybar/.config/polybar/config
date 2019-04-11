@@ -20,11 +20,11 @@ radius = 0.0
 fixed-center = true
 margin-top = 0
 margin-bottom = 0
-
+bottom = true
 separator = |
 separator-foreground = ${colors.foreground-alt}
 
-border-bottom-size = 2
+border-top-size = 2
 border-color = ${xrdb:color6:#222}
 
 background = ${colors.background}
@@ -42,7 +42,7 @@ font-0 = "FontAwesome5Free:style=Solid:pixelsize=9:antialias=true;1"
 
 modules-left = i3
 modules-center = date 
-modules-right = alsa eth wifi xbacklight updates battery powermenu 
+modules-right = eth wifi battery xbacklight updates alsa powermenu 
 
 tray-position = right
 tray-padding = 0
@@ -124,10 +124,11 @@ ws-icon-default = 1
 
 label-mode-padding = 2
 label-mode-foreground = #000
-label-mode-background = ${colors.primary}
+label-mode-background = ${xrdb:color2:#222}
 
 ; focused = Active workspace on focused monitor
 label-focused = %icon%
+label-focused-foreground = ${xrdb:color6:#222}
 label-focused-background = #7500000000
 ;label-focused-underline = ${xrdb:color2:#222}
 label-focused-padding = 2 
@@ -135,8 +136,6 @@ label-focused-padding = 2
 ; unfocused = Inactive workspace on any monitor
 label-unfocused = %icon%
 label-unfocused-padding = 2
-label-unfocused-background = #7500000000
-label-unfocused-foreground = ${xrdb:color2:#222}
 
 ; visible = Active workspace on unfocused monitor
 label-visible = %icon%
@@ -262,10 +261,9 @@ type = internal/alsa
 
 format-volume = <label-volume> <bar-volume>
 label-volume = 
-label-volume-foreground = ${colors.secondary}
 
-format-muted-prefix = 
-format-muted-foreground = ${colors.secondary} 
+format-muted-prefix = " "
+format-muted-foreground = ${xrdb:color1:#222}
 
 bar-volume-width = 10
 bar-volume-foreground-0 = #55aa55
