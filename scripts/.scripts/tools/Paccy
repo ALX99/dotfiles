@@ -25,7 +25,7 @@ main(){
             notify "Listing all installed packages." 
             comm -23 <(pacman -Qe | sort) <(pacman -Qgq base base-devel | sort);;
         -lt|--list-tracked)
-            notify "Listing all traked packages." 
+            notify "Listing all tracked packages." 
             cat "$pkgList";;
         -rm|--refresh-mirrors)
             notify "Refreshing pacman mirrors." 

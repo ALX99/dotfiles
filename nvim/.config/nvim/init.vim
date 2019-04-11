@@ -1,8 +1,3 @@
-call plug#begin('~/dotfiles/nvim/.config/nvim/plugged')
-
-" Using plug
-call plug#end()
-
 hi Normal guibg=NONE ctermbg=NONE
 "set termguicolors 
 colorscheme gruvbox

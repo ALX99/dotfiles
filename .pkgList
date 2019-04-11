@@ -1,4 +1,5 @@
 alsa-utils
+arch-install-scripts
 chromium
 cmatrix
 code
@@ -7,6 +8,7 @@ dunst
 entr
 feh
 fzf
+htop
 intel-ucode
 jdk-openjdk
 libnotify
@@ -24,18 +26,19 @@ otf-fira-code
 p7zip
 pacman-contrib
 papirus-icon-theme
-polybar
-python-pywal
 ranger
 reflector
 rofi
+rxvt-unicode
 scrot
 speedtest-cli
 ttf-font-awesome
 unrar
 unzip
 w3m
+wget
 xclip
 xorg-xbacklight
 xorg-xprop
+xorg-xrandr
 zip
