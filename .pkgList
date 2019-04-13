@@ -1,4 +1,5 @@
 alsa-utils
+arc-gtk-theme
 arch-install-scripts
 chromium
 cmatrix
@@ -19,6 +20,7 @@ mlocate
 mpv
 neofetch
 neovim
+network-manager-applet
 noto-fonts
 noto-fonts-cjk
 openssh
@@ -26,7 +28,9 @@ otf-fira-code
 p7zip
 pacman-contrib
 papirus-icon-theme
+pcmanfm-gtk3
 ranger
+redshift
 reflector
 rofi
 rxvt-unicode

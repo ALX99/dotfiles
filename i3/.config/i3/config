@@ -15,20 +15,21 @@ bindsym $mod+Shift+space floating toggle
 bindsym $mod+space focus mode_toggle 
 
 # Assigning programs to workspaces
-for_window [class="^.*"] border pixel 2 focus
+for_window [class="^.*"] border pixel 0 focus
 for_window [title="ranger"] floating enable 
+for_window [title="pcmanfm"] floating enable 
 assign [class="jetbrains-idea-ce"] workspace 3
 assign [class="discord"] workspace 4
 gaps inner 8
 gaps outer 0
-smart_gaps on
+#smart_gaps on
 hide_edge_borders both 
 focus_wrapping no
 
 # Resizing
-bindsym $mod+z			gaps inner current plus 5
-bindsym $mod+Shift+z    gaps inner current minus 5
-bindsym $mod+$mod1+z    gaps inner all set 8
+bindsym $mod+y			gaps inner current plus 5
+bindsym $mod+Shift+y    gaps inner current minus 5
+bindsym $mod+$mod1+y    gaps inner all set 8
 bindsym $mod+0	gaps inner all set 0; gaps outer all set 0;
 
 # Misc
@@ -66,10 +67,10 @@ bindsym $mod+$mod1+2 exec setxkbmap colemak && dunstify "Keyboard layout: COLEMA
 ### --- Launching Keybindings --- ###
 #####################################
 bindsym $mod+d exec rofi -show drun -bg $darkblack
-bindsym $mod+b exec --no-startup-id chromium
-bindsym $mod+r exec --no-startup-id urxvt -g 100x25 -e ranger
-bindsym $mod+c exec --no-startup-id idea 
-
+bindsym $mod+b exec chromium
+bindsym $mod+r exec urxvt -g 100x25 -e ranger
+bindsym $mod+p exec pcmanfm 
+bindsym $mod+c exec idea 
 
 #####################################
 ### --- Workspace Keybindings --- ###
@@ -115,9 +116,11 @@ bindsym $mod+Shift+l move container to workspace prev
 exec --no-startup-id dunst
 exec --no-startup-id compton -b
 exec --no-startup-id ~/.config/polybar/launch.sh
+exec --no-startup-id redshift
 exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ 
 exec --no-startup-id xset r rate 210 30 
 exec --no-startup-id ~/.scripts/administrative/entr
+exec --no-startup-id nm-applet
 
 
 ###################################
