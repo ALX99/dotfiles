@@ -2,7 +2,7 @@
 
 export PATH="$PATH:$HOME/.scripts/tools" 
 export EDITOR="nvim"
-export FILE="ranger"
+export FILE="pcmanfm"
 export TERMINAL="urxvt"
 export BROWSER="chromium"
 export SUDO_ASKPASS="$HOME/.scripts/tools/askpass-rofi"

@@ -54,7 +54,7 @@ hide_duplicates_count = yes
 
 # The geometry of the window:
 #   [{width}]x{height}[+/-{x}+/-{y}]
-geometry = "500x5-8-34"
+geometry = "500x20-8-34"
 
 shrink = yes
 transparency = 0

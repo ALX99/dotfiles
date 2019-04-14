@@ -39,7 +39,7 @@ Xcursor.size: 14
 
 ! URXVT stuff
 urxvt.depth: 32
-URxvt.background: [70]black
+URxvt.background: [90]black
 urxvt.font: xft:Noto Sans Mono:style=Regular:pixelsize=14, 4xft:FontAwesome5Free:style=Solid:pixelsize=14:antialias=true
 urxvt.letterSpace: -1
 urxvt.scrollBar:	false
