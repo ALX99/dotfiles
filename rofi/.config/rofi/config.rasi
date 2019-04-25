@@ -4,7 +4,6 @@ configuration {
 	lines: 4;
 	columns: 2;
 	font: "mono 12";
-    theme: "~/.cache/wal/colors-rofi-dark.rasi";
 	bw: 1;
 	location: 0;
 	padding: 4;

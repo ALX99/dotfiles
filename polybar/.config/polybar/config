@@ -25,7 +25,7 @@ separator = |
 separator-foreground = ${colors.foreground-alt}
 
 border-top-size = 2
-border-color = ${xrdb:color6:#222}
+border-color = ${xrdb:color4:#222}
 
 background = ${colors.background}
 ;background = #7500000000
@@ -129,7 +129,7 @@ label-mode-background = ${xrdb:color2:#222}
 
 ; focused = Active workspace on focused monitor
 label-focused = %icon%
-label-focused-foreground = ${xrdb:color6:#222}
+label-focused-foreground = ${xrdb:color2:#222}
 label-focused-background = #7500000000
 ;label-focused-underline = ${xrdb:color2:#222}
 label-focused-padding = 2 
