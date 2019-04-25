@@ -1,6 +1,7 @@
 alsa-utils
-arc-gtk-theme
 arch-install-scripts
+breeze-gtk
+cantarell-fonts
 chromium
 cmatrix
 code
@@ -10,7 +11,6 @@ entr
 feh
 fzf
 htop
-intel-ucode
 jdk-openjdk
 libnotify
 libva-intel-driver
@@ -37,6 +37,9 @@ rxvt-unicode
 scrot
 speedtest-cli
 ttf-font-awesome
+ttf-hack
+ttf-inconsolata
+ttf-liberation
 unrar
 unzip
 w3m

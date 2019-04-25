@@ -5,14 +5,19 @@ alias r=ranger
 alias e=$EDITOR
 alias sudo='sudo -A'
 alias h='cd ~ && clear'
-alias ls='clear && ls -A --group-directories-first --color=auto'
-alias l.='clear && ls .?* --color=auto'
-alias dir='ls --group-directories-first --color=auto --format=long'
-alias lt='ls  ~/.local/share/Trash/'
+alias lt='ls  ~/.local/share/Trash/files'
 alias grep='grep --color=auto'
 alias p=pacman
 alias sp='sudo pacman'
 alias rm='rm -i'
+alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest files/directories
+alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
+# Listing files
+alias ls='ls --group-directories-first --color=auto'
+alias l.='ls -d .?*'
+alias dir='ls --format=long'
+
+
 
 hgrep(){ history | grep "$@" ;}
 
@@ -30,4 +35,24 @@ ct() {
     else
         echo "Okay, aborting!"
     fi 
+}
+# Show a list of processes and select one to kill
+fkill() {
+    local pid
+    if [ "$UID" != "0" ]; then
+        pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}')
+    else
+        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+    fi
+
+    if [ "x$pid" != "x" ]
+    then
+        echo $pid | xargs kill -${1:-9}
+    fi
+}
+go() {
+  local dir
+  dir=$(find ${1:-.} -path '*/\.*' -prune \
+                  -o -type d -print 2> /dev/null | fzf +m) &&
+  cd "$dir"
 }
