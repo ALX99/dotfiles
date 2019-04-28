@@ -1,0 +1,54 @@
+#!/bin/bash
+# Pacman + yay wrapper to keep track of installed packages
+
+pkgList=~/dotfiles/.pkgList
+
+installPkgs(){
+    yay -S --needed "$1" || return 1
+
+    # Write the packages to the pkgList
+    for pkg in "$1"; do
+        if [ -z "$2" ]; then
+            echo "$pkg" >> "$pkgList"
+        else
+            echo "$pkg # $2" >> "$pkgList"
+        fi
+    done
+    # Sort and remove dupes
+    local sorted=$(cat "$pkgList" | sort -u)
+    echo "$sorted" > "$pkgList"
+}
+removePkgs(){
+    sudo pacman -Rns "$@" || return 1
+
+    for pkg in "$@"; do
+        sed -i '/'"$pkg"'/d' "$pkgList" 
+    done
+}
+
+parameters="$@" # Save the original parameters
+while [[ $# -gt 0 ]]; do
+    par="$1"
+    case $par in
+        -Syu) pkgUpdate=true; shift;;
+        -S) pkgInstall=true;  shift;;
+        -Rns) pkgRemove=true; shift;;
+        -c|-C) comment="$2"; shift 2;;
+        -*) pacman "$parameters"; exit;; # Pass on to pacman
+        *) pkgs+=( "$par" ); shift;; # If no dash we'll assume this is a package
+    esac
+done
+
+if [[ $pkgInstall = true && $pkgRemove = true ]]; then
+    echo "You can't both install and remove packages at the same time!"
+    exit 1
+fi
+
+
+if [[ $pkgInstall = true ]]; then
+    installPkgs "$pkgs" "$comment"
+elif [[ $pkgRemove = true ]]; then
+    removePkgs "$pkgs"
+elif [[ $pkgUpdate = true ]]; then
+     yay -Syu
+fi
