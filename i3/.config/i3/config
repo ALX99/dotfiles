@@ -16,6 +16,7 @@ bindsym $mod+space focus mode_toggle
 
 # Assigning programs to workspaces
 for_window [class="^.*"] border pixel 0 focus
+for_window [class="feh"] floating enable 
 for_window [title="ranger"] floating enable 
 for_window [title="pcmanfm"] floating enable 
 assign [class="jetbrains-idea-ce"] workspace 3
@@ -51,7 +52,7 @@ bindsym $mod+$mod1+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 ### --- Useful Keybindings --- ###
 ##################################
 bindSym $mod+Return exec $term 
-bindsym $mod+Shift+w exec feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ 
+bindsym $mod+Shift+w exec feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/
 
 
 # Audio
@@ -60,12 +61,14 @@ bindsym $mod+a       exec amixer -c 1 set Master 5-
 
 # Configure Keyboard
 bindsym $mod+$mod1+1 exec setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && dunstify "Keyboard layout: QWERTY"
-bindsym $mod+$mod1+2 exec setxkbmap colemak && dunstify "Keyboard layout: COLEMAK-DH"
-
+bindsym $mod+$mod1+2 exec setxkbmap colemak && xmodmap -e 'keycode 135 = Super_R' && dunstify "Keyboard layout: COLEMAK-DH"
+bindsym $mod+$mod1+3 exec setxkbmap se && dunstify "Keyboard layout: Swedish"
 
 #####################################
 ### --- Launching Keybindings --- ###
 #####################################
+
+bindsym $mod+Shift+q exec qrmake
 bindsym $mod+d exec rofi -show drun -bg $darkblack
 bindsym $mod+b exec chromium
 bindsym $mod+r exec urxvt -g 100x25 -e ranger
@@ -85,6 +88,15 @@ bindsym $mod+5 workspace 5
 bindsym $mod+u workspace next
 bindsym $mod+l workspace prev
 
+# Move focused container to workspaces
+bindsym $mod+Shift+1 move container to workspace 1
+bindsym $mod+Shift+2 move container to workspace 2
+bindsym $mod+Shift+3 move container to workspace 3
+bindsym $mod+Shift+4 move container to workspace 4
+bindsym $mod+Shift+5 move container to workspace 5
+bindsym $mod+Shift+u move container to workspace next
+bindsym $mod+Shift+l move container to workspace prev
+
 ######################################
 ### --- Navigation Keybindings --- ###
 ######################################
@@ -100,14 +112,6 @@ bindsym $mod+Shift+n move down 30
 bindsym $mod+Shift+e move up 30
 bindsym $mod+Shift+i move right 30
 
-# Move focused container to workspaces
-bindsym $mod+Shift+1 move container to workspace 1
-bindsym $mod+Shift+2 move container to workspace 2
-bindsym $mod+Shift+3 move container to workspace 3
-bindsym $mod+Shift+4 move container to workspace 4
-bindsym $mod+Shift+5 move container to workspace 5
-bindsym $mod+Shift+u move container to workspace next
-bindsym $mod+Shift+l move container to workspace prev
 
 ##########################################
 ### --- Launching additional stuff --- ###
@@ -117,7 +121,7 @@ exec --no-startup-id dunst
 exec --no-startup-id compton -b
 exec --no-startup-id ~/.config/polybar/launch.sh
 exec --no-startup-id redshift
-exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ 
+exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/
 exec --no-startup-id xset r rate 210 30 
 exec --no-startup-id ~/.scripts/administrative/entr
 exec --no-startup-id nm-applet
