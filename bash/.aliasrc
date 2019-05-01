@@ -16,7 +16,7 @@ alias l.='ls -d .?*'
 alias dir='ls --format=long'
 # Use my pacman wrapper instead
 alias p=paccy
-alias sp='sudo paccy'
+alias sp='sudo pacman'
 
 
 
@@ -56,4 +56,7 @@ go() {
   dir=$(find ${1:-.} -path '*/\.*' -prune \
                   -o -type d -print 2> /dev/null | fzf +m) &&
   cd "$dir"
+}
+cheat(){
+    curl cheat.sh/$1
 }
