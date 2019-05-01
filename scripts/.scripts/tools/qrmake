@@ -1,0 +1,4 @@
+#!/bin/sh
+
+qrencode -s 10 "$(xclip -o)" -o temp.png
+feh temp.png && rm temp.png
