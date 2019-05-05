@@ -4,7 +4,7 @@ for arg in "$@"; do
     if [ -f "$arg" ] ; then
         case "$arg" in
             *.tar.bz2)   tar xvjf "$arg"    ;;
-             *.tar.gz)    tar xvzf "$arg"    ;;
+            *.tar.gz)    tar xvzf "$arg"    ;;
             *.bz2)       bunzip2 "$arg"     ;;
             *.rar)       unrar x "$arg"     ;;
             *.gz)        gunzip "$arg"      ;;
