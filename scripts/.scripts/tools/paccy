@@ -3,7 +3,7 @@
 
 pkgList=~/dotfiles/.pkgList
 
-installPkgs(){
+install_pkgs(){
     yay -S --needed "$1" || return 1
 
     # Write the packages to the pkgList
@@ -18,9 +18,8 @@ installPkgs(){
     local sorted=$(cat "$pkgList" | sort -u)
     echo "$sorted" > "$pkgList"
 }
-removePkgs(){
+remove_pkgs(){
     sudo pacman -Rns "$@" || return 1
-
     for pkg in "$@"; do
         sed -i '/'"$pkg"'/d' "$pkgList" 
     done
@@ -30,7 +29,7 @@ parameters="$@" # Save the original parameters
 while [[ $# -gt 0 ]]; do
     par="$1"
     case $par in
-        -Syu) pkgUpdate=true; shift;;
+        -Syu) yay -Syu; shift;;
         -S) pkgInstall=true;  shift;;
         -Rns) pkgRemove=true; shift;;
         -c|-C) comment="$2"; shift 2;;
@@ -46,9 +45,7 @@ fi
 
 
 if [[ $pkgInstall = true ]]; then
-    installPkgs "$pkgs" "$comment"
+    install_pkgs "$pkgs" "$comment"
 elif [[ $pkgRemove = true ]]; then
-    removePkgs "$pkgs"
-elif [[ $pkgUpdate = true ]]; then
-     yay -Syu
+    remove_pkgs "$pkgs"
 fi

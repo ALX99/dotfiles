@@ -6,6 +6,7 @@ chromium
 cmatrix
 code
 compton
+discord
 dunst
 entr
 feh
@@ -23,11 +24,12 @@ neovim
 network-manager-applet
 noto-fonts
 noto-fonts-cjk
+noto-fonts-emoji # Google emojis
 onedrive-abraunegg-git
 openssh
 otf-fira-code
 p7zip
-pacman-contrib
+pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
 polybar
@@ -50,6 +52,7 @@ unzip
 w3m
 wget
 xclip
+xdg-utils
 xorg-xbacklight
 xorg-xprop
 xorg-xrandr
