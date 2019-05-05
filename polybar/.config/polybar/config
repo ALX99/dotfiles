@@ -71,10 +71,10 @@ type = custom/script
 label =  %output%
 format-prefix = " " 
 format-prefix-foreground = ${colors.foreground}
-exec = ~/.scripts/tools/arch_updates.sh
+exec = ~/.scripts/polybar/arch_updates
 interval = 600
-click-left = ~/.scripts/tools/arch_updates.sh --status
-click-right = ~/.scripts/polybar/launch_terminal.sh Paccy -u
+click-left = ~/.scripts/polybar/arch_updates --status
+click-right = ~/.scripts/polybar/launch_terminal.sh paccy -Syu
 
 [module/xwindow]
 type = internal/xwindow
