@@ -1,6 +1,20 @@
 hi Normal guibg=NONE ctermbg=NONE
 "set termguicolors 
 colorscheme gruvbox
+
+if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
+	echo "Downloading junegunn/vim-plug to manage plugins..."
+	silent !mkdir -p ~/.config/nvim/autoload/
+	silent !curl "https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim" > ~/.config/nvim/autoload/plug.vim
+endif
+
+call plug#begin('~/.config/nvim/plugged')
+Plug 'scrooloose/nerdtree'
+Plug 'PotatoesMaster/i3-vim-syntax'
+Plug 'bling/vim-airline'
+call plug#end()
+
+
 "-------------------
 "| Spaces and Tabs |
 "-------------------
@@ -25,7 +39,7 @@ colorscheme gruvbox
     filetype indent on                  " load filetyp-specific intent files
     set wildmenu                        " visual autocomplete for command menu
     set wildmode=longest,full           " Enable file autocomplete in command mode
-    set lazyredraw                       " redraw only when we need to.
+    set lazyredraw                      " redraw only when we need to.
     set showmatch                       " highlight matching [{()}]
     set mat=3                           " tenths of second to blink matching brackets
     set so=15                           " always leave 15 spaces when scrolling
@@ -46,8 +60,8 @@ let mapleader = " "                     " set leader to space
 
 " nmap
 " Relative numbering on and off
-nmap <F1> :set rnu<CR>
-nmap <F2> :set rnu!<CR>
+nmap <F1> :NERDTreeToggle<CR>
+nmap <F2> :call NumberToggle()<CR>
 " Leader mappings 
 nnoremap <leader>w  :w<CR>              " space + w to save
 nnoremap <leader>q  :q<CR>              " space + q to quit
@@ -81,3 +95,11 @@ function! VisualSelection(direction, extra_filter) range
     let @/ = l:pattern
     let @" = l:saved_reg
 endfunction
+
+function! NumberToggle()
+  if(&relativenumber == 1)
+    set norelativenumber
+  else
+    set relativenumber
+  endif
+endfunc
