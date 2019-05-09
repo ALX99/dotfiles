@@ -3,6 +3,6 @@
 *.sqlite3-wal
 refresh_token
 .netrwhist
-gtk-3.0/.config/gtk-3.0/bookmarks
+bookmarks
 nvim/.config/nvim/autoload/
 nvim/.config/nvim/plugged/

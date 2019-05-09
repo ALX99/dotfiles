@@ -52,7 +52,6 @@ $pkgInstall && $pkgRemove && \
 echo "You can't both install and remove packages at the same time!" \
 && exit 1
 
-echo "install is $pkgInstall and remove is $pkgRemove"
 # Either install or remove pkgs but not both
 ($pkgInstall && install_pkgs "${pkgs[@]}") || \
 ($pkgRemove && remove_pkgs "${pkgs[@]}")
