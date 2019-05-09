@@ -2,18 +2,20 @@
 # Pacman + yay wrapper to keep track of installed packages
 
 pkgList=~/dotfiles/.pkgList
-
 install_pkgs(){
-    yay -S --needed "$1" || return 1
+    yay -S --needed "$@" || return 1
 
     # Write the packages to the pkgList
-    for pkg in "$1"; do
-        if [ -z "$2" ]; then
+    for pkg in "${@}"; do
+        sed -i '/'"$pkg"'/d' "$pkgList" # In case it already exists
+
+        if [ -z "$comment" ]; then
             echo "$pkg" >> "$pkgList"
         else
-            echo "$pkg # $2" >> "$pkgList"
+            echo "$pkg # $comment" >> "$pkgList"
         fi
     done
+
     # Sort and remove dupes
     local sorted=$(cat "$pkgList" | sort -u)
     echo "$sorted" > "$pkgList"
@@ -24,8 +26,15 @@ remove_pkgs(){
         sed -i '/'"$pkg"'/d' "$pkgList" 
     done
 }
+# Installs all the packages listed under the packagelist
+install(){
+    yay -S --needed --noconfirm $(cut -d ' ' -f1 $pkgList)
+}
 
 parameters="$@" # Save the original parameters
+pkgInstall=false
+pkgRemove=false
+
 while [[ $# -gt 0 ]]; do
     par="$1"
     case $par in
@@ -33,19 +42,18 @@ while [[ $# -gt 0 ]]; do
         -S) pkgInstall=true;  shift;;
         -Rns) pkgRemove=true; shift;;
         -c|-C) comment="$2"; shift 2;;
-        -*) pacman "$parameters"; exit;; # Pass on to pacman
-        *) pkgs+=( "$par" ); shift;; # If no dash we'll assume this is a package
+        --install) install; shift;;
+        -*) pacman $parameters; exit;; # Pass on to pacman and exit
+        *) pkgs+=($par); shift;; # If no dash we'll assume this is a package
     esac
 done
 
-if [[ $pkgInstall = true && $pkgRemove = true ]]; then
-    echo "You can't both install and remove packages at the same time!"
-    exit 1
-fi
+$pkgInstall && $pkgRemove && \
+echo "You can't both install and remove packages at the same time!" \
+&& exit 1
 
+echo "install is $pkgInstall and remove is $pkgRemove"
+# Either install or remove pkgs but not both
+($pkgInstall && install_pkgs "${pkgs[@]}") || \
+($pkgRemove && remove_pkgs "${pkgs[@]}")
 
-if [[ $pkgInstall = true ]]; then
-    install_pkgs "$pkgs" "$comment"
-elif [[ $pkgRemove = true ]]; then
-    remove_pkgs "$pkgs"
-fi
