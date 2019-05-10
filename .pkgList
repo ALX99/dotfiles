@@ -9,6 +9,9 @@ compton
 discord
 dunst
 entr
+fcitx-configtool # graphical config tool GTK3
+fcitx # JP input method framework
+fcitx-mozc
 feh
 fzf
 htop
