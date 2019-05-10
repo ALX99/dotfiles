@@ -125,6 +125,7 @@ exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/
 exec --no-startup-id xset r rate 210 30 
 exec --no-startup-id ~/.scripts/administrative/entr
 exec --no-startup-id nm-applet
+exec --no-startup-id fcitx
 
 
 ###################################
