@@ -11,9 +11,12 @@ endif
 call plug#begin('~/.config/nvim/plugged')
 Plug 'scrooloose/nerdtree'
 Plug 'PotatoesMaster/i3-vim-syntax'
-Plug 'bling/vim-airline'
+Plug 'itchyny/lightline.vim'
+Plug 'itchyny/vim-gitbranch'
+Plug 'tpope/vim-eunuch' " https://github.com/tpope/vim-eunuch
+Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
+Plug 'w0rp/ale'
 call plug#end()
-
 
 "-------------------
 "| Spaces and Tabs |
@@ -52,9 +55,27 @@ call plug#end()
     set mouse=a                         " mouse control
     set ruler                           " show current position
     set t_Co=256                        " use 256 colour
+
 "----------------
-"|  Misc        |
+"|   Plugins    |
 "----------------
+
+let g:lightline = {
+      \ 'colorscheme': 'seoul256',
+      \ 'active': {
+      \   'left': [ [ 'mode', 'paste' ],
+      \             [ 'gitbranch', 'readonly', 'filename', 'modified' ] ]
+      \ },
+      \ 'component_function': {
+      \   'gitbranch': 'gitbranch#name'
+      \ },
+      \ }
+
+
+"----------------
+"|    Misc      |
+"----------------
+
 set clipboard+=unnamedplus              " use system clipboard (requires xclip)
 let mapleader = " "                     " set leader to space
 
