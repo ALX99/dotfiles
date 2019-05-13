@@ -7,7 +7,6 @@ alias sudo='sudo -A'
 alias h='cd ~ && clear'
 alias lt='ls  ~/.local/share/Trash/files'
 alias grep='grep --color=auto'
-alias rm='rm -i'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest files/directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
 # Listing files
@@ -17,10 +16,14 @@ alias dir='ls --format=long'
 # Use my pacman wrapper instead
 alias p=paccy
 alias sp='sudo pacman'
+# These are better
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -iv'
+alias mkdir='mkdir -p'
+alias hgrep='history | grep '
 
 
-
-hgrep(){ history | grep "$@" ;}
 
 se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
 # Move to trash
