@@ -6,3 +6,6 @@ refresh_token
 bookmarks
 nvim/.config/nvim/autoload/
 nvim/.config/nvim/plugged/
+fcitx/.config/fcitx/
+!fcitx/.config/fcitx/config
+
