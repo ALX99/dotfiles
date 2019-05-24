@@ -1,17 +1,17 @@
-#!/bin/bash
+#!/bin/sh
 # Requires xclip!
 main(){
     isDir=false
     file="$@"
 
     # Check for text argument
-    if [ "$1" == "--text" ]; then
+    if [ "$1" = "--text" ]; then
         clbin
         exit
     fi
 
     # zip files or directory
-    if [ "$#" -gt 1 ] || [[ -d "$file" ]] ; then
+    if [ "$#" -gt 1 ] || [ -d "$file" ] ; then
         zip -FSr archive.zip "$@" >/dev/null
         file=archive.zip 
         isDir=true
@@ -34,7 +34,7 @@ main(){
     $isDir && rm -rf "$file"
 }
 shorten(){
-    echo -n "$(curl -sF 'shorten='"$1" http://0x0.st)" | xclip -selection clipboard
+    curl -sF 'shorten='"$1" http://0x0.st | xclip -selection clipboard
 }
 boring(){
     url=$(curl -sF file=@"$file" https://api.boring.host/api/upload | python3 -c \
