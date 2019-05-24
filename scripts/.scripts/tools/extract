@@ -14,7 +14,7 @@ for arg in "$@"; do
             *.zip)       unzip "$arg"       ;;
             *.Z)         uncompress "$arg"  ;;
             *.7z)        7z x "$arg"        ;;
-            *)           echo "I don't know how to extract "$arg"..." ;;
+            *)           echo "I don't know how to extract $arg..." ;;
         esac
     else
         echo "'$1' is not a valid file!"

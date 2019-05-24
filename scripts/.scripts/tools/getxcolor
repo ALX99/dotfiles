@@ -1,4 +1,3 @@
-#!/bin/bash
-text=$(cat ~/.Xresources)
+#!/bin/sh
 
-cat ~/.Xresources | grep color"$1": | awk {'print $2'}
+grep color"$1": ~/.Xresources | awk {'print $2'}

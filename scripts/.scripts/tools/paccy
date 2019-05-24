@@ -1,6 +1,5 @@
 #!/bin/bash
 # Pacman + yay wrapper to keep track of installed packages
-
 pkgList=~/dotfiles/.pkgList
 install_pkgs(){
     yay -S --needed "$@" || return 1
@@ -28,14 +27,14 @@ remove_pkgs(){
 }
 # Installs all the packages listed under the packagelist
 install(){
-    yay -S --needed --noconfirm $(cut -d ' ' -f1 $pkgList)
+    yay -S --needed --noconfirm "$(cut -d ' ' -f1 "$pkgList")"
 }
 
 parameters="$@" # Save the original parameters
 pkgInstall=false
 pkgRemove=false
 
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     par="$1"
     case $par in
         -Syu) yay -Syu; shift;;
@@ -44,7 +43,7 @@ while [[ $# -gt 0 ]]; do
         -c|-C) comment="$2"; shift 2;;
         --install) install; shift;;
         -*) pacman $parameters; exit;; # Pass on to pacman and exit
-        *) pkgs+=($par); shift;; # If no dash we'll assume this is a package
+        *) pkgs+=("$par"); shift;; # If no dash we'll assume this is a package
     esac
 done
 
