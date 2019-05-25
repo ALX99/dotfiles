@@ -14,6 +14,8 @@ fcitx # JP input method framework
 fcitx-mozc
 feh
 fzf
+ghc
+hlint
 htop
 jdk-openjdk
 libnotify
@@ -44,6 +46,7 @@ reflector
 rofi
 rxvt-unicode
 scrot
+shellcheck
 simple-mtpfs # Mounting android
 speedtest-cli
 ttf-font-awesome

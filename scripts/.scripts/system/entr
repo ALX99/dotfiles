@@ -1,0 +1,6 @@
+#!/usr/bin/sh
+# Resyncs onedrive on sync list change
+ls ~/dotfiles/onedrive/.config/onedrive/sync_list | entr -p -s 'notify-send OneDrive "Resyncing changes"; onedrive --synchronize --resync' &
+
+ls ~/dotfiles/keymaps/colemak | entr -p -s 'dunstify "Updated the colemak layout"; sudo -A cp ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak; setxkbmap colemak' &
+ls ~/.config/dunst/dunstrc | entr -p -s '~/.config/dunst/restart' &

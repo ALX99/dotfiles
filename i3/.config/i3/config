@@ -51,7 +51,7 @@ bindsym $mod+$mod1+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 ##################################
 ### --- Useful Keybindings --- ###
 ##################################
-bindSym $mod+Return exec $term 
+bindsym $mod+Return exec $term 
 bindsym $mod+Shift+w exec feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/
 
 
@@ -112,20 +112,6 @@ bindsym $mod+Shift+n move down 30
 bindsym $mod+Shift+e move up 30
 bindsym $mod+Shift+i move right 30
 
-
-##########################################
-### --- Launching additional stuff --- ###
-##########################################
-
-exec --no-startup-id dunst
-exec --no-startup-id compton -b
-exec --no-startup-id ~/.config/polybar/launch.sh
-exec --no-startup-id redshift
-exec --no-startup-id feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/
-exec --no-startup-id xset r rate 210 30 
-exec --no-startup-id ~/.scripts/administrative/entr
-exec --no-startup-id nm-applet
-exec --no-startup-id fcitx
 
 
 ###################################
