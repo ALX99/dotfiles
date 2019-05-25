@@ -1,6 +1,6 @@
-# Load our .Xresources
-xrdb -load ~/.Xresources &
-# i3
+#!/bin/sh
+[ -f "$HOME/.scripts/system/autostart" ] && . ~/.scripts/system/autostart
+
+#exec dwm
+#startkde
 exec i3
-# Used for dunst to help detect display without display manader
-systemctl --user import-environment DISPLAY

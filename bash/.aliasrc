@@ -9,6 +9,7 @@ alias lt='ls  ~/.local/share/Trash/files'
 alias grep='grep --color=auto'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest files/directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
+alias diff='code --diff' # Easier to read than normal diff
 # Listing files
 alias ls='ls --group-directories-first --color=auto'
 alias l.='ls -d .?*'
@@ -23,6 +24,8 @@ alias rm='rm -iv'
 alias mkdir='mkdir -p'
 alias hgrep='history | grep '
 
+# For cleaning DWM master branch
+alias reset='make clean && rm -f config.h && git reset --hard origin/master'
 
 
 se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
