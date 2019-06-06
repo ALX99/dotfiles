@@ -1,8 +1,8 @@
 alsa-utils
 arch-install-scripts
 breeze-gtk
+cabal-install
 cantarell-fonts
-chromium
 cmatrix
 code
 compton
@@ -13,6 +13,7 @@ fcitx-configtool # graphical config tool GTK3
 fcitx # JP input method framework
 fcitx-mozc
 feh
+firefox
 fzf
 ghc
 hlint
