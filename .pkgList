@@ -38,18 +38,17 @@ p7zip
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
-polybar
 qbittorrent # Torrent :]
 qrencode # Create QR codes
 ranger
 redshift
 reflector
-rofi
 rxvt-unicode
 scrot
 shellcheck
 simple-mtpfs # Mounting android
 speedtest-cli
+sxhkd
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata

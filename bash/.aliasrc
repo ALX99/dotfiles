@@ -3,30 +3,29 @@ alias q=exit
 alias c=clear
 alias r=ranger
 alias e=$EDITOR
-alias sudo='sudo -A'
-alias h='cd ~ && clear'
-alias lt='ls  ~/.local/share/Trash/files'
-alias grep='grep --color=auto'
-alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest files/directories
-alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
-alias diff='code --diff' # Easier to read than normal diff
-# Listing files
-alias ls='ls --group-directories-first --color=auto'
-alias l.='ls -d .?*'
-alias dir='ls --format=long'
-# Use my pacman wrapper instead
+alias h='cd ~'
 alias p=paccy
+alias l.='ls -d .?*'
+alias lt='ls  ~/.local/share/Trash/files'
 alias sp='sudo pacman'
-# These are better
+alias dir='ls --format=long'
+alias diff='code --diff' # Easier to read than normal diff
+alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
+alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
+alias hgrep='history | grep '
+
+# dwm
+alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
+alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
+
+# Better flags
+alias ls='ls --group-directories-first --color=auto'
+alias grep='grep --color=auto'
+alias sudo='sudo -A'
 alias cp='cp -i'
 alias mv='mv -i'
 alias rm='rm -iv'
 alias mkdir='mkdir -p'
-alias hgrep='history | grep '
-
-# For cleaning DWM master branch
-alias reset='make clean && rm -f config.h && git reset --hard origin/master'
-
 
 se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
 # Move to trash

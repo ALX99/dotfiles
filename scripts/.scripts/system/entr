@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 # Resyncs onedrive on sync list change
 ls ~/dotfiles/onedrive/.config/onedrive/sync_list | entr -p -s 'notify-send OneDrive "Resyncing changes"; onedrive --synchronize --resync' &
 
