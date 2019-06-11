@@ -1,6 +1,7 @@
 #!/bin/sh
 [ -f "$HOME/.scripts/system/autostart" ] && . ~/.scripts/system/autostart
 
-#exec dwm
-#startkde
-exec i3
+while true; do
+    /usr/local/bin/dwm 2> /dev/null
+    sleep 1
+done

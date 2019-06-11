@@ -1,11 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 xrdb -load ~/.Xresources &
+setxkbmap colemak &
 dunst &
 compton -b &
-redshift &
 feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/ &
+redshift &
 xset r rate 210 30 &
 ~/.scripts/administrative/entr &
-nm-applet &
-fcitx &
-~/.config/polybar/launch.sh &
+sxhkd &
