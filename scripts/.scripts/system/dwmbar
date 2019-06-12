@@ -1,0 +1,57 @@
+#!/bin/sh
+
+delim="|"
+
+
+# Here is the (big) function that outputs the appearance of the statusbar. It
+# can really be broken down into many submodules which I've commented and
+# explained.
+status() { \
+
+	# Wifi quality percentage and  icon if ethernet is connected.
+	grep "^\s*w" /proc/net/wireless | awk '{ print "", int($3 * 100 / 70) "%" }'
+	sed "s/down//;s/up//" /sys/class/net/e*/operstate
+
+    # Grep first battery percentage
+    percentage=$(cat /sys/class/power_supply/BAT0/capacity)
+    if [ $? -eq 0 ]; then
+        case $percentage in
+		    100|9[0-9])	echo " $percentage%" ;;
+		    8[0-9]|7[0-9])	echo " $percentage%" ;;
+	    	6[0-9]|5[0-9])	echo " $percentage%" ;;
+	    	4[0-9]|3[0-9])	echo " $percentage%" ;;
+            *);;
+        esac
+    fi
+    echo "$delim"
+
+    # Updates
+    # This runs slowly, might remove thiis
+    updates_arch=$(checkupdates 2> /dev/null | wc -l ) || updates_arch=0
+    updates_aur=$(yay -Qum 2> /dev/null | wc -l) || updates_aur=0
+    echo " $(($updates_arch + $updates_aur))"
+    echo "$delim"
+
+    # Get the volume of ALSA's master volume output.  Show an icon if or
+	# not muted.
+	amixer get Master | grep -o "[0-9]*%\|\[on\]\|\[off\]" | sed "s/\[on\]//;s/\[off\]//"
+	echo "$delim"
+
+	# Date and time.
+	date '+%Y %b %d (%a) %I:%M%p'
+	}
+
+while :; do
+	# So all that big status function was just a command that quicking gets
+	# what we want to be the statusbar. This xsetroot command is what sets
+	# it. Note that the tr command replaces newlines with spaces. This is
+	# to prevent some weird issues that cause significant slowing of
+	# everything in dwm. Note entirely sure of the cause, but again, the tr
+	# command easily avoids it.
+	xsetroot -name "$(status | tr '\n' ' ')"
+
+	# Sleep for a minute after changing the status bar before updating it
+	# again. Note that the `refbar` "refreshes" the statusbar by killing
+	# this command. Feel free to change the time interval if you want.
+	sleep 1m
+done
