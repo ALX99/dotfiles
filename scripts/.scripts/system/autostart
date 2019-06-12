@@ -3,6 +3,7 @@ xrdb -load ~/.Xresources &
 setxkbmap colemak &
 dunst &
 compton -b &
+~/.scripts/system/dwmbar &
 feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/ &
 redshift &
 xset r rate 210 30 &

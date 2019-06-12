@@ -6,11 +6,12 @@ cantarell-fonts
 cmatrix
 code
 compton
+dialog
 discord
 dunst
 entr
-fcitx-configtool # graphical config tool GTK3
 fcitx # JP input method framework
+fcitx-configtool # graphical config tool GTK3
 fcitx-mozc
 feh
 firefox

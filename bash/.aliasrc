@@ -21,7 +21,7 @@ alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master
 # Better flags
 alias ls='ls --group-directories-first --color=auto'
 alias grep='grep --color=auto'
-alias sudo='sudo -A'
+#alias sudo='sudo -A'
 alias cp='cp -i'
 alias mv='mv -i'
 alias rm='rm -iv'
