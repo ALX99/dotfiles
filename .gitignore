@@ -4,8 +4,8 @@
 refresh_token
 .netrwhist
 bookmarks
-nvim/.config/nvim/autoload/
-nvim/.config/nvim/plugged/
-fcitx/.config/fcitx/
-!fcitx/.config/fcitx/config
+.config/nvim/autoload/
+.config/nvim/plugged/
+.config/fcitx/
+!.config/fcitx/config
 
