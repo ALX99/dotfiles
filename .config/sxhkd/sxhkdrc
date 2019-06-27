@@ -7,6 +7,9 @@ super + d
 super + b
     $BROWSER
 
+super + c
+    code
+
 super + p
     pcmanfm
 
@@ -28,6 +31,12 @@ XF86AudioMute
 	amixer sset Master toggle; refbar
 XF86Audio{Raise,Lower}Volume
 	amixer sset Master 5%{+,-}; refbar
+
+# Brightness
+XF86MonBrightnessUp
+    xbacklight -inc 5; refbar
+XF86MonBrightnessDown
+    xbacklight -dec 5; refbar
 
 super + F3
     systemctl suspend

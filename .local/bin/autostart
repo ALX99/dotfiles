@@ -1,11 +1,12 @@
 #!/bin/sh
+# A script for launching additional stuff at startup
+
 xrdb -load ~/.Xresources &
-setxkbmap colemak &
+setxkbmap colemak
 dunst &
 compton -b &
-~/.scripts/system/dwmbar &
+dwmbar &
 feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/ &
-redshift &
 xset r rate 210 30 &
-~/.scripts/administrative/entr &
+~/.local/bin/entr &
 sxhkd &

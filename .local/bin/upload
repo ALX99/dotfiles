@@ -1,5 +1,10 @@
 #!/bin/sh
 # Requires xclip!
+
+# A script to upload files to anonfiles and images to boring.host.
+# The link will be shortened and copied to clipboard and if there are
+# several files selected they will be zipped.
+
 main(){
     isDir=false
     file="$@"
@@ -18,6 +23,7 @@ main(){
     fi
 
     notify-send "Upload started"
+
     # Use boring.host for images and anonfile otherwise
     case "${file#*.}" in
         jpg|jpeg|png|gif)

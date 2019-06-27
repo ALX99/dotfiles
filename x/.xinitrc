@@ -1,6 +1,7 @@
 #!/bin/sh
-[ -f "$HOME/.scripts/system/autostart" ] && . ~/.scripts/system/autostart
+[ -f "$HOME/.local/bin/autostart" ] && . ~/.local/bin/autostart
 
+#exec startxfce4
 while true; do
     /usr/local/bin/dwm 2> /dev/null
     sleep 1

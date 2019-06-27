@@ -7,4 +7,4 @@ export PS1="\u@\h \[$(tput sgr0)\]\[\033[38;5;81m\]\W\[$(tput sgr0)\]\[\033[38;5
 
 shopt -s autocd histappend 
 stty -ixon # Disable ctrl-s and ctrl-q.
-[ -f "$HOME/.aliasrc" ] && source ".aliasrc"
+[ -f "$HOME/.aliasrc" ] && source "$HOME/.aliasrc"

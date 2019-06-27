@@ -1,32 +1,41 @@
 #!/bin/bash
 # Script should only be run once after cloning the dotfiles
+
+# Check if a package is installed
 checkPkg(){
-    sudo -A pacman -S $1 --needed --noconfirm >/dev/null 2>&1 || yay -S $1 --needed --noconfirm 
+    pacman -Q $1 &>/dev/null || sudo pacman -S $1 --needed --noconfirm
 }
+# Install yay if needed
 yay_check(){
-if ! pacman -Qi yay >/dev/null 2>&1; then
+if ! pacman -Qi yay &>/dev/null; then
     git clone https://aur.archlinux.org/yay.git ~/yay
     cd ~/yay
     makepkg -si --noconfirm
     rm -rf ~/yay
 fi
 }
+# Move keyboard layout
 keyboard(){
-    sudo -A cp ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+    sudo ln -s  ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 }
+# Start up and enable onedrive
 one_drive(){
     onedrive --synchronize --resync
     systemctl --user enable onedrive
     systemctl --user start onedrive
 }
+# Stow our config
+stow_config(){
+    stow x/
+    stow bash/
+    stow .config/ -t ~/.config/
+    stow .local/ -t ~/.local/
+}
 
-stow $(echo */)
-sudo -A pacman -S $(cat .pkgList) --needed --noconfirm 
 
-checkPkg git
-yay_check
+
+checkPkg git && yay_check
+checkPkg stow && stow_config
+paccy --install # Installs all the packages in the .pkgList
 keyboard
-checkPkg onedrive-abraunegg-git
-checkPkg polybar
-
 one_drive

@@ -1,17 +1,18 @@
 # Runs on login
 
-export PATH="$PATH:$HOME/.scripts/tools" 
+export PATH="$PATH:$HOME/.local/bin/"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export FILE="pcmanfm"
-export TERMINAL="urxvt"
+export TERMINAL="st"
 export BROWSER="firefox"
-export SUDO_ASKPASS="$HOME/.scripts/system/dmenupass"
+export SUDO_ASKPASS="$HOME/.local/bin/dmenupass"
 export GTK_IM_MODULE=xim
 export QT_IM_MODULE=xim
 export XMODIFIERS=@im=fcitx
 
 
+# Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red
 export LESS_TERMCAP_md=$(printf '\e[01;36m') # enter double-bright mode - bold, cyan
 export LESS_TERMCAP_me=$(printf '\e[0m') # turn off all appearance modes (mb, md, so, us)
