@@ -1,5 +1,0 @@
-#!/bin/sh
-
-date=$(date +%F_%H:%M)
-
-ffmpeg -f x11grab -r 30 -s 3400x1440 -i :0.0 /home/red/Hoard/Screencasts/"$date".mkv

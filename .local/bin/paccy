@@ -1,17 +1,21 @@
 #!/bin/bash
 # Pacman + yay wrapper to keep track of installed packages
+
 pkgList=~/dotfiles/.pkgList
 install_pkgs(){
     yay -S --needed "$@" || return 1
 
     # Write the packages to the pkgList
     for pkg in "${@}"; do
-        sed -i '/'"$pkg"'/d' "$pkgList" # In case it already exists
 
-        if [ -z "$comment" ]; then
-            echo "$pkg" >> "$pkgList"
-        else
-            echo "$pkg # $comment" >> "$pkgList"
+        # Only do something if the package already isn't there
+        grep -F "$pkg" "$pkgList" &>/dev/null
+        if [ $? -ne 0 ]; then
+            if [ -z "$comment" ]; then
+                echo "$pkg" >> "$pkgList"
+            else
+                echo "$pkg # $comment" >> "$pkgList"
+            fi
         fi
     done
 
@@ -27,7 +31,7 @@ remove_pkgs(){
 }
 # Installs all the packages listed under the packagelist
 install(){
-    yay -S --needed --noconfirm "$(cut -d ' ' -f1 "$pkgList")"
+    yay -S --needed $(cut -d ' ' -f1 "$pkgList")
 }
 
 parameters="$@" # Save the original parameters

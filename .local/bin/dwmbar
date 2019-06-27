@@ -1,11 +1,12 @@
 #!/bin/sh
+# The DWM bar
 
 delim="|"
 
+# Handle SIGTRAP signals sent by refbar to update the status bar immediately.
+trap 'update' 5
 
-# Here is the (big) function that outputs the appearance of the statusbar. It
-# can really be broken down into many submodules which I've commented and
-# explained.
+# The big status function
 status() { \
 
 	# Wifi quality percentage and  icon if ethernet is connected.
@@ -16,21 +17,18 @@ status() { \
     percentage=$(cat /sys/class/power_supply/BAT0/capacity)
     if [ $? -eq 0 ]; then
         case $percentage in
-		    100|9[0-9])	echo " $percentage%" ;;
-		    8[0-9]|7[0-9])	echo " $percentage%" ;;
-	    	6[0-9]|5[0-9])	echo " $percentage%" ;;
-	    	4[0-9]|3[0-9])	echo " $percentage%" ;;
-            *);;
+		    100|9[0-9]|8[3-9])	    echo " $percentage%" ;;
+		    8[0-2]|7[0-9]|6[6-9])	echo " $percentage%" ;;
+	    	6[0-5]|5[0-9]|49)   	echo " $percentage%" ;;
+	    	4[0-8]|3[2-9])	        echo " $percentage%" ;;
+	    	3[0-1]|2[0-9]|1[5-9])	echo " $percentage%" ;;
+            *)                      echo " $percentage%";;
         esac
     fi
     echo "$delim"
 
-    # Updates
-    # This runs slowly, might remove thiis
-    updates_arch=$(checkupdates 2> /dev/null | wc -l ) || updates_arch=0
-    updates_aur=$(yay -Qum 2> /dev/null | wc -l) || updates_aur=0
-    echo " $(($updates_arch + $updates_aur))"
-    echo "$delim"
+    # Brightness
+    echo "$(xbacklight -get | sed 's/\..*//')%  $delim"
 
     # Get the volume of ALSA's master volume output.  Show an icon if or
 	# not muted.
@@ -41,17 +39,21 @@ status() { \
 	date '+%Y %b %d (%a) %I:%M%p'
 	}
 
-while :; do
+update() { \
 	# So all that big status function was just a command that quicking gets
 	# what we want to be the statusbar. This xsetroot command is what sets
 	# it. Note that the tr command replaces newlines with spaces. This is
 	# to prevent some weird issues that cause significant slowing of
 	# everything in dwm. Note entirely sure of the cause, but again, the tr
 	# command easily avoids it.
-	xsetroot -name "$(status | tr '\n' ' ')"
+	xsetroot -name "$(status | tr '\n' ' ')" &
+    wait
 
-	# Sleep for a minute after changing the status bar before updating it
-	# again. Note that the `refbar` "refreshes" the statusbar by killing
-	# this command. Feel free to change the time interval if you want.
-	sleep 1m
+}
+while :; do
+    update
+    # Sleep for a minute in the background and use wait since
+    # traps can interrupt wait immediately
+	sleep 1m &
+    wait
 done

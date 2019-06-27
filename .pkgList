@@ -7,7 +7,7 @@ cmatrix
 code
 compton
 dialog
-discord
+downgrade
 dunst
 entr
 fcitx # JP input method framework
@@ -19,6 +19,7 @@ fzf
 ghc
 hlint
 htop
+irssi
 jdk-openjdk
 libnotify
 libva-intel-driver
@@ -26,40 +27,44 @@ libva-mesa-driver
 mesa-vdpau
 mlocate
 mpv
+mupdf # PDF viewer
+ncurses # C formatting for VSCode
 neofetch
 neovim
 network-manager-applet
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
+ntfs-3g # NTFS R/W
 onedrive-abraunegg
 openssh
 otf-fira-code
-p7zip
+p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
-qbittorrent # Torrent :]
+qbittorrent
 qrencode # Create QR codes
 ranger
-redshift
+redshift # Bluelight filter
 reflector
-rxvt-unicode
 scrot
 shellcheck
 simple-mtpfs # Mounting android
 speedtest-cli
-sxhkd
+sxhkd # Universal keybindings
+tor-browser
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
 ttf-liberation
-unrar
-unzip
+unrar # RAR
+unzip # ZIP
 w3m
 wget
 xclip
 xdg-utils
+xfce4 # XFCE backup DE
 xorg-xbacklight
 xorg-xprop
 xorg-xrandr
