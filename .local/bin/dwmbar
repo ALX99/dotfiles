@@ -12,6 +12,7 @@ status() { \
 	# Wifi quality percentage and  icon if ethernet is connected.
 	grep "^\s*w" /proc/net/wireless | awk '{ print "", int($3 * 100 / 70) "%" }'
 	sed "s/down//;s/up//" /sys/class/net/e*/operstate
+    echo "$delim"
 
     # Grep first battery percentage
     percentage=$(cat /sys/class/power_supply/BAT0/capacity)

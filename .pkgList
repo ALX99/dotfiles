@@ -27,7 +27,6 @@ libva-mesa-driver
 mesa-vdpau
 mlocate
 mpv
-mupdf # PDF viewer
 ncurses # C formatting for VSCode
 neofetch
 neovim
@@ -66,6 +65,9 @@ xclip
 xdg-utils
 xfce4 # XFCE backup DE
 xorg-xbacklight
+xorg-xinput
 xorg-xprop
 xorg-xrandr
+zathura
+zathura-pdf-poppler
 zip
