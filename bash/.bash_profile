@@ -7,9 +7,7 @@ export FILE="pcmanfm"
 export TERMINAL="st"
 export BROWSER="firefox"
 export SUDO_ASKPASS="$HOME/.local/bin/dmenupass"
-export GTK_IM_MODULE=xim
-export QT_IM_MODULE=xim
-export XMODIFIERS=@im=fcitx
+export _JAVA_AWT_WM_NONREPARENTING=1
 
 
 # Colour for man pages

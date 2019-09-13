@@ -1,4 +1,5 @@
 alsa-utils
+android-studio
 arch-install-scripts
 breeze-gtk
 cabal-install
@@ -7,19 +8,16 @@ cmatrix
 code
 compton
 dialog
+dmenu
 downgrade
 dunst
 entr
-fcitx # JP input method framework
-fcitx-configtool # graphical config tool GTK3
-fcitx-mozc
 feh
 firefox
 fzf
 ghc
 hlint
 htop
-irssi
 jdk-openjdk
 libnotify
 libva-intel-driver
@@ -52,7 +50,6 @@ shellcheck
 simple-mtpfs # Mounting android
 speedtest-cli
 sxhkd # Universal keybindings
-tor-browser
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
@@ -68,6 +65,7 @@ xorg-xbacklight
 xorg-xinput
 xorg-xprop
 xorg-xrandr
+xorg-xsetroot # DWM bar
 zathura
 zathura-pdf-poppler
 zip
