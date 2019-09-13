@@ -1,4 +1,6 @@
 #!/bin/bash
+# NOT EVEN CLOSE TO BE WORKING
+# Missing: stow not working, onedrive no, etc etc, create trashpath
 # Script should only be run once after cloning the dotfiles
 
 # Check if a package is installed
