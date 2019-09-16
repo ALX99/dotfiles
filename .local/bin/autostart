@@ -2,11 +2,12 @@
 # A script for launching additional stuff at startup
 
 xrdb -load ~/.Xresources &
+redshift &
 setxkbmap colemak
 dunst &
 compton -b &
 dwmbar &
-feh --randomize --bg-fill ~/OneDrive/Wallpapers/3440x1440/ &
+feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ &
 xset r rate 210 30 &
 ~/.local/bin/entr &
 sxhkd & # Hotkey daemon
