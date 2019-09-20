@@ -13,6 +13,7 @@ if ! pacman -Qi yay &>/dev/null; then
     git clone https://aur.archlinux.org/yay.git ~/yay
     cd ~/yay
     makepkg -si --noconfirm
+    cd ~/dotfiles
     rm -rf ~/yay
 fi
 }
@@ -34,6 +35,7 @@ one_drive(){
 }
 # Stow our config
 stow_config(){
+    rm -f ~/.xinitrc ~/.bash_profile ~/.bashrc ~/.config/gtk3-0/settings.ini
     stow x/
     stow bash/
     stow .config/ -t ~/.config/
