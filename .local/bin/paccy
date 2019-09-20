@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pacman + yay wrapper to keep track of installed packages
 
-pkgList=~/dotfiles/.pkgList
+pkgList=~/dotfiles/.pkgList # Path to package list
 install_pkgs(){
     yay -S --needed "$@" || return 1
 
@@ -51,11 +51,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Either install or remove pkgs but not both
 $pkgInstall && $pkgRemove && \
 echo "You can't both install and remove packages at the same time!" \
 && exit 1
 
-# Either install or remove pkgs but not both
-($pkgInstall && install_pkgs "${pkgs[@]}") || \
-($pkgRemove && remove_pkgs "${pkgs[@]}")
-
+$pkgInstall && install_pkgs "${pkgs[@]}"
+$pkgRemove && remove_pkgs "${pkgs[@]}"
