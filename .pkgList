@@ -2,12 +2,13 @@ alsa-utils
 android-studio
 arch-install-scripts
 breeze-gtk
-cabal-install
 cantarell-fonts
 cmatrix
 code
 compton
+dash
 dialog
+discord
 dmenu
 downgrade
 dunst
@@ -16,12 +17,18 @@ feh
 firefox
 fzf
 ghc
-hlint
 htop
+intellij-idea-community-edition
+jdk8-openjdk
 jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
+libx11 # Lab 1 reqs
+libxaw # Lab 1 reqs
+libxext # Lab 1 reqs
+libxmu # Lab 1 reqs
+libxt # Lab 1 reqs
 mesa-vdpau
 mlocate
 mpv
@@ -47,7 +54,6 @@ redshift # Bluelight filter
 reflector
 scrot
 shellcheck
-simple-mtpfs # Mounting android
 speedtest-cli
 sxhkd # Universal keybindings
 ttf-font-awesome

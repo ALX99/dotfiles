@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # NOT EVEN CLOSE TO BE WORKING
 # Missing: stow not working, onedrive no, etc etc, create trashpath
 # Script should only be run once after cloning the dotfiles
@@ -20,6 +20,12 @@ fi
 keyboard(){
     sudo ln -s  ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 }
+trash(){
+    mkdir -p ~/.local/share/Trash/files
+}
+dash_install(){
+    sudo ln -sfT dash /usr/bin/sh
+}
 # Start up and enable onedrive
 one_drive(){
     onedrive --synchronize --resync
@@ -38,6 +44,8 @@ stow_config(){
 
 checkPkg git && yay_check
 checkPkg stow && stow_config
-paccy --install # Installs all the packages in the .pkgList
+checkPkg dash && dash_install # Bash is bloated
+trash # Setup trash path
+yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
 keyboard
 one_drive
