@@ -24,43 +24,43 @@ xkb_symbols "basic" {
     key <AD01> { [            q,            Q,      adiaeresis,       Adiaeresis, dollar ] };
     key <AD02> { [            w,            W,            plus,            Aring ] };
     key <AD03> { [            f,            F,           minus,           Atilde ] };
-    key <AD04> { [            p,            P,        asterisk,         Ooblique ] };
+    key <AD04> { [            p,            P,                          Ooblique ] };
     key <AD05> { [            b,            B,     asciicircum,       asciitilde ] };
     key <AD06> { [            j,            J,         dstroke,          Dstroke ] };
-    key <AD07> { [            l,            L,            Home,          Lstroke ] };
-    key <AD08> { [            u,            U,             End,           Uacute ] };
+    key <AD07> { [            l,            L,                           Lstroke ] };
+    key <AD08> { [            u,            U,                            Uacute ] };
     key <AD09> { [            y,            Y,      DeleteWord,       Udiaeresis ] };
-    key <AD10> { [    ISO_Level3_Shift    ] };
+    key <AD10> { [    ] };
     key <AD11> { [  bracketleft,    braceleft,   guillemotleft,        0x1002039 ] };
     key <AD12> { [ bracketright,   braceright,  guillemotright,        0x100203a ] };
     key <BKSL> { [    backslash,          bar,      asciitilde,       asciitilde ] };
 
-    key <AC01> { [            a,            A,       semicolon,         Aogonek ] };
-    key <AC02> { [            r,            R,           colon,       asciitilde ] }; 
-    key <AC03> { [            s,            S,       parenleft,           Sacute ] }; 
-    key <AC04> { [            t,            T,      parenright, dead_doubleacute ] };
+    key <AC01> { [            a,            A,                           Aogonek ] };
+    key <AC02> { [            r,            R,                        asciitilde ] }; 
+    key <AC03> { [            s,            S,                            Sacute ] }; 
+    key <AC04> { [            t,            T,                  dead_doubleacute ] };
     key <AC05> { [            g,            G,  dead_diaeresis,       asciitilde ] };
-    key <AC06> { [            k,            K,            Left,       asciitilde ] };
-    key <AC07> { [            n,            N,            Down,           Nacute ] };
-    key <AC08> { [            e,            E,              Up,          Eogonek ] };
-    key <AC09> { [            i,            I,           Right,          Iumlaut ] };
+    key <AC06> { [            k,            K,                        asciitilde ] };
+    key <AC07> { [            n,            N,                            Nacute ] };
+    key <AC08> { [            e,            E,                           Eogonek ] };
+    key <AC09> { [            i,            I,                           Iumlaut ] };
     key <AC10> { [            o,            O,          oacute,           Oacute ] };
     key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] }; 
 
-    key <AB01> { [            x,            X,      underscore,        Zabovedot ] };
+    key <AB01> { [            x,            X,                         Zabovedot ] };
     key <AB02> { [            c,            C,          zacute,           Zacute ] };
     key <AB03> { [            d,            D,           equal,           Cacute ] };
-    key <AB04> { [            v,            V,       ampersand,               OE ] };
+    key <AB04> { [            v,            V,                                OE ] };
     key <AB05> { [            z,            Z,      dead_breve,       asciitilde ] };
-    key <AB06> { [            m,            M,       braceleft,       asciitilde ] };
-    key <AB07> { [            h,            H,      braceright,       asciitilde ] };
+    key <AB06> { [            m,            M,                        asciitilde ] };
+    key <AB07> { [            h,            H,                        asciitilde ] };
     key <AB08> { [        comma,         less,    dead_cedilla,       asciitilde ] };
     key <AB09> { [       period,      greater,   dead_abovedot,       asciitilde ] };
     key <AB10> { [        slash,     question,    questiondown,       asciitilde ] };
 
     key <CAPS> { [ ISO_Level3_Shift ] };
     key <LSGT> { [        minus,   underscore,          endash,           emdash ] };
-    key <SPCE> { [        space,        space,          Escape,     nobreakspace ] };
+    key <SPCE> { [        space,        space,                      nobreakspace ] };
 
     include "level3(ralt_switch)"
 };
