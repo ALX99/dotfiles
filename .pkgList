@@ -3,6 +3,7 @@ android-studio
 arch-install-scripts
 breeze-gtk
 cantarell-fonts
+cloc # count lines of code
 cmatrix
 code
 compton
@@ -19,8 +20,8 @@ fzf
 ghc
 htop
 intellij-idea-community-edition
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
@@ -56,6 +57,7 @@ scrot
 shellcheck
 speedtest-cli
 sxhkd # Universal keybindings
+terminus-font
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
