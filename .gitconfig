@@ -1,0 +1,49 @@
+[alias]
+    # Shortening aliases
+    co = checkout
+    cob = checkout -b
+    f = fetch
+    c = commit
+    p = push
+    branches = branch -a
+    remotes = remote -v
+    bd = branch -d
+    bD = branch -D
+    dc = diff --cached
+    s = status
+    st = status -sb
+    a = add
+
+    # Feature improving aliases
+    amend = commit —amend —reuse-message=HEAD
+    branch-name = rev-parse --abbrev-ref HEAD
+    publish = "!git push -u origin $(git branch-name)"
+    unpublish = "!git push origin :$(git branch-name)"
+    unstage = reset HEAD
+
+    # Complex aliases
+    plog = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
+    tlog = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
+    lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+    rank = shortlog -sn --no-merges
+
+[core]
+	pager = diff-so-fancy | less --tabs=4 -RFX
+[color]
+	ui = true
+[color "diff-highlight"]
+	oldNormal = red bold
+	oldHighlight = red bold 52
+	newNormal = green bold
+	newHighlight = green bold 22
+[color "diff"]
+	meta = 11
+	frag = magenta bold
+	commit = yellow bold
+	old = red bold
+	new = green bold
+	whitespace = red reverse
+[diff-so-fancy]
+	markEmptyLines = false
+[pager]
+    diff = diff-so-fancy | less --tabs=4 -RFXS --pattern '^(Date|added|deleted|modified): '

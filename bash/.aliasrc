@@ -26,9 +26,9 @@ alias rm='rm -iv'
 alias mkdir='mkdir -p'
 
 # git
-alias s="git status"
-alias pop="git stash pop"
-alias diff="code && git difftool"
+alias g='git'
+alias gc='git clone'
+alias pop='git stash pop'
 stash(){
     git stash save "$@"
 }
@@ -40,38 +40,7 @@ alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master
 se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
 # Move to trash
 t(){ mv --backup=t "$@" ~/.local/share/Trash/files ;}
-# Clear trash
-ct() {
-    ls -1 ~/.local/share/Trash/files/
-    read -s -n 1 -p "Do you want to delete files and folders? (y/N): " confirm
-    echo
-    if [[ "$confirm" =~ ^([Yy]) ]]; then
-        rm -rf ~/.local/share/Trash/files/*
-        echo "Files deleted!"
-    else
-        echo "Okay, aborting!"
-    fi 
-}
-# Show a list of processes and select one to kill
-fkill() {
-    local pid
-    if [ "$UID" != "0" ]; then
-        pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}')
-    else
-        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-    fi
 
-    if [ "x$pid" != "x" ]
-    then
-        echo $pid | xargs kill -${1:-9}
-    fi
-}
-go() {
-  local dir
-  dir=$(find ${1:-.} -path '*/\.*' -prune \
-                  -o -type d -print 2> /dev/null | fzf +m) &&
-  cd "$dir"
-}
 cheat(){
     curl cheat.sh/$1
 }

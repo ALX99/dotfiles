@@ -1,0 +1,11 @@
+#!/bin/sh
+
+ls -1 ~/.local/share/Trash/files/
+while true; do
+    read -r -p "Do you want to delete files and folders? (y/N): " yn
+    case $yn in
+        [Yy]* ) rm -rf ~/.local/share/Trash/files/*; echo "Files deleted!"; break;;
+        [Nn]* ) exit;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done

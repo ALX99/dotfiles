@@ -1,0 +1,29 @@
+-----;-----------;------------
+Alias;Explanation;Full Command
+-----;-----------;------------
+a;Add stuff to stage;add
+c;Commit staged changes;commit
+p;Push local commits;push
+f;Fetch objects and refs;fetch
+s;Working tree status;status
+st;Workint tree status;status -sb
+co;Go to branch;checkout
+cob;Create branch;checkout -b
+dc;Diff staged changes;diff --cached
+bd;Delete branch;branch -d
+bD;Force delete branch;branch -D
+branches;List all branches;branch -a
+remotes;List all remotes;remote -v
+
+-----------------;-----------;------------
+Feature Improving;Explanation;Full Command
+-----------------;-----------;------------
+unstage;Unstage changes;reset HEAD
+amend;Add staged files to previous commit;commit --amend --reuse-message=HEAD
+branch-name;Print branch name;rev-parse --abbre-ref HEAD
+publish;Publish branch
+unpublish;Unpublish branch
+lg;Better log
+tlog;Better text log
+plog;Better log
+rank;Show num of commits by author
