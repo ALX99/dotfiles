@@ -10,7 +10,6 @@ endif
 
 call plug#begin('~/.config/nvim/plugged')
 Plug 'scrooloose/nerdtree'
-Plug 'PotatoesMaster/i3-vim-syntax'
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
 Plug 'tpope/vim-eunuch' " https://github.com/tpope/vim-eunuch
