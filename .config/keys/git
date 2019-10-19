@@ -9,6 +9,8 @@ s;Working tree status;status
 st;Workint tree status;status -sb
 co;Go to branch;checkout
 cob;Create branch;checkout -b
+dt;Diff Tool;difftool
+mt;Merge Tool;mergetool
 dc;Diff staged changes;diff --cached
 bd;Delete branch;branch -d
 bD;Force delete branch;branch -D

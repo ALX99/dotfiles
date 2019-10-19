@@ -15,6 +15,8 @@
     a = add
     stash = stash save
     pop = stash pop
+    dt=difftool
+    mt=mergetool
 
     # Feature improving aliases
     amend = commit —amend —reuse-message=HEAD
@@ -47,5 +49,11 @@
 	whitespace = red reverse
 [diff-so-fancy]
 	markEmptyLines = false
-[pager]
-    diff = diff-so-fancy | less --tabs=4 -RFXS --pattern '^(Date|added|deleted|modified): '
+[merge]
+    tool = vscode
+[mergetool "vscode"]
+    cmd = code --wait $MERGED
+[diff]
+    tool = vscode
+[difftool "vscode"]
+    cmd = code --wait --diff $LOCAL $REMOTE
