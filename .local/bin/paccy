@@ -7,7 +7,6 @@ install_pkgs(){
 
     # Write the packages to the pkgList
     for pkg in "${@}"; do
-
         # Only do something if the package already isn't there
         grep -F "$pkg" "$pkgList" &>/dev/null
         if [ $? -ne 0 ]; then
@@ -48,6 +47,8 @@ while [ $# -gt 0 ]; do
         -S) pkgInstall=true;  shift;;
         -Rns) pkgRemove=true; shift;;
         -c|-C) comment="$2"; shift 2;;
+        -fa) yay --aur $parameters; exit;; # Search in AUR
+        -fr) yay --repo $parameters; exit;; # Search in repo
         --install) install; shift;;
         --update) update; shift;;
         -*) pacman $parameters; exit;; # Pass on to pacman and exit

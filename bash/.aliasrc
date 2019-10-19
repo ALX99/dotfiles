@@ -6,12 +6,17 @@ alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
 alias l.='ls -d .?*'
-alias lt='ls  ~/.local/share/Trash/files'
+alias lt='trash-list'
+alias la='ls -la'
 alias sp='sudo pacman'
 alias dir='ls --format=long'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
+alias hrun='$(history | cut -c 8- | fzf --tac)'
 alias hgrep="history | cut -c 8- | fzf --tac | xclip -i -sel clip"
+alias bin='cd ~/.local/bin'
+alias config='cd ~/dotfiles/.config'
+alias dots='cd ~/dotfiles'
 
 # dwm
 alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
@@ -28,19 +33,16 @@ alias mkdir='mkdir -p'
 # git
 alias g='git'
 alias gc='git clone'
-alias pop='git stash pop'
-stash(){
-    git stash save "$@"
-}
 
 # dwm
 alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
 alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
 
+goto(){
+    dir=$(find "${1:-.}" -path '*/\.*' -prune \
+        -o -type d -print 2> /dev/null | fzf +m) &&
+        cd "$dir"
+}
 se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
 # Move to trash
-t(){ mv --backup=t "$@" ~/.local/share/Trash/files ;}
-
-cheat(){
-    curl cheat.sh/$1
-}
+t(){ trash-put $@;}

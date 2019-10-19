@@ -12,12 +12,15 @@ cob;Create branch;checkout -b
 dc;Diff staged changes;diff --cached
 bd;Delete branch;branch -d
 bD;Force delete branch;branch -D
+stash;Stash changes;stash save
+pop;Pop the latest stash;stash pop
 branches;List all branches;branch -a
 remotes;List all remotes;remote -v
 
------------------;-----------;------------
-Feature Improving;Explanation;Full Command
------------------;-----------;------------
+------------;-----------;------------
+Improvements;Explanation;Full Command
+------------;-----------;------------
+mm;Merge master with working tree;pull origin master:master
 unstage;Unstage changes;reset HEAD
 amend;Add staged files to previous commit;commit --amend --reuse-message=HEAD
 branch-name;Print branch name;rev-parse --abbre-ref HEAD
@@ -26,4 +29,4 @@ unpublish;Unpublish branch
 lg;Better log
 tlog;Better text log
 plog;Better log
-rank;Show num of commits by author
+rank;Show num of commits by author;shortlog -sn --no-merges

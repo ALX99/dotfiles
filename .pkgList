@@ -25,8 +25,8 @@ ghc
 gource
 htop
 intellij-idea-community-edition
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
@@ -53,6 +53,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
+python
 qbittorrent
 qrencode # Create QR codes
 ranger
@@ -63,6 +64,8 @@ shellcheck
 speedtest-cli
 sxhkd # Universal keybindings
 terminus-font
+tldr
+trash-cli
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
@@ -73,7 +76,6 @@ w3m
 wget
 xclip
 xdg-utils
-xfce4 # XFCE backup DE
 xorg-xbacklight
 xorg-xinput
 xorg-xprop
