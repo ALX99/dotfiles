@@ -20,9 +20,7 @@ alias dots='cd ~/dotfiles'
 alias bye='([ -f ~/.HAS_UPDATED ] && rm -f ~/.HAS_UPDATED>/dev/null && shutdown now) || systemctl hibernate'
 
 
-# dwm
-alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
-alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
+alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
 
 # Better flags
 alias ls='ls --group-directories-first --color=auto'

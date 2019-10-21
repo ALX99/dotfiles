@@ -27,13 +27,13 @@ main(){
     # Use boring.host for images and anonfile otherwise
     case "${file#*.}" in
         jpg|jpeg|png|gif)
-            boring;;
+            oxo;;
         *)
-            anon;;
+            anon
+            # Shorten the url
+            shorten "$url";;
     esac
 
-    # Shorten the url
-    shorten "$url"
     notify-send "Link copied to clipboard!"
 
     # Remove archize.zip if directory
@@ -42,8 +42,11 @@ main(){
 shorten(){
     curl -sF 'shorten='"$1" http://0x0.st | xclip -selection clipboard
 }
+oxo(){
+    curl -sF file=@"$file" http://0x0.st | xclip -selection clipboard
+}
 boring(){
-    url=$(curl -sF file=@"$file" https://api.boring.host/api/upload | python3 -c \
+    url=$(curl -sF file=@"$file" https://api.boring.host/api/v1/upload | python3 -c \
         "import sys, json; print(json.load(sys.stdin)['data']['direct_url'])")
 }
 clbin(){

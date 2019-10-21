@@ -51,8 +51,8 @@ while [ $# -gt 0 ]; do
         -S) pkgInstall=true; touch ~/.HAS_UPDATED; shift;;
         -Rns) pkgRemove=true; shift;;
         -c|-C) comment="$2"; shift 2;;
-        -fa) yay --aur $parameters; exit;; # Search in AUR
-        -fr) yay --repo $parameters; exit;; # Search in repo
+        -sa) shift; yay --aur $parameters; exit;; # Search in AUR
+        -sr) shift; yay --repo ${parameters:1}; exit;; # Search in repo
         --install) install; shift;;
         --update) update; shift;;
         -*) pacman $parameters; exit;; # Pass on to pacman and exit
