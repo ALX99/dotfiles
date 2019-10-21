@@ -33,7 +33,11 @@ install(){
     yay -S --needed $(cut -d ' ' -f1 "$pkgList")
 }
 update(){
-    sudo reflector --latest 200 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+    echo "Updating mirrors... Please be patinet"
+    # packages are signed which pacman verifies.
+    # packages replaced with another one through MITM won't instsall.
+    sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
+    echo "Done!"
 }
 
 parameters="$@" # Save the original parameters
@@ -43,8 +47,8 @@ pkgRemove=false
 while [ $# -gt 0 ]; do
     par="$1"
     case $par in
-        -Syu) yay -Syu; shift;;
-        -S) pkgInstall=true;  shift;;
+        -Syu) yay -Syu; touch ~/.HAS_UPDATED; shift;;
+        -S) pkgInstall=true; touch ~/.HAS_UPDATED; shift;;
         -Rns) pkgRemove=true; shift;;
         -c|-C) comment="$2"; shift 2;;
         -fa) yay --aur $parameters; exit;; # Search in AUR

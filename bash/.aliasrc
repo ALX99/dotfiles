@@ -17,6 +17,8 @@ alias hgrep="history | cut -c 8- | fzf --tac | xclip -i -sel clip"
 alias bin='cd ~/.local/bin'
 alias config='cd ~/dotfiles/.config'
 alias dots='cd ~/dotfiles'
+alias bye='([ -f ~/.HAS_UPDATED ] && rm -f ~/.HAS_UPDATED>/dev/null && shutdown now) || systemctl hibernate'
+
 
 # dwm
 alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
