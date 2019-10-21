@@ -25,16 +25,11 @@ ghc
 gource
 htop
 intellij-idea-community-edition
-jdk-openjdk
 jdk8-openjdk
+jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
-libx11 # Lab 1 reqs
-libxaw # Lab 1 reqs
-libxext # Lab 1 reqs
-libxmu # Lab 1 reqs
-libxt # Lab 1 reqs
 mesa-vdpau
 mlocate
 mpv
@@ -45,7 +40,6 @@ network-manager-applet
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
-ntfs-3g # NTFS R/W
 onedrive-abraunegg
 openssh
 otf-fira-code
@@ -54,6 +48,8 @@ pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
 python
+python3
+python-pip
 qbittorrent
 qrencode # Create QR codes
 ranger
@@ -61,6 +57,7 @@ redshift # Bluelight filter
 reflector
 scrot
 shellcheck
+slack-desktop
 speedtest-cli
 sxhkd # Universal keybindings
 terminus-font
