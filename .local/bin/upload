@@ -52,7 +52,7 @@ clbin(){
     shorten "$url"
 }
 anon(){
-    url=$(curl -sF file=@"$file" https://anonfile.com/api/upload | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['file']['url']['full'])")
+    url=$(curl -sF file=@"$file" https://api.anonfile.com/upload | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['file']['url']['full'])")
 }
 # Backup in case anon stops working
 file(){
