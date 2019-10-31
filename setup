@@ -23,6 +23,13 @@ keyboard(){
 dash_install(){
     sudo ln -sfT dash /usr/bin/sh
 }
+zsh_install(){
+    sh -c "$(wget -O- https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+    cp  myTheme.zsh-theme ~/.oh-my-zsh/themes/
+    chsh -s /bin/zsh
+}
 # Start up and enable onedrive
 one_drive(){
     onedrive --synchronize --resync
@@ -42,6 +49,7 @@ stow_config(){
 checkPkg git && yay_check
 checkPkg stow && stow_config
 checkPkg dash && dash_install # Bash is bloated
+checkPkg zsh && zsh_install
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
 keyboard
 one_drive
