@@ -26,25 +26,25 @@ main(){
 
     # Use boring.host for images and anonfile otherwise
     case "${file#*.}" in
+
         jpg|jpeg|png|gif)
-            boring;;
+            oxo;;
         *)
             anon;;
     esac
 
     # Shorten the url
-    shorten "$url"
     notify-send "Link copied to clipboard!"
 
     # Remove archize.zip if directory
     $isDir && rm -rf "$file"
 }
+oxo(){
+    url=$(curl -sF file=@"$file" http://0x0.st)
+    echo "$url" | xclip -selection clipboard
+}
 shorten(){
     curl -sF 'shorten='"$1" http://0x0.st | xclip -selection clipboard
-}
-boring(){
-    url=$(curl -sF file=@"$file" https://api.boring.host/api/upload | python3 -c \
-        "import sys, json; print(json.load(sys.stdin)['data']['direct_url'])")
 }
 clbin(){
     url=$(xclip -o | curl -sF 'clbin=<-' https://clbin.com)
@@ -53,6 +53,7 @@ clbin(){
 }
 anon(){
     url=$(curl -sF file=@"$file" https://anonfile.com/api/upload | python3 -c "import sys, json; print(json.load(sys.stdin)['data']['file']['url']['full'])")
+    shorten "$url"
 }
 # Backup in case anon stops working
 file(){
