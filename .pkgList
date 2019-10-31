@@ -1,3 +1,4 @@
+adb
 alsa-utils
 android-studio
 android-tools
@@ -16,17 +17,17 @@ discord
 dmenu
 downgrade
 dunst
-entr
 erlang
 feh
 firefox
 fzf
 ghc
+glibc
 gource
 htop
 intellij-idea-community-edition
-jdk-openjdk
 jdk8-openjdk
+jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
@@ -84,3 +85,4 @@ xorg-xsetroot # DWM bar
 zathura
 zathura-pdf-poppler
 zip
+zsh
