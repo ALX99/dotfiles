@@ -50,6 +50,7 @@ checkPkg git && yay_check
 checkPkg stow && stow_config
 checkPkg dash && dash_install # Bash is bloated
 checkPkg zsh && zsh_install
+cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
 keyboard
 one_drive

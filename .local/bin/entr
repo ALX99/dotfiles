@@ -1,6 +1,0 @@
-#!/bin/sh
-# Resyncs onedrive on sync list change
-ls ~/.config/onedrive/sync_list | entr -p -s 'notify-send OneDrive "Resyncing changes"; onedrive --synchronize --resync' &
-
-# Restart dunst
-ls ~/.config/dunst/dunstrc | entr -p -s '~/.config/dunst/restart' &
