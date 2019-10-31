@@ -5,8 +5,9 @@ alias r=ranger
 alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
+alias lt=trash-list
+alias lt=trash-empty
 alias l.='ls -d .?*'
-alias lt='trash-list'
 alias la='ls -la'
 alias sp='sudo pacman'
 alias dir='ls -la'
@@ -45,3 +46,4 @@ goto(){
 }
 # Move to trash
 t(){ trash-put $@;}
+x(){ extract $@;}
