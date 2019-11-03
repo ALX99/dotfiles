@@ -5,19 +5,17 @@ android-tools
 arch-install-scripts
 breeze-gtk
 cantarell-fonts
-cloc
 cloc # count lines of code
 cmatrix
 code
 compton
 dash
 dialog
-diff-so-fancy
+diff-so-fancy # better looking terminal diffs
 discord
 dmenu
 downgrade
 dunst
-erlang
 feh
 firefox
 fzf
@@ -31,13 +29,8 @@ jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
-libx11 # Lab 1 reqs
-libxaw # Lab 1 reqs
-libxext # Lab 1 reqs
-libxmu # Lab 1 reqs
-libxt # Lab 1 reqs
 mesa-vdpau
-mlocate
+mlocate # Locate
 mpv
 ncurses # C formatting for VSCode
 neofetch
@@ -46,7 +39,6 @@ network-manager-applet
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
-ntfs-3g # NTFS R/W
 onedrive-abraunegg
 openssh
 otf-fira-code
@@ -85,4 +77,5 @@ xorg-xsetroot # DWM bar
 zathura
 zathura-pdf-poppler
 zip
+zmap # Network scanner
 zsh
