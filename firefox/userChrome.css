@@ -41,3 +41,11 @@
   /* Negative right-margin to keep page from being pushed to the side. */
   margin-left: calc((var(--wide-tab-width) - var(--thin-tab-width)) * -1) !important;
 }
+
+/* Hide scroll bar */
+:-moz-any(#content,#appcontent) browser{
+ margin-right:-14px!important;
+ overflow-y:scroll;
+ margin-bottom:-14px!important;
+ overflow-x:scroll;
+}
