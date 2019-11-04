@@ -5,12 +5,12 @@ alias r=ranger
 alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
-alias lt=trash-list
 alias ct=trash-empty
-alias l.='ls -ld .?* '
-alias la='ls -la'
+alias lt=trash-list
+alias l.="ls -od .?*"
+alias la="ls -oa"
+alias ll="ls -o"
 alias sp='sudo pacman'
-alias dir='ls -la'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
 alias hrun='$(history | cut -c 8- | fzf --tac)'
@@ -29,6 +29,7 @@ alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 
 # Better flags
+alias ls='ls -ht --color=auto --group-directories-first'
 alias grep='grep --color=auto'
 alias cp='cp -i'
 alias mv='mv -i'
