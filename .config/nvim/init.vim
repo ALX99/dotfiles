@@ -1,6 +1,4 @@
 hi Normal guibg=NONE ctermbg=NONE
-"set termguicolors 
-colorscheme gruvbox
 
 if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 	echo "Downloading junegunn/vim-plug to manage plugins..."
@@ -15,7 +13,11 @@ Plug 'itchyny/vim-gitbranch'
 Plug 'tpope/vim-eunuch' " https://github.com/tpope/vim-eunuch
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'w0rp/ale'
+Plug 'dracula/vim', { 'as': 'dracula' }
 call plug#end()
+
+set termguicolors 
+colorscheme dracula
 
 "-------------------
 "| Spaces and Tabs |
@@ -80,9 +82,9 @@ let mapleader = " "                     " set leader to space
 
 " nmap
 " Relative numbering on and off
-nmap <F1> :NERDTreeToggle<CR>
 nmap <F2> :call NumberToggle()<CR>
 " Leader mappings 
+nnoremap <leader>t  :NERDTreeToggle<CR> " Nerdtree
 nnoremap <leader>w  :w<CR>              " space + w to save
 nnoremap <leader>q  :q<CR>              " space + q to quit
 nnoremap <leader>Q  :q!<CR>             " space + Q to force quit
@@ -94,9 +96,6 @@ nnoremap <leader>/  :noh<CR>            " space + / remove highlighed searches
 " vmap
 " Pressing * searches for the current selection
 vnoremap <silent> * :<C-u>call VisualSelection('', '')<CR>/<C-R>=@/<CR><CR>
-
-" reload the Xresources file on save
-autocmd BufWritePost ~/.Xresources !xrdb %
 
 " Function for searching
 function! VisualSelection(direction, extra_filter) range
