@@ -16,6 +16,7 @@ bd;Delete branch;branch -d
 bD;Force delete branch;branch -D
 stash;Stash changes;stash save
 pop;Pop the latest stash;stash pop
+sl;Show stash list;stash list
 branches;List all branches;branch -a
 remotes;List all remotes;remote -v
 
