@@ -5,11 +5,12 @@ alias r=ranger
 alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
-alias l.='ls -d .?*'
-alias lt='trash-list'
+alias lt=trash-list
+alias ct=trash-empty
+alias l.='ls -ld .?* '
 alias la='ls -la'
 alias sp='sudo pacman'
-alias dir='ls --format=long'
+alias dir='ls -la'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
 alias hrun='$(history | cut -c 8- | fzf --tac)'
@@ -19,11 +20,15 @@ alias config='cd ~/dotfiles/.config'
 alias dots='cd ~/dotfiles'
 alias bye='([ -f ~/.HAS_UPDATED ] && rm -f ~/.HAS_UPDATED>/dev/null && shutdown now) || systemctl hibernate'
 
-
+# Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
+# dwm
+alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
+
+# Managing suckless patches
+alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 
 # Better flags
-alias ls='ls --group-directories-first --color=auto'
 alias grep='grep --color=auto'
 alias cp='cp -i'
 alias mv='mv -i'
@@ -34,15 +39,11 @@ alias mkdir='mkdir -p'
 alias g='git'
 alias gc='git clone'
 
-# dwm
-alias reset='cd ~/dwm/ && git checkout master && make clean && rm -f config.h && git reset --hard origin/master'
-alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
-
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
         -o -type d -print 2> /dev/null | fzf +m) &&
         cd "$dir"
 }
-se() { du -a ~/dotfiles/* | awk '{print $2}' | fzf --layout=reverse| xargs -r $EDITOR ;}
 # Move to trash
 t(){ trash-put $@;}
+x(){ extract $@;}

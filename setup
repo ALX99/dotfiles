@@ -1,5 +1,4 @@
-#!/bin/sh
-# MIGHT NOT BE WORKING
+#!/bin/bash
 # Script should only be run once after cloning the dotfiles
 
 # Check if a package is installed
@@ -8,13 +7,13 @@ checkPkg(){
 }
 # Install yay if needed
 yay_check(){
-if ! pacman -Qi yay 1>/dev/null; then
-    git clone https://aur.archlinux.org/yay.git ~/yay
-    cd ~/yay || exit
-    makepkg -si --noconfirm
-    cd ~/dotfiles || exit
-    rm -rf ~/yay
-fi
+    if ! pacman -Qi yay 1>/dev/null; then
+        git clone https://aur.archlinux.org/yay.git ~/yay
+        cd ~/yay || exit
+        makepkg -si --noconfirm
+        cd ~/dotfiles || exit
+        rm -rf ~/yay
+    fi
 }
 # Move keyboard layout
 keyboard(){
@@ -23,17 +22,50 @@ keyboard(){
 dash_install(){
     sudo ln -sfT dash /usr/bin/sh
 }
-# Start up and enable onedrive
+zsh_install(){
+    sh -c "$(wget -O- https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+    cp  myTheme.zsh-theme ~/.oh-my-zsh/themes/
+    chsh -s /bin/zsh
+}
+# Install st with path anysize and a theme
+st_install(){
+    read -p "Do you want to install the st terminal y/N? " choice
+    case "$choice" in
+        n|N ) return;;
+    esac
+    git clone git://git.suckless.org/st ~/st
+    cd ~/st || exit
+    git checkout -B anysize
+    wget https://st.suckless.org/patches/anysize/st-anysize-0.8.1.diff
+    git apply st-anysize-0.8.1.diff
+    git_commit
+    git checkout master
+    git checkout -B theme
+    wget https://st.suckless.org/patches/dracula/st-dracula-0.8.2.diff
+    git apply st-dracula-0.8.2.diff
+    git_commit
+    git checkout master
+    git merge anysize && git merge theme
+    sudo make clean install
+    
+}
+# Sequence to commit
+git_commit(){
+    git add .
+    git commit -m "patch applied"
+}
+# Start onedrive up when we log in
 one_drive(){
     onedrive --synchronize --resync
     systemctl --user enable onedrive
-    systemctl --user start onedrive
 }
 # Stow our config
 stow_config(){
     rm -f ~/.xinitrc ~/.bash_profile ~/.bashrc ~/.config/gtk3-0/settings.ini
     stow x/
-    stow bash/
+    stow shell/
     stow .config/ -t ~/.config/
     stow .local/ -t ~/.local/
     chmod +x ~/dotfiles/.local/bin/*
@@ -42,6 +74,9 @@ stow_config(){
 checkPkg git && yay_check
 checkPkg stow && stow_config
 checkPkg dash && dash_install # Bash is bloated
+checkPkg zsh && zsh_install
+cp .gitconfig ~/
+st_install
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
 keyboard
 one_drive
