@@ -1,27 +1,26 @@
+adb
 alsa-utils
 android-studio
 android-tools
 arch-install-scripts
 breeze-gtk
 cantarell-fonts
-cloc
 cloc # count lines of code
 cmatrix
 code
 compton
 dash
 dialog
-diff-so-fancy
+diff-so-fancy # better looking terminal diffs
 discord
 dmenu
 downgrade
 dunst
-entr
-erlang
 feh
 firefox
 fzf
 ghc
+glibc
 gource
 htop
 intellij-idea-community-edition
@@ -31,7 +30,7 @@ libnotify
 libva-intel-driver
 libva-mesa-driver
 mesa-vdpau
-mlocate
+mlocate # Locate
 mpv
 ncurses # C formatting for VSCode
 neofetch
@@ -59,6 +58,7 @@ scrot
 shellcheck
 slack-desktop
 speedtest-cli
+spotify
 sxhkd # Universal keybindings
 terminus-font
 tldr
@@ -81,3 +81,5 @@ xorg-xsetroot # DWM bar
 zathura
 zathura-pdf-poppler
 zip
+zmap # Network scanner
+zsh
