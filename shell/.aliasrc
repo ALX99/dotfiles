@@ -18,7 +18,7 @@ alias hgrep="history | cut -c 8- | fzf --tac | xclip -i -sel clip"
 alias bin='cd ~/dotfiles/.local/bin'
 alias config='cd ~/dotfiles/.config'
 alias dots='cd ~/dotfiles'
-alias bye='([ -f ~/.HAS_UPDATED ] && rm -f ~/.HAS_UPDATED>/dev/null && shutdown now) || systemctl hibernate'
+alias bye='./.local/bin/bye'
 
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
