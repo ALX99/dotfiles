@@ -14,6 +14,13 @@ export ZSH=$HOME/.oh-my-zsh
 # Async zsh autocomplete
 export ZSH_AUTOSUGGEST_USE_ASYNC="set"
 
+# Used by alias & paccy
+# Location to keep track of number of updated/installed packaged
+export PKG_UPDATE_COUNTER=$HOME/.pkgUpdateCount
+# When the PKG_UPDATE_COUNTER reaches this limit,
+# the computer will restart rather than hibernate
+export UPDATE_LIMIT=100
+
 # Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red
 export LESS_TERMCAP_md=$(printf '\e[01;36m') # enter double-bright mode - bold, cyan

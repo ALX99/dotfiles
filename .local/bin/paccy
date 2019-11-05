@@ -2,68 +2,130 @@
 # Pacman + yay wrapper to keep track of installed packages
 
 pkgList=~/dotfiles/.pkgList # Path to package list
-install_pkgs(){
-    yay -S --needed "$@" || return 1
 
-    # Write the packages to the pkgList
-    for pkg in "${@}"; do
-        # Only do something if the package already isn't there
-        grep -F "$pkg" "$pkgList" &>/dev/null
-        if [ $? -ne 0 ]; then
-            if [ -z "$comment" ]; then
-                echo "$pkg" >> "$pkgList"
-            else
-                echo "$pkg # $comment" >> "$pkgList"
-            fi
+usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
+
+where:
+    -h, --help  show this help text
+    -i, --install install every package in your package list
+    -u, --update  update your pacman mirrors to use the fastest mirror
+    -S            install a packages
+    -Syu          update all your packages
+    -sr           search the official repository for a packages
+    -sa           searche the AUR for a package
+
+your package list is located at $pkgList"
+
+# Write the package to the pkgList
+log_pkg() {
+    # Only do something if the package already isn't there
+    grep -F "$1" "$pkgList" &>/dev/null
+    if [ $? -ne 0 ]; then
+        if [ -z "$comment" ]; then
+            echo "$1" >>"$pkgList"
+        else
+            echo "$1 # $comment" >>"$pkgList"
         fi
-    done
+    fi
 
     # Sort and remove dupes
-    local sorted=$(cat "$pkgList" | sort -u)
-    echo "$sorted" > "$pkgList"
+    local sorted=$(sort -u "$pkgList")
+    echo "$sorted" >"$pkgList"
 }
-remove_pkgs(){
-    sudo pacman -Rns "$@" || return 1
-    for pkg in "$@"; do
-        sed -i '/'"$pkg"'/d' "$pkgList" 
+# Read packages to either install or remove
+read_pkgs() {
+    pkgs=()
+    while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
+        pkgs+=("$1")
+        shift
     done
 }
 # Installs all the packages listed under the packagelist
-install(){
+install() {
     yay -S --needed $(cut -d ' ' -f1 "$pkgList")
 }
-update(){
+update() {
     echo "Updating mirrors... Please be patinet"
     # packages are signed which pacman verifies.
     # packages replaced with another one through MITM won't instsall.
     sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
     echo "Done!"
 }
+update_counter() {
+    echo $((($1 + $(cat "$PKG_UPDATE_COUNTER")))) >"$PKG_UPDATE_COUNTER"
+}
 
-parameters="$@" # Save the original parameters
-pkgInstall=false
-pkgRemove=false
-
-while [ $# -gt 0 ]; do
-    par="$1"
-    case $par in
-        -Syu) yay -Syu; touch ~/.HAS_UPDATED; shift;;
-        -S) pkgInstall=true; touch ~/.HAS_UPDATED; shift;;
-        -Rns) pkgRemove=true; shift;;
-        -c|-C) comment="$2"; shift 2;;
-        -sa) shift; yay --aur $parameters; exit;; # Search in AUR
-        -sr) shift; yay --repo ${parameters:1}; exit;; # Search in repo
-        --install) install; shift;;
-        --update) update; shift;;
-        -*) pacman $parameters; exit;; # Pass on to pacman and exit
-        *) pkgs+=("$par"); shift;; # If no dash we'll assume this is a package
+if [ -z "$PKG_UPDATE_COUNTER" ]; then
+    echo "This program requries the PKG_UPDATE_COUNTER environment variable to be set."
+    echo "The environmnet variable should correspond to a file location where you want to"
+    echo "save the number of installed/updated packages."
+    exit 1
+fi
+while true; do
+    case "$1" in
+    -h | --help)
+        echo "$usage"
+        exit 0
+        ;;
+    -S)
+        shift
+        read_pkgs "$@"
+        read -rp "Comment to add for these package(s): " comment
+        yay -S ${pkgs[*]}
+        count=0
+        all_pkgs=$(pacman -Qe)
+        for i in "${pkgs[@]}"; do
+            grep "$i" <<<"$all_pkgs" 1>/dev/null && count=$((count + 1)) && log_pkg "$i"
+        done
+        # Location of file to keep track of packages updated/installed
+        loc=$PKG_UPDATE_COUNTER
+        # Create it if it doesn't exist
+        test -e "$loc" || echo 0 >"$loc"
+        # Count packages being updated/installed
+        update_counter $count
+        exit 0
+        ;;
+    -Syu)
+        sudo pacman -Sy 1>/dev/null
+        upgrades=$(yay -Qu | wc -l)
+        if yay -Syu && [ "$upgrades" -gt 0 ]; then
+            update_counter "$upgrades"
+        fi
+        exit 0
+        ;;
+    -Rns)
+        shift
+        read_pkgs "$@"
+        yay -Rns ${pkgs[*]}
+        # TODO
+        # This could be improved
+        for pkg in "${pkgs[@]}"; do
+            sed -i '/'"$pkg"'/d' "$pkgList"
+        done
+        exit 0
+        ;;
+    -sa)
+        shift
+        yay --aur $*
+        exit 0
+        ;; # Search in AUR
+    -sr)
+        shift
+        yay --repo $*
+        exit 0
+        ;; # Search in repo
+    -i | --install)
+        install
+        exit 0
+        ;;
+    -u | --update)
+        update
+        exit 0
+        ;;
+    *)
+        echo "[INFO] The argument(s) didn't match anything paccy could handle so it was passed on to pacman"
+        pacman "$@"
+        exit 1
+        ;;
     esac
 done
-
-# Either install or remove pkgs but not both
-$pkgInstall && $pkgRemove && \
-echo "You can't both install and remove packages at the same time!" \
-&& exit 1
-
-$pkgInstall && install_pkgs "${pkgs[@]}"
-$pkgRemove && remove_pkgs "${pkgs[@]}"
