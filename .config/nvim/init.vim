@@ -5,7 +5,7 @@ if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 	silent !mkdir -p ~/.config/nvim/autoload/
 	silent !curl "https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim" > ~/.config/nvim/autoload/plug.vim
 endif
-
+ 
 call plug#begin('~/.config/nvim/plugged')
 Plug 'scrooloose/nerdtree'
 Plug 'itchyny/lightline.vim'
@@ -77,10 +77,42 @@ let g:lightline = {
 "|    Misc      |
 "----------------
 
+" colemak
+nnoremap k h
+nnoremap e k
+vnoremap k h
+vnoremap e k
+
+nnoremap h e
+nnoremap i l
+vnoremap h e
+vnoremap i l
+
+nnoremap s i
+nnoremap S I
+vnoremap s i
+vnoremap S I
+
+nnoremap n j
+vnoremap n j
+
+nnoremap l n
+nnoremap L N
+vnoremap l n
+vnoremap L N
+
+
 set clipboard+=unnamedplus              " use system clipboard (requires xclip)
 let mapleader = " "                     " set leader to space
 
-" nmap
+" delete without yanking
+nnoremap <leader>d "_d
+vnoremap <leader>d "_d
+
+" replace currently selected text with default register
+" without yanking it
+vnoremap <leader>p "_dP
+
 " Relative numbering on and off
 nmap <F2> :call NumberToggle()<CR>
 " Leader mappings 
