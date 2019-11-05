@@ -56,7 +56,6 @@ redshift # Bluelight filter
 reflector
 scrot
 shellcheck
-slack-desktop
 speedtest-cli
 spotify
 sxhkd # Universal keybindings
