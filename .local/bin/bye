@@ -1,0 +1,8 @@
+#!/bin/sh
+# Script to decide whether the computer should hibernate or poweroff
+
+[ -z "$PKG_UPDATE_COUNTER" ] && systemctl hibernate
+if test -e "$PKG_UPDATE_COUNTER"; then
+    [ "$(cat "$PKG_UPDATE_COUNTER")" -gt "$UPDATE_LIMIT" ] && rm "$PKG_UPDATE_COUNTER" && systemctl poweroff
+fi
+systemctl hibernate
