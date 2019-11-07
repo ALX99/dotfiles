@@ -40,19 +40,6 @@ zsh_install(){
     ln -sf ${DIR}/shell/myTheme.zsh-theme ~/.oh-my-zsh/themes/
     chsh -s /bin/zsh
 }
-# Install st with path anysize and a theme
-st_install(){
-    read -rp "Do you want to install the st terminal y/N? " choice
-    case "$choice" in
-        n|N ) return;;
-    esac
-    git clone https://github.com/ALX99/st ~/st
-    cd ~/st || exit
-    git merge origin/anysize
-    git merge origin/theme
-    git merge origin/config
-    sudo make clean install
-}
 # Sequence to commit
 git_commit(){
     git add .
@@ -75,6 +62,5 @@ checkPkg zsh && zsh_install
 checkPkg stow && stow_config
 keyboard
 cp .gitconfig ~/
-st_install
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
 systemctl --user enable onedrive # Start onedrive up when we log in
