@@ -1,5 +1,5 @@
 font:
-  size: 10.0
+  size: 7.0
   normal:
     family: Hack
     style: Regular
@@ -41,14 +41,14 @@ colors:
     cyan:    '0x9aedfe'
     white:   '0xe6e6e6'
 
-
-
-background_opacity: 0.9
 hide_when_typing: true
 
+window:
+    decorations: none
+scrolling:
+    history: 5000
 selection:
   # When set to `true`, selected text will be copied to the primary clipboard.
   save_to_clipboard: true
 cursor:
     style: Underline
-

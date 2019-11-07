@@ -10,7 +10,6 @@ cantarell-fonts
 cloc # count lines of code
 cmatrix
 code
-compton
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
