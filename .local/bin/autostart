@@ -5,7 +5,6 @@ xrdb -load ~/.Xresources &
 redshift &
 setxkbmap colemak
 dunst &
-compton -b &
 dwmbar &
 feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ &
 sxhkd & # Hotkey daemon
