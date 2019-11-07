@@ -32,6 +32,7 @@ log_pkg() {
     local sorted=$(sort -u "$pkgList")
     echo "$sorted" >"$pkgList"
 }
+
 # Read packages to either install or remove
 read_pkgs() {
     pkgs=()
@@ -40,10 +41,12 @@ read_pkgs() {
         shift
     done
 }
+
 # Installs all the packages listed under the packagelist
 install() {
     yay -S --needed $(cut -d ' ' -f1 "$pkgList")
 }
+# Update the mirrors
 update() {
     echo "Updating mirrors... Please be patinet"
     # packages are signed which pacman verifies.
@@ -51,6 +54,8 @@ update() {
     sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
     echo "Done!"
 }
+
+# Count packages being updated/installed
 update_counter() {
     [ "$1" -le 0 ] && return
     # Create it if it doesn't exist
@@ -80,9 +85,7 @@ while true; do
         for i in "${pkgs[@]}"; do
             grep "$i" <<<"$all_pkgs" 1>/dev/null && count=$((count + 1)) && log_pkg "$i"
         done
-        # Location of file to keep track of packages updated/installed
 
-        # Count packages being updated/installed
         update_counter $count
         exit 0
         ;;

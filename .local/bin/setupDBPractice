@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Sets up the database for the exercises at
+# https://www.w3resource.com/sql-exercises/
+# and gives you the necessary select permission to the tables
+# in the databse tied to the user your currently logged in as.
+
+# This assumes you have a postgresql superuser named postgres without a password
+
+curl -O https://www.w3resource.com/sql-exercises/sqlex.tar.gz
+tar xvzf sqlex.tar.gz
+psql -U postgres <<<"drop database dbname; create database dbname;"
+psql -U postgres dbname <sqlex/sqlexbackup.sql
+rm -r sqlex && rm sqlex.tar.gz
+user=$(whoami)
+psql -U postgres dbname <<<"create role ${user} with login;grant connect on database dbname to ${user};grant select on all tables in schema public to ${user};"
+printf "\nDatabase is set up for the user %s!\n" "$user"
+read -rn 1 -p "Would you like to enter the database now? (y/N) " && [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+clear
+psql -U "$user" dbname
