@@ -1,6 +1,4 @@
 adb
-alacritty # terminal
-alacritty-terminfo # terminal
 alsa-utils
 android-studio
 android-tools
