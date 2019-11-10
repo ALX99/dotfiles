@@ -45,6 +45,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
+pgformatter-git # formatter for sql
 postgresql # for course
 python
 python3
