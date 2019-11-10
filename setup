@@ -2,14 +2,14 @@
 # Script should only be run once after cloning the dotfiles
 
 # Directory from where script is run
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # Check if a package is installed
-checkPkg(){
+checkPkg() {
     pacman -Q $1 &>/dev/null || sudo pacman -S $1 --needed --noconfirm
 }
 # Install yay if needed
-yay_check(){
+yay_check() {
     if ! pacman -Qi yay 1>/dev/null; then
         git clone https://aur.archlinux.org/yay.git ~/yay
         cd ~/yay || exit
@@ -18,21 +18,20 @@ yay_check(){
     fi
 }
 # Move keyboard layout
-keyboard(){
-    sudo ln -s  ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+keyboard() {
+    sudo ln -s ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 }
-firefox_setup(){
+firefox_setup() {
     profile_folder="$(sed -n 's/Default=//p' ~/.mozilla/firefox/profiles.ini | head -1)"
     profile_folder="$HOME/.mozilla/firefox/${profile_folder}/"
     mkdir -p "${profile_folder}chrome"
     ln -sf ${DIR}/firefox/userChrome.css "${profile_folder}chrome"
     ln -sf ${DIR}/firefox/user.js "$profile_folder"
-
 }
-dash_install(){
+dash_install() {
     sudo ln -sfT dash /usr/bin/sh
 }
-zsh_install(){
+zsh_install() {
     sh -c "$(wget -O- https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
     git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
     git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
@@ -40,13 +39,40 @@ zsh_install(){
     ln -sf ${DIR}/shell/myTheme.zsh-theme ~/.oh-my-zsh/themes/
     chsh -s /bin/zsh
 }
-# Sequence to commit
-git_commit(){
-    git add .
-    git commit -m "patch applied"
+st_install() {
+    st_dir="${DIR}/suckless/st/*.diff"
+    rm -rf ~/st
+    git clone git://git.suckless.org/st ~/st
+    cd ~/st || exit
+    git_patch_loop "$st_dir"
+    git checkout master
+    git_build_loop "$st_dir"
 }
+# cd to git directory then call this
+# 1: directory
+git_patch_loop() {
+    for o in $1; do
+        name=$(basename "${o%.*}")
+        git checkout -B "$name"
+        git apply "$o"
+        git add .
+        git commit -m "patch $name applied"
+    done
+}
+
+# cd to git directory then call this
+# 1: directory
+git_build_loop() {
+    for o in $1; do
+        name=$(basename "${o%.*}")
+        git merge "$name"
+    done
+    sudo make clean install
+    rm -f config.h
+}
+
 # Stow our config
-stow_config(){
+stow_config() {
     rm -f ~/.xinitrc ~/.bash_profile ~/.bashrc ~/.config/gtk3-0/settings.ini ~/.zshrc
     stow ${DIR}/x/
     stow ${DIR}/shell/
@@ -60,7 +86,9 @@ checkPkg dash && dash_install # Bash is bloated
 checkPkg firefox && firefox_setup
 checkPkg zsh && zsh_install
 checkPkg stow && stow_config
+
+st_install
 keyboard
 cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
-systemctl --user enable onedrive # Start onedrive up when we log in
+systemctl --user enable onedrive           # Start onedrive up when we log in
