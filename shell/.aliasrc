@@ -1,29 +1,51 @@
 #!/bin/sh
+
+#########
+# Basic #
+#########
 alias q=exit
 alias c=clear
 alias r=ranger
 alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
-alias ct=trash-empty
-alias lt=trash-list
+alias sp='sudo pacman'
+alias g='git'
+alias gc='git clone'
+
+###########
+# Listing #
+###########
 alias l.="ls -od .?*"
 alias la="ls -oa"
 alias ll="ls -o"
-alias sp='sudo pacman'
-alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
-alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
+# find biggest directiories
+alias duck='sudo du -hs * | sort -rh | head -10'
+# find biggest files
+alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
+# list trash
+alias lt=trash-list
+
+##############
+# Navigation #
+##############
 alias bin='cd ~/dotfiles/.local/bin'
-alias config='cd ~/dotfiles/.config'
 alias dots='cd ~/dotfiles'
+alias config='cd ~/dotfiles/.config'
+# jump to mark
+alias m=jump
+
+########
+# Misc #
+########
+alias ct=trash-empty
 # ZSH tries to use this alias
 alias bye='./.local/bin/bye'
-
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
-# dwm
+# restart dwm
 alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
-# Managing suckless patches
+# managing suckless patches
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 
 # Better flags
@@ -33,10 +55,6 @@ alias cp='cp -i'
 alias mv='mv -i'
 alias rm='rm -iv'
 alias mkdir='mkdir -p'
-
-# git
-alias g='git'
-alias gc='git clone'
 
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
@@ -53,7 +71,7 @@ hrun(){
 t(){ trash-put $@;}
 x(){ extract $@;}
 
-############
+###########
 # For FZF #
 ###########
 _fzf_compgen_path() {
