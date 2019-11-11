@@ -35,8 +35,7 @@ zsh_install() {
     sh -c "$(wget -O- https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
     git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
     git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-    mkdir -p ~/.oh-my-zsh/custom/plugins/forgit
-    wget -P ~/.oh-my-zsh/custom/plugins/forgit/forgit.plugin.zsh https://raw.githubusercontent.com/wfxr/forgit/master/forgit.plugin.zsh
+    wget -P ~/.oh-my-zsh/custom/plugins/forgit https://raw.githubusercontent.com/wfxr/forgit/master/forgit.plugin.zsh
     # Dumb aliases
     sed -i '/^alias/ d' ~/.oh-my-zsh/plugins/git/git.plugin.zsh
     rm -f ~/.oh-my-zsh/lib/directories.zsh
