@@ -1,0 +1,184 @@
+#!/bin/bash
+# Pacman + yay wrapper that adds very useful features
+# Requires expac, fzf
+
+pkgList=~/dotfiles/.pkgList # Path to package list
+
+usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
+
+where:
+    -h,  --help             show this help text
+    -i,  --install          install every package in your package list
+    -u,  --update           update your pacman mirrors to use the fastest mirror
+    -lt, --list-tracked     list all your tracked packages  
+    -lu, --list-untracked   list all your untracked packages
+    -rt, --remove-tracked   remove all your tracked packages  
+    -ru, --remove-untracked remove all your untracked packages  
+    -S                      install package(s)
+    -Syu                    update all your packages
+    -sr                     search the official repository for a package(s)
+    -sa                     searche the AUR for a package(s)
+
+your package list is located at $pkgList"
+
+# Write the package to the pkgList
+log_pkg() {
+    # Only do something if the package already isn't there
+    grep -F "$1" "$pkgList" &>/dev/null
+    if [ $? -ne 0 ]; then
+        if [ -z "$comment" ]; then
+            echo "$1" >>"$pkgList"
+        else
+            echo "$1 # $comment" >>"$pkgList"
+        fi
+    fi
+
+    # Sort and remove dupes
+    local sorted=$(sort -u "$pkgList")
+    echo "$sorted" >"$pkgList"
+}
+
+# Read packages to either install or remove
+read_pkgs() {
+    pkgs=()
+    while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
+        pkgs+=("$1")
+        shift
+    done
+}
+# Remove a tracked package
+# 1: package do be untracked
+remove_tracked() {
+    sed -i '/'"$1"'/d' "$pkgList"
+}
+# Installs all the packages listed under the packagelist
+install() {
+    get_tracked
+    yay -S --needed $tracked
+}
+# Update the mirrors
+update() {
+    echo "Updating mirrors... Please be patinet"
+    # packages are signed which pacman verifies.
+    # packages replaced with another one through MITM therefore won't instsall.
+    sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
+    echo "Done!"
+}
+# Count packages being updated/installed
+update_counter() {
+    [ "$1" -le 0 ] && return
+    # Create it if it doesn't exist
+    test -e "$PKG_UPDATE_COUNTER" || echo 0 >"$PKG_UPDATE_COUNTER"
+    echo $((($1 + $(cat "$PKG_UPDATE_COUNTER")))) >"$PKG_UPDATE_COUNTER"
+}
+# Get tracked packages under the variable 'tracked'
+get_tracked() {
+    tracked="$(cut -d ' ' -f1 "$pkgList")"
+}
+# Get untracked packages under the variable 'untracked'
+get_untracked() {
+    get_tracked
+    untracked="$(diff --new-line-format="" --unchanged-line-format="" \
+        <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base base-devel | sort)) \
+        <(echo "$tracked"))"
+}
+main() {
+    case "$1" in
+    -h | --help)
+        echo "$usage"
+        exit 0
+        ;;
+    -S)
+        shift
+        read_pkgs "$@"
+        read -rp "Comment to add for these package(s): " comment
+        yay -S ${pkgs[*]}
+        count=0
+        all_pkgs=$(pacman -Qe)
+
+        # Count number of packages updated
+        for i in "${pkgs[@]}"; do
+            grep "$i" <<<"$all_pkgs" 1>/dev/null && count=$((count + 1)) && log_pkg "$i"
+        done
+
+        update_counter $count
+        exit 0
+        ;;
+    -Syu)
+        sudo pacman -Sy 1>/dev/null
+        upgrades=$(yay -Qu | wc -l)
+        if yay -Syu; then
+            update_counter "$upgrades"
+        fi
+        exit 0
+        ;;
+    -Rns)
+        shift
+        read_pkgs "$@"
+        sudo pacman -Rns ${pkgs[*]}
+        # TODO
+        # This could be improved
+        for pkg in "${pkgs[@]}"; do
+            remove_tracked "$pkg"
+        done
+        exit 0
+        ;;
+    -lt | --list-tracked)
+        get_tracked
+        echo "$tracked" | "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)'
+        exit 0
+        ;;
+    -rt | --remove-tracked)
+        get_tracked
+        pkg=$(echo "$tracked" | "${preview[@]}")
+        sudo pacman -Rns "$pkg" && remove_tracked "$pkg"
+        exit 0
+        ;;
+    -lu | --list-untracked)
+        get_untracked
+        echo "$untracked" | "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)'
+        exit 0
+        ;;
+    -ru | --remove-untracked)
+        get_untracked
+        pkg=$(echo "$untracked" | "${preview[@]}")
+        sudo pacman -Rns "$pkg"
+        exit 0
+        ;;
+    -sa)
+        shift
+        yay --aur $*
+        exit 0
+        ;; # Search in AUR
+    -sr)
+        shift
+        yay --repo $*
+        exit 0
+        ;; # Search in repo
+    -i | --install)
+        install
+        exit 0
+        ;;
+    -u | --update)
+        update
+        exit 0
+        ;;
+    *)
+        echo "******************************************************************************************"
+        echo "* The argument(s) didn't match anything paccy could handle so it was passed on to pacman *"
+        echo "* Run paccy -h for usage                                                                 *"
+        echo "******************************************************************************************"
+        pacman "$@"
+        exit 1
+        ;;
+    esac
+}
+
+if [ -z "$PKG_UPDATE_COUNTER" ]; then
+    echo "This program requries the PKG_UPDATE_COUNTER environment variable to be set."
+    echo "The environmnet variable should correspond to a file location where you want to"
+    echo "save the number of installed/updated packages."
+    exit 1
+fi
+preview=(fzf --reverse --preview 'pacman -Qi {}')
+main "$@"
