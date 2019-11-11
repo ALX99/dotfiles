@@ -12,7 +12,7 @@ CASE_SENSITIVE="true"
 # much, much faster.
 DISABLE_UNTRACKED_FILES_DIRTY="true"
 
-plugins=(git forgit vi-mode jump zsh-completions zsh-autosuggestions)
+plugins=(git forgit jump zsh-completions zsh-autosuggestions)
 
 # Always check history before completion
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
