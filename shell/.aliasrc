@@ -13,18 +13,16 @@ alias ll="ls -o"
 alias sp='sudo pacman'
 alias duck='sudo du -hs * | sort -rh | head -10' # Find biggest directories
 alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10' # Find biggest files
-alias hrun='$(history | cut -c 8- | fzf --tac)'
-alias hgrep="history | cut -c 8- | fzf --tac | xclip -i -sel clip"
 alias bin='cd ~/dotfiles/.local/bin'
 alias config='cd ~/dotfiles/.config'
 alias dots='cd ~/dotfiles'
+# ZSH tries to use this alias
 alias bye='./.local/bin/bye'
 
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
 # dwm
 alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
-
 # Managing suckless patches
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 
@@ -45,6 +43,31 @@ goto(){
         -o -type d -print 2> /dev/null | fzf +m) &&
         cd "$dir"
 }
+hgrep(){
+  print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
+}
+hrun(){
+  eval $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
+}
 # Move to trash
 t(){ trash-put $@;}
 x(){ extract $@;}
+
+############
+# For FZF #
+###########
+_fzf_compgen_path() {
+  fd --hidden --follow --exclude ".git" . "$1"
+}
+
+# Use fd to generate the list for directory completion
+_fzf_compgen_dir() {
+  fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
+}
+
+# go to directory
+god() {
+  dir=$(find ${1:-.} -path '*/\.*' -prune \
+                  -o -type d -print 2> /dev/null | fzf +m) &&
+  cd "$dir"
+}

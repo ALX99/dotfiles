@@ -15,6 +15,7 @@ discord
 dmenu
 downgrade
 dunst
+fd # find stuff
 feh
 firefox
 fzf
@@ -73,11 +74,6 @@ w3m
 wget
 xclip
 xdg-utils
-xorg-xbacklight
-xorg-xinput
-xorg-xprop
-xorg-xrandr
-xorg-xsetroot # DWM bar
 youtube-dl
 zathura
 zathura-pdf-poppler
