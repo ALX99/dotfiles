@@ -4,8 +4,8 @@
 xrdb -load ~/.Xresources &
 redshift &
 setxkbmap colemak
-dunst &
-dwmbar &
-feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ &
+#dunst &
+#dwmbar &
+#feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/ &
 sxhkd & # Hotkey daemon
 updates & # Notification about how many updates there are
