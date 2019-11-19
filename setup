@@ -51,6 +51,15 @@ st_install() {
     git checkout master
     git_build_loop "$st_dir"
 }
+dwm_install(){
+    dwm_dir="${DIR}/suckless/dwm/*.diff"
+    rm -rf ~/dwm
+    git clone git://git.suckless.org/dwm ~/dwm
+    cd ~/dwm || exit
+    git_patch_loop "$dwm_dir"
+    git checkout master
+    git_build_loop "$dwm_dir"
+}
 # cd to git directory then call this
 # 1: directory
 git_patch_loop() {
@@ -70,8 +79,8 @@ git_build_loop() {
         name=$(basename "${o%.*}")
         git merge "$name"
     done
-    sudo make clean install
-    rm -f config.h
+   # sudo make clean install
+   # rm -f config.h
 }
 # install nnn with keybindings for colemak-dh
 nnn_install(){
@@ -99,7 +108,8 @@ stow_config() {
     stow ${DIR}/.local/ -t ~/.local/
     chmod +x ~/dotfiles/.local/bin/*
 }
-
+dwm_install
+exit
 checkPkg git && yay_check
 checkPkg dash && dash_install # Bash is bloated
 checkPkg firefox && firefox_setup
