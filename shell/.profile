@@ -21,6 +21,11 @@ export PKG_UPDATE_COUNTER=$HOME/.pkgUpdateCount
 # the computer will restart rather than hibernate
 export UPDATE_LIMIT=100
 
+# NNN
+NNN_USE_EDITOR=1 # open text files ins $VISUAL (esle $EDITOR, fallback vi)
+NNN_CONTEXT_COLORS='1234' # trash files to the desktop Trash
+
+
 # Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red
 export LESS_TERMCAP_md=$(printf '\e[01;36m') # enter double-bright mode - bold, cyan
@@ -36,4 +41,4 @@ export LS_COLORS='no=00:fi=00:di=01;34:ln=00;36:pi=40;33:so=01;35:do=01;35:bd=40
 
 
 # Start graphical server if dwm not already running.
-[ "$(tty)" = "/dev/tty1" ] && ! pgrep -x dwm >/dev/null && exec startx
+#[ "$(tty)" = "/dev/tty1" ] && ! pgrep -x dwm >/dev/null && exec startx

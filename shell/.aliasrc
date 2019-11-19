@@ -12,6 +12,8 @@ alias p=paccy
 alias sp='sudo pacman'
 alias g='git'
 alias gc='git clone'
+alias please='sudo !!'
+alias cx='chmod +x'
 
 ###########
 # Listing #
@@ -29,7 +31,7 @@ alias lt=trash-list
 ##############
 # Navigation #
 ##############
-alias bin='cd ~/dotfiles/.local/bin'
+alias bin='cd ~/dotfiles/bin'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
 # jump to mark
@@ -38,7 +40,10 @@ alias m=jump
 ########
 # Misc #
 ########
-alias ct=trash-empty
+alias t='trash-put'
+alias tr='trash-restore'
+alias ct='trash-empty'
+alias x='extract'
 # ZSH tries to use this alias
 alias bye='./.local/bin/bye'
 # Setting my custom keyboard
@@ -67,9 +72,19 @@ hgrep(){
 hrun(){
   eval $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
-# Move to trash
-t(){ trash-put $@;}
-x(){ extract $@;}
+
+# Bring aliases to SSH target
+sshs() {
+    ssh "$@" "cat > /tmp/.bashrc_temp" < ~/.aliasrc
+    ssh -t "$@" "bash --rcfile /tmp/.bashrc_temp ; rm /tmp/.bashrc_temp"
+}
+
+# go to directory
+god() {
+  dir=$(find ${1:-.} -path '*/\.*' -prune \
+                  -o -type d -print 2> /dev/null | fzf +m) &&
+  cd "$dir"
+}
 
 ###########
 # For FZF #
@@ -83,9 +98,3 @@ _fzf_compgen_dir() {
   fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
 }
 
-# go to directory
-god() {
-  dir=$(find ${1:-.} -path '*/\.*' -prune \
-                  -o -type d -print 2> /dev/null | fzf +m) &&
-  cd "$dir"
-}
