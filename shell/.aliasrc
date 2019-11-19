@@ -45,7 +45,7 @@ alias tr='trash-restore'
 alias ct='trash-empty'
 alias x='extract'
 # ZSH tries to use this alias
-alias bye='./.local/bin/bye'
+alias bye='~/./.local/bin/bye'
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
 # restart dwm

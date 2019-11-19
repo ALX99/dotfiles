@@ -51,7 +51,7 @@ st_install() {
     git checkout master
     git_build_loop "$st_dir"
 }
-dwm_install(){
+dwm_install() {
     dwm_dir="${DIR}/suckless/dwm/*.diff"
     rm -rf ~/dwm
     git clone git://git.suckless.org/dwm ~/dwm
@@ -69,6 +69,7 @@ git_patch_loop() {
         git apply "$o"
         git add .
         git commit -m "patch $name applied"
+        git checkout master
     done
 }
 
@@ -77,13 +78,17 @@ git_patch_loop() {
 git_build_loop() {
     for o in $1; do
         name=$(basename "${o%.*}")
-        git merge "$name"
+        if [[ $name == zConfig ]]; then
+            git merge "$name" --strategy-option theirs
+        else
+            git merge "$name"
+        fi
     done
-   # sudo make clean install
-   # rm -f config.h
+    sudo make clean install
+    rm -f config.h
 }
 # install nnn with keybindings for colemak-dh
-nnn_install(){
+nnn_install() {
     git clone https://github.com/jarun/nnn ~/nnn
     cd ~/nnn || exit
 
@@ -96,7 +101,7 @@ nnn_install(){
     sed -i "s/'l'/'i'/g" src/nnn.h
 
     sed -i "s/'l'/'i'/g" src/nnn.h
-	sed -i "/{ 'E',            SEL_EXTN },/d" src/nnn.h
+    sed -i "/{ 'E',            SEL_EXTN },/d" src/nnn.h
     sudo make clean install
 }
 # Stow our config
@@ -108,8 +113,7 @@ stow_config() {
     stow ${DIR}/.local/ -t ~/.local/
     chmod +x ~/dotfiles/.local/bin/*
 }
-dwm_install
-exit
+
 checkPkg git && yay_check
 checkPkg dash && dash_install # Bash is bloated
 checkPkg firefox && firefox_setup

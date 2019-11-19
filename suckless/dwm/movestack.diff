@@ -1,15 +1,16 @@
-diff -r 050d521d66d8 config.def.h
---- a/config.def.h	Tue Aug 24 13:13:20 2010 +0100
-+++ b/config.def.h	Sun Sep 05 18:43:07 2010 +0200
-@@ -57,6 +57,7 @@
- static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL };
+diff --git a/config.def.h b/config.def.h
+index 1c0b587..e362c04 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -59,6 +59,7 @@ static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn()
+ static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_cyan, "-sf", col_gray4, NULL };
  static const char *termcmd[]  = { "st", NULL };
  
 +#include "movestack.c"
  static Key keys[] = {
  	/* modifier                     key        function        argument */
  	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
-@@ -68,6 +69,8 @@
+@@ -70,6 +71,8 @@ static Key keys[] = {
  	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
  	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
  	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
@@ -18,10 +19,12 @@ diff -r 050d521d66d8 config.def.h
  	{ MODKEY,                       XK_Return, zoom,           {0} },
  	{ MODKEY,                       XK_Tab,    view,           {0} },
  	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
-diff -r 050d521d66d8 movestack.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/movestack.c	Sun Sep 05 18:43:07 2010 +0200
-@@ -0,0 +1,49 @@
+diff --git a/movestack.c b/movestack.c
+new file mode 100644
+index 0000000..c040462
+--- /dev/null
++++ b/movestack.c
+@@ -0,0 +1,48 @@
 +void
 +movestack(const Arg *arg) {
 +	Client *c = NULL, *p = NULL, *pc = NULL, *i;
@@ -70,4 +73,3 @@ diff -r 050d521d66d8 movestack.c
 +		arrange(selmon);
 +	}
 +}
-+
