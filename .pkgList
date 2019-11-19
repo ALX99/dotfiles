@@ -5,6 +5,7 @@ android-tools
 arch-install-scripts
 breeze-gtk
 cantarell-fonts
+chromium
 cloc # count lines of code
 cmatrix
 code
@@ -19,8 +20,7 @@ fd # find stuff
 feh
 firefox
 fzf
-ghc
-glibc
+ghidra
 gource
 htop
 intellij-idea-community-edition
@@ -36,6 +36,7 @@ ncurses # C formatting for VSCode
 neofetch
 neovim
 network-manager-applet
+nim # nim :)
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
@@ -60,9 +61,10 @@ scrot
 shellcheck
 speedtest-cli
 spotify
+ssh
 sxhkd # Universal keybindings
-terminus-font
 tldr
+tor-browser
 trash-cli
 ttf-font-awesome
 ttf-hack

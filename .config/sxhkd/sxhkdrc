@@ -22,7 +22,7 @@ super + shift + w
 super + Alt_L + 1
     setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && notify-send "Keyboard layout: Qwerty"
 super + Alt_L + 2
-    setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && notify-send "Keyboard layout: Colemak-DH"
+    setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30 && notify-send "Keyboard layout: Colemak-DH"
 super + Alt_L + 3
     setxkbmap se && xmodmap -e 'keycode 135 = Super_R' && notify-send "Keyboard layout: Swedish"
 
