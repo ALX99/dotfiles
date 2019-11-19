@@ -73,7 +73,23 @@ git_build_loop() {
     sudo make clean install
     rm -f config.h
 }
+# install nnn with keybindings for colemak-dh
+nnn_install(){
+    git clone https://github.com/jarun/nnn ~/nnn
+    cd ~/nnn || exit
 
+    sed -i "s/'e'/'E'/g" src/nnn.h
+    sed -i "s/'n'/'N'/g" src/nnn.h
+
+    sed -i "s/'k'/'e'/g" src/nnn.h
+    sed -i "s/'j'/'n'/g" src/nnn.h
+    sed -i "s/'h'/'k'/g" src/nnn.h
+    sed -i "s/'l'/'i'/g" src/nnn.h
+
+    sed -i "s/'l'/'i'/g" src/nnn.h
+	sed -i "/{ 'E',            SEL_EXTN },/d" src/nnn.h
+    sudo make clean install
+}
 # Stow our config
 stow_config() {
     rm -f ~/.xinitrc ~/.bash_profile ~/.bashrc ~/.config/gtk3-0/settings.ini ~/.zshrc
@@ -91,6 +107,7 @@ checkPkg zsh && zsh_install
 checkPkg stow && stow_config
 
 st_install
+nnn_install
 keyboard
 cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
