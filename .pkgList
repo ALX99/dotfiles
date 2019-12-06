@@ -61,7 +61,6 @@ shellcheck
 shfmt # shell format
 speedtest-cli
 spotify
-ssh
 sxhkd # Universal keybindings
 telegram-desktop
 tokei # cloc
