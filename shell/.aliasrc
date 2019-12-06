@@ -14,6 +14,10 @@ alias g='git'
 alias gc='git clone'
 alias please='sudo !!'
 alias cx='chmod +x'
+alias goi='go install'
+alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$GOPATH -asmflags=all=-trimpath=$GOPATH'
+alias gor='go run'
+alias cloc='tokei -e *.txt'
 
 ###########
 # Listing #
@@ -53,13 +57,17 @@ alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master
 # managing suckless patches
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 
-# Better flags
+###############
+# Better flags#
+###############
 alias ls='ls -ht --color=auto --group-directories-first'
 alias grep='grep --color=auto'
 alias cp='cp -i'
 alias mv='mv -i'
 alias rm='rm -iv'
 alias mkdir='mkdir -p'
+alias free='free -h'
+alias df='df -h'
 
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
