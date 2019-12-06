@@ -1,6 +1,7 @@
 # Runs on login
 
-export PATH="$PATH:$HOME/.local/bin/"
+export GOPATH="$HOME/go"
+export PATH="$PATH:$HOME/.local/bin/:$GOPATH/bin"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export FILE="pcmanfm"

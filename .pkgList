@@ -4,9 +4,10 @@ android-studio
 android-tools
 arch-install-scripts
 breeze-gtk
+burpsuite
 cantarell-fonts
 chromium
-cloc # count lines of code
+clang
 cmatrix
 code
 dash
@@ -20,8 +21,6 @@ fd # find stuff
 feh
 firefox
 fzf
-ghidra
-gource
 htop
 intellij-idea-community-edition
 jdk8-openjdk
@@ -29,6 +28,7 @@ jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
+megasync # sync
 mesa-vdpau
 mlocate # Locate
 mpv
@@ -36,11 +36,9 @@ ncurses # C formatting for VSCode
 neofetch
 neovim
 network-manager-applet
-nim # nim :)
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
-onedrive-abraunegg
 openssh
 otf-fira-code
 p7zip # 7z extentions
@@ -48,7 +46,8 @@ pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
 pgformatter-git # formatter for sql
-postgresql # for course
+pkgfile # tool for searching files from packages
+postgresql
 python
 python3
 python-pip
@@ -59,19 +58,25 @@ redshift # Bluelight filter
 reflector
 scrot
 shellcheck
+shfmt # shell format
 speedtest-cli
 spotify
 ssh
 sxhkd # Universal keybindings
-tldr
+telegram-desktop
+tokei # cloc
 tor-browser
 trash-cli
+ttf-cascadia-code # Programming font
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
 ttf-liberation
 unrar # RAR
 unzip # ZIP
+upx
+virtualbox-guest-iso # guest additions for virtualbox
+virtualbox # virtualbox
 w3m
 wget
 xclip
