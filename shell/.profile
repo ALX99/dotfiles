@@ -6,7 +6,7 @@ export EDITOR="nvim"
 export VISUAL="nvim"
 export FILE="pcmanfm"
 export TERMINAL="st"
-export BROWSER="firefox"
+export BROWSER="chromium"
 export SUDO_ASKPASS="$HOME/.local/bin/dmenupass"
 export _JAVA_AWT_WM_NONREPARENTING=1
 
