@@ -21,6 +21,7 @@ yay_check() {
 keyboard() {
     sudo ln -s ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 }
+# Not used anymore
 firefox_setup() {
     profile_folder="$(sed -n 's/Default=//p' ~/.mozilla/firefox/profiles.ini | head -1)"
     profile_folder="$HOME/.mozilla/firefox/${profile_folder}/"
@@ -116,7 +117,6 @@ stow_config() {
 
 checkPkg git && yay_check
 checkPkg dash && dash_install # Bash is bloated
-checkPkg firefox && firefox_setup
 checkPkg zsh && zsh_install
 checkPkg stow && stow_config
 
@@ -125,4 +125,3 @@ nnn_install
 keyboard
 cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
-systemctl --user enable onedrive           # Start onedrive up when we log in
