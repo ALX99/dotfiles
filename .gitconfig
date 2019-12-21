@@ -27,9 +27,6 @@ unpublish = "!git push origin :$(git branch-name)"
 unstage = reset HEAD
 mm = pull origin master:master
 # Complex aliases
-plog = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
-tlog = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
-lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
 rank = shortlog -sn --no-merges
 
 [core]

@@ -17,7 +17,7 @@ alias cx='chmod +x'
 alias goi='go install'
 alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$GOPATH -asmflags=all=-trimpath=$GOPATH'
 alias gor='go run'
-alias cloc='tokei -e *.txt'
+alias cloc='tokei'
 
 ###########
 # Listing #
