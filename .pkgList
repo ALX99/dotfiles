@@ -1,6 +1,5 @@
 adb
 alsa-utils
-android-studio
 android-tools
 arch-install-scripts
 breeze-gtk
@@ -21,6 +20,7 @@ fd # find stuff
 feh
 firefox
 fzf
+go
 htop
 intellij-idea-community-edition
 jdk8-openjdk
@@ -39,6 +39,7 @@ network-manager-applet
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
+ntfs-3g
 openssh
 otf-fira-code
 p7zip # 7z extentions
@@ -53,7 +54,6 @@ python3
 python-pip
 qbittorrent
 qrencode # Create QR codes
-ranger
 redshift # Bluelight filter
 reflector
 scrot
@@ -76,7 +76,6 @@ unzip # ZIP
 upx
 virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
-w3m
 wget
 xclip
 xdg-utils
