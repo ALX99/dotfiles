@@ -6,7 +6,7 @@ c;Commit staged changes;commit
 p;Push local commits;push
 f;Fetch objects and refs;fetch
 s;Working tree status;status
-st;Workint tree status;status -sb
+st;Working tree status;status -sb
 co;Go to branch;checkout
 cob;Create branch;checkout -b
 dt;Diff Tool;difftool
@@ -30,6 +30,4 @@ branch-name;Print branch name;rev-parse --abbre-ref HEAD
 publish;Publish branch
 unpublish;Unpublish branch
 lg;Better log
-tlog;Better text log
-plog;Better log
 rank;Show num of commits by author;shortlog -sn --no-merges
