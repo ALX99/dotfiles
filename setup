@@ -125,4 +125,3 @@ nnn_install
 keyboard
 cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList
-systemctl --user enable onedrive           # Start onedrive up when we log in

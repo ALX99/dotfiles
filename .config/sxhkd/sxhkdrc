@@ -17,7 +17,7 @@ super + shift + q
     qrmake
 
 super + shift + w
-    feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/
+    feh --randomize --bg-fill ~/Wallpapers/
 
 super + Alt_L + 1
     setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && notify-send "Keyboard layout: Qwerty"
