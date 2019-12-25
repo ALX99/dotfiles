@@ -30,7 +30,7 @@ super + Alt_L + 3
 XF86AudioMute
 	amixer sset Master toggle; refbar
 XF86Audio{Raise,Lower}Volume
-	amixer sset Master 5%{+,-}; refbar
+	amixer sset Master 3%{+,-}; refbar
 
 # Brightness
 XF86MonBrightnessUp
