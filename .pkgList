@@ -9,6 +9,7 @@ chromium
 clang
 cmatrix
 code
+dart # dart <3
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
@@ -25,6 +26,7 @@ intellij-idea-community-edition
 jdk8-openjdk
 jdk-openjdk
 libnotify
+libreoffice
 libva-intel-driver
 libva-mesa-driver
 megasync # sync

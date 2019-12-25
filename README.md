@@ -5,3 +5,6 @@ The dotfiles here are meant for my own usage and uploaded for the sake of sharin
 
 If the keybindings look weird it's because they are. Reason being I use Colemak-DH as a keyboard layout.  
 Packages I use are found under [.pkgList](https://github.com/ALX99/dotfiles/blob/master/.pkgList) and are managed by my pacman/yay wrapper [paccy](https://github.com/ALX99/dotfiles/blob/master/bin/paccy).
+
+Boring picture of the boring setup below.
+![capture](capture.png)
