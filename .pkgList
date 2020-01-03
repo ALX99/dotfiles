@@ -5,7 +5,6 @@ arch-install-scripts
 breeze-gtk
 burpsuite
 cantarell-fonts
-chromium
 clang
 cmatrix
 code
@@ -21,6 +20,7 @@ fd # find stuff
 feh
 fzf
 go
+google-chrome
 htop
 intellij-idea-community-edition
 jdk8-openjdk
