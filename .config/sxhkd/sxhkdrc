@@ -17,7 +17,7 @@ super + shift + q
     qrmake
 
 super + shift + w
-    feh --randomize --bg-fill ~/OneDrive/Wallpapers/1920x1080/
+    feh --randomize --bg-fill ~/Wallpapers/
 
 super + Alt_L + 1
     setxkbmap us && xmodmap -e 'keycode 135 = Super_R' && notify-send "Keyboard layout: Qwerty"
@@ -30,7 +30,7 @@ super + Alt_L + 3
 XF86AudioMute
 	amixer sset Master toggle; refbar
 XF86Audio{Raise,Lower}Volume
-	amixer sset Master 5%{+,-}; refbar
+	amixer sset Master 3%{+,-}; refbar
 
 # Brightness
 XF86MonBrightnessUp
