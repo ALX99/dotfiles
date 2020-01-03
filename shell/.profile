@@ -1,14 +1,16 @@
 # Runs on login
 
 export GOPATH="$HOME/go"
-export PATH="$PATH:$HOME/.local/bin/:$GOPATH/bin"
+export PATH="$PATH:$HOME/.local/bin/:$GOPATH/bin:$HOME/flutter/bin/:"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export FILE="pcmanfm"
 export TERMINAL="st"
-export BROWSER="chromium"
+export BROWSER="google-chrome-stable"
 export SUDO_ASKPASS="$HOME/.local/bin/dmenupass"
 export _JAVA_AWT_WM_NONREPARENTING=1
+# For flutter
+export CHROME_EXECUTABLE="google-chrome-stable"
 
 # ZSH stuff
 export ZSH=$HOME/.oh-my-zsh
