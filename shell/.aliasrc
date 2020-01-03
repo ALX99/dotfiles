@@ -70,6 +70,7 @@ alias rm='rm -iv'
 alias mkdir='mkdir -p'
 alias free='free -h'
 alias df='df -h'
+alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
