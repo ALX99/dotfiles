@@ -56,6 +56,8 @@ alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom &&
 alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
 # managing suckless patches
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
+# compile protobuf with grpc included
+alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
 
 ###############
 # Better flags#
