@@ -1,9 +1,10 @@
 adb
 alsa-utils
+android-studio
 android-tools
 arch-install-scripts
+bat # better cat
 breeze-gtk
-burpsuite
 cantarell-fonts
 clang
 cmatrix
@@ -16,6 +17,7 @@ discord
 dmenu
 downgrade
 dunst
+exa # better ls
 fd # find stuff
 feh
 fzf
@@ -26,13 +28,14 @@ intellij-idea-community-edition
 jdk8-openjdk
 jdk-openjdk
 libnotify
-libreoffice
 libva-intel-driver
 libva-mesa-driver
 megasync # sync
 mesa-vdpau
 mlocate # Locate
 mpv
+ncdu
+ncurses5-compat-libs # C formatting
 ncurses # C formatting for VSCode
 neofetch
 neovim
