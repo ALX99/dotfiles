@@ -14,7 +14,9 @@ alias g='git'
 alias gc='git clone'
 alias please='sudo !!'
 alias cx='chmod +x'
+# Go install
 alias goi='go install'
+# Go produce
 alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$GOPATH -asmflags=all=-trimpath=$GOPATH'
 alias gor='go run'
 alias cloc='tokei'
@@ -22,13 +24,11 @@ alias cloc='tokei'
 ###########
 # Listing #
 ###########
-alias l.="ls -od .?*"
-alias la="ls -oa"
-alias ll="ls -o"
-# find biggest directiories
-alias duck='sudo du -hs * | sort -rh | head -10'
-# find biggest files
-alias ducks='sudo find -type f -exec du -Sh {} + | sort -rh | head -10'
+alias ls='exa -s modified'
+alias ll="exa -l -s modified"
+alias ld="exa -D -s modified"
+alias la="exa -la -s modified"
+alias tree='exa -T'
 # list trash
 alias lt=trash-list
 
@@ -41,11 +41,17 @@ alias config='cd ~/dotfiles/.config'
 # jump to mark
 alias m=jump
 
+############
+# Advanced #
+############
+# Show why the go modules are needed
+alias gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
+
 ########
 # Misc #
 ########
 alias t='trash-put'
-alias tr='trash-restore'
+alias rt='trash-restore'
 alias ct='trash-empty'
 alias x='extract'
 # ZSH tries to use this alias
@@ -58,11 +64,13 @@ alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 # compile protobuf with grpc included
 alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
+# Better cat
+alias hat='bat'
 
 ###############
 # Better flags#
 ###############
-alias ls='ls -ht --color=auto --group-directories-first'
+#alias ls='ls -ht --color=auto --group-directories-first'
 alias grep='grep --color=auto'
 alias cp='cp -i'
 alias mv='mv -i'
@@ -71,6 +79,7 @@ alias mkdir='mkdir -p'
 alias free='free -h'
 alias df='df -h'
 alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
+alias du='ncdu'
 
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
