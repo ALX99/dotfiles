@@ -1,0 +1,1 @@
+git+https://github.com/gleitz/howdoi.git#egg=howdoi # tool to search stackoverflow
