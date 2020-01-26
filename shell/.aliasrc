@@ -24,11 +24,10 @@ alias cloc='tokei'
 ###########
 # Listing #
 ###########
-alias ls='exa -s modified'
-alias ll="exa -l -s modified"
-alias ld="exa -D -s modified"
-alias la="exa -la -s modified"
-alias tree='exa -T'
+alias ls='lsd -t'
+alias ll="lsd -tl"
+alias la="lsd -tA"
+alias tree='lsd --tree --group-dirs last'
 # list trash
 alias lt=trash-list
 

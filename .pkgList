@@ -9,15 +9,13 @@ cantarell-fonts
 clang
 cmatrix
 code
-dart # dart <3
+dart # dart
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
-downgrade
 dunst
-exa # better ls
 fd # find stuff
 feh
 fzf
@@ -30,6 +28,7 @@ jdk-openjdk
 libnotify
 libva-intel-driver
 libva-mesa-driver
+lsd # better ls
 megasync # sync
 mesa-vdpau
 mlocate # Locate
