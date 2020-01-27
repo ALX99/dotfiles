@@ -64,7 +64,7 @@ alias reset='make clean && git reset --hard remotes/origin/master && rm -f confi
 # compile protobuf with grpc included
 alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
 # Better cat
-alias hat='bat'
+alias cat='bat'
 
 ###############
 # Better flags#
