@@ -8,7 +8,6 @@ breeze-gtk
 cantarell-fonts
 clang
 cmatrix
-code
 dart # dart
 dash
 dialog
@@ -29,6 +28,7 @@ libnotify
 libva-intel-driver
 libva-mesa-driver
 lsd # better ls
+maim # better scrot
 megasync # sync
 mesa-vdpau
 mlocate # Locate
@@ -59,7 +59,6 @@ qbittorrent
 qrencode # Create QR codes
 redshift # Bluelight filter
 reflector
-scrot
 shellcheck
 shfmt # shell format
 speedtest-cli
@@ -68,7 +67,7 @@ sxhkd # Universal keybindings
 telegram-desktop
 tokei # cloc
 trash-cli
-ttf-cascadia-code # Programming font
+ttf-cascadia-code # programming font
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
@@ -78,6 +77,7 @@ unzip # ZIP
 upx
 virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
+visual-studio-code-bin
 wget
 xclip
 xdg-utils
