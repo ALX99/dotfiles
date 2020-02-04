@@ -40,3 +40,6 @@ XF86MonBrightnessDown
 
 super + F3
     systemctl suspend
+
+super + shift + s
+    xset dpms force off
