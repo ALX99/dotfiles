@@ -5,10 +5,10 @@ android-tools
 arch-install-scripts
 bat # better cat
 breeze-gtk
+broot
 cantarell-fonts
 clang
 cmatrix
-dart # dart
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
