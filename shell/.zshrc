@@ -10,18 +10,19 @@ CASE_SENSITIVE="true"
 # Uncomment the following line if you want to disable marking untracked files
 # under VCS as dirty. This makes repository status check for large repositories
 # much, much faster.
-DISABLE_UNTRACKED_FILES_DIRTY="true"
+#DISABLE_UNTRACKED_FILES_DIRTY="true"
 
+# https://github.com/wfxr/forgit
 plugins=(git forgit jump zsh-completions zsh-autosuggestions)
 
 # Always check history before completion
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 
-autoload -U compinit && compinit
+autoload -U compinit
 source $ZSH/oh-my-zsh.sh
 
 # Source my aliases
-[ -f "$HOME/.aliasrc" ] && source "$HOME/.aliasrc"
+source "$HOME/.aliasrc"
 
 # Speed up starting ZSH
 zcachedir="$HOME/.zcache"
@@ -57,3 +58,6 @@ _update_zcomp "$zcachedir"
 unfunction _update_zcomp
 # END of speedup
 
+
+# This is for broot
+source /home/alex/.config/broot/launcher/bash/br

@@ -5,7 +5,6 @@
 #########
 alias q=exit
 alias c=clear
-alias r=ranger
 alias e=$EDITOR
 alias h='cd ~'
 alias p=paccy
@@ -37,6 +36,8 @@ alias lt=trash-list
 alias bin='cd ~/dotfiles/bin'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
+# Go to directory
+alias god='br -f'
 # jump to mark
 alias m=jump
 
@@ -57,14 +58,16 @@ alias x='extract'
 alias bye='~/./.local/bin/bye'
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
-# restart dwm
-alias restart="sudo rm -f /usr/local/bin/dwm && cd ~/dwm/ && git checkout master && git merge config && make clean && sudo make install && pkill dwm"
 # managing suckless patches
 alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
 # compile protobuf with grpc included
 alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
 # Better cat
 alias cat='bat'
+# Screen Off
+alias so='xset dpms force off'
+# List sizes of folders
+alias sizes='br --sizes'
 
 ###############
 # Better flags#
@@ -80,11 +83,11 @@ alias df='df -h'
 alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 alias du='ncdu'
 
-goto(){
-    dir=$(find "${1:-.}" -path '*/\.*' -prune \
-        -o -type d -print 2> /dev/null | fzf +m) &&
-        cd "$dir"
-}
+########
+# Temp #
+########
+alias aa='make && ./login_linux'
+
 hgrep(){
   print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
@@ -98,11 +101,20 @@ sshs() {
     ssh -t "$@" "bash --rcfile /tmp/.bashrc_temp ; rm /tmp/.bashrc_temp"
 }
 
-# go to directory
-god() {
-  dir=$(find ${1:-.} -path '*/\.*' -prune \
-                  -o -type d -print 2> /dev/null | fzf +m) &&
-  cd "$dir"
+# Git change branch
+gcb() {
+  result=$(git branch -a --color=always | grep -v '/HEAD\s' | sort |
+    fzf --height 50% --border --ansi --tac --preview-window right:70% \
+      --preview 'git log --oneline --graph --date=short --pretty="format:%C(auto)%cd %h%d %s" $(sed s/^..// <<< {} | cut -d" " -f1) | head -'$LINES |
+    sed 's/^..//' | cut -d' ' -f1)
+
+  if [[ $result != "" ]]; then
+    if [[ $result == remotes/* ]]; then
+      git checkout --track $(echo $result | sed 's#remotes/##')
+    else
+      git checkout "$result"
+    fi
+  fi
 }
 
 ###########
