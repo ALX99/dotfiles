@@ -1,5 +1,6 @@
 adb
 alsa-utils
+amdvlk
 android-studio
 android-tools
 arch-install-scripts
@@ -9,7 +10,6 @@ cantarell-fonts
 clang
 cmatrix
 code
-dart # dart
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
@@ -25,10 +25,12 @@ htop
 intellij-idea-community-edition
 jdk8-openjdk
 jdk-openjdk
+kcm-wacomtablet # wacom
 libnotify
 libva-intel-driver
 libva-mesa-driver
 lsd # better ls
+maim # better scrot
 megasync # sync
 mesa-vdpau
 mlocate # Locate
@@ -38,6 +40,7 @@ ncurses5-compat-libs # C formatting
 ncurses # C formatting for VSCode
 neofetch
 neovim
+nerd-fonts-complete # fonts
 network-manager-applet
 noto-fonts
 noto-fonts-cjk
@@ -78,10 +81,12 @@ unzip # ZIP
 upx
 virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
+vulkan-radeon
 wget
 xclip
 xdg-utils
 xorg-xev
+xournalpp
 youtube-dl
 zathura
 zathura-pdf-poppler
