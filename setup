@@ -17,10 +17,6 @@ yay_check() {
         rm -rf ~/yay
     fi
 }
-# Move keyboard layout
-keyboard() {
-    sudo ln -s ~/dotfiles/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-}
 # Not used anymore
 firefox_setup() {
     profile_folder="$(sed -n 's/Default=//p' ~/.mozilla/firefox/profiles.ini | head -1)"
@@ -28,9 +24,6 @@ firefox_setup() {
     mkdir -p "${profile_folder}chrome"
     ln -sf ${DIR}/firefox/userChrome.css "${profile_folder}chrome"
     ln -sf ${DIR}/firefox/user.js "$profile_folder"
-}
-dash_install() {
-    sudo ln -sfT dash /usr/bin/sh
 }
 zsh_install() {
     sh -c "$(wget -O- https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
@@ -51,15 +44,6 @@ st_install() {
     git_patch_loop "$st_dir"
     git checkout master
     git_build_loop "$st_dir"
-}
-dwm_install() {
-    dwm_dir="${DIR}/suckless/dwm/*.diff"
-    rm -rf ~/dwm
-    git clone git://git.suckless.org/dwm ~/dwm
-    cd ~/dwm || exit
-    git_patch_loop "$dwm_dir"
-    git checkout master
-    git_build_loop "$dwm_dir"
 }
 # cd to git directory then call this
 # 1: directory
@@ -88,40 +72,10 @@ git_build_loop() {
     sudo make clean install
     rm -f config.h
 }
-# install nnn with keybindings for colemak-dh
-nnn_install() {
-    git clone https://github.com/jarun/nnn ~/nnn
-    cd ~/nnn || exit
-
-    sed -i "s/'e'/'E'/g" src/nnn.h
-    sed -i "s/'n'/'N'/g" src/nnn.h
-
-    sed -i "s/'k'/'e'/g" src/nnn.h
-    sed -i "s/'j'/'n'/g" src/nnn.h
-    sed -i "s/'h'/'k'/g" src/nnn.h
-    sed -i "s/'l'/'i'/g" src/nnn.h
-
-    sed -i "s/'l'/'i'/g" src/nnn.h
-    sed -i "/{ 'E',            SEL_EXTN },/d" src/nnn.h
-    sudo make clean install
-}
-# Stow our config
-stow_config() {
-    rm -f ~/.xinitrc ~/.bash_profile ~/.bashrc ~/.config/gtk3-0/settings.ini ~/.zshrc
-    stow ${DIR}/x/
-    stow ${DIR}/shell/
-    stow ${DIR}/.config/ -t ~/.config/
-    stow ${DIR}/.local/ -t ~/.local/
-    chmod +x ~/dotfiles/.local/bin/*
-}
 
 checkPkg git && yay_check
-checkPkg dash && dash_install # Bash is bloated
 checkPkg zsh && zsh_install
-checkPkg stow && stow_config
 
 st_install
-nnn_install
-keyboard
 cp .gitconfig ~/
 yay -S --needed $(cut -d ' ' -f1 .pkgList) # Installs all the packages in the .pkgList

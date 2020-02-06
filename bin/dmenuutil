@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+
+screenshot() {
+	sel="Selection"
+	av="Active Screen"
+	chosen=$(printf "%s\\n%s" "$sel" "$av" | dmenu -i -p "Screenshot:") &&
+		case "$chosen" in
+		"$sel")
+			maim -us $(date -u +"%d-%m-%Y_%H:%M").png
+			;;
+		*) ;;
+		esac
+}
+
+# Create a QR code from the clipboard
+qr() {
+	qrencode -s 10 "$(xclip -o)" -o temp.png
+	feh temp.png && rm temp.png
+}
+
+sc="Screenshot"
+qr="QR clip"
+chosen=$(printf "%s\\n%s" "$sc" "$qr" | dmenu -i -p "Select display arangement:") &&
+	case "$chosen" in
+	"$sc")
+		screenshot
+		exit
+		;;
+	"$qr")
+		qr
+		exit
+		;;
+	"multi-monitor") multimon ;;
+	*) xrandr --output "$chosen" --auto --scale 1.0x1.0 $(echo "$allposs" | grep -v "$chosen" | awk '{print "--output", $1, "--off"}' | tr '\n' ' ') ;;
+	esac

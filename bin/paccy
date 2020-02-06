@@ -16,8 +16,7 @@ where:
     -ru, --remove-untracked remove all your untracked packages  
     -S                      install package(s)
     -Syu                    update all your packages
-    -sr                     search the official repository for a package(s)
-    -sa                     searche the AUR for a package(s)
+    -s                      search for package(s)
 
 your package list is located at $pkgList"
 
@@ -145,16 +144,12 @@ main() {
         sudo pacman -Rns "$pkg"
         exit 0
         ;;
-    -sa)
+    -s)
         shift
-        yay --aur $*
+        # TODO log to pkgList
+        yay -Slq | fzf -m --preview 'yay -Si {1}'| xargs -ro yay -S
         exit 0
         ;; # Search in AUR
-    -sr)
-        shift
-        yay --repo $*
-        exit 0
-        ;; # Search in repo
     -i | --install)
         install
         exit 0
