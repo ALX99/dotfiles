@@ -1,0 +1,5 @@
+#!/bin/sh
+# Creates a QR code from the current clipboard
+
+qrencode -s 10 "$(xclip -o)" -o temp.png
+feh temp.png && rm temp.png
