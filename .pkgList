@@ -6,10 +6,10 @@ android-tools
 arch-install-scripts
 bat # better cat
 breeze-gtk
+broot
 cantarell-fonts
 clang
 cmatrix
-code
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
@@ -62,7 +62,6 @@ qbittorrent
 qrencode # Create QR codes
 redshift # Bluelight filter
 reflector
-scrot
 shellcheck
 shfmt # shell format
 speedtest-cli
@@ -71,7 +70,7 @@ sxhkd # Universal keybindings
 telegram-desktop
 tokei # cloc
 trash-cli
-ttf-cascadia-code # Programming font
+ttf-cascadia-code # programming font
 ttf-font-awesome
 ttf-hack
 ttf-inconsolata
@@ -81,7 +80,7 @@ unzip # ZIP
 upx
 virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
-vulkan-radeon
+visual-studio-code-bin
 wget
 xclip
 xdg-utils
