@@ -146,6 +146,7 @@ main() {
         ;;
     -s)
         shift
+        # TODO log to pkgList
         yay -Slq | fzf -m --preview 'yay -Si {1}'| xargs -ro yay -S
         exit 0
         ;; # Search in AUR
