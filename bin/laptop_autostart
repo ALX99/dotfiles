@@ -4,4 +4,4 @@
 dunst &
 dwmbar &
 feh --randomize --bg-fill ~/Wallpapers/ &
-xinput set-prop 10 300 1 &
+xinput set-prop 10 300 1

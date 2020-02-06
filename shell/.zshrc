@@ -13,7 +13,7 @@ CASE_SENSITIVE="true"
 #DISABLE_UNTRACKED_FILES_DIRTY="true"
 
 # https://github.com/wfxr/forgit
-plugins=(git forgit jump zsh-completions zsh-autosuggestions)
+plugins=(git forgit jump zsh-completions zsh-autosuggestions zsh-syntax-highlighting)
 
 # Always check history before completion
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
@@ -23,6 +23,10 @@ source $ZSH/oh-my-zsh.sh
 
 # Source my aliases
 source "$HOME/.aliasrc"
+
+# Zplug
+source ~/.zplug/init.zsh
+zplug "b4b4r07/enhancd", use:init.sh
 
 # Speed up starting ZSH
 zcachedir="$HOME/.zcache"
