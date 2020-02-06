@@ -28,6 +28,7 @@ alias ls='lsd -t'
 alias ll="lsd -tl"
 alias la="lsd -tA"
 alias tree='lsd --tree --group-dirs last'
+alias cl="clear;ls"
 # list trash
 alias lt=trash-list
 
@@ -65,11 +66,12 @@ alias reset='make clean && git reset --hard remotes/origin/master && rm -f confi
 alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
 # Better cat
 alias cat='bat'
+# Compress directory
+alias compress='tar cJf archive.tar.xz'
 
 ###############
 # Better flags#
 ###############
-#alias ls='ls -ht --color=auto --group-directories-first'
 alias grep='grep --color=auto'
 alias cp='cp -i'
 alias mv='mv -i'
@@ -79,6 +81,13 @@ alias free='free -h'
 alias df='df -h'
 alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 alias du='ncdu'
+alias dd='dd bs=512k'
+
+##########
+# Hashes #
+##########
+alias sha1='openssl sha1'
+alias sha256='openssl sha256'
 
 goto(){
     dir=$(find "${1:-.}" -path '*/\.*' -prune \
@@ -116,4 +125,9 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
 }
-
+google(){
+    google-chrome-stable --args "https://www.google.com/search?q=$*"
+}
+stacky(){
+    google-chrome-stable --args "https://www.google.com/search?q=site:stackoverflow.com $*"
+}
