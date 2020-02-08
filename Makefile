@@ -1,15 +1,29 @@
-config:
+general_config:
 	mkdir -p ~/.local/bin
-	cd ~ || exit && \
-    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc
-	stow x/
-	stow shell/
 	stow .config/ -t ~/.config/
 	stow bin/ -t ~/.local/bin/
 	chmod +x bin/*
 	cp .gitconfig ~/
+
+arch_config: general_config
+	cd ~ || exit && \
+    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc
+	stow x/
+	stow shell/
+	# Remove kali stuff
+	rm -f ~/.kali_bashrc ~/.kali_aliasrc ~/.kali_profile
+
+
+kali_config: general_config
+	ln -sf $(CURDIR)/shell/.kali_bashrc ~/.bashrc
+	ln -sf $(CURDIR)/shell/.kali_aliasrc ~/.aliasrc
+	# Kali's default profile
+	rm ~/.profile ~/.bash_profile
+	ln -sf $(CURDIR)/shell/.kali_profile ~/.bash_profile
+
 keymap:
-	sudo ln -s keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+	sudo ln -s $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+
 dwm:
 	rm -rf ~/dwm
 	git clone git://git.suckless.org/dwm ~/dwm
@@ -36,3 +50,12 @@ zsh:
 	rm -f ~/.oh-my-zsh/lib/directories.zsh
 	ln -sf shell/myTheme.zsh-theme ~/.oh-my-zsh/themes/
 	chsh -s /bin/zsh
+
+kali_dep:
+	sudo apt -y install neovim stow tldr fzf
+	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
+	chmod +x ~/.local/bin/diff-so-fancy
+
+kali: kali_dep keymap kali_config
+	
+arch: keymap arch_config

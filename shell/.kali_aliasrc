@@ -1,0 +1,76 @@
+#!/bin/sh
+
+#########
+# Basic #
+#########
+alias q=exit
+alias c=clear
+alias e=$EDITOR
+alias h='cd ~'
+alias g='git'
+alias gc='git clone'
+alias please='sudo !!'
+alias cx='chmod +x'
+
+###########
+# Listing #
+###########
+# list trash
+alias lt=trash-list
+
+##############
+# Navigation #
+##############
+alias bin='cd ~/dotfiles/bin'
+alias dots='cd ~/dotfiles'
+alias config='cd ~/dotfiles/.config'
+# Go to directory
+alias god='br -f'
+
+########
+# Misc #
+########
+alias t='trash-put'
+alias rt='trash-restore'
+alias ct='trash-empty'
+alias x='extract'
+# ZSH tries to use this alias
+alias bye='~/./.local/bin/bye'
+# Setting my custom keyboard
+alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
+# managing suckless patches
+alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
+# compile protobuf with grpc included
+alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
+# Compress directory
+alias compress='tar cJf archive.tar.xz'
+# Screen Off
+alias so='xset dpms force off'
+# List sizes of folders
+alias sizes='br --sizes'
+
+###############
+# Better flags#
+###############
+alias grep='grep --color=auto'
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -iv'
+alias mkdir='mkdir -p'
+alias free='free -h'
+alias df='df -h'
+alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
+
+##########
+# Hashes #
+##########
+alias sha1='openssl sha1'
+alias sha256='openssl sha256'
+
+
+hgrep(){
+  print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
+}
+hrun(){
+  eval $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
+}
