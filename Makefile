@@ -47,6 +47,13 @@ zsh:
 	ln -sf shell/myTheme.zsh-theme ~/.oh-my-zsh/themes/
 	chsh -s /bin/zsh
 
+arch_dep:
+	~/.local/bin/paccy --install
+
+git_config:
+	git config --global user.name "ALX99"
+	git config --global user.email "46844683+ALX99@users.noreply.github.com"
+
 kali_dep:
 	sudo apt -y install neovim stow tldr fzf gobuster
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
@@ -54,4 +61,4 @@ kali_dep:
 
 kali: kali_dep keymap kali_config
 	
-arch: keymap arch_config
+arch: keymap arch_config arch_dep dash dwm
