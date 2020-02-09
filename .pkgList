@@ -1,7 +1,5 @@
 adb
 alsa-utils
-amdvlk
-android-studio
 android-tools
 arch-install-scripts
 bat # better cat
@@ -41,7 +39,6 @@ ncurses # C formatting for VSCode
 neofetch
 neovim
 nerd-fonts-complete # fonts
-network-manager-applet
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
@@ -52,7 +49,6 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
-pgformatter-git # formatter for sql
 pkgfile # tool for searching files from packages
 postgresql
 python
@@ -86,7 +82,6 @@ xclip
 xdg-utils
 xorg-xev
 xournalpp
-youtube-dl
 zathura
 zathura-pdf-poppler
 zip
