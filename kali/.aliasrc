@@ -12,11 +12,12 @@ alias gc='git clone'
 alias please='sudo !!'
 alias cx='chmod +x'
 
-###########
-# Listing #
-###########
-# list trash
-alias lt=trash-list
+
+#####################
+# Downloading stuff #
+#####################
+alias getpeas="wget https://raw.githubusercontent.com/carlospolop/privilege-escalation-awesome-scripts-suite/master/linPEAS/linpeas.sh; chmod +x linpeas.sh"
+alias getenum="wget https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh; chmod +x LinEnum.sh"
 
 ##############
 # Navigation #
@@ -30,9 +31,6 @@ alias god='br -f'
 ########
 # Misc #
 ########
-alias t='trash-put'
-alias rt='trash-restore'
-alias ct='trash-empty'
 alias x='extract'
 # ZSH tries to use this alias
 alias bye='~/./.local/bin/bye'
