@@ -10,16 +10,12 @@ arch_config: general_config
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc
 	stow x/
 	stow shell/
-	# Remove kali stuff
-	rm -f ~/.kali_bashrc ~/.kali_aliasrc ~/.kali_profile
 
 
 kali_config: general_config
-	ln -sf $(CURDIR)/shell/.kali_bashrc ~/.bashrc
-	ln -sf $(CURDIR)/shell/.kali_aliasrc ~/.aliasrc
-	# Kali's default profile
-	rm ~/.profile ~/.bash_profile
-	ln -sf $(CURDIR)/shell/.kali_profile ~/.bash_profile
+	ln -sf $(CURDIR)/kali/.bashrc ~/.bashrc
+	ln -sf $(CURDIR)/shell/.aliasrc ~/.aliasrc
+	ln -sf $(CURDIR)/shell/.profile ~/.profile
 
 keymap:
 	sudo ln -s $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
@@ -52,7 +48,7 @@ zsh:
 	chsh -s /bin/zsh
 
 kali_dep:
-	sudo apt -y install neovim stow tldr fzf
+	sudo apt -y install neovim stow tldr fzf gobuster
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
 
