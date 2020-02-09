@@ -1,0 +1,15 @@
+#!/bin/sh
+# Script to quickly install flutter
+
+path=~/flutter/bin/flutter
+main() {
+    git clone https://github.com/flutter/flutter ~/flutter/
+    $path channel beta
+    $path upgrade
+    $path config --enable-web
+    $path doctor
+    $path doctor --android-licenses
+    echo "Don't forget to update add ~/flutter/bin to your PATH"
+    echo "https://flutter.dev/docs/get-started/install/linux#update-your-path"
+}
+main "$@"
