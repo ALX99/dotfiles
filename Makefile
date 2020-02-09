@@ -7,7 +7,7 @@ general_config:
 
 arch_config: general_config
 	cd ~ || exit && \
-    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc
+    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
 	stow x/
 	stow shell/
 
