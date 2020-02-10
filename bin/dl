@@ -1,3 +1,0 @@
-#!/bin/sh
-# Download youtue vids
-youtube-dl -f best "$1" 
