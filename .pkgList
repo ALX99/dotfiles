@@ -1,7 +1,5 @@
 adb
 alsa-utils
-amdvlk
-android-studio
 android-tools
 arch-install-scripts
 bat # better cat
@@ -23,8 +21,8 @@ go
 google-chrome
 htop
 intellij-idea-community-edition
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 kcm-wacomtablet # wacom
 libnotify
 libva-intel-driver
@@ -36,8 +34,8 @@ mesa-vdpau
 mlocate # Locate
 mpv
 ncdu
-ncurses5-compat-libs # C formatting
 ncurses # C formatting for VSCode
+ncurses5-compat-libs # C formatting
 neofetch
 neovim
 nerd-fonts-complete # fonts
@@ -56,8 +54,8 @@ pgformatter-git # formatter for sql
 pkgfile # tool for searching files from packages
 postgresql
 python
-python3
 python-pip
+python3
 qbittorrent
 qrencode # Create QR codes
 redshift # Bluelight filter
@@ -67,6 +65,7 @@ shfmt # shell format
 speedtest-cli
 spotify
 sxhkd # Universal keybindings
+tealdeer # tldr
 telegram-desktop
 tokei # cloc
 trash-cli
@@ -78,12 +77,13 @@ ttf-liberation
 unrar # RAR
 unzip # ZIP
 upx
-virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
+virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
 wget
 xclip
 xdg-utils
+xorg-xbacklight
 xorg-xev
 xournalpp
 youtube-dl

@@ -7,7 +7,7 @@ general_config:
 
 arch_config: general_config
 	cd ~ || exit && \
-    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc
+    rm -f .xinitrc .bashrc .bash_profile .config/gtk3-0/settings.ini .zshrc
 	stow x/
 	stow shell/
 
@@ -18,7 +18,10 @@ kali_config: general_config
 	ln -sf $(CURDIR)/shell/.profile ~/.profile
 
 keymap:
-	sudo ln -s $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+	sudo ln -sf $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+
+touchpad:
+	sudo ln -sf $(CURDIR)/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
 
 dwm:
 	rm -rf ~/dwm
@@ -52,6 +55,6 @@ kali_dep:
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
 
-kali: kali_dep keymap kali_config
+kali: kali_dep keymap touchpad kali_config
 	
-arch: keymap arch_config
+arch: keymap touchpad arch_config
