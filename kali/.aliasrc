@@ -6,12 +6,12 @@
 alias q=exit
 alias c=clear
 alias e=$EDITOR
+alias se="sudoedit"
 alias h='cd ~'
 alias g='git'
 alias gc='git clone'
 alias please='sudo !!'
 alias cx='chmod +x'
-
 
 #####################
 # Downloading stuff #
@@ -65,10 +65,9 @@ alias upower='upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 alias sha1='openssl sha1'
 alias sha256='openssl sha256'
 
-
-hgrep(){
+hgrep() {
   print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
-hrun(){
+hrun() {
   eval $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
