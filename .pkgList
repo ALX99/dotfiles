@@ -3,6 +3,7 @@ alsa-utils
 android-tools
 arch-install-scripts
 bat # better cat
+biber
 breeze-gtk
 broot
 cantarell-fonts
@@ -39,6 +40,8 @@ ncurses5-compat-libs # C formatting
 neofetch
 neovim
 nerd-fonts-complete # fonts
+net-tools
+nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
@@ -49,6 +52,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
+perl-log-log4perl
 pkgfile # tool for searching files from packages
 postgresql
 python
@@ -66,6 +70,9 @@ stow
 sxhkd # Universal keybindings
 tealdeer # tldr
 telegram-desktop
+texlive-bibtexextra
+texlive-core
+texlive-latexextra
 tokei # cloc
 trash-cli
 ttf-cascadia-code # programming font
