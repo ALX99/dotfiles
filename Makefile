@@ -69,3 +69,6 @@ kali_dep:
 kali: kali_dep keymap touchpad kali_config sudo_config
 	
 arch: keymap touchpad arch_config sudo_config arch_dep dash dwm
+	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
+	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
+	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
