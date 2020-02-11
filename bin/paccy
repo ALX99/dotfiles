@@ -63,13 +63,6 @@ update() {
     sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
     echo "Done!"
 }
-# Count packages being updated/installed
-update_counter() {
-    [ "$1" -le 0 ] && return
-    # Create it if it doesn't exist
-    test -e "$PKG_UPDATE_COUNTER" || echo 0 >"$PKG_UPDATE_COUNTER"
-    echo $((($1 + $(cat "$PKG_UPDATE_COUNTER")))) >"$PKG_UPDATE_COUNTER"
-}
 # Get tracked packages under the variable 'tracked'
 get_tracked() {
     tracked="$(cut -d ' ' -f1 "$pkgList")"
@@ -92,23 +85,10 @@ main() {
         read_pkgs "$@"
         read -rp "Comment to add for these package(s): " comment
         yay -S ${pkgs[*]}
-        count=0
-        all_pkgs=$(pacman -Qe)
-
-        # Count number of packages updated
-        for i in "${pkgs[@]}"; do
-            grep "$i" <<<"$all_pkgs" 1>/dev/null && count=$((count + 1)) && log_pkg "$i"
-        done
-
-        update_counter $count
         exit 0
         ;;
     -Syu)
-        sudo pacman -Sy 1>/dev/null
-        upgrades=$(yay -Qu | wc -l)
-        if yay -Syu; then
-            update_counter "$upgrades"
-        fi
+        yay -Syu
         exit 0
         ;;
     -Rns)
@@ -147,7 +127,7 @@ main() {
     -s)
         shift
         # TODO log to pkgList
-        yay -Slq | fzf -m --preview 'yay -Si {1}'| xargs -ro yay -S
+        yay -Slq | fzf -m --preview 'yay -Si {1}' | xargs -ro yay -S
         exit 0
         ;; # Search in AUR
     -i | --install)
@@ -169,11 +149,5 @@ main() {
     esac
 }
 
-if [ -z "$PKG_UPDATE_COUNTER" ]; then
-    echo "This program requries the PKG_UPDATE_COUNTER environment variable to be set."
-    echo "The environmnet variable should correspond to a file location where you want to"
-    echo "save the number of installed/updated packages."
-    exit 1
-fi
 preview=(fzf --reverse --preview 'pacman -Qi {}')
 main "$@"
