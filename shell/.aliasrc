@@ -6,6 +6,7 @@
 alias q=exit
 alias c=clear
 alias e=$EDITOR
+alias se="sudoedit"
 alias ea='$EDITOR ~/.aliasrc'
 alias h='cd ~'
 alias p=paccy
