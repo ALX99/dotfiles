@@ -24,10 +24,6 @@ source $ZSH/oh-my-zsh.sh
 # Source my aliases
 source "$HOME/.aliasrc"
 
-# Zplug
-source ~/.zplug/init.zsh
-zplug "b4b4r07/enhancd", use:init.sh
-
 # Speed up starting ZSH
 zcachedir="$HOME/.zcache"
 [[ -d "$zcachedir" ]] || mkdir -p "$zcachedir"
@@ -62,6 +58,3 @@ _update_zcomp "$zcachedir"
 unfunction _update_zcomp
 # END of speedup
 
-
-# This is for broot
-source /home/alex/.config/broot/launcher/bash/br
