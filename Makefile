@@ -17,6 +17,10 @@ kali_config: general_config
 	ln -sf $(CURDIR)/shell/.aliasrc ~/.aliasrc
 	ln -sf $(CURDIR)/shell/.profile ~/.profile
 
+sudo_config:
+	sudo ln -sf $(CURDIR)/shell/.bashrc /root/.bashrc
+	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
+
 keymap:
 	sudo ln -sf $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 
@@ -62,6 +66,6 @@ kali_dep:
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
 
-kali: kali_dep keymap touchpad kali_config
+kali: kali_dep keymap touchpad kali_config sudo_config
 	
-arch: keymap touchpad arch_config arch_dep dash dwm
+arch: keymap touchpad arch_config sudo_config arch_dep dash dwm
