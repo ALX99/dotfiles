@@ -6,6 +6,8 @@
 alias q=exit
 alias c=clear
 alias e=$EDITOR
+alias se="sudoedit"
+alias ea='$EDITOR ~/.aliasrc'
 alias h='cd ~'
 alias p=paccy
 alias sp='sudo pacman'
@@ -35,6 +37,7 @@ alias lt=trash-list
 # Navigation #
 ##############
 alias bin='cd ~/dotfiles/bin'
+alias dl='cd ~/Downloads'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
 # Go to directory
@@ -55,8 +58,7 @@ alias t='trash-put'
 alias rt='trash-restore'
 alias ct='trash-empty'
 alias x='extract'
-# ZSH tries to use this alias
-alias bye='~/./.local/bin/bye'
+alias bye='systemctl hibernate'
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
 # managing suckless patches
@@ -97,17 +99,17 @@ alias sha256='openssl sha256'
 ########
 alias aa='make && ./login_linux'
 
-hgrep(){
+hgrep() {
   print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
-hrun(){
+hrun() {
   eval $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
 }
 
 # Bring aliases to SSH target
 sshs() {
-    ssh "$@" "cat > /tmp/.bashrc_temp" < ~/.aliasrc
-    ssh -t "$@" "bash --rcfile /tmp/.bashrc_temp ; rm /tmp/.bashrc_temp"
+  ssh "$@" "cat > /tmp/.bashrc_temp" <~/.aliasrc
+  ssh -t "$@" "bash --rcfile /tmp/.bashrc_temp ; rm /tmp/.bashrc_temp"
 }
 
 # Git change branch
@@ -137,9 +139,9 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
 }
-google(){
-    google-chrome-stable --args "https://www.google.com/search?q=$*"
+google() {
+  google-chrome-stable --args "https://www.google.com/search?q=$*"
 }
-stacky(){
-    google-chrome-stable --args "https://www.google.com/search?q=site:stackoverflow.com $*"
+stacky() {
+  google-chrome-stable --args "https://www.google.com/search?q=site:stackoverflow.com $*"
 }

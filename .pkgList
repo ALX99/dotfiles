@@ -1,4 +1,3 @@
-adb
 alsa-utils
 android-tools
 arch-install-scripts
@@ -57,7 +56,6 @@ pkgfile # tool for searching files from packages
 postgresql
 python
 python-pip
-python3
 qbittorrent
 qrencode # Create QR codes
 redshift # Bluelight filter
