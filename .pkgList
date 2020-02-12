@@ -73,6 +73,7 @@ telegram-desktop
 texlive-bibtexextra
 texlive-core
 texlive-latexextra
+thunderbird
 tokei # cloc
 trash-cli
 ttf-cascadia-code # programming font
