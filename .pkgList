@@ -1,5 +1,6 @@
 alsa-utils
 android-tools
+anki
 arch-install-scripts
 bat # better cat
 biber
@@ -35,7 +36,6 @@ mlocate # Locate
 mpv
 ncdu
 ncurses # C formatting for VSCode
-ncurses5-compat-libs # C formatting
 neofetch
 neovim
 nerd-fonts-complete # fonts
@@ -63,7 +63,6 @@ reflector
 shellcheck
 shfmt # shell format
 speedtest-cli
-spotify
 stow
 sxhkd # Universal keybindings
 tealdeer # tldr
