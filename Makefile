@@ -4,28 +4,27 @@ general_config:
 	stow bin/ -t ~/.local/bin/
 	chmod +x bin/*
 	cp .gitconfig ~/
+	lesskey misc/lesskey
+	# Keymap
+	sudo ln -sf $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+	# Touchpad
+	sudo ln -sf $(CURDIR)/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
+	# Sudo config
+	sudo ln -sf $(CURDIR)/shell/.bashrc /root/.bashrc
+	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
 
 arch_config: general_config
 	cd ~ || exit && \
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
 	stow x/
 	stow shell/
+	ln -s $(CURDIR)/.gitconfig ~/
 
 
 kali_config: general_config
 	ln -sf $(CURDIR)/kali/.bashrc ~/.bashrc
 	ln -sf $(CURDIR)/shell/.aliasrc ~/.aliasrc
 	ln -sf $(CURDIR)/shell/.profile ~/.profile
-
-sudo_config:
-	sudo ln -sf $(CURDIR)/shell/.bashrc /root/.bashrc
-	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
-
-keymap:
-	sudo ln -sf $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-
-touchpad:
-	sudo ln -sf $(CURDIR)/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
 
 dwm:
 	rm -rf ~/dwm
@@ -66,9 +65,9 @@ kali_dep:
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
 
-kali: kali_dep keymap touchpad kali_config sudo_config
+kali: kali_dep kali_config 
 	
-arch: keymap touchpad arch_config sudo_config arch_dep dash dwm
+arch: arch_config arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
