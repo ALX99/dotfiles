@@ -8,7 +8,6 @@ breeze-gtk
 broot
 cantarell-fonts
 clang
-cmatrix
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
@@ -22,8 +21,9 @@ go
 google-chrome
 htop
 intellij-idea-community-edition
-jdk-openjdk
+jabref
 jdk8-openjdk
+jdk-openjdk
 kcm-wacomtablet # wacom
 libnotify
 libva-intel-driver
@@ -51,7 +51,15 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
+perl-eval-closure # Latex formatting
+perl-file-homedir # Latex formatting
+perl-log-dispatch # Latex formatting
 perl-log-log4perl
+perl-namespace-autoclean # Latex formatting
+perl-params-validationcompiler # Latex formatting
+perl-specio # Latex formatting
+perl-unicode-linebreak # Latex formatting
+perl-yaml-tiny # Latex formatting
 pkgfile # tool for searching files from packages
 postgresql
 python
@@ -69,7 +77,8 @@ tealdeer # tldr
 telegram-desktop
 texlive-bibtexextra
 texlive-core
-texlive-latexextra
+texlive-most # LateX
+thunderbird
 tokei # cloc
 trash-cli
 ttf-cascadia-code # programming font
@@ -80,8 +89,8 @@ ttf-liberation
 unrar # RAR
 unzip # ZIP
 upx
-virtualbox # virtualbox
 virtualbox-guest-iso # guest additions for virtualbox
+virtualbox # virtualbox
 visual-studio-code-bin
 wget
 xclip
