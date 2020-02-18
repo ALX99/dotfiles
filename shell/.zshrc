@@ -23,6 +23,7 @@ source $ZSH/oh-my-zsh.sh
 
 # Source my aliases
 source "$HOME/.aliasrc"
+source /home/tellus/.config/broot/launcher/bash/br
 
 # Speed up starting ZSH
 zcachedir="$HOME/.zcache"
