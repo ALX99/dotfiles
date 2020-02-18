@@ -22,6 +22,7 @@ google-chrome
 htop
 intellij-idea-community-edition
 jabref
+jdk-openjdk
 jdk8-openjdk
 jdk-openjdk
 kcm-wacomtablet # wacom
@@ -97,6 +98,7 @@ xclip
 xdg-utils
 xorg-xbacklight
 xorg-xev
+xorg-xinput
 xournalpp
 zathura
 zathura-pdf-poppler
