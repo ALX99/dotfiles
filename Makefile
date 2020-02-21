@@ -25,8 +25,8 @@ kali_config: general_config
 	ln -sf $(CURDIR)/kali/.bashrc ~/.bashrc
 	ln -sf $(CURDIR)/kali/.aliasrc ~/.aliasrc
 	ln -sf $(CURDIR)/kali/.profile ~/.profile
-	ln -sf $(CURDIR)/kali/.xsession ~/.xession
-	sudo ln -sf $(CURDIR)/kali/dwm.desktop /usr/share/xsessions/dwm.desktop
+	ln -sf $(CURDIR)/x/.xinitrc ~/.xinitrc
+	sudo ln -sf $(CURDIR)/kali/xorg.conf /etc/X11/xorg.conf
 
 dwm:
 	rm -rf ~/dwm
@@ -63,12 +63,16 @@ git_config:
 	git config --global user.email "46844683+ALX99@users.noreply.github.com"
 
 kali_dep:
-	sudo apt -y install neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
+	sudo apt -y install xorg xbacklight alsa-utils fonts-hack-ttf htop neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
 	mkdir -p ~/.local/bin
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
 
 kali: kali_dep kali_config 
+	curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
+	sudo mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg
+	sudo su -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list'
+	sudo apt update && sudo apt install code
 	
 arch: arch_config arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
