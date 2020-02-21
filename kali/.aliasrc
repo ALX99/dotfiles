@@ -7,6 +7,7 @@ alias q=exit
 alias c=clear
 alias e=$EDITOR
 alias se="sudoedit"
+alias ea='$EDITOR ~/.aliasrc'
 alias h='cd ~'
 alias g='git'
 alias gc='git clone'
@@ -25,27 +26,32 @@ alias getenum="wget https://raw.githubusercontent.com/rebootuser/LinEnum/master/
 alias bin='cd ~/dotfiles/bin'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
-# Go to directory
-alias god='br -f'
+
+########
+# Nmap #
+########
+# Syn Stealth with OS detection, script scanning and version script scanning
+# will save to res.xml
+alias nstandard='sudo nmap --top-ports 1500 -sS -O -sC -sV -oX res.xml'
+
+#########
+# Hacky #
+#########
+alias ss='searchsploit'
+alias ssres='ss -vx --nmap res.xml'
 
 ########
 # Misc #
 ########
 alias x='extract'
-# ZSH tries to use this alias
-alias bye='~/./.local/bin/bye'
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'
-# managing suckless patches
-alias reset='make clean && git reset --hard remotes/origin/master && rm -f config.h'
-# compile protobuf with grpc included
-alias protorpc='protoc --go_out=plugins=grpc:. *.proto'
 # Compress directory
 alias compress='tar cJf archive.tar.xz'
 # Screen Off
 alias so='xset dpms force off'
-# List sizes of folders
-alias sizes='br --sizes'
+# Setup VPN conneciton to htb
+alias vpnsetup='sudo openvpn ~/Downloads/ALX99.ovpn'
 
 ###############
 # Better flags#

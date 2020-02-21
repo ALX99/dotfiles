@@ -5,6 +5,7 @@ export PATH="$PATH:$HOME/.local/bin/:/usr/local/sbin:/usr/sbin:/sbin:"
 export EDITOR="nvim"
 export TERMINAL="st"
 export BROWSER="chromium"
+export PAGER="less"
 
 # Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red
