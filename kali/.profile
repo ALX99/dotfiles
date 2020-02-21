@@ -3,9 +3,8 @@
 export GOPATH="$HOME/go"
 export PATH="$PATH:$HOME/.local/bin/:/usr/local/sbin:/usr/sbin:/sbin:"
 export EDITOR="nvim"
-export VISUAL="nvim"
-export FILE="thunar"
-export TERMINAL="xfce4-terminal"
+export TERMINAL="st"
+export BROWSER="chromium"
 
 # Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red

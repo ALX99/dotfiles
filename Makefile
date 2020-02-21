@@ -23,8 +23,10 @@ arch_config: general_config
 
 kali_config: general_config
 	ln -sf $(CURDIR)/kali/.bashrc ~/.bashrc
-	ln -sf $(CURDIR)/shell/.aliasrc ~/.aliasrc
-	ln -sf $(CURDIR)/shell/.profile ~/.profile
+	ln -sf $(CURDIR)/kali/.aliasrc ~/.aliasrc
+	ln -sf $(CURDIR)/kali/.profile ~/.profile
+	ln -sf $(CURDIR)/kali/.xsession ~/.xession
+	sudo ln -sf $(CURDIR)/kali/dwm.desktop /usr/share/xsessions/dwm.desktop
 
 dwm:
 	rm -rf ~/dwm
@@ -61,7 +63,7 @@ git_config:
 	git config --global user.email "46844683+ALX99@users.noreply.github.com"
 
 kali_dep:
-	sudo apt -y install neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev
+	sudo apt -y install neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
 	mkdir -p ~/.local/bin
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
