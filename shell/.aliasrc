@@ -98,6 +98,7 @@ alias sha256='openssl sha256'
 # Temp #
 ########
 alias aa='make && ./login_linux'
+alias math='cd /home/alex/University/Calculus_MMGD30/ && zathura Book1.pdf Ans.pdf'
 
 hgrep() {
   print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')

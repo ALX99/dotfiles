@@ -20,6 +20,8 @@ fzf
 go
 google-chrome
 htop
+hugo
+imagemagick
 intellij-idea-community-edition
 jabref
 jdk-openjdk
@@ -48,6 +50,7 @@ noto-fonts-emoji # Google emojis
 ntfs-3g
 openssh
 otf-fira-code
+overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
@@ -63,6 +66,7 @@ perl-unicode-linebreak # Latex formatting
 perl-yaml-tiny # Latex formatting
 pkgfile # tool for searching files from packages
 postgresql
+ppp
 python
 python-pip
 qbittorrent
