@@ -69,7 +69,6 @@ python
 python-pip
 qbittorrent
 qrencode # Create QR codes
-redshift # Bluelight filter
 reflector
 shellcheck
 shfmt # shell format
@@ -80,7 +79,6 @@ tealdeer # tldr
 telegram-desktop
 texlive-bibtexextra
 texlive-core
-texlive-most # LateX
 thunderbird
 tokei # cloc
 trash-cli
