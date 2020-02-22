@@ -20,7 +20,6 @@ fzf
 go
 google-chrome
 htop
-hugo
 imagemagick
 intellij-idea-community-edition
 jabref
@@ -66,7 +65,6 @@ perl-unicode-linebreak # Latex formatting
 perl-yaml-tiny # Latex formatting
 pkgfile # tool for searching files from packages
 postgresql
-ppp
 python
 python-pip
 qbittorrent
