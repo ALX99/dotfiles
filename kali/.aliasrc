@@ -5,7 +5,7 @@
 #########
 alias q=exit
 alias c=clear
-alias e=$EDITOR
+alias e='$EDITOR'
 alias se="sudoedit"
 alias ea='$EDITOR ~/.aliasrc'
 alias h='cd ~'
@@ -13,6 +13,8 @@ alias g='git'
 alias gc='git clone'
 alias please='sudo !!'
 alias cx='chmod +x'
+alias gjunk='git commit -m "$(curl http://whatthecommit.com/index.txt)"'
+alias copy='xclip -selection clipboard <'
 
 #####################
 # Downloading stuff #
@@ -43,6 +45,7 @@ alias ssres='ss -vx --nmap res.xml'
 ########
 # Misc #
 ########
+alias bye='systemctl hibernate'
 alias x='extract'
 # Setting my custom keyboard
 alias keyb='setxkbmap colemak && xmodmap ~/dotfiles/keymaps/xmodColemakCustom && xset r rate 210 30'

@@ -6,6 +6,7 @@ export EDITOR="nvim"
 export TERMINAL="st"
 export BROWSER="chromium"
 export PAGER="less"
+export _JAVA_AWT_WM_NONREPARENTING=1
 
 # Colour for man pages
 export LESS_TERMCAP_mb=$(printf '\e[01;31m') # enter blinking mode - red

@@ -5,7 +5,7 @@
 #########
 alias q=exit
 alias c=clear
-alias e=$EDITOR
+alias e='$EDITOR'
 alias se="sudoedit"
 alias ea='$EDITOR ~/.aliasrc'
 alias h='cd ~'
@@ -13,8 +13,10 @@ alias p=paccy
 alias sp='sudo pacman'
 alias g='git'
 alias gc='git clone'
+alias gjunk='git commit -m "$(curl http://whatthecommit.com/index.txt)"'
 alias please='sudo !!'
 alias cx='chmod +x'
+alias copy='xclip -selection clipboard <'
 # Go install
 alias goi='go install'
 # Go produce
