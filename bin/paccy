@@ -156,11 +156,11 @@ main() {
         exit 0
         ;;
     *)
-        echo "******************************************************************************************"
-        echo "* The argument(s) didn't match anything paccy could handle so it was passed on to pacman *"
-        echo "* Run paccy -h for usage                                                                 *"
-        echo "******************************************************************************************"
-        sudo pacman "$@"
+        echo "***************************************************************************************"
+        echo "* The argument(s) didn't match anything paccy could handle so it was passed on to yay *"
+        echo "* Run paccy -h for usage                                                              *"
+        echo "***************************************************************************************"
+        yay "$@"
         exit 1
         ;;
     esac
