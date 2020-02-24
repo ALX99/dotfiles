@@ -1,3 +1,4 @@
+aircrack-ng
 alsa-utils
 android-tools
 anki
@@ -25,7 +26,6 @@ intellij-idea-community-edition
 jabref
 jdk-openjdk
 jdk8-openjdk
-jdk-openjdk
 kcm-wacomtablet # wacom
 libnotify
 libva-intel-driver
@@ -90,8 +90,8 @@ ttf-liberation
 unrar # RAR
 unzip # ZIP
 upx
-virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
+virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
 wget
 xclip
