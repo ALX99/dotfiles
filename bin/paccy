@@ -2,7 +2,7 @@
 # Pacman + yay wrapper that adds very useful features
 # Requires expac, fzf
 
-pkgList=~/dotfiles/.pkgList # Path to package list
+pkgList=~/dotfiles/.ArchWSL # Path to package list
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
