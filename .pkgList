@@ -48,11 +48,6 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
-perl-eval-closure # Latex formatting
-perl-namespace-autoclean # Latex formatting
-perl-params-validationcompiler # Latex formatting
-perl-specio # Latex formatting
-perl-unicode-linebreak # Latex formatting
 pkgfile # tool for searching files from packages
 python
 python-pip
@@ -85,7 +80,9 @@ xdg-utils
 xorg-xbacklight
 xorg-xev
 xorg-xinput
+xorg-xsetroot
 xournalpp
+xsetroot
 zathura
 zathura-pdf-poppler
 zip
