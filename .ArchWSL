@@ -7,7 +7,6 @@ fd # find stuff
 fzf
 go
 htop
-lsd # better ls
 mlocate # Locate
 ncurses # C formatting for VSCode
 neofetch

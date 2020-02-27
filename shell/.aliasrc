@@ -20,17 +20,16 @@ alias copy='xclip -selection clipboard <'
 # Go install
 alias goi='go install'
 # Go produce
-alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$GOPATH -asmflags=all=-trimpath=$GOPATH'
+alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
+alias gob='CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
 alias gor='go run'
 alias cloc='tokei'
 
 ###########
 # Listing #
 ###########
-alias ls='lsd -t'
-alias ll="lsd -tl"
-alias la="lsd -tA"
-alias tree='lsd --tree --group-dirs last'
+alias ls='ls -h --color=auto --sort=t'
+alias ll="ls -AlH"
 alias cl="clear;ls"
 # list trash
 alias lt=trash-list
@@ -42,8 +41,6 @@ alias bin='cd ~/dotfiles/bin'
 alias dl='cd ~/Downloads'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
-# Go to directory
-alias god='br -f'
 # jump to mark
 alias m=jump
 
@@ -73,8 +70,7 @@ alias cat='bat'
 alias compress='tar cJf archive.tar.xz'
 # Screen Off
 alias so='xset dpms force off'
-# List sizes of folders
-alias sizes='br --sizes'
+alias perms="stat -c '%a %n' *"
 
 ###############
 # Better flags#
