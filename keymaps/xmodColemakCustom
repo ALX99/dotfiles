@@ -20,5 +20,5 @@ keysym h = h H braceright
 keysym v = v V ampersand
 keysym b = b B asciicircum
 keysym d = d D equal
-keysym c = c C dollar
+keysym c = c C numbersign
 keycode 27 = p P asterisk
