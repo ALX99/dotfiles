@@ -63,7 +63,7 @@ git_config:
 	git config --global user.email "46844683+ALX99@users.noreply.github.com"
 
 kali_dep:
-	sudo apt -y install xorg xbacklight alsa-utils fonts-hack-ttf htop neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
+	sudo apt -y install xorg xbacklight alsa-utils libnotify-bin fonts-hack-ttf htop neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
 	mkdir -p ~/.local/bin
 	wget -O ~/.local/bin/diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy
 	chmod +x ~/.local/bin/diff-so-fancy
