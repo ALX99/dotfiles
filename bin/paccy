@@ -2,7 +2,7 @@
 # Pacman + yay wrapper that adds very useful features
 # Requires expac, fzf
 
-pkgList=~/dotfiles/.pkgList # Path to package list
+pkgList=${PKGLIST:-~/dotfiles/.pkgList} # Path to package list
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
@@ -17,6 +17,9 @@ where:
     -rt, --remove-tracked   remove all your tracked packages  
     -ru, --remove-untracked remove all your untracked packages  
     -it, --install-tracked  install a tracked package
+
+The pkglist variable is currently set to $pkgList and can be
+changed by setting the PKGLIST environtment variable
 "
 
 # Write the package to the pkgList

@@ -1,9 +1,7 @@
 alsa-utils
 android-tools
-anki
 arch-install-scripts
 bat # better cat
-biber
 breeze-gtk
 broot
 cantarell-fonts
@@ -22,11 +20,8 @@ google-chrome
 htop
 imagemagick
 intellij-idea-community-edition
-jabref
 jdk-openjdk
 jdk8-openjdk
-jdk-openjdk
-kcm-wacomtablet # wacom
 libnotify
 libva-intel-driver
 libva-mesa-driver
@@ -42,7 +37,6 @@ neofetch
 neovim
 nerd-fonts-complete # fonts
 net-tools
-nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
@@ -54,17 +48,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pcmanfm-gtk3
-perl-eval-closure # Latex formatting
-perl-file-homedir # Latex formatting
-perl-log-dispatch # Latex formatting
-perl-log-log4perl
-perl-namespace-autoclean # Latex formatting
-perl-params-validationcompiler # Latex formatting
-perl-specio # Latex formatting
-perl-unicode-linebreak # Latex formatting
-perl-yaml-tiny # Latex formatting
 pkgfile # tool for searching files from packages
-postgresql
 python
 python-pip
 qbittorrent
@@ -77,8 +61,6 @@ stow
 sxhkd # Universal keybindings
 tealdeer # tldr
 telegram-desktop
-texlive-bibtexextra
-texlive-core
 thunderbird
 tokei # cloc
 trash-cli
@@ -89,9 +71,8 @@ ttf-inconsolata
 ttf-liberation
 unrar # RAR
 unzip # ZIP
-upx
-virtualbox-guest-iso # guest additions for virtualbox
 virtualbox # virtualbox
+virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
 wget
 xclip
@@ -99,9 +80,10 @@ xdg-utils
 xorg-xbacklight
 xorg-xev
 xorg-xinput
+xorg-xsetroot
 xournalpp
+xsetroot
 zathura
 zathura-pdf-poppler
 zip
-zmap # Network scanner
 zsh
