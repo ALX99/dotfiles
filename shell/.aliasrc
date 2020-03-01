@@ -8,6 +8,7 @@ alias c=clear
 alias e='$EDITOR'
 alias se="sudoedit"
 alias ea='$EDITOR ~/.aliasrc'
+alias ep='$EDITOR ~/.profile'
 alias h='cd ~'
 alias p=paccy
 alias sp='sudo pacman'
@@ -23,7 +24,6 @@ alias goi='go install'
 alias gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
 alias gob='CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
 alias gor='go run'
-alias cloc='tokei'
 
 ###########
 # Listing #
