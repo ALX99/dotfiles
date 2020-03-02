@@ -1,7 +1,0 @@
-#!/bin/sh
-# A script for launching additional stuff at startup for my laptop
-
-dunst &
-dwmbar &
-feh --randomize --bg-fill ~/Wallpapers/ &
-xinput set-prop 10 300 1
