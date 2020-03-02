@@ -59,10 +59,8 @@ shfmt # shell format
 speedtest-cli
 stow
 sxhkd # Universal keybindings
-tealdeer # tldr
 telegram-desktop
 thunderbird
-tokei # cloc
 trash-cli
 ttf-cascadia-code # programming font
 ttf-font-awesome
