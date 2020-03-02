@@ -2,7 +2,12 @@
 # A script for launching additional stuff at startup
 
 xrdb -load ~/.Xresources &
-~/bin/laptop_autostart &
+
+dunst &
+dwmbar &
+feh --randomize --bg-fill ~/Wallpapers/ &
+xinput set-prop 10 300 1
+
 redshift &
 setxkbmap colemak
 sxhkd & # Hotkey daemon
