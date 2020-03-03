@@ -33,7 +33,7 @@ alias config='cd ~/dotfiles/.config'
 ########
 # Nmap #
 ########
-# Syn Stealth with OS detection, script scanning and version script scanning
+# Syn Stealth with OS detection, script scanning and version script scanning,
 # will save to res.xml
 alias nstandard='sudo nmap --top-ports 1500 -sS -O -sC -sV -oX res.xml'
 
