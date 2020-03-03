@@ -13,7 +13,6 @@ ncurses # C formatting for VSCode
 neofetch
 neovim
 net-tools
-ntfs-3g
 openssh
 otf-fira-code
 pacman-contrib # checkupdates, pactree and stuff
@@ -26,7 +25,6 @@ shellcheck
 shfmt # shell format
 speedtest-cli
 stow
-tealdeer # tldr
 trash-cli
 ttf-cascadia-code # programming font
 ttf-font-awesome
