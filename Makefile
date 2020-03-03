@@ -10,7 +10,7 @@ general_config:
 	sudo ln -sf $(CURDIR)/keymaps/colemak /usr/share/X11/xkb/symbols/colemak || true
 	# Touchpad
 	sudo ln -sf $(CURDIR)/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf || true
-	# Sudo config
+	# Root config
 	sudo ln -sf $(CURDIR)/shell/.bashrc /root/.bashrc
 	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
 
