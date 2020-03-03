@@ -20,6 +20,7 @@ arch_config: general_config
 	stow x/
 	stow shell/
 	ln -s $(CURDIR)/.gitconfig ~/
+	ln -s $(CURDIR)/misc/.pam_environment ~/
 
 
 kali_config: general_config
