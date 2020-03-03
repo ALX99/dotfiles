@@ -18,6 +18,7 @@ alias gjunk='git commit -m "$(curl http://whatthecommit.com/index.txt)"'
 alias please='sudo !!'
 alias cx='chmod +x'
 alias copy='xclip -selection clipboard <'
+alias lg='lazygit'
 # Go install
 alias goi='go install'
 # Go produce
