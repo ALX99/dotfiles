@@ -80,3 +80,14 @@ arch: arch_config arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+
+# run lxd init before this
+kali_lxd:
+	sudo usermod -a -G lxd $(USER)
+	sudo lxc launch images:kali/current/amd64 my-kali
+	sudo lxc exec my-kali -- apt update
+	sudo lxc exec my-kali -- apt install sudo kali-linux-large
+	sudo lxc exec my-kali -- adduser kali
+	sudo lxc exec my-kali -- usermod -aG sudo kali
+	sudo lxc exec my-kali -- sed -i '1 i\TERM=xterm-256color' /home/kali/.bashrc
+	sudo lxc exec my-kali -- sh -c "echo 'Set disable_coredump false' > /etc/sudo.conf"
