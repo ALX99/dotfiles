@@ -11,6 +11,7 @@ dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
+dos2unix
 dunst
 fd # find stuff
 feh
@@ -26,7 +27,7 @@ lazygit
 libnotify
 libva-intel-driver
 libva-mesa-driver
-lsd # better ls
+lxd
 maim # better scrot
 megasync # sync
 mesa-vdpau
@@ -42,6 +43,7 @@ noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 ntfs-3g
+nvim # y
 openssh
 otf-fira-code
 overdue
