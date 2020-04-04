@@ -1,7 +1,6 @@
 #!/bin/sh
-[ -f "$HOME/.local/bin/autostart" ] && . ~/.local/bin/autostart
+[ -f ~/.xprofile ] && . ~/.xprofile
 
-#exec startxfce4
 while true; do
     /usr/local/bin/dwm 2> /dev/null
     sleep 1

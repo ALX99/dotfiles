@@ -7,10 +7,8 @@ if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 endif
  
 call plug#begin('~/.config/nvim/plugged')
-Plug 'scrooloose/nerdtree'
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
-Plug 'tpope/vim-eunuch' " https://github.com/tpope/vim-eunuch
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'w0rp/ale'
 Plug 'dracula/vim', { 'as': 'dracula' }
