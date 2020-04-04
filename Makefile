@@ -1,9 +1,8 @@
 general_config:
-	mkdir -p ~/.local/bin ~/.config
+	mkdir -p ~/.local ~/.config
 	stow .config/ -t ~/.config/
-	stow bin/ -t ~/.local/bin/
-	chmod +x bin/*
-	cp .gitconfig ~/
+	ln -s $(CURDIR)/bin/ ~/.local/
+	ln -s $(CURDIR).gitconfig ~/
 	lesskey misc/lesskey
 	# Added || true, since WSL won't have these paths
 	# Keymap

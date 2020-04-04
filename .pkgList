@@ -3,10 +3,10 @@ android-tools
 arch-install-scripts
 bat # better cat
 breeze-gtk
-broot
 cantarell-fonts
 clang
 dash
+dbeaver
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
@@ -14,10 +14,10 @@ dmenu
 dos2unix
 dunst
 fd # find stuff
-feh
 fzf
 go
 google-chrome
+graphviz
 htop
 imagemagick
 intellij-idea-community-edition
@@ -50,8 +50,10 @@ overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
+pavucontrol
 pcmanfm-gtk3
 pkgfile # tool for searching files from packages
+postgresql
 python
 python-pip
 qbittorrent
@@ -62,6 +64,7 @@ shfmt # shell format
 speedtest-cli
 stow
 sxhkd # Universal keybindings
+sxiv # image viewer
 telegram-desktop
 thunderbird
 tldr
@@ -81,11 +84,14 @@ xclip
 xdg-utils
 xorg-xbacklight
 xorg-xev
+xorg-xfontsel
 xorg-xinput
 xorg-xsetroot
 xournalpp
 xsetroot
+xwallpaper
 zathura
 zathura-pdf-poppler
 zip
+zoom
 zsh

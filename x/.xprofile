@@ -1,0 +1,10 @@
+#!/bin/sh
+
+xinput set-prop 10 300 1
+dunst &
+dwmbar &
+setbg &
+redshift &
+setxkbmap colemak
+sxhkd & # Hotkey daemon
+updates & # Notification about how many updates there are
