@@ -1,0 +1,134 @@
+# interpreter for shell commands (needs to be POSIX compatible)
+set shell sh
+set shellopts '-eu'
+set ifs "\n"
+set scrolloff 10
+set color256
+set icons
+
+# execute current file (must be executable)
+map x $$f
+map X !$f
+
+# dedicated keys for file opener actions
+map o &mimeopen $f
+map O $mimeopen --ask $f
+
+# define a custom 'open' command
+# This command is called when current file is not a directory. You may want to
+# use either file extensions and/or mime types here. Below uses an editor for
+# text files and a file opener for the rest.
+cmd open ${{
+    case $(file --mime-type $f -b) in
+        text/*) $EDITOR $fx;;
+        *) for f in $fx; do setsid $OPENER $f > /dev/null 2> /dev/null & done;;
+    esac
+}}
+
+cmd rename %[ -e $1 ] && printf "file exists" || mv $f $1
+
+
+cmd trash %trash-put $fx
+
+cmd delete ${{
+    set -f
+    printf "$fx\n"
+    printf -p "delete?[y/n]" ans
+    [ $ans = "y" ] && rm -rf $fx
+}}
+
+cmd chmod ${{
+  printf "0: ---\n1: --x\n2: -w-\n3: -wx\n4: r--\n5: r-x\n6: rw-\n7: rwx\n"
+  read -ep "Mode Bits: " -n 3 ans
+
+  for file in "$fx"
+  do
+      chmod $ans $file
+  done
+}}
+
+
+# extract the current file with the right command
+# (xkcd link: https://xkcd.com/1168/)
+cmd extract ${{
+    set -f
+    case $f in
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf $f;;
+        *.tar.gz|*.tgz) tar xzvf $f;;
+        *.tar.xz|*.txz) tar xJvf $f;;
+        *.zip) unzip $f;;
+        *.rar) unrar x $f;;
+        *.7z) 7z x $f;;
+    esac
+}}
+
+# compress current file or selected files with tar and gunzip
+cmd tar ${{
+    set -f
+    mkdir $1
+    cp -r $fx $1
+    tar czf $1.tar.gz $1
+    rm -rf $1
+}}
+
+# compress current file or selected files with zip
+cmd zip %{{
+    a="archive"
+    mkdir $a
+    cp -r $fx $a
+    zip -qr $a.zip $a
+    rm -rf $a
+}}
+
+cmd targz %{{
+    a="archive"
+    mkdir $a
+    cp -r $fx $a
+    tar czf "$a.tar.gz" $a
+    rm -rf $a
+}}
+
+cmd mkdir ${{
+  read -ep "Directory Name: " ans
+  mkdir "$ans"
+}}
+
+# Bindings
+# Remove defaults
+map m
+map c
+map "'"
+map '"'
+
+# colemak
+map e up
+map n down
+map k updir
+map i open
+map l search-next
+map L search-prev
+
+# Basic functions
+map <delete> trash
+map D trash
+map . set hidden!
+map r push :rename<space>
+map C clear
+map R reload
+map ch chmod
+map md mkdir
+
+# Archive
+map az zip
+map at targz
+map au extract
+
+
+# Movement
+map gd cd ~/Downloads
+map gu cd ~/University
+map gD cd ~/dotfiles
+map gb cd ~/.local/bin
+map gc cd ~/.config
+
+
