@@ -1,7 +1,8 @@
 general_config:
 	mkdir -p ~/.local ~/.config
 	stow .config/ -t ~/.config/
-	ln -s $(CURDIR)/bin/ ~/.local/
+	ln -s $(CURDIR)/.local/bin/ ~/.local/
+	ln -s $(CURDIR)/.local/applications/ ~/.local/share/
 	ln -s $(CURDIR).gitconfig ~/
 	lesskey misc/lesskey
 	# Added || true, since WSL won't have these paths
@@ -13,13 +14,19 @@ general_config:
 	sudo ln -sf $(CURDIR)/shell/.bashrc /root/.bashrc
 	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
 
+ssh_agent:
+	echo "AddKeysToAgent yes" >> ~/.ssh/config
+	ln -s $(CURDIR)/misc/.pam_environment ~/
+	sudo systemctl --user enable ssh-agent
+	sudo systemctl --start ssh-agent
+
+
 arch_config: general_config
 	cd ~ || exit && \
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
 	stow x/
 	stow shell/
 	ln -s $(CURDIR)/.gitconfig ~/
-	ln -s $(CURDIR)/misc/.pam_environment ~/
 
 
 kali_config: general_config
@@ -59,10 +66,6 @@ zsh:
 arch_dep:
 	~/.local/bin/paccy -ia
 
-git_config:
-	git config --global user.name "ALX99"
-	git config --global user.email "46844683+ALX99@users.noreply.github.com"
-
 kali_dep:
 	sudo apt -y install xorg xbacklight alsa-utils libnotify-bin fonts-hack-ttf htop neovim stow sxhkd xinput dunst tldr fzf gobuster libx11-dev libxft-dev libxinerama-dev dmenu ssh
 	mkdir -p ~/.local/bin
@@ -75,18 +78,8 @@ kali: kali_dep kali_config
 	sudo su -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list'
 	sudo apt update && sudo apt install code
 	
-arch: arch_config arch_dep dash dwm
+arch: arch_config ssh_agent arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
-# run lxd init before this
-kali_lxd:
-	sudo usermod -a -G lxd $(USER)
-	sudo lxc launch images:kali/current/amd64 my-kali
-	sudo lxc exec my-kali -- apt update
-	sudo lxc exec my-kali -- apt install sudo kali-linux-large
-	sudo lxc exec my-kali -- adduser kali
-	sudo lxc exec my-kali -- usermod -aG sudo kali
-	sudo lxc exec my-kali -- sed -i '1 i\TERM=xterm-256color' /home/kali/.bashrc
-	sudo lxc exec my-kali -- sh -c "echo 'Set disable_coredump false' > /etc/sudo.conf"
