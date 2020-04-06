@@ -19,8 +19,11 @@ super + p
 super + shift + q
     qrmake
 
+super + shift + s
+    sc
+
 super + shift + w
-    feh --randomize --bg-fill ~/Wallpapers/
+    setbg
 
 # make sxhkd reload its configuration files:
 super + Escape
@@ -37,13 +40,13 @@ super + 2
 
 # Audio
 XF86AudioMute
-	amixer sset Master toggle; refbar
+	amixer sset Master toggle; pkill -RTMIN+30 dwmblocks
 XF86Audio{Raise,Lower}Volume
-	amixer sset Master 3%{+,-}; refbar
+	amixer sset Master 3%{+,-}; pkill -RTMIN+30 dwmblocks
 
 # Brightness
 {XF86MonBrightnessUp,XF86MonBrightnessDown}
-    xbacklight {-inc,-dec} 5; refbar
+    xbacklight {-inc,-dec} 5; -RTMIN+31 dwmblocks
 
 
 super + F3
