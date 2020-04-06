@@ -1,0 +1,18 @@
+#!/bin/sh
+
+
+volstat="$(amixer get Master)"
+
+echo "$volstat" | grep "\[off\]" >/dev/null && printf "🔇\\n" && exit
+
+vol=$(echo "$volstat" | grep -o "\[[0-9]\+%\]" | sed "s/[^0-9]*//g;1q")
+
+if [ "$vol" -gt "70" ]; then
+	printf "🔊"
+elif [ "$vol" -lt "30" ]; then
+	printf "🔈"
+else
+	printf "🔉"
+fi
+
+printf " %s%%\\n" "$vol"
