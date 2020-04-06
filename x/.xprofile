@@ -2,7 +2,7 @@
 
 xinput set-prop 10 300 1
 dunst &
-dwmbar &
+dwmblocks &
 setbg &
 redshift &
 setxkbmap colemak
