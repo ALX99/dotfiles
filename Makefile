@@ -26,6 +26,7 @@ arch_config: general_config
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
 	stow x/
 	stow shell/
+	sudo ln -s $(CURDIR)/hooks /etc/pacman.d/
 	ln -s $(CURDIR)/.gitconfig ~/
 
 
