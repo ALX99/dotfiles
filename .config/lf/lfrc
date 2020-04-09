@@ -51,15 +51,7 @@ cmd chmod ${{
 # extract the current file with the right command
 # (xkcd link: https://xkcd.com/1168/)
 cmd extract ${{
-    set -f
-    case $f in
-        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf $f;;
-        *.tar.gz|*.tgz) tar xzvf $f;;
-        *.tar.xz|*.txz) tar xJvf $f;;
-        *.zip) unzip $f;;
-        *.rar) unrar x $f;;
-        *.7z) 7z x $f;;
-    esac
+    extract $fx
 }}
 
 # compress current file or selected files with zip
@@ -84,12 +76,15 @@ cmd mkdir ${{
   mkdir "$ans"
 }}
 
+cmd code %code $(dirname $f)
+
 # Bindings
 # Remove defaults
 map m
 map c
 map "'"
 map '"'
+map o
 
 # colemak
 map e up
@@ -124,3 +119,5 @@ map gc cd ~/.config
 map gs cd ~/go/src/github.com/alx99
 
 
+# Open stuff
+map oc code

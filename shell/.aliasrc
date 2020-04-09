@@ -39,7 +39,7 @@ alias lt=trash-list
 ##############
 # Navigation #
 ##############
-alias bin='cd ~/dotfiles/bin'
+alias bin='cd ~/dotfiles/.local/bin'
 alias dl='cd ~/Downloads'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
