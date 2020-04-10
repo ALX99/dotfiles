@@ -28,6 +28,7 @@ if command -vq flutter
 end
 
 set -U fish_greeting
+set -U FZF_LEGACY_KEYBINDINGS 0
 
 echo "Setting up abbreviations"
 . ~/.config/fish/abbr.fish

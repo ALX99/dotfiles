@@ -10,3 +10,7 @@ bookmarks
 
 .config/fish/fish_variables
 .config/systemd/user/default.target.wants/ssh-agent.service
+.config/fish/functions/_*
+
+.config/fish/functions/fisher.fish
+.config/fish/completions/fisher.fish
