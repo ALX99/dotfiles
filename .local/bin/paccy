@@ -8,6 +8,7 @@ usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
 where:
     -h,  --help             show this help text
+    -Syu                    update package(s)
     -S                      install package(s)
     -s                      search for package(s)
     -u,  --update           update your pacman mirrors to use the fastest mirror
@@ -156,6 +157,10 @@ main() {
         ;;
     -u | --update)
         update
+        exit 0
+        ;;
+    -Syu)
+        yay -Syu --answerdiff All --answerclean NotInstalle
         exit 0
         ;;
     *)

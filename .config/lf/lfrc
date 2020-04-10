@@ -75,6 +75,10 @@ cmd mkdir ${{
   read -ep "Directory Name: " ans
   mkdir "$ans"
 }}
+cmd mkfile ${{
+  read -ep "File Name: " ans
+  touch "$ans"
+}}
 
 cmd code %code $(dirname $f)
 
@@ -103,6 +107,7 @@ map C clear
 map R reload
 map ch chmod
 map md mkdir
+map mf mkfile
 
 # Archive
 map az zip
