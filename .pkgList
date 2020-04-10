@@ -2,9 +2,11 @@ alsa-utils
 android-tools
 arch-install-scripts
 bat # better cat
+bind-tools
 breeze-gtk
 cantarell-fonts
 clang
+cpupower-gui
 dash
 dbeaver
 dialog
@@ -14,6 +16,7 @@ dmenu
 dos2unix
 dunst
 fd # find stuff
+fish
 fzf
 go
 google-chrome
@@ -77,6 +80,7 @@ ttf-inconsolata
 ttf-liberation
 unrar # RAR
 unzip # ZIP
+util-linux # provides SSD trimming
 virtualbox # virtualbox
 virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
@@ -88,11 +92,9 @@ xorg-xev
 xorg-xfontsel
 xorg-xinput
 xorg-xsetroot
-xournalpp
 xsetroot
 xwallpaper
 zathura
 zathura-pdf-poppler
 zip
 zoom
-zsh

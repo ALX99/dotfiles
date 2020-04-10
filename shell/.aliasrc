@@ -43,8 +43,6 @@ alias bin='cd ~/dotfiles/.local/bin'
 alias dl='cd ~/Downloads'
 alias dots='cd ~/dotfiles'
 alias config='cd ~/dotfiles/.config'
-# jump to mark
-alias m=jump
 
 ############
 # Advanced #
