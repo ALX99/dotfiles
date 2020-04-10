@@ -7,3 +7,6 @@ bookmarks
 .config/fcitx/
 !.config/fcitx/config
 
+
+.config/fish/fish_variables
+.config/systemd/user/default.target.wants/ssh-agent.service

@@ -50,20 +50,6 @@ dwm:
 dash:
 	sudo ln -sfT dash /usr/bin/sh
 
-# TODO not working
-zsh:
-	wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
-	sh install.sh
-	git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
-	git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-	git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
-	wget -P ~/.oh-my-zsh/custom/plugins/forgit https://raw.githubusercontent.com/wfxr/forgit/master/forgit.plugin.zsh
-	# Remove dumb aliases
-	sed -i '/^alias/ d' ~/.oh-my-zsh/plugins/git/git.plugin.zsh
-	rm -f ~/.oh-my-zsh/lib/directories.zsh
-	ln -sf shell/myTheme.zsh-theme ~/.oh-my-zsh/themes/
-	chsh -s /bin/zsh
-
 arch_dep:
 	~/.local/bin/paccy -ia
 
@@ -83,4 +69,6 @@ arch: arch_config ssh_agent arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+	chsh -s /bin/fish
+	fish .config/fish/setup.fish
 
