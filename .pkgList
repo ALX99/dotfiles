@@ -14,13 +14,14 @@ diff-so-fancy # better looking terminal diffs
 discord
 dmenu
 dos2unix
+dosfstools # mkfs.fat
 dunst
 fd # find stuff
 fish
 fzf
 go
+go-tools
 google-chrome
-graphviz
 htop
 imagemagick
 intellij-idea-community-edition
@@ -33,6 +34,7 @@ libva-intel-driver
 libva-mesa-driver
 lxd
 maim # better scrot
+masscan
 megasync # sync
 mesa-vdpau
 mlocate # Locate
@@ -43,6 +45,7 @@ neofetch
 neovim
 nerd-fonts-complete # fonts
 net-tools
+nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
@@ -85,6 +88,7 @@ virtualbox # virtualbox
 virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
 wget
+whois
 xclip
 xdg-utils
 xorg-xbacklight
@@ -97,4 +101,5 @@ xwallpaper
 zathura
 zathura-pdf-poppler
 zip
+zmap
 zoom

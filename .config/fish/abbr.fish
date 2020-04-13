@@ -13,7 +13,6 @@ abbr -a sp 'sudo pacman'
 abbr -a g 'git'
 abbr -a gc 'git clone'
 abbr -a gjunk 'git commit -m "(curl http://whatthecommit.com/index.txt)"'
-abbr -a please 'sudo !!'
 abbr -a cx 'chmod +x'
 abbr -a copy 'xclip -selection clipboard <'
 abbr -a lg 'lazygit'
@@ -38,12 +37,6 @@ abbr -a dl 'cd ~/Downloads'
 abbr -a dots 'cd ~/dotfiles'
 abbr -a config 'cd ~/dotfiles/.config'
 
-############
-# Advanced #
-############
-# Show why the go modules are needed
-abbr -a gmod 'go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
-
 ########
 # Misc #
 ########
@@ -66,6 +59,7 @@ abbr -a compress 'tar cJf archive.tar.xz'
 abbr -a so 'xset dpms force off'
 abbr -a perms "stat -c '%a %n' *"
 abbr -a priv "fish -P"
+abbr -a weather "curl wttr.in"
 
 ###############
 # Better flags#
@@ -80,9 +74,3 @@ abbr -a df 'df -h'
 abbr -a upower 'upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 abbr -a du 'ncdu'
 abbr -a dd 'dd bs=512k'
-
-##########
-# Hashes #
-##########
-abbr -a sha1 'openssl sha1'
-abbr -a sha256 'openssl sha256'

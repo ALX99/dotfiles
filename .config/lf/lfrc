@@ -89,6 +89,7 @@ map c
 map "'"
 map '"'
 map o
+map v
 
 # colemak
 map e up
@@ -108,12 +109,12 @@ map R reload
 map ch chmod
 map md mkdir
 map mf mkfile
+map I invert
 
 # Archive
 map az zip
 map at targz
 map au extract
-
 
 # Movement
 map gd cd ~/Downloads
@@ -122,7 +123,6 @@ map gD cd ~/dotfiles
 map gb cd ~/.local/bin
 map gc cd ~/.config
 map gs cd ~/go/src/github.com/alx99
-
 
 # Open stuff
 map oc code
