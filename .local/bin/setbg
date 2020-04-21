@@ -1,5 +1,9 @@
 #!/bin/sh
 
-# Location of link to wallpaper link.
-bgloc="$HOME/Wallpapers"
-xwallpaper --zoom "$bgloc"/"$(ls $bgloc | shuf -n 1)" >/dev/null 2>&1
+if [ $# -eq 0 ]; then
+    # Location of link to wallpaper link.
+    bgloc="$HOME/Wallpapers"
+    xwallpaper --zoom "$bgloc"/"$(ls $bgloc | shuf -n 1)" >/dev/null 2>&1
+else
+    xwallpaper --zoom "$1" >/dev/null 2>&1
+fi
