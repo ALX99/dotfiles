@@ -6,6 +6,7 @@ bind-tools
 breeze-gtk
 cantarell-fonts
 clang
+codelite
 cpupower-gui
 dash
 dbeaver
@@ -16,6 +17,7 @@ dmenu
 dos2unix
 dosfstools # mkfs.fat
 dunst
+etcher-bin
 fd # find stuff
 fish
 fzf
@@ -60,6 +62,7 @@ papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
 pkgfile # tool for searching files from packages
+plasma
 postgresql
 python
 python-pip
