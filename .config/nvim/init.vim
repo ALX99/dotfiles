@@ -5,16 +5,15 @@ if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 	silent !mkdir -p ~/.config/nvim/autoload/
 	silent !curl "https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim" > ~/.config/nvim/autoload/plug.vim
 endif
- 
+
 call plug#begin('~/.config/nvim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
-Plug 'w0rp/ale'
 Plug 'dracula/vim', { 'as': 'dracula' }
 call plug#end()
 
-set termguicolors 
+set termguicolors
 colorscheme dracula
 
 "-------------------
@@ -71,6 +70,12 @@ let g:lightline = {
       \ }
 
 
+let g:ale_fixers = {
+\   '*':          ['remove_trailing_lines', 'trim_whitespace'],
+\}
+
+let g:ale_fix_on_save = 1
+
 "----------------
 "|    Misc      |
 "----------------
@@ -113,7 +118,7 @@ vnoremap <leader>p "_dP
 
 " Relative numbering on and off
 nmap <F2> :call NumberToggle()<CR>
-" Leader mappings 
+" Leader mappings
 nnoremap <leader>t  :NERDTreeToggle<CR> " Nerdtree
 nnoremap <leader>w  :w<CR>              " space + w to save
 nnoremap <leader>q  :q<CR>              " space + q to quit
