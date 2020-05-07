@@ -36,6 +36,7 @@ abbr -a bin 'cd ~/dotfiles/.local/bin'
 abbr -a dl 'cd ~/Downloads'
 abbr -a dots 'cd ~/dotfiles'
 abbr -a config 'cd ~/dotfiles/.config'
+abbr -a gsrc 'cd $GOPATH/src/github.com/alx99'
 
 ########
 # Misc #
