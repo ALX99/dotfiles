@@ -1,9 +1,9 @@
 general_config:
 	mkdir -p ~/.local ~/.config
 	stow .config/ -t ~/.config/
-	ln -s $(CURDIR)/.local/bin/ ~/.local/
-	ln -s $(CURDIR)/.local/applications/ ~/.local/share/
-	ln -s $(CURDIR).gitconfig ~/
+	ln -sf $(CURDIR)/.local/bin/ ~/.local/
+	ln -sf $(CURDIR)/.local/applications/ ~/.local/share/
+	ln -sf $(CURDIR).gitconfig ~/
 	lesskey misc/lesskey
 	# Added || true, since WSL won't have these paths
 	# Keymap
@@ -15,8 +15,8 @@ general_config:
 	sudo ln -sf $(CURDIR)/shell/.aliasrc /root/.aliasrc
 
 ssh_agent:
-	echo "AddKeysToAgent yes" >> ~/.ssh/config
-	ln -s $(CURDIR)/misc/.pam_environment ~/
+	echo "AddKeysToAgent yes" > ~/.ssh/config
+	ln -sf $(CURDIR)/misc/.pam_environment ~/
 	sudo systemctl --user enable ssh-agent
 	sudo systemctl --start ssh-agent
 
@@ -26,8 +26,8 @@ arch_config: general_config
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
 	stow x/
 	stow shell/
-	sudo ln -s $(CURDIR)/hooks /etc/pacman.d/
-	ln -s $(CURDIR)/.gitconfig ~/
+	sudo ln -sf $(CURDIR)/hooks /etc/pacman.d/
+	ln -sf $(CURDIR)/.gitconfig ~/
 
 
 kali_config: general_config
@@ -48,6 +48,7 @@ dwm:
 	make clean
 
 dash:
+	sudo pacman -S dash
 	sudo ln -sfT dash /usr/bin/sh
 
 arch_dep:
@@ -64,11 +65,16 @@ kali: kali_dep kali_config
 	sudo mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg
 	sudo su -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list'
 	sudo apt update && sudo apt install code
+
+kde:
+	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
+	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 	
-arch: arch_config ssh_agent arch_dep dash dwm
+arch: arch_config  arch_dep dash dwm
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+	sudo pacman -S fish
 	chsh -s /bin/fish
 	fish .config/fish/setup.fish
 
