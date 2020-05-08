@@ -21,12 +21,11 @@ dmenu
 dolphin
 dos2unix
 dosfstools # mkfs.fat
-dunst
 etcher-bin
 fd # find stuff
 fish
 fzf
-go
+go-pie
 go-tools
 google-chrome
 htop
@@ -35,7 +34,12 @@ intellij-idea-community-edition
 inter-font
 jdk-openjdk
 jdk8-openjdk
+kolourpaint
 konsole
+krita
+ksnip
+kvantum-qt5
+latte-dock
 lazygit
 libnotify
 libva-intel-driver
@@ -58,7 +62,6 @@ noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 ntfs-3g
-nvim # y
 openssh
 openssh-askpass
 otf-fira-code
@@ -108,7 +111,6 @@ xorg-xev
 xorg-xfontsel
 xorg-xinput
 xorg-xsetroot
-xsetroot
 xwallpaper
 zathura
 zathura-pdf-poppler
