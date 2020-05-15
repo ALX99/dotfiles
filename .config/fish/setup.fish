@@ -8,8 +8,8 @@ set -Ua fish_user_paths $HOME/.local/bin
 set -U EDITOR nvim
 set -U VISUAL nvim
 #set -U FILE pcmanfm
-#set -U TERMINAL st
-#set -U TERM st
+set -U TERMINAL xterm-256color
+set -U TERM xterm-256color
 set -U BROWSER google-chrome-stable
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
 #set -U _JAVA_AWT_WM_NONREPARENTING 1
