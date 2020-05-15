@@ -1,0 +1,6 @@
+#!/bin/sh
+# Gets the private and public IP address for every interface that is up
+for iface in $(ip a | awk '/inet.*brd/{print $NF}'); do
+    printf "====Interface %s====\n" "$iface"
+    printf "Private IP: %s\nPublic IP: %s\n" "$(ip a show "$iface" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')" "$(curl -Ss --interface "$iface" ifconfig.me)"
+done

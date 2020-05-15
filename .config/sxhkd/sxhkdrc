@@ -1,11 +1,11 @@
 ###################
 # Launching stuff #
 ###################
-super + Return
-    $TERMINAL
+#super + Return
+#    $TERMINAL
 
-super + d
-    dmenu_run
+#super + d
+#    dmenu_run
 
 super + b
     $BROWSER

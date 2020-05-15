@@ -17,8 +17,8 @@ general_config:
 ssh_agent:
 	echo "AddKeysToAgent yes" > ~/.ssh/config
 	ln -sf $(CURDIR)/misc/.pam_environment ~/
-	sudo systemctl --user enable ssh-agent
-	sudo systemctl --start ssh-agent
+	systemctl --user enable ssh-agent
+	systemctl --user start ssh-agent
 
 
 arch_config: general_config

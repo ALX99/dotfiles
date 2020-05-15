@@ -1,7 +1,8 @@
 #!/bin/sh
-#[ -f ~/.xprofile ] && . ~/.xprofile
+[ -f ~/.xprofile ] && . ~/.xprofile
 
-exec startplasma-x11
+#exec startplasma-x11
+exec spectrwm
 #while true; do
 #    /usr/local/bin/dwm 2> /dev/null
 #    sleep 1
