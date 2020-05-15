@@ -12,7 +12,7 @@ abbr -a p paccy
 abbr -a sp 'sudo pacman'
 abbr -a g 'git'
 abbr -a gc 'git clone'
-abbr -a gjunk 'git commit -m "(curl http://whatthecommit.com/index.txt)"'
+abbr -a gjunk 'git commit -m (curl http://whatthecommit.com/index.txt)'
 abbr -a cx 'chmod +x'
 abbr -a copy 'xclip -selection clipboard <'
 abbr -a lg 'lazygit'
@@ -61,6 +61,8 @@ abbr -a so 'xset dpms force off'
 abbr -a perms "stat -c '%a %n' *"
 abbr -a priv "fish -P"
 abbr -a weather "curl wttr.in"
+abbr -a sshp ssh -o PasswordAuthentication=yes -o PreferredAuthentications=keyboard-interactive,password -o PubkeyAuthentication=no
+.0.184
 
 ###############
 # Better flags#
