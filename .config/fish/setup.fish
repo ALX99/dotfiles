@@ -5,14 +5,19 @@ rm -rf ~/.config/fish/fish_variables
 
 # Set environtment variables
 set -Ua fish_user_paths $HOME/.local/bin
-set -U EDITOR nvim
-set -U VISUAL nvim
+set -Ux EDITOR nvim
+set -Ux VISUAL nvim
 #set -U FILE pcmanfm
-set -U TERMINAL xterm-256color
-set -U TERM xterm-256color
-set -U BROWSER google-chrome-stable
+set -Ux TERMINAL xterm-256color
+set -Ux TERM xterm-256color
+set -Ux BROWSER google-chrome-stable
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
 #set -U _JAVA_AWT_WM_NONREPARENTING 1
+
+if command -vq gh
+    echo "Github CLI found!"
+    gh completion -s fish
+end
 
 if command -vq go
     echo "Go installation found!"
