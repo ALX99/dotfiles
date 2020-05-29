@@ -9,12 +9,16 @@ endif
 call plug#begin('~/.config/nvim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
+Plug 'tpope/vim-surround'
+Plug 'ap/vim-css-color'
+Plug 'junegunn/vim-easy-align'
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'dracula/vim', { 'as': 'dracula' }
+Plug 'gryf/wombat256grf'
 call plug#end()
 
 set termguicolors
-colorscheme dracula
+colorscheme wombat256grf
 
 "-------------------
 "| Spaces and Tabs |
@@ -52,14 +56,21 @@ colorscheme dracula
     set hlsearch                        " highlight matches<Paste>
     set mouse=a                         " mouse control
     set ruler                           " show current position
-    set t_Co=256                        " use 256 colour
+
+"---------------
+"|  Searching  |
+"---------------
+" When 'igonrecase' and 'smartcase' are both on, if a pattern contains an
+" uppercase lettes it is case sensitive, otheriwse, it'is not.
+    set smartcase
+    set ignorecase
 
 "----------------
 "|   Plugins    |
 "----------------
 
 let g:lightline = {
-      \ 'colorscheme': 'seoul256',
+      \ 'colorscheme': 'jellybeans',
       \ 'active': {
       \   'left': [ [ 'mode', 'paste' ],
       \             [ 'gitbranch', 'readonly', 'filename', 'modified' ] ]
@@ -75,6 +86,12 @@ let g:ale_fixers = {
 \}
 
 let g:ale_fix_on_save = 1
+
+" Start interactive EasyAlign in visual mode (e.g. vipga)
+xmap ga <Plug>(EasyAlign)
+
+" Start interactive EasyAlign for a motion/text object (e.g. gaip)
+nmap ga <Plug>(EasyAlign)
 
 "----------------
 "|    Misc      |
@@ -105,12 +122,13 @@ vnoremap l n
 vnoremap L N
 
 
+
 set clipboard+=unnamedplus              " use system clipboard (requires xclip)
 let mapleader = " "                     " set leader to space
 
 " delete without yanking
-nnoremap <leader>d "_d
-vnoremap <leader>d "_d
+" nnoremap <leader>d "_d
+" vnoremap <leader>d "_d
 
 " replace currently selected text with default register
 " without yanking it
@@ -118,6 +136,7 @@ vnoremap <leader>p "_dP
 
 " Relative numbering on and off
 nmap <F2> :call NumberToggle()<CR>
+
 " Leader mappings
 nnoremap <leader>t  :NERDTreeToggle<CR> " Nerdtree
 nnoremap <leader>w  :w<CR>              " space + w to save

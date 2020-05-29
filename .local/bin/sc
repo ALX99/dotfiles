@@ -2,3 +2,4 @@
 # Takes a screenshot and saves it to clipboard
 maim -us | xclip -selection clipboard -t image/png -i
 
+

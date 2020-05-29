@@ -61,8 +61,10 @@ abbr -a so 'xset dpms force off'
 abbr -a perms "stat -c '%a %n' *"
 abbr -a priv "fish -P"
 abbr -a weather "curl wttr.in"
+abbr -a crypto "curl rate.sx"
+abbr -a btc "curl rate.sx/btc@1d"
+abbr -a eth "curl rate.sx/eth@1d"
 abbr -a sshp ssh -o PasswordAuthentication=yes -o PreferredAuthentications=keyboard-interactive,password -o PubkeyAuthentication=no
-.0.184
 
 ###############
 # Better flags#

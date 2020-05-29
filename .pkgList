@@ -9,11 +9,11 @@ bind-tools
 breeze-gtk
 cantarell-fonts
 clang
+cloc
 codelite
 cpupower-gui
 dash
 dbeaver
-deepin-screenshot
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
@@ -21,12 +21,14 @@ dmenu
 dolphin
 dos2unix
 dosfstools # mkfs.fat
+dunst
 etcher-bin
 fd # find stuff
 fish
 fzf
 go-pie
 go-tools
+goland
 google-chrome
 htop
 imagemagick
@@ -57,6 +59,7 @@ neofetch
 neovim
 nerd-fonts-complete # fonts
 net-tools
+network-manager-applet
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -67,6 +70,7 @@ openssh-askpass
 otf-fira-code
 overdue
 p7zip # 7z extentions
+packettracer
 pacman-contrib # checkupdates, pactree and stuff
 papirus-icon-theme
 pavucontrol
@@ -82,6 +86,7 @@ reflector
 shellcheck
 shfmt # shell format
 slack-desktop
+spectrwm
 speedtest-cli
 stow
 sxhkd # Universal keybindings
@@ -89,6 +94,7 @@ sxiv # image viewer
 telegram-desktop
 thunderbird
 tldr
+traceroute
 trash-cli
 ttf-cascadia-code # programming font
 ttf-font-awesome
@@ -106,14 +112,15 @@ whois
 wireshark-qt
 xclip
 xdg-utils
+xdotool
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
 xorg-xinput
+xorg-xprop
 xorg-xsetroot
 xwallpaper
 zathura
 zathura-pdf-poppler
 zip
 zmap
-zoom
