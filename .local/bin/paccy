@@ -26,8 +26,7 @@ changed by setting the PKGLIST environtment variable
 # Write the package to the pkgList
 log_pkg() {
     # Only do something if the package already isn't there
-    grep -F "$1" "$pkgList" &>/dev/null
-    if [ $? -ne 0 ]; then
+    if grep -F "$1" "$pkgList" &>/dev/null; then
         if [ -z "$comment" ]; then
             echo "$1" >>"$pkgList"
         else
@@ -95,7 +94,10 @@ main() {
         read_pkgs "$@"
         read -rp "Comment to add for these package(s): " comment
 
-        yay -S ${pkgs[*]}
+        if ! yay -S ${pkgs[*]}; then
+            exit "$?"
+        fi
+
         for i in "${pkgs[@]}"; do
             log_pkg "$i"
         done
