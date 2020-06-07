@@ -80,7 +80,7 @@ get_tracked() {
 get_untracked() {
     get_tracked
     untracked="$(diff --new-line-format="" --unchanged-line-format="" \
-        <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base base-devel | sort)) \
+        <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base-devel | sort)) \
         <(echo "$tracked"))"
 }
 main() {

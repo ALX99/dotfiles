@@ -9,6 +9,8 @@
 
 super + b
     $BROWSER
+super + p
+    killt
 
 super + c
     code
@@ -22,8 +24,8 @@ super + shift + q
 super + shift + s
     sc
 
-super + shift + w
-    setbg
+#super + shift + w
+#    setbg
 
 # make sxhkd reload its configuration files:
 super + Escape

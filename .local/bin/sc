@@ -1,5 +1,21 @@
 #!/bin/sh
-# Takes a screenshot and saves it to clipboard
-maim -us | xclip -selection clipboard -t image/png -i
 
+# This is bound to Shift+PrintScreen by default, requires maim. It lets you
+# choose the kind of screenshot to take, including copying the image or even
+# highlighting an area to copy. scrotcucks on suicidewatch right now.
 
+copy="xclip -selection clipboard -t image/png"
+filename="$(date +"%d-%m-%Y_%H:%M").png"
+
+case "$(printf "a selected area\\ncurrent window\\nfull screen\\na selected area (copy)\\ncurrent window (copy)\\nfull screen (copy)" | dmenu -i -p "Screenshot which area?")" in
+	"a selected area") maim -s "$filename" ;;
+	"current window") maim -i "$(xdotool getactivewindow)" "$filename" ;;
+	"full screen") maim pic-full-"$filename" ;;
+	"a selected area (copy)") maim -s | $copy; clip=true ;;
+	"current window (copy)") maim -i "$(xdotool getactivewindow)" | $copy; clip=true ;;
+	"full screen (copy)") maim | $copy ;;
+esac
+
+case "$(printf "yes\\nno" | dmenu -i -p "Upload image?")" in
+	"yes") curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard;;
+esac

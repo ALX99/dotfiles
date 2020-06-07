@@ -1,0 +1,3 @@
+#!/bin/sh
+
+curl -F "shorten=http://$1" http://0x0.st
