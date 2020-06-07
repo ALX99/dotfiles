@@ -1,84 +1,93 @@
-function fish_prompt --description 'Write out the prompt'
-    set -l last_pipestatus $pipestatus
+set -g pad " "
 
-    if not set -q __fish_git_prompt_show_informative_status
-        set -g __fish_git_prompt_show_informative_status 1
-    end
-    if not set -q __fish_git_prompt_hide_untrackedfiles
-        set -g __fish_git_prompt_hide_untrackedfiles 1
-    end
-    if not set -q __fish_git_prompt_color_branch
-        set -g __fish_git_prompt_color_branch magenta --bold
-    end
-    if not set -q __fish_git_prompt_showupstream
-        set -g __fish_git_prompt_showupstream "informative"
-    end
-    if not set -q __fish_git_prompt_char_upstream_ahead
-        set -g __fish_git_prompt_char_upstream_ahead "↑"
-    end
-    if not set -q __fish_git_prompt_char_upstream_behind
-        set -g __fish_git_prompt_char_upstream_behind "↓"
-    end
-    if not set -q __fish_git_prompt_char_upstream_prefix
-        set -g __fish_git_prompt_char_upstream_prefix ""
-    end
-    if not set -q __fish_git_prompt_char_stagedstate
-        set -g __fish_git_prompt_char_stagedstate "●"
-    end
-    if not set -q __fish_git_prompt_char_dirtystate
-        set -g __fish_git_prompt_char_dirtystate "✚"
-    end
-    if not set -q __fish_git_prompt_char_untrackedfiles
-        set -g __fish_git_prompt_char_untrackedfiles "…"
-    end
-    if not set -q __fish_git_prompt_char_invalidstate
-        set -g __fish_git_prompt_char_invalidstate "✖"
-    end
-    if not set -q __fish_git_prompt_char_cleanstate
-        set -g __fish_git_prompt_char_cleanstate "✔"
-    end
-    if not set -q __fish_git_prompt_color_dirtystate
-        set -g __fish_git_prompt_color_dirtystate blue
-    end
-    if not set -q __fish_git_prompt_color_stagedstate
-        set -g __fish_git_prompt_color_stagedstate yellow
-    end
-    if not set -q __fish_git_prompt_color_invalidstate
-        set -g __fish_git_prompt_color_invalidstate red
-    end
-    if not set -q __fish_git_prompt_color_untrackedfiles
-        set -g __fish_git_prompt_color_untrackedfiles $fish_color_normal
-    end
-    if not set -q __fish_git_prompt_color_cleanstate
-        set -g __fish_git_prompt_color_cleanstate green --bold
-    end
+## Function to show a segment
+function prompt_segment -d "Function to show a segment"
+  # Get colors
+  set -l bg $argv[1]
+  set -l fg $argv[2]
 
-    set -l color_cwd
-    set -l prefix
-    set -l suffix
-    switch "$USER"
-        case root toor
-            if set -q fish_color_cwd_root
-                set color_cwd $fish_color_cwd_root
-            else
-                set color_cwd $fish_color_cwd
-            end
-            set suffix '#'
-        case '*'
-            set color_cwd $fish_color_cwd
-            set suffix '$'
-    end
+  # Set 'em
+  set_color -b $bg
+  set_color $fg
 
-    # PWD
-    set_color $color_cwd
-    echo -n (prompt_pwd)
+  # Print text
+  if [ -n "$argv[3]" ]
+    echo -n -s $argv[3]
+  end
+end
+
+## Function to show current status
+function show_status -d "Function to show the current status"
+  if [ $RETVAL -ne 0 ]
+    prompt_segment red white " ▲ "
+    set pad ""
+    end
+  if [ -n "$SSH_CLIENT" ]
+      prompt_segment blue white " SSH: "
+      set pad ""
+    end
+end
+
+function show_virtualenv -d "Show active python virtual environments"
+  if set -q VIRTUAL_ENV
+    set -l venvname (basename "$VIRTUAL_ENV")
+    prompt_segment normal white " ($venvname) "
+  end
+end
+
+## Show user if not in default users
+function show_user -d "Show user"
+  if not contains $USER $default_user; or test -n "$SSH_CLIENT"
+    set -l host (hostname -s)
+    set -l who (whoami)
+    prompt_segment normal yellow "$who"
+
+    # Skip @ bit if hostname == username
+    if [ "$USER" != "$HOST" ]
+      prompt_segment normal white "@"
+      prompt_segment normal green "$host "
+      set pad ""
+    end
+  end
+end
+
+function _set_venv_project --on-variable VIRTUAL_ENV
+    if test -e $VIRTUAL_ENV/.project
+        set -g VIRTUAL_ENV_PROJECT (cat $VIRTUAL_ENV/.project)
+    end
+end
+
+# Show directory
+function show_pwd -d "Show the current directory"
+  set -l pwd
+  if [ (string match -r '^'"$VIRTUAL_ENV_PROJECT" $PWD) ]
+    set pwd (string replace -r '^'"$VIRTUAL_ENV_PROJECT"'($|/)' '≫ $1' $PWD)
+  else
+    set pwd (prompt_pwd)
+  end
+  prompt_segment normal blue "$pad$pwd "
+end
+
+# Show prompt w/ privilege cue
+function show_prompt -d "Shows prompt with cue for current priv"
+  set -l uid (id -u $USER)
+    if [ $uid -eq 0 ]
+    prompt_segment red white " ! "
     set_color normal
+    echo -n -s " "
+  else
+    prompt_segment normal white " \$ "
+    end
 
-    printf '%s ' (fish_vcs_prompt)
+  set_color normal
+end
 
-    set -l pipestatus_string (__fish_print_pipestatus "[" "] " "|" (set_color $fish_color_status) (set_color --bold $fish_color_status) $last_pipestatus)
-    echo -n $pipestatus_string
-    set_color normal
-
-    echo -n "$suffix "
+## SHOW PROMPT
+function fish_prompt
+  set -g RETVAL $status
+  show_status
+  show_virtualenv
+  show_user
+  show_pwd
+  show_prompt
 end

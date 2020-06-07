@@ -22,6 +22,8 @@ abbr -a goi 'go install'
 abbr -a gop 'CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=(pwd) -asmflags=all=-trimpath=(pwd)'
 abbr -a gob 'CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=(pwd) -asmflags=all=-trimpath=(pwd)'
 abbr -a gor 'go run'
+abbr -a htop 'htop -s PERCENT_CPU'
+abbr -a utop 'htop -t -u (whoami)'
 
 ###########
 # Listing #
