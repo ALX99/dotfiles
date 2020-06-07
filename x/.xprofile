@@ -7,6 +7,7 @@ setbg &
 redshift &
 setxkbmap colemak
 xmodmap ~/dotfiles/keymaps/xmodColemakCustom
+xrdb ~/.Xresources
 xset r rate 210 30
 sxhkd & # Hotkey daemon
 updates & # Notification about how many updates there are

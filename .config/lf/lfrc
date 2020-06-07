@@ -90,6 +90,7 @@ map "'"
 map '"'
 map o
 map v
+map u unselect
 
 # colemak
 map e up

@@ -11,7 +11,7 @@ Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
 Plug 'tpope/vim-surround'
 Plug 'ap/vim-css-color'
-Plug 'junegunn/vim-easy-align'
+Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
