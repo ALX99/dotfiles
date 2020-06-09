@@ -13,7 +13,6 @@ cloc
 codelite
 cpupower-gui
 dash
-dbeaver
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
@@ -26,7 +25,6 @@ etcher-bin
 fd # find stuff
 fish
 fzf
-go-pie
 go-tools
 goland
 google-chrome
@@ -36,7 +34,7 @@ intellij-idea-community-edition
 inter-font
 jdk-openjdk
 jdk8-openjdk
-kolourpaint
+jq # Json parser
 konsole
 ksnip
 kvantum-qt5
@@ -45,7 +43,6 @@ lazygit
 libnotify
 libva-intel-driver
 libva-mesa-driver
-lxd
 maim # better scrot
 masscan
 megasync
@@ -91,7 +88,6 @@ sxhkd # Universal keybindings
 sxiv # image viewer
 telegram-desktop
 thunderbird
-tldr
 traceroute
 trash-cli
 ttf-cascadia-code # programming font
