@@ -104,8 +104,10 @@ vnoremap k h
 vnoremap e k
 
 nnoremap h e
+nnoremap H E
 nnoremap i l
 vnoremap h e
+vnoremap H E
 vnoremap i l
 
 nnoremap s i

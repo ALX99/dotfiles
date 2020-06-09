@@ -3,6 +3,7 @@
 # Requires expac, fzf
 
 pkgList=${PKGLIST:-~/dotfiles/.pkgList} # Path to package list
+pkgs=()                                 # Packages to be installed
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
@@ -25,39 +26,45 @@ changed by setting the PKGLIST environtment variable
 
 # Write the package to the pkgList
 log_pkg() {
+    printf "\n"
     # Only do something if the package already isn't there
-    if grep -F "$1" "$pkgList" &>/dev/null; then
-        if [ -z "$comment" ]; then
+    if ! cut -d ' ' -f1 "$pkgList" | grep -w "$1\$" >/dev/null 2>&1; then
+        printf "Added '%s' to log\n" "$1"
+        if [[ -z $comment ]]; then
             echo "$1" >>"$pkgList"
         else
             echo "$1 # $comment" >>"$pkgList"
         fi
+    else
+        return
     fi
 
     # Sort and remove dupes
-    local sorted=$(sort -u "$pkgList")
-    echo "$sorted" >"$pkgList"
+    sort -uo "$pkgList" "$pkgList"
 }
 
 # Read packages to either install or remove
 read_pkgs() {
-    pkgs=()
     while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
         pkgs+=("$1")
         shift
     done
 }
+
 # Remove a tracked package
 # 1: package do be untracked
 remove_tracked() {
     sed -i '/'"$1"'/d' "$pkgList"
+    printf "\nRemoved '%s' from log\n" "$1"
 }
 
-# Installs a package and exits
-install_pkg() {
-    [[ -z $1 ]] && exit 0
-    yay -S "$1" && log_pkg "$1"
-    exit 0
+# Installs and logs packages set in the pkgs array
+install_pkgs() {
+    local installed=$(pacman -Qq)
+    for i in ${pkgs[*]}; do
+        # Make sure it was installed before logging it
+        echo "$installed" | grep -w "$i\$" >/dev/null 2>&1 && log_pkg "$i"
+    done
 }
 # Installs all the packages listed under the packagelist
 install() {
@@ -94,13 +101,9 @@ main() {
         read_pkgs "$@"
         read -rp "Comment to add for these package(s): " comment
 
-        if ! yay -S ${pkgs[*]}; then
-            exit "$?"
-        fi
+        yay -S ${pkgs[*]}
+        install_pkgs
 
-        for i in "${pkgs[@]}"; do
-            log_pkg "$i"
-        done
         exit 0
         ;;
     -Rns)
@@ -128,16 +131,28 @@ main() {
         ;;
     -rt | --remove-tracked)
         get_tracked
-        pkg=$(echo "$tracked" | "${preview[@]}")
-        [[ -z $pkg ]] && exit 0
-        sudo pacman -Rns "$pkg" && remove_tracked "$pkg"
+
+        for pkg in $(echo "$tracked" | "${preview[@]}" -m); do
+            pkgs+=("$pkg")
+        done
+        [ ${#pkgs[@]} -eq 0 ] && exit
+
+        if yay -Rns ${pkgs[*]}; then
+            for pkg in "${pkgs[@]}"; do
+                remove_tracked "$pkg"
+            done
+        fi
         exit 0
         ;;
     -ru | --remove-untracked)
         get_untracked
-        pkg=$(echo "$untracked" | "${preview[@]}")
-        [[ -z $pkg ]] && exit 0
-        sudo pacman -Rns "$pkg"
+
+        for pkg in $(echo "$untracked" | "${preview[@]}" -m); do
+            pkgs+=("$pkg")
+        done
+        [ ${#pkgs[@]} -eq 0 ] && exit
+
+        sudo pacman -Rns ${pkgs[*]}
         exit 0
         ;;
     -it | --install-tracked)
@@ -145,13 +160,23 @@ main() {
         echo "$tracked" >/tmp/tracked
         pacman -Qq >/tmp/all
         diff=$(comm -23 /tmp/tracked /tmp/all)
-        pkg=$(echo "$diff" | fzf --preview 'yay -Si {1}')
-        install_pkg "$pkg"
+
+        for pkg in $(echo "$diff" | fzf -m --preview 'yay -Si {1}'); do
+            pkgs+=("$pkg")
+        done
+        [ ${#pkgs[@]} -eq 0 ] && exit
+
+        yay -S ${pkgs[*]}
+        exit 0
         ;;
     -s)
         shift
-        pkg=$(yay -Slq | fzf -m --preview 'yay -Si {1}')
-        install_pkg "$pkg"
+        for pkg in $(yay -Slq | fzf -m --preview 'yay -Si {1}'); do
+            pkgs+=("$pkg")
+        done
+        yay -S ${pkgs[*]}
+        install_pkgs
+        exit 0
         ;; # Search in AUR
     -ia | --install-all)
         install
