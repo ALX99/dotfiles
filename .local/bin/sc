@@ -7,15 +7,21 @@
 copy="xclip -selection clipboard -t image/png"
 filename="$(date +"%d-%m-%Y_%H:%M").png"
 
-case "$(printf "a selected area\\ncurrent window\\nfull screen\\na selected area (copy)\\ncurrent window (copy)\\nfull screen (copy)" | dmenu -i -p "Screenshot which area?")" in
-	"a selected area") maim -s "$filename" ;;
-	"current window") maim -i "$(xdotool getactivewindow)" "$filename" ;;
-	"full screen") maim pic-full-"$filename" ;;
-	"a selected area (copy)") maim -s | $copy; clip=true ;;
-	"current window (copy)") maim -i "$(xdotool getactivewindow)" | $copy; clip=true ;;
-	"full screen (copy)") maim | $copy ;;
-esac
+if [ "$1" == "--copy" ]; then
+    case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
+    "a selected area") maim -s | $copy ;;
+    "current window") maim -i "$(xdotool getactivewindow)" | $copy ;;
+    "full screen") maim | $copy ;;
+    esac
+else
+    case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
+    "a selected area") maim -s "$filename" ;;
+    "current window") maim -i "$(xdotool getactivewindow)" "$filename" ;;
+    "full screen") maim pic-full-"$filename" ;;
+    esac
+    // TODO remove file, etcetc fix this
+    case "$(printf "yes\\nno" | dmenu -i -p "Upload image?")" in
+    "yes") curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard ;;
+    esac
 
-case "$(printf "yes\\nno" | dmenu -i -p "Upload image?")" in
-	"yes") curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard;;
-esac
+fi
