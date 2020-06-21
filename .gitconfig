@@ -13,7 +13,7 @@ dc = diff --cached
 s = status
 st = status -sb
 a = add
-stash = stash save
+#stash = stash save
 pop = stash pop
 sl = stash list
 

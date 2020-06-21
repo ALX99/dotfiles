@@ -1,6 +1,16 @@
 #!/bin/sh
-# Gets the private and public IP address for every interface that is up
+
 for iface in $(ip a | awk '/inet.*brd/{print $NF}'); do
     printf "====Interface %s====\n" "$iface"
-    printf "Private IP: %s\nPublic IP: %s\n" "$(ip a show "$iface" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')" "$(curl -Ss --interface "$iface" ifconfig.me)"
+    res="$(nmcli d show "$iface")"
+    subnet="$(ip -o -f inet addr show "$iface" | awk '/scope global/ {print $4}')"
+    printf "Gateway: %s\nPrivate IP: %s\nPublic IP: %s\n" "$(echo "$res" | grep --color=never IP4.GATEWAY | awk '{print $2}')" "$subnet" "$(curl -Ss --interface "$iface" ifconfig.me)"
+    printf "DNS1: %s\nDNS2: %s\n" "$(echo "$res" | grep --color=never "DNS\[1" | awk '{print $2}')" "$(echo "$res" | grep --color=never "DNS\[2" | awk '{print $2}')"
+
+#    natpmpc
+    [ $(id -u) -ne 0 ] && continue
+    printf "\n======ARP Devices======\n"
+    sudo arp-scan --interface="$iface" --localnet
+
+    # TODO portscan all the damn devices that responded to arp request
 done

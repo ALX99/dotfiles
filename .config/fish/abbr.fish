@@ -24,6 +24,8 @@ abbr -a gob 'CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpat
 abbr -a gor 'go run'
 abbr -a htop 'htop -s PERCENT_CPU'
 abbr -a utop 'htop -t -u (whoami)'
+abbr -a mr 'make run'
+abbr -a genrsa 'openssl genrsa 2048'
 
 ###########
 # Listing #
@@ -56,8 +58,6 @@ abbr -a reset 'make clean && git reset --hard remotes/origin/master && rm -f con
 abbr -a protorpc 'protoc --go_out=plugins=grpc:. *.proto'
 # Better cat
 abbr -a cat 'bat'
-# Compress directory
-abbr -a compress 'tar cJf archive.tar.xz'
 # Screen Off
 abbr -a so 'xset dpms force off'
 abbr -a perms "stat -c '%a %n' *"
@@ -81,3 +81,4 @@ abbr -a df 'df -h'
 abbr -a upower 'upower -i /org/freedesktop/UPower/devices/battery_BAT0'
 abbr -a du 'ncdu'
 abbr -a dd 'dd bs=512k'
+abbr -a gcc 'gcc -Wall -W -pedantic'

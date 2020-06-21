@@ -204,5 +204,5 @@ main() {
     esac
 }
 
-preview=(fzf --preview 'pacman -Qi {}')
+preview=(fzf --preview 'pacman -Qil {}')
 main "$@"

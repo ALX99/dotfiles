@@ -3,8 +3,9 @@ android-tools
 anki
 arandr
 arch-install-scripts
+arp-scan
+atool
 bat # better cat
-bc
 bind-tools
 breeze-gtk
 cantarell-fonts
@@ -22,24 +23,32 @@ dos2unix
 dosfstools # mkfs.fat
 dunst
 etcher-bin
+expac
 fd # find stuff
 fish
 fzf
 go-tools
 goland
 google-chrome
+gotop
+gource
+graphviz
 htop
+httrack
 imagemagick
 intellij-idea-community-edition
 inter-font
 jdk-openjdk
 jdk8-openjdk
+jp2a
 jq # Json parser
+kitty
 konsole
 ksnip
 kvantum-qt5
 latte-dock
 lazygit
+libnatpmp
 libnotify
 libva-intel-driver
 libva-mesa-driver
@@ -66,8 +75,8 @@ openssh-askpass
 otf-fira-code
 overdue
 p7zip # 7z extentions
-packettracer
 pacman-contrib # checkupdates, pactree and stuff
+pacutils
 papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
@@ -83,13 +92,14 @@ shfmt # shell format
 slack-desktop
 spectrwm
 speedtest-cli
+spotify
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
-telegram-desktop
 thunderbird
 traceroute
 trash-cli
+tree
 ttf-cascadia-code # programming font
 ttf-font-awesome
 ttf-hack
@@ -97,15 +107,15 @@ ttf-inconsolata
 ttf-liberation
 unrar # RAR
 unzip # ZIP
+upx
 util-linux # provides SSD trimming
-virtualbox # virtualbox
-virtualbox-guest-iso # guest additions for virtualbox
 visual-studio-code-bin
 wget
 whois
 wireshark-qt
 xclip
 xdg-utils
+xdo # Use with window swallowing
 xdotool
 xorg-xbacklight
 xorg-xev
