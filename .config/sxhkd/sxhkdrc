@@ -21,6 +21,9 @@ super + p
 super + shift + q
     qrmake
 
+super + s
+    sc --copy
+
 super + shift + s
     sc
 

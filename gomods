@@ -1,4 +1,5 @@
-github.com/KyleBanks/depth
-goretk/redress
-jondot/goweight
+github.com/KyleBanks/depth/cmd/depth
+github.com/goretk/redress
+github.com/jondot/goweight
 github.com/gokcehan/lf
+github.com/kisielk/godepgraph
