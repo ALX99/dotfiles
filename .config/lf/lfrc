@@ -1,45 +1,53 @@
 # interpreter for shell commands (needs to be POSIX compatible)
-set shell sh
+set shell bash
 set shellopts '-eu'
 set ifs "\n"
 set scrolloff 10
 set color256
 set icons
+set filesep "\n"
+set previewer ~/.config/lf/scope
 
 # execute current file (must be executable)
 map x $$f
 map X !$f
 
-# dedicated keys for file opener actions
-map o &mimeopen $f
-map O $mimeopen --ask $f
+#     Prefix  Wait  Async  Stdin  Stdout  Stderr  UI action
+#     $       No    No     Yes    Yes     Yes     Pause and then resume
+#     %       No    No     Yes    Yes     Yes     Statline for input/output
+#     !       Yes   No     Yes    Yes     Yes     Pause and then resume
+#     &       No    Yes    No     No      No      Do nothing
+
+#$f   current file
+#$fs  selected file(s) separated with 'filesep'
+#$fx  current file or selected file(s) if any
+#$id  id number of the client
+
 
 # define a custom 'open' command
 # This command is called when current file is not a directory. You may want to
 # use either file extensions and/or mime types here. Below uses an editor for
 # text files and a file opener for the rest.
 cmd open ${{
-    case $(file --mime-type $f -b) in
+    case "$(file --dereference --mime-type $f -b)" in
         text/*) $EDITOR $fx;;
-        *) for f in $fx; do setsid $OPENER $f > /dev/null 2> /dev/null & done;;
+        inode/x-empty) $EDITOR $fx;;
+	    image/vnd.djvu|application/pdf|application/octet-stream) setsid -f zathura $fx >/dev/null 2>&1;;
+        *) for f in $fx; do notify-send -t 3000 "lf" "opened $(file --dereference --mime-type $f -b) with xdg-open"; setsid xdg-open "$f" >/dev/null 2>&1; done;;
     esac
 }}
 
-cmd rename %[ -e $1 ] && printf "file exists" || mv $f $1
+cmd trash %for f in $fx; do trash-put "$f"; done
+#cmd trash $for f in "${fx[@]}"; do echo $f; done
+cmd rename %[[ -e $1 ]] && printf "file exists" || mv $f $1
+cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
+cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
+cmd extract %atool -x "$f"
 
-
-cmd trash %trash-put $fx
-
-cmd delete ${{
-    set -f
-    printf "$fx\n"
-    printf -p "delete?[y/n]" ans
-    [ $ans = "y" ] && rm -rf $fx
-}}
 
 cmd chmod ${{
   printf "0: ---\n1: --x\n2: -w-\n3: -wx\n4: r--\n5: r-x\n6: rw-\n7: rwx\n"
-  read -ep "Mode Bits: " -n 3 ans
+  read -n 3 -p "Mode Bits: " ans
 
   for file in "$fx"
   do
@@ -48,19 +56,10 @@ cmd chmod ${{
 }}
 
 
-# extract the current file with the right command
-# (xkcd link: https://xkcd.com/1168/)
-cmd extract ${{
-    extract $fx
-}}
 
 # compress current file or selected files with zip
-cmd zip %{{
-    a="archive"
-    mkdir $a
-    cp -r $fx $a
-    zip -qr $a.zip $a
-    rm -rf $a
+cmd zip ${{
+    7z a -m0=LZMA2 -mx=9 -mmt"$(nproc)" "${fx[0]}".7z ${fx[@]}
 }}
 
 cmd targz %{{
@@ -71,14 +70,6 @@ cmd targz %{{
     rm -rf $a
 }}
 
-cmd mkdir ${{
-  read -ep "Directory Name: " ans
-  mkdir "$ans"
-}}
-cmd mkfile ${{
-  read -ep "File Name: " ans
-  touch "$ans"
-}}
 
 cmd code %code $(dirname $f)
 

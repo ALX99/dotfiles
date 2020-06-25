@@ -38,16 +38,6 @@ kali_config: general_config
 	ln -sf $(CURDIR)/x/.xinitrc ~/.xinitrc
 	sudo ln -sf $(CURDIR)/kali/xorg.conf /etc/X11/xorg.conf
 
-dwm:
-	rm -rf ~/dwm
-	git clone git://git.suckless.org/dwm ~/dwm
-	cd ~/dwm || exit && \
-	git apply $(CURDIR)/suckless/dwm/dwm.diff && \
-	git add . && \
-	git commit -m "patch applied" && \
-	sudo make install && \
-	make clean
-
 dash:
 	sudo pacman -S dash
 	sudo ln -sfT dash /usr/bin/sh
@@ -71,11 +61,10 @@ kde:
 	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
 	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 	
-arch: arch_config  arch_dep dash dwm
+arch: arch_config  arch_dep dash
 	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
 	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 	sudo pacman -S fish
 	chsh -s /bin/fish
 	fish .config/fish/setup.fish
-
