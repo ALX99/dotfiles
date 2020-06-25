@@ -1,16 +1,14 @@
 .netrwhist
-bookmarks
 .config/onedrive/
 !.config/onedrive/config
 .config/nvim/autoload/
 .config/nvim/plugged/
-.config/fcitx/
-!.config/fcitx/config
+
+.config/systemd/*
+!.config/systemd/userssh-agent.service
 
 
-.config/fish/fish_variables
-.config/systemd/user/default.target.wants/ssh-agent.service
-.config/fish/functions/_*
+.config/fish/*
+!.config/fish/abbr.fish
+!.config/fish/setup.fish
 
-.config/fish/functions/fisher.fish
-.config/fish/completions/fisher.fish

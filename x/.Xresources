@@ -36,4 +36,4 @@
 *.color15:      #ffffff
 
 *.alpha: 0.92
-*.font:	Liberation Mono:pixelsize=14:antialias=true:autohint=true;
+!*.font:	Liberation Mono:pixelsize=14:antialias=true:autohint=true;

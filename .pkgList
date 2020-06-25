@@ -9,6 +9,7 @@ bat # better cat
 bind-tools
 breeze-gtk
 cantarell-fonts
+chafa # used for lf preview
 clang
 cloc
 codelite
@@ -33,6 +34,7 @@ google-chrome
 gotop
 gource
 graphviz
+highlight # used for lf preview
 htop
 httrack
 imagemagick
@@ -54,6 +56,7 @@ libva-intel-driver
 libva-mesa-driver
 maim # better scrot
 masscan
+mediainfo # used for lf preview
 megasync
 mesa-vdpau
 mlocate # Locate
@@ -110,6 +113,7 @@ unzip # ZIP
 upx
 util-linux # provides SSD trimming
 visual-studio-code-bin
+w3m # used for lf preview
 wget
 whois
 wireshark-qt

@@ -8,15 +8,22 @@ set -Ua fish_user_paths $HOME/.local/bin
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 #set -U FILE pcmanfm
-set -Ux TERMINAL xterm-256color
-set -Ux TERM xterm-256color
+#set -Ux TERMINAL xterm-256color
+#set -Ux TERM xterm-256color
 set -Ux BROWSER google-chrome-stable
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
 #set -U _JAVA_AWT_WM_NONREPARENTING 1
 
+if not functions -q fisher
+    echo "Downloading fisher!"
+    set -q XDG_CONFIG_HOME; or set XDG_CONFIG_HOME ~/.config
+    curl https://git.io/fisher --create-dirs -sLo $XDG_CONFIG_HOME/fish/functions/fisher.fish
+    fish -c fisher
+end
+
 if command -vq gh
     echo "Github CLI found!"
-    gh completion -s fish
+    gh completion -s fish 1>/dev/null
 end
 
 if command -vq go
@@ -40,3 +47,19 @@ echo "Setting up abbreviations"
 echo "Setting up theme"
 . ~/.config/fish/theme.fish
 
+
+echo "Setting up functions"
+function lfcd
+    set tmp (mktemp)
+    lf -last-dir-path=$tmp $argv
+    if test -f "$tmp"
+        set dir (cat $tmp)
+        rm -f $tmp
+        if test -d "$dir"
+            if test "$dir" != (pwd)
+                cd $dir
+            end
+        end
+    end
+end
+funcsave lfcd
