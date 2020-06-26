@@ -48,6 +48,7 @@ echo "Setting up theme"
 . ~/.config/fish/theme.fish
 
 echo "Setting up functions"
+
 function lfcd
     set tmp (mktemp)
     lf -last-dir-path=$tmp $argv
