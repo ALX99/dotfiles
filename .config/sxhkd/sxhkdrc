@@ -1,11 +1,11 @@
 ###################
 # Launching stuff #
 ###################
-#super + Return
-#    $TERMINAL
+super + Return
+    st
 
-#super + d
-#    dmenu_run
+super + d
+    dmenu_run
 
 super + b
     $BROWSER
@@ -18,8 +18,8 @@ super + c
 super + p
     pcmanfm
 
-super + shift + q
-    qrmake
+#super + shift + q
+#    qrmake
 
 super + s
     sc --copy
