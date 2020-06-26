@@ -1,6 +1,7 @@
 keycode 66 = Mode_switch
 keycode 33 = Mode_switch
-keycode 135 = Super_R
+! Lol who even uses Alt-Gr
+keycode 108 = Super_R
 keycode 94 = Escape
 keysym space = space Escape Escape
 
