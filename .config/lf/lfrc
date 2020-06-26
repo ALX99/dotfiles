@@ -3,8 +3,9 @@ set shell bash
 set shellopts '-eu'
 set ifs "\n"
 set scrolloff 10
-set color256
 set icons
+set color256
+set drawbox
 set filesep "\n"
 set previewer ~/.config/lf/scope
 
@@ -30,15 +31,14 @@ map X !$f
 # text files and a file opener for the rest.
 cmd open ${{
     case "$(file --dereference --mime-type $f -b)" in
-        text/*) $EDITOR $fx;;
-        inode/x-empty) $EDITOR $fx;;
-	    image/vnd.djvu|application/pdf|application/octet-stream) setsid -f zathura $fx >/dev/null 2>&1;;
+        text/*) $EDITOR "$f";;
+        inode/x-empty) $EDITOR "$f";;
+	    image/vnd.djvu|application/pdf|application/octet-stream) setsid -f zathura "$f" >/dev/null 2>&1;;
         *) for f in $fx; do notify-send -t 3000 "lf" "opened $(file --dereference --mime-type $f -b) with xdg-open"; setsid xdg-open "$f" >/dev/null 2>&1; done;;
     esac
 }}
 
 cmd trash %for f in $fx; do trash-put "$f"; done
-#cmd trash $for f in "${fx[@]}"; do echo $f; done
 cmd rename %[[ -e $1 ]] && printf "file exists" || mv $f $1
 cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
 cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
@@ -59,7 +59,10 @@ cmd chmod ${{
 
 # compress current file or selected files with zip
 cmd zip ${{
-    7z a -m0=LZMA2 -mx=9 -mmt"$(nproc)" "${fx[0]}".7z ${fx[@]}
+    for f in $fx; do
+        files+=("$f")
+    done
+    7z a -m0=LZMA2 -mx=9 -mmt"$(nproc)" archive.7z "${files[@]}"
 }}
 
 cmd targz %{{
@@ -82,6 +85,8 @@ map '"'
 map o
 map v
 map u unselect
+map C clear
+map q quit
 
 # colemak
 map e up
@@ -96,7 +101,6 @@ map <delete> trash
 map D trash
 map . set hidden!
 map r push :rename<space>
-map C clear
 map R reload
 map ch chmod
 map md mkdir
