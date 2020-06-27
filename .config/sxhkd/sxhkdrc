@@ -4,8 +4,8 @@
 super + Return
     st
 
-super + d
-    dmenu_run
+#super + d
+#    dmenu_run
 
 super + b
     $BROWSER
@@ -21,8 +21,8 @@ super + p
 #super + shift + q
 #    qrmake
 
-super + s
-    sc --copy
+#super + s
+#    sc --copy
 
 super + shift + s
     sc
