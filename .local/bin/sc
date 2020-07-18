@@ -7,21 +7,26 @@
 copy="xclip -selection clipboard -t image/png"
 filename="$(date +"%d-%m-%Y_%H:%M").png"
 
-if [ "$1" == "--copy" ]; then
-    case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
-    "a selected area") maim -s | $copy ;;
-    "current window") maim -i "$(xdotool getactivewindow)" | $copy ;;
-    "full screen") maim | $copy ;;
-    esac
-else
-    case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
-    "a selected area") maim -s "$filename" ;;
-    "current window") maim -i "$(xdotool getactivewindow)" "$filename" ;;
-    "full screen") maim pic-full-"$filename" ;;
-    esac
-    // TODO remove file, etcetc fix this
-    case "$(printf "yes\\nno" | dmenu -i -p "Upload image?")" in
-    "yes") curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard ;;
-    esac
+case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
+"a selected area") maim -s | $copy ;;
+"current window") maim -i "$(xdotool getactivewindow)" | $copy ;;
+"full screen") maim | $copy ;;
+esac
+xclip -selection clipboard -o >"$filename"
+case "$(printf "copy\\nupload\\nsave" | dmenu -i -p "Action?")" in
+"copy") rm -f "$filename" ;;
+"upload")
+    notify-send -u low "Screenshot" "Uploading screenshot"
+    if curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard; then
+        notify-send -u low "Sceenshot" "URL copied to clipboard"
+    else
+        notify-send -u critical "Screenshot" "Upload failed "
+    fi
+    rm -f "$filename"
+    ;;
+esac
+# Other upload sources
+# Text, PNG, JPG, GIF = https://clbin.com
+# Text, PNG, JPG, GIF = http://sprunge.us
+# Idk, cat file.txt | curl -F 'f:1=<-' ix.io
 
-fi

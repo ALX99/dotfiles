@@ -8,7 +8,7 @@ for iface in $(ip a | awk '/inet.*brd/{print $NF}'); do
     printf "DNS1: %s\nDNS2: %s\n" "$(echo "$res" | grep --color=never "DNS\[1" | awk '{print $2}')" "$(echo "$res" | grep --color=never "DNS\[2" | awk '{print $2}')"
 
 #    natpmpc
-    [ $(id -u) -ne 0 ] && continue
+    [ "$(id -u)" -ne 0 ] && continue
     printf "\n======ARP Devices======\n"
     sudo arp-scan --interface="$iface" --localnet
 

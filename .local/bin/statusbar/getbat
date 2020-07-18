@@ -1,0 +1,15 @@
+#!/bin/sh
+
+read -r p </sys/class/power_supply/BAT0/capacity
+read -r s </sys/class/power_supply/AC/online
+case "$s" in
+1) i='' ;;
+0) case ${p%?} in
+    [8-9] | 10) i='' ;;
+    [6-7]) i='' ;;
+    [3-5]) i='' ;;
+    [1-2]) i='' ;;
+    *) i='' ;;
+    esac ;;
+esac
+printf "$i %s%%\n" "$p"

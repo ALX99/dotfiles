@@ -15,6 +15,7 @@ Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
+Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
 call plug#end()
 
 set termguicolors
@@ -68,6 +69,11 @@ colorscheme wombat256grf
 "----------------
 "|   Plugins    |
 "----------------
+"
+" MarkdownPreview
+let g:mkdp_auto_start = 1 " auto start with markdown files
+let g:mkdp_refresh_slow = 1 " refresh on save the buffer or leave insert mode
+let g:mkdp_echo_preview_url = 1 " echo out url when starting the preview server
 
 let g:lightline = {
       \ 'colorscheme': 'jellybeans',

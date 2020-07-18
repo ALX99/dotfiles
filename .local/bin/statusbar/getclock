@@ -1,0 +1,2 @@
+#!/bin/sh
+printf " %s\n" "$(date "+%I:%M%p")"
