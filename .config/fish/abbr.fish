@@ -12,7 +12,6 @@ abbr -a p paccy
 abbr -a sp 'sudo pacman'
 abbr -a g 'git'
 abbr -a gc 'git clone'
-abbr -a gjunk 'git commit -m (curl http://whatthecommit.com/index.txt)'
 abbr -a cx 'chmod +x'
 abbr -a copy 'xclip -selection clipboard <'
 abbr -a lg 'lazygit'

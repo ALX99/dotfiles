@@ -10,6 +10,7 @@ bind-tools
 breeze-gtk
 cantarell-fonts
 chafa # used for lf preview
+chromium
 clang
 cloc
 cpupower-gui
@@ -21,6 +22,8 @@ dmenu
 dolphin
 dos2unix
 dosfstools # mkfs.fat
+dotnet-runtime
+dotnet-sdk
 dunst
 etcher-bin
 expac
@@ -44,20 +47,17 @@ jdk8-openjdk
 jp2a
 jq # Json parser
 kitty
-konsole
-ksnip
 kvantum-qt5
 latte-dock
 lazygit
 libnatpmp
 libnotify
-libva-intel-driver
-libva-mesa-driver
+libva-utils # used to verify VA-API
+linux-firmware # Required for hardware video acceleration for skylake or later generations
 maim # better scrot
 masscan
 mediainfo # used for lf preview
 megasync
-mesa-vdpau
 mlocate # Locate
 mpv
 ncdu
@@ -67,6 +67,7 @@ neovim
 nerd-fonts-complete # fonts
 net-tools
 network-manager-applet
+newsboat
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -87,7 +88,7 @@ postgresql
 python
 python-pip
 qbittorrent
-qrencode # Create QR codes
+qrencode
 reflector
 shellcheck
 shfmt # shell format
@@ -98,7 +99,6 @@ spotify
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
-thunderbird
 traceroute
 trash-cli
 tree
@@ -107,12 +107,16 @@ ttf-font-awesome
 ttf-hack
 ttf-inconsolata
 ttf-liberation
+unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upx
+urlscan
 util-linux # provides SSD trimming
+vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
 w3m # used for lf preview
+wavemon # wifi connection information
 wget
 whois
 wireshark-qt

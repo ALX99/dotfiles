@@ -1,9 +1,22 @@
 #!/bin/sh
 
+setbg(){
+    if ! xwallpaper --zoom "$1" >/dev/null 2>&1; then
+        notify-send -u critical -t 5000 "Background" "Failed to set wallpaper"
+    else
+        notify-send -u low -t 1000 "Background" "Wallpaper set"
+    fi
+}
+
 if [ $# -eq 0 ]; then
-    # Location of link to wallpaper link.
-    bgloc="$HOME/Wallpapers"
-    xwallpaper --zoom "$bgloc"/"$(ls $bgloc | shuf -n 1)" >/dev/null 2>&1
+    notify-send -u low -t 1000 "Background" "Downloading wallpaper"
+    if ! curl -s -L https://source.unsplash.com/random/1920x1080 -o /tmp/bg.png; then
+    notify-send -u critical -t 5000 "Background" "Failed to download wallpaper"
+    exit
+    fi
+    setbg "/tmp/bg.png"
 else
+    setbg "$1"
     xwallpaper --zoom "$1" >/dev/null 2>&1
 fi
+#https://source.unsplash.com/random/1920x1080
