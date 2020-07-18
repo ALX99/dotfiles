@@ -21,14 +21,12 @@ super + p
 #super + shift + q
 #    qrmake
 
-#super + s
-#    sc --copy
 
 super + shift + s
     sc
 
-#super + shift + w
-#    setbg
+super + shift + w
+    setbg
 
 # make sxhkd reload its configuration files:
 super + Escape
@@ -45,16 +43,16 @@ super + 2
 
 # Audio
 XF86AudioMute
-	amixer sset Master toggle; pkill -RTMIN+30 dwmblocks
+	amixer sset Master toggle && pkill -RTMIN+21 dwmblocks
 XF86Audio{Raise,Lower}Volume
-	amixer sset Master 3%{+,-}; pkill -RTMIN+30 dwmblocks
+	amixer sset Master 3%{+,-} && pkill -RTMIN+21 dwmblocks
 
 # Brightness
 {XF86MonBrightnessUp,XF86MonBrightnessDown}
-    xbacklight {-inc,-dec} 5; -RTMIN+31 dwmblocks
+    xbacklight {-inc,-dec} 2 && pkill -RTMIN+20 dwmblocks
 
 
-super + F3
+super + XF86Sleep
     systemctl suspend
 
 super + shift + s

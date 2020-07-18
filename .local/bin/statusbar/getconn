@@ -1,0 +1,21 @@
+#!/bin/sh
+
+i=''
+if [ "$(nmcli r w)" = "enabled" ]; then
+    info="$(nmcli -t -f active,SSID,SIGNAL,RATE,BARS dev wifi list | grep -w "yes")"
+    if [ -z "$info" ]; then
+        echo "$i Disconnected"
+        exit
+    fi
+    ssid="$(echo "$info" | cut -d':' -f2)"
+    sig="$(echo "$info" | cut -d':' -f3)"
+    rate="$(echo "$info" | cut -d':' -f4)"
+    bars="$(echo "$info" | cut -d':' -f5)"
+    # alternative
+    # nmcli -t -f active,ssid dev wifi | grep '^yes' | cut -d: -f2 
+else
+    echo "$i Disabled"
+    exit
+fi
+
+echo "$i $ssid"
