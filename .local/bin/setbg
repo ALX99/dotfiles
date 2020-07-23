@@ -1,6 +1,50 @@
 #!/bin/sh
 
-setbg(){
+usage="usage $(basename "$0") [flags]
+
+where:
+    -h,  --help             show this help text
+    -r,  --random           download random wallpaper
+    -s,  --set (file)       set wallpaper
+"
+
+main() {
+    while :; do
+        case $1 in
+        -h | -\? | --help)
+            echo "$usage"
+            exit
+            ;;
+        -r | --random) # Takes an option argument, ensuring it has been specified.
+            setRandomBg
+            exit
+            ;;
+        -s | --set) # Takes an option argument, ensuring it has been specified.
+            if [ -n "$2" ]; then
+                setbg "$2"
+                exit
+            else
+                printf 'ERROR: "-s | --set" requires a non-empty option argument.\n' >&2
+                exit 1
+            fi
+            ;;
+        --) # End of all options.
+            shift
+            break
+            ;;
+        -?*)
+            printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2
+            ;;
+        *) # Default case: If no more options then break out of the loop.
+            break ;;
+        esac
+
+        shift
+    done
+
+}
+# sets wallpaper from the $1 file
+setbg() {
     if ! xwallpaper --zoom "$1" >/dev/null 2>&1; then
         notify-send -u critical -t 5000 "Background" "Failed to set wallpaper"
     else
@@ -8,15 +52,13 @@ setbg(){
     fi
 }
 
-if [ $# -eq 0 ]; then
+setRandomBg() {
     notify-send -u low -t 1000 "Background" "Downloading wallpaper"
     if ! curl -s -L https://source.unsplash.com/random/1920x1080 -o /tmp/bg.png; then
-    notify-send -u critical -t 5000 "Background" "Failed to download wallpaper"
-    exit
+        notify-send -u critical -t 5000 "Background" "Failed to download wallpaper"
+        exit
     fi
     setbg "/tmp/bg.png"
-else
-    setbg "$1"
-    xwallpaper --zoom "$1" >/dev/null 2>&1
-fi
-#https://source.unsplash.com/random/1920x1080
+}
+
+main "$@"

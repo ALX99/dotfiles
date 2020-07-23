@@ -10,7 +10,7 @@ set -Ux VISUAL nvim
 #set -U FILE pcmanfm
 #set -Ux TERMINAL xterm-256color
 #set -Ux TERM xterm-256color
-set -Ux BROWSER google-chrome-stable
+set -Ux BROWSER chromium
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
 #set -U _JAVA_AWT_WM_NONREPARENTING 1
 

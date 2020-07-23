@@ -1,15 +1,13 @@
 alsa-utils
-android-tools
 anki
 arandr
 arch-install-scripts
 arp-scan
-atool
+atool # unarchive tool
 bat # better cat
-bind-tools
 breeze-gtk
 cantarell-fonts
-chafa # used for lf preview
+chafa # used for lf image preview
 chromium
 clang
 cloc
@@ -18,54 +16,50 @@ dash
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
-dmenu
-dolphin
-dos2unix
 dosfstools # mkfs.fat
 dotnet-runtime
 dotnet-sdk
 dunst
 etcher-bin
 expac
+fcitx-configtool
+fcitx-mozc
+fcitx-qt5
 fd # find stuff
 fish
+fontpreview-git
+freerdp # required for RDP in remmina
 fzf
-go-tools
-goland
-google-chrome
+gcolor3 # color picker
+go-tools # goimports, godoc, gopls, etc
 gotop
-gource
 graphviz
 highlight # used for lf preview
 htop
 httrack
-imagemagick
 intellij-idea-community-edition
 inter-font
 jdk-openjdk
 jdk8-openjdk
-jp2a
+jp2a # convert image to ascii
 jq # Json parser
 kitty
 kvantum-qt5
-latte-dock
 lazygit
 libnatpmp
-libnotify
+libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
-maim # better scrot
-masscan
+maim # sceenshot utility
 mediainfo # used for lf preview
 megasync
 mlocate # Locate
 mpv
-ncdu
+ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
 neovim
 nerd-fonts-complete # fonts
-net-tools
 network-manager-applet
 newsboat
 nmap
@@ -84,16 +78,16 @@ papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
 pkgfile # tool for searching files from packages
-postgresql
 python
 python-pip
 qbittorrent
 qrencode
+redshift # nightlight
 reflector
+remmina # RDP client
 shellcheck
 shfmt # shell format
 slack-desktop
-spectrwm
 speedtest-cli
 spotify
 stow
@@ -111,7 +105,6 @@ unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upx
-urlscan
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
@@ -120,6 +113,7 @@ wavemon # wifi connection information
 wget
 whois
 wireshark-qt
+wol # wake on lan
 xclip
 xdg-utils
 xdo # Use with window swallowing

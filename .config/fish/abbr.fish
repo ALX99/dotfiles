@@ -67,6 +67,8 @@ abbr -a crypto "curl rate.sx"
 abbr -a btc "curl rate.sx/btc@1d"
 abbr -a eth "curl rate.sx/eth@1d"
 abbr -a sshp ssh -o PasswordAuthentication=yes -o PreferredAuthentications=keyboard-interactive,password -o PubkeyAuthentication=no
+abbr -a getfile "getip; oneshot -p 8080 -u ."
+abbr -a share "getip; oneshot -p 8080 -a zip"
 
 ###############
 # Better flags#
