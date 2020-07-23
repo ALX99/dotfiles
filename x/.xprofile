@@ -4,7 +4,6 @@ xinput set-prop 10 300 1
 dunst &
 dwmblocks &
 setbg &
-redshift &
 setxkbmap colemak
 xmodmap ~/dotfiles/keymaps/xmodColemakCustom
 xrdb ~/.Xresources

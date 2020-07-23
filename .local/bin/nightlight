@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if pgrep redshift >/dev/null; then
+    echo "Turning off the nightlight"
+    pkill redshift
+else
+    if ! ping -q -c 1 -W 1 google.com >/dev/null; then
+        echo "No internet connectivity!"
+        exit 1
+    fi
+    echo "Turning on the nightlight"
+    myIP="$(curl -Ss ifconfig.me)"
+    info="$(curl -Ss https://ipvigilante.com/"$myIP")"
+    long="$(echo "$info" | jq -r '.data.longitude')"
+    lat="$(echo "$info" | jq -r '.data.latitude')"
+    redshift -l "$lat":"$long" &
+fi
