@@ -9,9 +9,14 @@ set drawbox
 set filesep "\n"
 set previewer ~/.config/lf/scope
 
-# execute current file (must be executable)
-map x $$f
-map X !$f
+
+cmd trash %for f in $fx; do trash-put "$f"; done
+cmd rename %[[ -e $1 ]] && printf "file exists" || mv $f $1
+cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
+cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
+cmd extract %atool -x "$f"
+
+
 
 #     Prefix  Wait  Async  Stdin  Stdout  Stderr  UI action
 #     $       No    No     Yes    Yes     Yes     Pause and then resume
@@ -38,11 +43,6 @@ cmd open ${{
     esac
 }}
 
-cmd trash %for f in $fx; do trash-put "$f"; done
-cmd rename %[[ -e $1 ]] && printf "file exists" || mv $f $1
-cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
-cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
-cmd extract %atool -x "$f"
 
 
 cmd chmod ${{
@@ -122,3 +122,7 @@ map gs cd ~/go/src/github.com/alx99
 
 # Open stuff
 map oc code
+
+# execute current file (must be executable)
+map x $$f
+map X !$f

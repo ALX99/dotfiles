@@ -38,12 +38,13 @@
 *.alpha: 0.92
 !*.font:	Liberation Mono:pixelsize=14:antialias=true:autohint=true;
 
-dwm.normbgcolor: #000000
-dwm.normbordercolor: #4d4d4d
-dwm.normfgcolor: #eb6060
-dwm.selbgcolor: #eb6060
-dwm.selbordercolor: #d12c2c
-dwm.selfgcolor: #000000
+dwm.normbgcolor: #F5CED3
+dwm.normfgcolor: #3C3B39
+dwm.normbordercolor: #3C3B39
+dwm.selbgcolor: #E27078
+dwm.selfgcolor: #3C3B39
+dwm.selbordercolor: #7BC1A5
+
 !dwm.borderpx: 2
 !dwm.snap:
 !dwm.showbar:
