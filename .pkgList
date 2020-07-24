@@ -11,6 +11,7 @@ chafa # used for lf image preview
 chromium
 clang
 cloc
+cpupower
 cpupower-gui
 dash
 dialog
@@ -21,6 +22,7 @@ dotnet-runtime
 dotnet-sdk
 dunst
 etcher-bin
+ethtool # required for TLP to disable WOL
 expac
 fcitx-configtool
 fcitx-mozc
@@ -51,6 +53,7 @@ libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 maim # sceenshot utility
+masscan
 mediainfo # used for lf preview
 megasync
 mlocate # Locate
@@ -78,6 +81,7 @@ papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
 pkgfile # tool for searching files from packages
+powertop
 python
 python-pip
 qbittorrent
@@ -93,6 +97,7 @@ spotify
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
+tlp # power management
 traceroute
 trash-cli
 tree

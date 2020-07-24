@@ -118,6 +118,7 @@ map gu cd ~/University
 map gD cd ~/dotfiles
 map gb cd ~/.local/bin
 map gc cd ~/.config
+map gf cd ~/.config/fish
 map gs cd ~/go/src/github.com/alx99
 
 # Open stuff
