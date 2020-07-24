@@ -1,10 +1,10 @@
 #!/bin/fish
-set_color green
 echo "Setting up fish..."
 rm -rf ~/.config/fish/fish_variables
 
 # Set environtment variables
 set -Ua fish_user_paths (du "$HOME/.local/bin/" | cut -f2 | paste -sd':')
+set -Ux XDG_CONFIG_HOME "$HOME/.config"
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 #set -U FILE pcmanfm
@@ -14,13 +14,18 @@ set -Ux BROWSER chromium
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
 #set -U _JAVA_AWT_WM_NONREPARENTING 1
 
+# Unset these
+set -U fish_greeting
+set -U FZF_LEGACY_KEYBINDINGS 0
+
+# Downloads fisher if necessary
 if not functions -q fisher
     echo "Downloading fisher!"
     set -q XDG_CONFIG_HOME; or set XDG_CONFIG_HOME ~/.config
     curl https://git.io/fisher --create-dirs -sLo $XDG_CONFIG_HOME/fish/functions/fisher.fish
     fish -c fisher
+    fisher
 end
-fisher
 fisher self-update
 
 if command -vq gh
@@ -41,8 +46,6 @@ if command -vq flutter
     set -Ua fish_user_paths $HOME/flutter/bin/
 end
 
-set -U fish_greeting
-set -U FZF_LEGACY_KEYBINDINGS 0
 
 echo "Setting up abbreviations"
 . ~/.config/fish/abbr.fish
