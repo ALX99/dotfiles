@@ -98,6 +98,7 @@ stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tlp # power management
+tmux
 traceroute
 trash-cli
 tree
@@ -109,6 +110,7 @@ ttf-liberation
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
+upower
 upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
@@ -134,3 +136,4 @@ zathura
 zathura-pdf-poppler
 zip
 zmap
+zsh

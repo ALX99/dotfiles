@@ -13,5 +13,5 @@ else
     info="$(curl -Ss https://ipvigilante.com/"$myIP")"
     long="$(echo "$info" | jq -r '.data.longitude')"
     lat="$(echo "$info" | jq -r '.data.latitude')"
-    redshift -l "$lat":"$long" &
+    redshift -rl "$lat":"$long" &
 fi

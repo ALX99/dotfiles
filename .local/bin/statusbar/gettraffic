@@ -9,9 +9,10 @@ update() {
     cache=/tmp/${1##*/}
     [ -f "$cache" ] && read -r old < "$cache" || old=0
     printf %d\\n "$sum" > "$cache"
-    printf %d\\n $(( ( (sum - old) * 8 ) / 1000000 ))
+    printf %d\\n $(( ( (sum - old) * 8 ) / 1000000 )) # Megabits
 }
 
+# Calculate how many seconds ago the script was last ran
 timeDiff(){
     tNow=$(date "+%s")
     cache="/tmp/trafficlastran"
@@ -24,6 +25,7 @@ timeDiff(){
 timeDiff
 rx=$(update /sys/class/net/[ew]*/statistics/rx_bytes)
 tx=$(update /sys/class/net/[ew]*/statistics/tx_bytes)
+# Calculate Mbps
 rx=$(( rx / tDiff ))
 tx=$(( tx / tDiff ))
 printf "%dMbps %dMbps\n" "$rx" "$tx"
