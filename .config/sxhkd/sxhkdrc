@@ -21,13 +21,11 @@ super + p
 #super + shift + q
 #    qrmake
 
-
-super + shift + s
-    sc
-
 super + shift + w
     setbg
 
+Print
+    sc
 # make sxhkd reload its configuration files:
 super + Escape
 	pkill -USR1 -x sxhkd && notify-send "Reloaded the SXHKD config file"
