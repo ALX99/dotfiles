@@ -12,7 +12,6 @@ chromium
 clang
 cloc
 cpupower
-cpupower-gui
 dash
 dialog
 diff-so-fancy # better looking terminal diffs
@@ -41,8 +40,8 @@ htop
 httrack
 intellij-idea-community-edition
 inter-font
-jdk-openjdk
 jdk8-openjdk
+jdk-openjdk
 jp2a # convert image to ascii
 jq # Json parser
 kitty
@@ -62,7 +61,6 @@ ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
 neovim
-nerd-fonts-complete # fonts
 network-manager-applet
 newsboat
 nmap
@@ -72,7 +70,6 @@ noto-fonts-emoji # Google emojis
 ntfs-3g
 openssh
 openssh-askpass
-otf-fira-code
 overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
@@ -123,8 +120,8 @@ wireshark-qt
 wol # wake on lan
 xclip
 xdg-utils
-xdo # Use with window swallowing
 xdotool
+xdo # Use with window swallowing
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
@@ -136,4 +133,5 @@ zathura
 zathura-pdf-poppler
 zip
 zmap
+zoom
 zsh
