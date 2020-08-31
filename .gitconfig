@@ -18,6 +18,7 @@
     uf       = reset -- # unstage file
     discard  = checkout --
     oops     = reset --soft HEAD~1
+    mu = !git fetch upstream && git merge upstream/master
     #stash = stash save
     #pop = stash pop
 

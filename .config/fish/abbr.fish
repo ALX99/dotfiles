@@ -26,6 +26,7 @@ abbr -a utop 'htop -t -u (whoami)'
 abbr -a mr 'make run'
 abbr -a genrsa 'openssl genrsa 2048'
 abbr -a mimetype 'file --dereference --brief --mime-type'
+abbr -a ch 'code . && exit'
 
 ###########
 # Listing #
