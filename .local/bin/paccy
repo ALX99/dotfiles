@@ -1,9 +1,11 @@
 #!/bin/bash
 # Pacman + yay wrapper that adds very useful features
-# Requires expac, fzf
+# Requires expac, fzf, iswsl
 
-pkgList=${PKGLIST:-~/dotfiles/.pkgList} # Path to package list
-pkgs=()                                 # Packages to be installed
+iswsl &&
+    pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
+    pkgList=${PKGLIST:-~/dotfiles/.pkgList}
+pkgs=() # Packages to be installed
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
