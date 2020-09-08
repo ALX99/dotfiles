@@ -23,7 +23,7 @@ dotnet-sdk
 dunst
 etcher-bin
 ethtool # required for TLP to disable WOL
-expac
+expac # requried by paccy
 fcitx-configtool
 fcitx-mozc
 fcitx-qt5
@@ -117,6 +117,7 @@ visual-studio-code-bin
 w3m # used for lf preview
 wavemon # wifi connection information
 wget
+which
 whois
 wireshark-qt
 wol # wake on lan
