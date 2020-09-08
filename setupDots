@@ -1,0 +1,80 @@
+#!/bin/bash
+set -e
+d="$(pwd)"
+general_config() {
+    mkdir -p ~/.local/share ~/.config
+    stow .config/ -t ~/.config/
+
+    ln -sf "$d"/.local/bin/ ~/.local/
+    ln -sf "$d"/.local/applications/ ~/.local/share/
+    ln -sf "$d".gitconfig ~/
+
+    # Specify keybindings for less
+    lesskey "$d"/misc/lesskey
+
+    # Root config
+    sudo ln -sf "$d"/shell/.bashrc /root/.bashrc
+    sudo ln -sf "$d"/shell/.aliasrc /root/.aliasrc
+
+    # Return if we are running in WSL
+    ~/.local/bin/iswsl && return
+    # Keymap
+    sudo ln -sf "$d"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+    # Touchpad
+    sudo ln -sf "$d"/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
+    # Prefer RAM over swap
+    sudo ln -sf "$d"/misc/99-swappiness.conf /etc/sysctl.d/
+}
+
+arch_config() {
+    sudo pacman -S stow fish --noconfirm --needed
+    # Pacman setup
+    sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
+    sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
+    sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+
+    # Remove the default stuff
+    cd ~
+    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
+    cd -
+    stow x/
+    stow shell/
+    stow spectr/
+    sudo ln -sf "$d"/hooks /etc/pacman.d/
+
+    # Since dash is faster than bash
+    sudo pacman -S dash
+    sudo ln -sfT dash /usr/bin/sh
+
+    # Change to the fish shell
+    chsh -s /bin/fish
+    fish .config/fish/setup.fish
+}
+arch_dep() {
+    sudo pacman -S reflector --noconfirm
+    ~/.local/bin/paccy -u
+    ~/.local/bin/paccy -ia
+}
+
+# Cache keys
+ssh_agent() {
+    mkdir ~/.ssh/
+    echo "AddKeysToAgent yes" >~/.ssh/config
+    ln -sf "$(pwd)"/misc/.pam_environment ~/
+    systemctl --user enable ssh-agent
+    systemctl --user start ssh-agent
+}
+
+# Get rid of the stupid KDE wallet thing
+kde() {
+    kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
+    kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
+}
+
+main() {
+    arch_config
+    general_config
+    arch_dep
+    ! ~/.local/bin/iswsl && ssh_agent
+}
+main

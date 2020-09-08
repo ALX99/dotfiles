@@ -1,0 +1,41 @@
+bat # better cat
+binutils
+clang
+cloc
+diff-so-fancy # better looking terminal diffs
+expac # requried by paccy
+fish
+fzf
+gcc
+highlight # used for lf preview
+htop
+inetutils # Required for the fish prompt (uses "hostname")
+jp2a # convert image to ascii
+jq # Json parser
+lazygit
+mediainfo # used for lf preview
+mlocate # Locate
+neofetch
+neovim
+openssh
+p7zip # 7z extentions
+pacman-contrib # checkupdates, pactree and stuff
+pacutils
+pkgfile # tool for searching files from packages
+prettier
+python
+python-pip
+reflector
+shellcheck
+shfmt # shell format
+stow
+trash-cli
+tree
+unrar # RAR
+unzip # ZIP
+w3m # used for lf preview
+wget
+which
+whois
+xclip
+zip
