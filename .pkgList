@@ -1,4 +1,5 @@
 alsa-utils
+android-file-transfer
 anki
 arandr
 arch-install-scripts
@@ -79,6 +80,7 @@ pavucontrol
 pcmanfm-gtk3
 pkgfile # tool for searching files from packages
 powertop
+prettier
 python
 python-pip
 qbittorrent
@@ -128,6 +130,7 @@ xorg-xfontsel
 xorg-xinput
 xorg-xprop
 xorg-xsetroot
+xournal
 xwallpaper
 zathura
 zathura-pdf-poppler

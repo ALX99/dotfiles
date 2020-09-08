@@ -1,5 +1,0 @@
-#!/bin/sh
-
-ssh bandit"$1"@bandit.labs.overthewire.org -p 2220 -o PreferredAuthentications=password
-
-# PW for 10 is truKLdjsbJ5g7yyJ2X2R0o3a5HQJFuLk
