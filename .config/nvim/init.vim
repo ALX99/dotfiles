@@ -10,15 +10,18 @@ call plug#begin('~/.config/nvim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
 Plug 'tpope/vim-surround'
-Plug 'ap/vim-css-color'
 Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
 Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
 Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
+Plug 'dense-analysis/ale'
+Plug 'norcalli/nvim-colorizer.lua'
 call plug#end()
 
 set termguicolors
+lua require'colorizer'.setup()
+
 colorscheme wombat256grf
 
 "-------------------
@@ -88,7 +91,9 @@ let g:lightline = {
 
 
 let g:ale_fixers = {
-\   '*':          ['remove_trailing_lines', 'trim_whitespace'],
+\   '*':        ['remove_trailing_lines', 'trim_whitespace'],
+\   'sh':       ['shfmt'],
+\   'markdown': ['prettier'],
 \}
 
 let g:ale_fix_on_save = 1
@@ -128,8 +133,6 @@ nnoremap l n
 nnoremap L N
 vnoremap l n
 vnoremap L N
-
-
 
 set clipboard+=unnamedplus              " use system clipboard (requires xclip)
 let mapleader = " "                     " set leader to space
