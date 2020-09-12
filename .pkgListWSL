@@ -1,8 +1,10 @@
 bat # better cat
 binutils
+catimg
 clang
 cloc
 diff-so-fancy # better looking terminal diffs
+eslint
 expac # requried by paccy
 fish
 fzf
@@ -12,11 +14,13 @@ htop
 inetutils # Required for the fish prompt (uses "hostname")
 jp2a # convert image to ascii
 jq # Json parser
+keychain
 lazygit
 mediainfo # used for lf preview
 mlocate # Locate
 neofetch
 neovim
+npm
 openssh
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
@@ -38,4 +42,5 @@ wget
 which
 whois
 xclip
+yarn # web project
 zip
