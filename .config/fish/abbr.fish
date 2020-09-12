@@ -70,6 +70,7 @@ abbr -a eth "curl rate.sx/eth@1d"
 abbr -a sshp ssh -o PasswordAuthentication=yes -o PreferredAuthentications=keyboard-interactive,password -o PubkeyAuthentication=no
 abbr -a getfile "getip; oneshot -p 8080 -u ."
 abbr -a share "getip; oneshot -p 8080 -a zip"
+abbr -a kh "eval (keychain --eval --agents ssh)"
 
 ###############
 # Better flags#
