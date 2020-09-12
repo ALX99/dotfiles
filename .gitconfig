@@ -32,8 +32,14 @@
     rank      = shortlog -sn --no-merges
 [core]
     whitespace = trailing-space,space-before-tab
+    pager = diff-so-fancy | less --tabs=4 -RFX
 [apply]
     whitespace = fix
+[user]
+	email = 46844683+ALX99@users.noreply.github.com
+	name  = ALX99
+
+# diff-so-fancy
 [pager]
     diff = diff-so-fancy | less --tabs=4 -RFXS --pattern '^(Date|added|deleted|modified): '
 [color]
@@ -52,8 +58,9 @@
     whitespace = red reverse
 [diff-so-fancy]
     markEmptyLines = true
-[user]
-	email = 46844683+ALX99@users.noreply.github.com
-	name  = ALX99
-#[url "git@github.com:"]
-#	insteadOf = https://github.com/
+[pull]
+	rebase = false
+
+# Push over SSH instead of HTTPS
+[url "ssh://git@github.com/"]
+        pushInsteadOf = https://github.com/

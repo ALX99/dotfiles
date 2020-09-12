@@ -37,7 +37,7 @@ arch_config() {
     cd ~
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
     cd -
-    stow x/
+    ! ~/.local/bin/iswsl && stow x/
     stow shell/
     stow spectr/
     sudo ln -sf "$d"/hooks /etc/pacman.d/
@@ -50,6 +50,10 @@ arch_config() {
     chsh -s /bin/fish
     fish .config/fish/setup.fish
 }
+installNNN() {
+    git clone https://github.com/jarun/nnn ~/nnn
+}
+
 arch_dep() {
     sudo pacman -S reflector --noconfirm
     ~/.local/bin/paccy -u
