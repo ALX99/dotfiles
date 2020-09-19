@@ -19,7 +19,7 @@ set -Ux XDG_CACHE_HOME "$HOME/.cache"
 
 # Unset these
 set -U fish_greeting
-set -U FZF_LEGACY_KEYBINDINGS 0
+set -U FZF_LEGACY_KEYBINDINGS 0 # disable legacy keybindings
 
 # Downloads fisher if necessary
 if not functions -q fisher
@@ -29,7 +29,9 @@ if not functions -q fisher
     fish -c fisher
     fisher
 end
-fisher self-update
+
+echo "Updating fisher"
+fisher self-update > /dev/null
 
 if command -vq gh
     echo "Github CLI found!"
@@ -50,12 +52,9 @@ if command -vq flutter
 end
 
 
-echo "Setting up abbreviations"
+echo "Setting up personal config"
 . ~/.config/fish/abbr.fish
-echo "Setting up theme"
 . ~/.config/fish/theme.fish
-
-echo "Setting up functions"
 
 function lfcd
     set tmp (mktemp)

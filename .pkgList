@@ -1,5 +1,4 @@
 alsa-utils
-catimg
 android-file-transfer
 anki
 arandr
@@ -9,6 +8,7 @@ atool # unarchive tool
 bat # better cat
 breeze-gtk
 cantarell-fonts
+catimg
 chafa # used for lf image preview
 chromium
 clang

@@ -15,8 +15,6 @@ cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
 cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
 cmd extract %atool -x "$f"
 
-
-
 #     Prefix  Wait  Async  Stdin  Stdout  Stderr  UI action
 #     $       No    No     Yes    Yes     Yes     Pause and then resume
 #     %       No    No     Yes    Yes     Yes     Statline for input/output
