@@ -18,7 +18,8 @@
     uf       = reset -- # unstage file
     discard  = checkout --
     oops     = reset --soft HEAD~1
-    mu = !git fetch upstream && git merge upstream/master
+    mu = "!git fetch upstream && git merge upstream/master"
+    cb = "!git checkout $(git branch -a | fzf | tr -d  '[:space:]')"
     #stash = stash save
     #pop = stash pop
 

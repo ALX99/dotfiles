@@ -35,7 +35,6 @@ abbr -a goi 'go install'
 abbr -a gop 'CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=(pwd) -asmflags=all=-trimpath=(pwd)'
 abbr -a gob 'CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=(pwd) -asmflags=all=-trimpath=(pwd)'
 abbr -a gor 'go run'
-abbr -a genrsa 'openssl genrsa 2048'
 abbr -a mimetype 'file --dereference --brief --mime-type'
 
 
