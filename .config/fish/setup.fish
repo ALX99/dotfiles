@@ -6,20 +6,30 @@ rm -rf ~/.config/fish/fish_variables
 set -Ua fish_user_paths (du "$HOME/.local/bin/" | cut -f2 | paste -sd':')
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
-#set -U FILE pcmanfm
-#set -Ux TERMINAL xterm-256color
+set -Ux TERMINAL xterm-256color
 set -Ux TERM xterm-256color
 set -Ux BROWSER chromium
 #set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
-#set -U _JAVA_AWT_WM_NONREPARENTING 1
+set -Ux _JAVA_AWT_WM_NONREPARENTING 1
 
 # XDG
 set -Ux XDG_CONFIG_HOME "$HOME/.config"
 set -Ux XDG_CACHE_HOME "$HOME/.cache"
+set -Ux XDG_DATA_HOME "$HOME/.local/share"
+set -Ux XDG_DOWNLOAD_DIR "$HOME/Downloads"
 
-# Unset these
-set -U fish_greeting
+# FZF
+set -U FZF_DEFAULT_COMMAND "rg --files --hidden"
 set -U FZF_LEGACY_KEYBINDINGS 0 # disable legacy keybindings
+
+# Fish plugins
+set -U pisces_only_insert_at_eol 1
+set -U FZF_FIND_FILE_COMMAND "fd -H -t f -d 1"
+set -U FZF_DISABLE_KEYBINDINGS 1
+
+
+# Fish
+set -U fish_greeting
 
 # Downloads fisher if necessary
 if not functions -q fisher
@@ -70,6 +80,21 @@ function lfcd
     end
 end
 
+function __cd_dirs
+    if contains -- --hidden $argv
+        set -l p (fd -H -t d -E '.git' | fzf)
+        if test "$status" -eq 0
+            cd "$p"
+        end
+    else
+        set -l p (fd -t d | fzf)
+        if test "$status" -eq 0
+            cd "$p"
+        end
+    end
+    commandline -f repaint
+end
+
 function gu --description 'Open the webpage for the current github repo/branch'
   set -l fetch_url (command git remote --verbose show -n origin ^/dev/null | command grep Fetch | cut -c 14- )
 
@@ -101,40 +126,6 @@ function gu --description 'Open the webpage for the current github repo/branch'
   open "$url/$argv"
 end
 
-function nnncd --wraps nnn --description 'support nnn quit and change directory'
-    # Block nesting of nnn in subshells
-    if test -n "$NNNLVL"
-        if [ (expr $NNNLVL + 0) -ge 1 ]
-            echo "nnn is already running"
-            return
-        end
-    end
-
-    # The default behaviour is to cd on quit (nnn checks if NNN_TMPFILE is set)
-    # To cd on quit only on ^G, remove the "-x" as in:
-    #    set NNN_TMPFILE "$XDG_CONFIG_HOME/nnn/.lastd"
-    # NOTE: NNN_TMPFILE is fixed, should not be modified
-    if test -n "$XDG_CONFIG_HOME"
-        set -x NNN_TMPFILE "$XDG_CONFIG_HOME/nnn/.lastd"
-    else
-        set -x NNN_TMPFILE "$HOME/.config/nnn/.lastd"
-    end
-
-    # Unmask ^Q (, ^V etc.) (if required, see `stty -a`) to Quit nnn
-    # stty start undef
-    # stty stop undef
-    # stty lwrap undef
-    # stty lnext undef
-
-    nnn $argv
-
-    if test -e $NNN_TMPFILE
-        source $NNN_TMPFILE
-        rm $NNN_TMPFILE
-    end
-end
-
-
 funcsave lfcd
-funcsave nnncd
+funcsave __cd_dirs
 funcsave gu

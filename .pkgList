@@ -28,18 +28,20 @@ expac # requried by paccy
 fcitx-configtool
 fcitx-mozc
 fcitx-qt5
-fd # find stuff
+fd # find directories and files
 fish
 fontpreview-git
 freerdp # required for RDP in remmina
 fzf
 gcolor3 # color picker
+gnome-keyring
 go-tools # goimports, godoc, gopls, etc
 gotop
 graphviz
 highlight # used for lf preview
 htop
 httrack
+imv
 intellij-idea-community-edition
 inter-font
 jdk8-openjdk
@@ -79,6 +81,7 @@ pacutils
 papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
+perl-image-exiftool
 pkgfile # tool for searching files from packages
 powertop
 prettier
@@ -89,6 +92,7 @@ qrencode
 redshift # nightlight
 reflector
 remmina # RDP client
+ripgrep
 shellcheck
 shfmt # shell format
 slack-desktop
