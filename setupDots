@@ -7,7 +7,10 @@ general_config() {
 
     ln -sf "$d"/.local/bin/ ~/.local/
     ln -sf "$d"/.local/applications/ ~/.local/share/
-    ln -sf "$d".gitconfig ~/
+    ln -sf "$d"/.gitconfig ~/
+
+    # Export new path so we get access to everything in bin
+    export PATH="$PATH:$d/.local/bin"
 
     # Specify keybindings for less
     lesskey "$d"/misc/lesskey
@@ -47,8 +50,8 @@ arch_config() {
     sudo ln -sfT dash /usr/bin/sh
 
     # Change to the fish shell
-    chsh -s /bin/fish
-    fish .config/fish/setup.fish
+    # chsh -s /bin/fish
+    # fish .config/fish/setup.fish
 }
 installNNN() {
     git clone https://github.com/jarun/nnn ~/nnn

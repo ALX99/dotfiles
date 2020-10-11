@@ -15,9 +15,11 @@ clang
 cloc
 cpupower
 dash
+desktop-file-utils # Usually required by many things
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
+dmenu
 dosfstools # mkfs.fat
 dotnet-runtime
 dotnet-sdk
@@ -36,7 +38,6 @@ fzf
 gcolor3 # color picker
 gnome-keyring
 go-tools # goimports, godoc, gopls, etc
-gotop
 graphviz
 highlight # used for lf preview
 htop
@@ -44,18 +45,20 @@ httrack
 imv
 intellij-idea-community-edition
 inter-font
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 jp2a # convert image to ascii
 jq # Json parser
 kitty
 kvantum-qt5
 lazygit
+lf
 libnatpmp
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 maim # sceenshot utility
+man-db
 masscan
 mediainfo # used for lf preview
 megasync
@@ -88,7 +91,6 @@ prettier
 python
 python-pip
 qbittorrent
-qrencode
 redshift # nightlight
 reflector
 remmina # RDP client
@@ -97,7 +99,6 @@ shellcheck
 shfmt # shell format
 slack-desktop
 speedtest-cli
-spotify
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
@@ -109,7 +110,7 @@ tree
 ttf-cascadia-code # programming font
 ttf-font-awesome
 ttf-hack
-ttf-inconsolata
+ttf-joypixels
 ttf-liberation
 unclutter # remove mouse
 unrar # RAR
@@ -128,8 +129,8 @@ wireshark-qt
 wol # wake on lan
 xclip
 xdg-utils
-xdotool
 xdo # Use with window swallowing
+xdotool
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
