@@ -25,7 +25,7 @@ super + shift + w
     setbg
 
 Print
-    sc
+    flameshot gui
 # make sxhkd reload its configuration files:
 super + Escape
 	pkill -USR1 -x sxhkd && notify-send "Reloaded the SXHKD config file"

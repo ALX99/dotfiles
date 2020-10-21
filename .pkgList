@@ -1,3 +1,5 @@
+adapta-gtk-theme
+alacritty
 alsa-utils
 android-file-transfer
 anki
@@ -6,6 +8,7 @@ arch-install-scripts
 arp-scan
 atool # unarchive tool
 bat # better cat
+bibata-cursor-theme
 breeze-gtk
 cantarell-fonts
 catimg
@@ -13,7 +16,6 @@ chafa # used for lf image preview
 chromium
 clang
 cloc
-cpupower
 dash
 desktop-file-utils # Usually required by many things
 dialog
@@ -32,6 +34,7 @@ fcitx-mozc
 fcitx-qt5
 fd # find directories and files
 fish
+flameshot
 fontpreview-git
 freerdp # required for RDP in remmina
 fzf
@@ -41,7 +44,6 @@ go-tools # goimports, godoc, gopls, etc
 graphviz
 highlight # used for lf preview
 htop
-httrack
 imv
 intellij-idea-community-edition
 inter-font
@@ -57,6 +59,7 @@ libnatpmp
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
+lxappearance # Used to customize GTK theme
 maim # sceenshot utility
 man-db
 masscan
@@ -69,7 +72,6 @@ ncurses # C formatting for VSCode
 neofetch
 neovim
 network-manager-applet
-newsboat
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -86,7 +88,6 @@ pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
-powertop
 prettier
 python
 python-pip
@@ -103,7 +104,6 @@ stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tlp # power management
-tmux
 traceroute
 trash-cli
 tree
@@ -116,7 +116,6 @@ unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
-upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
@@ -139,6 +138,7 @@ xorg-xprop
 xorg-xsetroot
 xournal
 xwallpaper
+yarn
 zathura
 zathura-pdf-poppler
 zip
