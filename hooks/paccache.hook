@@ -7,3 +7,4 @@ Target = *
 Description = Cleaning the package cache...
 When = PostTransaction
 Exec = /usr/bin/paccache -rvk2
+Depends = pacman-contrib

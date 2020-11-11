@@ -1,7 +1,9 @@
 adapta-gtk-theme
 alacritty
 alsa-utils
+android-apktool
 android-file-transfer
+android-tools
 anki
 arandr
 arch-install-scripts
@@ -10,6 +12,7 @@ atool # unarchive tool
 bat # better cat
 bibata-cursor-theme
 breeze-gtk
+burpsuite
 cantarell-fonts
 catimg
 chafa # used for lf image preview
@@ -39,6 +42,7 @@ fontpreview-git
 freerdp # required for RDP in remmina
 fzf
 gcolor3 # color picker
+genymotion
 gnome-keyring
 go-tools # goimports, godoc, gopls, etc
 graphviz
@@ -51,6 +55,7 @@ jdk-openjdk
 jdk8-openjdk
 jp2a # convert image to ascii
 jq # Json parser
+junit
 kitty
 kvantum-qt5
 lazygit
@@ -103,6 +108,7 @@ speedtest-cli
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
+tldr
 tlp # power management
 traceroute
 trash-cli
@@ -119,6 +125,7 @@ upower
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
+vivid
 w3m # used for lf preview
 wavemon # wifi connection information
 wget
@@ -139,6 +146,7 @@ xorg-xsetroot
 xournal
 xwallpaper
 yarn
+youtube-dl
 zathura
 zathura-pdf-poppler
 zip
