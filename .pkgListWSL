@@ -1,14 +1,21 @@
+asciinema
+atool
 bat # better cat
 binutils
+calc
 catimg
+chafa # used for lf image preview
 clang
 cloc
 diff-so-fancy # better looking terminal diffs
-eslint
+diffutils
 expac # requried by paccy
+fd
 fish
 fzf
 gcc
+go
+graphviz
 highlight # used for lf preview
 htop
 inetutils # Required for the fish prompt (uses "hostname")
@@ -16,20 +23,26 @@ jp2a # convert image to ascii
 jq # Json parser
 keychain
 lazygit
+lf
 mediainfo # used for lf preview
+mkvtoolnix-cli
 mlocate # Locate
 neofetch
 neovim
-npm
 openssh
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
+perl-image-exiftool
 pkgfile # tool for searching files from packages
 prettier
 python
+p7zip # 7z extentions
+lazygit
+python2
 python-pip
 reflector
+ripgrep
 shellcheck
 shfmt # shell format
 stow
@@ -37,10 +50,10 @@ trash-cli
 tree
 unrar # RAR
 unzip # ZIP
+vivid
 w3m # used for lf preview
 wget
 which
 whois
 xclip
-yarn # web project
 zip
