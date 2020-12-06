@@ -13,6 +13,7 @@ bat # better cat
 bibata-cursor-theme
 breeze-gtk
 burpsuite
+calc
 cantarell-fonts
 catimg
 chafa # used for lf image preview
@@ -36,6 +37,7 @@ fcitx-configtool
 fcitx-mozc
 fcitx-qt5
 fd # find directories and files
+firefox
 fish
 flameshot
 fontpreview-git
@@ -48,6 +50,7 @@ go-tools # goimports, godoc, gopls, etc
 graphviz
 highlight # used for lf preview
 htop
+hugo
 imv
 intellij-idea-community-edition
 inter-font
@@ -93,6 +96,7 @@ pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
+postman-bin
 prettier
 python
 python-pip
@@ -152,4 +156,3 @@ zathura-pdf-poppler
 zip
 zmap
 zoom
-zsh

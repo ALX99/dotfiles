@@ -25,7 +25,10 @@ super + shift + w
     setbg
 
 Print
+    sc
+super + Print
     flameshot gui
+
 # make sxhkd reload its configuration files:
 super + Escape
 	pkill -USR1 -x sxhkd && notify-send "Reloaded the SXHKD config file"
@@ -51,7 +54,7 @@ XF86Audio{Raise,Lower}Volume
 
 
 super + XF86Sleep
-    systemctl suspend
+    systemctl hibernate
 
 super + shift + s
     xset dpms force off

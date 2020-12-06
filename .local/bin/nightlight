@@ -9,9 +9,6 @@ else
         exit 1
     fi
     echo "Turning on the nightlight"
-    myIP="$(curl -Ss ifconfig.me)"
-    info="$(curl -Ss https://ipvigilante.com/"$myIP")"
-    long="$(echo "$info" | jq -r '.data.longitude')"
-    lat="$(echo "$info" | jq -r '.data.latitude')"
-    redshift -rl "$lat":"$long" &
+    loc="$(curl -Ss ipinfo.io | jq -r '.loc' | tr , :)"
+    redshift -rl "$loc" &
 fi
