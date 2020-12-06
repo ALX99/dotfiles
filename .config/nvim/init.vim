@@ -74,7 +74,7 @@ colorscheme wombat256grf
 "----------------
 "
 " MarkdownPreview
-let g:mkdp_auto_start = 1 " auto start with markdown files
+let g:mkdp_auto_start = 0 " auto start with markdown files
 let g:mkdp_refresh_slow = 1 " refresh on save the buffer or leave insert mode
 let g:mkdp_echo_preview_url = 1 " echo out url when starting the preview server
 
