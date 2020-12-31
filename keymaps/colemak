@@ -58,9 +58,9 @@ xkb_symbols "basic" {
     key <AB09> { [       period,      greater,   dead_abovedot,       asciitilde ] };
     key <AB10> { [        slash,     question,    questiondown,       asciitilde ] };
 
-    key <CAPS> { [ ISO_Level3_Shift ] };
-    key <LSGT> { [        minus,   underscore,          endash,           emdash ] };
-    key <SPCE> { [        space,        space,                      nobreakspace ] };
+    // key <CAPS> { [ ISO_Level3_Shift ] };
+    // key <LSGT> { [        minus,   underscore,          endash,           emdash ] };
+    // key <SPCE> { [        space,        space,                      nobreakspace ] };
 
     include "level3(ralt_switch)"
 };

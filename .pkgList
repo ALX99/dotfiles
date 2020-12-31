@@ -10,21 +10,28 @@ arch-install-scripts
 arp-scan
 atool # unarchive tool
 bat # better cat
+bc
 bibata-cursor-theme
+bind
+brave-bin
 breeze-gtk
 burpsuite
+calc
 cantarell-fonts
 catimg
 chafa # used for lf image preview
-chromium
 clang
 cloc
+ctags
 dash
 desktop-file-utils # Usually required by many things
+dhclient
 dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
+docker
+docker-compose
 dosfstools # mkfs.fat
 dotnet-runtime
 dotnet-sdk
@@ -32,6 +39,7 @@ dunst
 etcher-bin
 ethtool # required for TLP to disable WOL
 expac # requried by paccy
+exploitdb
 fcitx-configtool
 fcitx-mozc
 fcitx-qt5
@@ -40,7 +48,7 @@ ffmpeg
 fish
 flameshot
 fontpreview-git
-freerdp # required for RDP in remmina
+freetube-bin
 fzf
 gcolor3 # color picker
 genymotion
@@ -49,7 +57,9 @@ go-tools # goimports, godoc, gopls, etc
 graphviz
 highlight # used for lf preview
 htop
+hugo
 imv
+inetutils
 intellij-idea-community-edition
 inter-font
 jdk8-openjdk
@@ -72,17 +82,21 @@ masscan
 mediainfo # used for lf preview
 megasync
 mlocate # Locate
+mono
 mpv
 ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
-neovim
+neovim-nightly
 network-manager-applet
+newsboat
 nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 ntfs-3g
+obsidian-appimage
+openresolv
 openssh
 openssh-askpass
 overdue
@@ -90,6 +104,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
 papirus-icon-theme
+parsec-bin
 pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
@@ -100,8 +115,8 @@ python-pip
 qbittorrent
 redshift # nightlight
 reflector
-remmina # RDP client
 ripgrep
+routersploit
 shellcheck
 shfmt # shell format
 slack-desktop
@@ -111,6 +126,7 @@ sxhkd # Universal keybindings
 sxiv # image viewer
 tldr
 tlp # power management
+tor-browser
 traceroute
 trash-cli
 tree
@@ -119,10 +135,12 @@ ttf-font-awesome
 ttf-hack
 ttf-joypixels
 ttf-liberation
+typora
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
+urlscan
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
@@ -132,8 +150,10 @@ wavemon # wifi connection information
 wget
 which
 whois
+wireguard-tools
 wireshark-qt
 wol # wake on lan
+xcape
 xclip
 xdg-utils
 xdotool
@@ -153,4 +173,3 @@ zathura-pdf-poppler
 zip
 zmap
 zoom
-zsh

@@ -1,10 +1,8 @@
 .netrwhist
-.config/onedrive/
-!.config/onedrive/config
 .config/nvim/autoload/
 .config/nvim/plugged/
 
-.config/systemd/*
+#.config/systemd/*
 !.config/systemd/userssh-agent.service
 
 .config/fish/fish_variables
@@ -13,3 +11,5 @@
 .config/fish/functions/*
 !.config/fish/functions/fish_prompt.fish
 !.config/fish/functions/fish_right_prompt.fish
+
+.config/mpv/watch_later/*
