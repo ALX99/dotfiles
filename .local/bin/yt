@@ -1,2 +1,2 @@
 #!/bin/sh
-mpv "$1"
+mpv "$(xclip -o)"
