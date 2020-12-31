@@ -44,6 +44,7 @@ fcitx-configtool
 fcitx-mozc
 fcitx-qt5
 fd # find directories and files
+ffmpeg
 fish
 flameshot
 fontpreview-git
@@ -61,8 +62,8 @@ imv
 inetutils
 intellij-idea-community-edition
 inter-font
-jdk-openjdk
 jdk8-openjdk
+jdk-openjdk
 jp2a # convert image to ascii
 jq # Json parser
 junit
@@ -155,8 +156,8 @@ wol # wake on lan
 xcape
 xclip
 xdg-utils
-xdo # Use with window swallowing
 xdotool
+xdo # Use with window swallowing
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
