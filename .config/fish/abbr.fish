@@ -3,6 +3,7 @@
 #########
 abbr -a q exit
 abbr -a c clear
+abbr -a s sudo
 abbr -a e $EDITOR
 abbr -a p paccy
 abbr -a g git
@@ -71,6 +72,7 @@ abbr -a sshp ssh -o PasswordAuthentication=yes -o PreferredAuthentications=keybo
 abbr -a getfile "getip; oneshot -p 8080 -u ."
 abbr -a share "getip; oneshot -p 8080 -a zip"
 abbr -a kh "eval (keychain --eval --agents ssh)"
+abbr -a yt-archive "youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json"
 
 ###############
 # Better flags#
@@ -83,7 +85,6 @@ abbr -a mkdir 'mkdir -p'
 abbr -a free 'free -h'
 abbr -a df 'df -h'
 abbr -a upower 'upower -i /org/freedesktop/UPower/devices/battery_BAT0'
-abbr -a du 'ncdu'
 abbr -a dd 'dd bs=512k'
 abbr -a gcc 'gcc -Wall -W -pedantic'
 abbr -a htop 'htop -s PERCENT_CPU'

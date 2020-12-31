@@ -9,65 +9,42 @@ endif
 call plug#begin('~/.config/nvim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
-Plug 'tpope/vim-surround'
-Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
-Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
+" https://github.com/junegunn/fzf.vim
+Plug 'junegunn/fzf.vim'
+Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
+"Plug 'tpope/vim-surround'
+"Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
+"Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
+Plug 'neovim/nvim-lspconfig'
+Plug 'nvim-lua/completion-nvim'
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
 Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
-Plug 'dense-analysis/ale'
+"Plug 'dense-analysis/ale'
 Plug 'norcalli/nvim-colorizer.lua'
 call plug#end()
 
-set termguicolors
-lua require'colorizer'.setup()
 
-colorscheme wombat256grf
+let g:completion_confirm_key = "\<C-y>"
 
-"-------------------
-"| Spaces and Tabs |
-"-------------------
-    set tabstop=4                       " number of visual spaces per TAB
-    set softtabstop=0                   " number of spaces in tab when editing
-    set shiftwidth=4                    " Spaces to use for autoindenting
-    set expandtab                       " tabs are spaces
-    set autoindent                      " always turn on indentation
-    set smartindent
-    set breakindent                     " Wrap lines at same indent level
-    set backspace=eol,indent,start      " proper backspace behavior
+let g:ale_enabled = 0
+let g:ale_completion_enabled = 0
+let g:ale_completion_autoimport = 0
+set omnifunc=syntaxcomplete#Complete
 
-"----------------
-"|  UI Config   |
-"----------------
-    syntax on                           " autodetect syntax
-    set title                           " set terminal title to the filename
-    set number                          " current line number displayed to the right
-    set relativenumber                  " show line numbers relative to cursor
-    set showcmd                         " show command in bottom bar
-    filetype plugin on                  " enable filetype plugins
-    filetype indent on                  " load filetyp-specific intent files
-    set wildmenu                        " visual autocomplete for command menu
-    set wildmode=longest,full           " Enable file autocomplete in command mode
-    set lazyredraw                      " redraw only when we need to.
-    set showmatch                       " highlight matching [{()}]
-    set mat=3                           " tenths of second to blink matching brackets
-    set so=15                           " always leave 15 spaces when scrolling
-    set wrap                            " wrap lines
-    set linebreak                       " don't wrap words
-    set splitbelow                      " horizontal split opens below
-    set splitright                      " Vertical split opens to the right
-    set incsearch                       " search as characters are entered
-    set hlsearch                        " highlight matches<Paste>
-    set mouse=a                         " mouse control
-    set ruler                           " show current position
+source $HOME/.config/nvim/general.vim
+source $HOME/.config/nvim/mappings.vim
+colorscheme dracula
 
-"---------------
-"|  Searching  |
-"---------------
-" When 'igonrecase' and 'smartcase' are both on, if a pattern contains an
-" uppercase lettes it is case sensitive, otheriwse, it'is not.
-    set smartcase
-    set ignorecase
+let g:deoplete#enable_at_startup = 1
+lua << EOF
+require'lspconfig'.pyls_ms.setup{ on_attach=require'completion'.on_attach }
+require'lspconfig'.gopls.setup{ on_attach=require'completion'.on_attach }
+vim.api.nvim_buf_set_option(0, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
+EOF
+
+set completeopt=menuone,noinsert,noselect
+"set completeopt=menu,noinsert,noselect,menuone
 
 "----------------
 "|   Plugins    |
@@ -90,100 +67,12 @@ let g:lightline = {
       \ }
 
 
+let g:ale_completion_enabled=1
 let g:ale_fixers = {
 \   '*':        ['remove_trailing_lines', 'trim_whitespace'],
 \   'sh':       ['shfmt'],
 \   'markdown': ['prettier'],
+\   'python': ['black'],
+\   'go': ['gofmt'],
 \}
-
 let g:ale_fix_on_save = 1
-
-" Start interactive EasyAlign in visual mode (e.g. vipga)
-xmap ga <Plug>(EasyAlign)
-
-" Start interactive EasyAlign for a motion/text object (e.g. gaip)
-nmap ga <Plug>(EasyAlign)
-
-"----------------
-"|    Misc      |
-"----------------
-
-" colemak
-nnoremap k h
-nnoremap e k
-vnoremap k h
-vnoremap e k
-
-nnoremap h e
-nnoremap H E
-nnoremap i l
-vnoremap h e
-vnoremap H E
-vnoremap i l
-
-nnoremap s i
-nnoremap S I
-vnoremap s i
-vnoremap S I
-
-nnoremap n j
-vnoremap n j
-
-nnoremap l n
-nnoremap L N
-vnoremap l n
-vnoremap L N
-
-set clipboard+=unnamedplus              " use system clipboard (requires xclip)
-let mapleader = " "                     " set leader to space
-
-" delete without yanking
-" nnoremap <leader>d "_d
-" vnoremap <leader>d "_d
-
-" replace currently selected text with default register
-" without yanking it
-vnoremap <leader>p "_dP
-
-" Relative numbering on and off
-nmap <F2> :call NumberToggle()<CR>
-
-" Leader mappings
-nnoremap <leader>t  :NERDTreeToggle<CR> " Nerdtree
-nnoremap <leader>w  :w<CR>              " space + w to save
-nnoremap <leader>q  :q<CR>              " space + q to quit
-nnoremap <leader>Q  :q!<CR>             " space + Q to force quit
-nnoremap <leader>s  :wq<CR>             " space + s to save and quit
-nnoremap <leader>/  :noh<CR>            " space + / remove highlighed searches
-
-" imap
-
-" vmap
-" Pressing * searches for the current selection
-vnoremap <silent> * :<C-u>call VisualSelection('', '')<CR>/<C-R>=@/<CR><CR>
-
-" Function for searching
-function! VisualSelection(direction, extra_filter) range
-    let l:saved_reg = @"
-    execute "normal! vgvy"
-
-    let l:pattern = escape(@", "\\/.*'$^~[]")
-    let l:pattern = substitute(l:pattern, "\n$", "", "")
-
-    if a:direction == 'gv'
-        call CmdLine("Ack '" . l:pattern . "' " )
-    elseif a:direction == 'replace'
-        call CmdLine("%s" . '/'. l:pattern . '/')
-    endif
-
-    let @/ = l:pattern
-    let @" = l:saved_reg
-endfunction
-
-function! NumberToggle()
-  if(&relativenumber == 1)
-    set norelativenumber
-  else
-    set relativenumber
-  endif
-endfunc
