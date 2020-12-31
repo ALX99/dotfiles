@@ -6,6 +6,7 @@ calc
 catimg
 chafa # used for lf image preview
 clang
+ffmpeg
 cloc
 diff-so-fancy # better looking terminal diffs
 diffutils
@@ -39,7 +40,6 @@ prettier
 python
 p7zip # 7z extentions
 lazygit
-python2
 python-pip
 reflector
 ripgrep
@@ -56,4 +56,5 @@ wget
 which
 whois
 xclip
+youtube-dl
 zip
