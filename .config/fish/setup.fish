@@ -8,8 +8,8 @@ set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 set -Ux TERMINAL xterm-256color
 set -Ux TERM xterm-256color
-set -Ux BROWSER chromium
-#set -U SUDO_ASKPASS $HOME/.local/bin/dmenupass
+set -Ux BROWSER brave
+set -Ux SUDO_ASKPASS $HOME/.local/bin/dmenupass
 set -Ux _JAVA_AWT_WM_NONREPARENTING 1
 
 # XDG
@@ -41,7 +41,7 @@ if not functions -q fisher
 end
 
 echo "Updating fisher"
-fisher self-update > /dev/null
+fisher update >/dev/null
 
 if command -vq gh
     echo "Github CLI found!"
