@@ -189,10 +189,7 @@ main() {
         exit 0
         ;;
     -Syu)
-
-        if [ $(/usr/bin/yay -Pw | tee /dev/tty | wc -l) = 0 ]; then
-            yay -Syu --answerdiff All --answerclean NotInstalled
-        fi
+        yay -Syu --answerdiff All --answerclean NotInstalled
         exit 0
         ;;
     *)
