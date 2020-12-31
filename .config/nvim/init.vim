@@ -15,11 +15,8 @@ Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
 "Plug 'tpope/vim-surround'
 "Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
 "Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
-Plug 'neovim/nvim-lspconfig'
-Plug 'nvim-lua/completion-nvim'
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
-Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
 "Plug 'dense-analysis/ale'
 Plug 'norcalli/nvim-colorizer.lua'
 call plug#end()
@@ -35,13 +32,6 @@ set omnifunc=syntaxcomplete#Complete
 source $HOME/.config/nvim/general.vim
 source $HOME/.config/nvim/mappings.vim
 colorscheme dracula
-
-let g:deoplete#enable_at_startup = 1
-lua << EOF
-require'lspconfig'.pyls_ms.setup{ on_attach=require'completion'.on_attach }
-require'lspconfig'.gopls.setup{ on_attach=require'completion'.on_attach }
-vim.api.nvim_buf_set_option(0, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
-EOF
 
 set completeopt=menuone,noinsert,noselect
 "set completeopt=menu,noinsert,noselect,menuone
