@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# wg-toggle:
+# Toggles the wireguard VPN instance on and off
+
+iface="${1:-wg0}"
+if ip a | grep "$iface:" >/dev/null; then
+    wg-quick down "$iface"
+else
+    wg-quick up "$iface"
+fi
