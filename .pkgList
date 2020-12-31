@@ -44,7 +44,6 @@ fcitx-configtool
 fcitx-mozc
 fcitx-qt5
 fd # find directories and files
-firefox
 fish
 flameshot
 fontpreview-git
@@ -87,7 +86,7 @@ mpv
 ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
-neovim-nightly
+neovim
 network-manager-applet
 newsboat
 nmap
