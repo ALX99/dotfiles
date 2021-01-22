@@ -75,10 +75,7 @@ install() {
 }
 # Update the mirrors
 update() {
-    echo "Updating mirrors... Please be patinet"
-    # packages are signed which pacman verifies.
-    # packages replaced with another one through MITM therefore won't instsall.
-    sudo reflector --latest 200 --sort rate --save /etc/pacman.d/mirrorlist
+    sudo reflector --latest 200 --protocol https --connection-timeout 3 --sort rate --verbose --save /etc/pacman.d/mirrorlist
     echo "Done!"
 }
 # Get tracked packages under the variable 'tracked'

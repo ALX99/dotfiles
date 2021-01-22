@@ -64,7 +64,7 @@ end
 
 echo "Setting up personal config"
 . ~/.config/fish/abbr.fish
-. ~/.config/fish/theme.fish
+# . ~/.config/fish/theme.fish
 
 function lfcd
     set tmp (mktemp)

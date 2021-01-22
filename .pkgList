@@ -30,8 +30,6 @@ dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
-docker
-docker-compose
 dosfstools # mkfs.fat
 dotnet-runtime
 dotnet-sdk
@@ -48,10 +46,10 @@ ffmpeg
 fish
 flameshot
 fontpreview-git
-freetube-bin
 fzf
 gcolor3 # color picker
 genymotion
+glances
 gnome-keyring
 go-tools # goimports, godoc, gopls, etc
 graphviz
@@ -62,8 +60,8 @@ imv
 inetutils
 intellij-idea-community-edition
 inter-font
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 jp2a # convert image to ascii
 jq # Json parser
 junit
@@ -82,14 +80,13 @@ masscan
 mediainfo # used for lf preview
 megasync
 mlocate # Locate
-mono
 mpv
+mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
 neovim
 network-manager-applet
-newsboat
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -119,14 +116,13 @@ ripgrep
 routersploit
 shellcheck
 shfmt # shell format
-slack-desktop
-speedtest-cli
+starship-bin
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tldr
 tlp # power management
-tor-browser
+tmux
 traceroute
 trash-cli
 tree
@@ -156,8 +152,8 @@ wol # wake on lan
 xcape
 xclip
 xdg-utils
-xdotool
 xdo # Use with window swallowing
+xdotool
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
@@ -171,5 +167,4 @@ youtube-dl
 zathura
 zathura-pdf-poppler
 zip
-zmap
 zoom
