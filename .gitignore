@@ -13,3 +13,6 @@
 !.config/fish/functions/fish_right_prompt.fish
 
 .config/mpv/watch_later/*
+
+.config/shell/zshnameddirrc
+.config/shell/shortcutrc
