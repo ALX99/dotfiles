@@ -27,8 +27,8 @@ nnoremap L N
 vnoremap l n
 vnoremap L N
 
-" rt to esc
-inoremap rt <Esc>
+" kk to esc
+inoremap kk <Esc>
 
 " TAB in general mode will move to text buffer
 nnoremap <TAB>   :bnext<CR>

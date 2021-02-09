@@ -1,7 +1,0 @@
-# Directory where the files will be synced
-sync_dir = "~/OneDrive"
-skip_file = "~*"
-skip_dotfiles = "true"
-min_notify_changes = "1"
-# Wait time (seconds) between sync operations in monitor mode
-monitor_interval = "300"

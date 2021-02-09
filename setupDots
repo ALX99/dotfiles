@@ -30,7 +30,7 @@ general_config() {
 }
 
 arch_config() {
-    sudo pacman -S stow fish --noconfirm --needed
+    sudo pacman -S stow zsh --noconfirm --needed
     # Pacman setup
     sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
     sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
@@ -49,9 +49,8 @@ arch_config() {
     sudo pacman -S dash
     sudo ln -sfT dash /usr/bin/sh
 
-    # Change to the fish shell
-    # chsh -s /bin/fish
-    # fish .config/fish/setup.fish
+    # Change to the zsh shell
+    chsh -s /bin/zsh
 }
 
 arch_dep() {
