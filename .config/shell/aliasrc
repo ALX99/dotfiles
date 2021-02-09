@@ -1,0 +1,55 @@
+#!/bin/sh
+
+alias \
+  ch="code . && exit" \
+  cx="chmod +x" \
+  wlist="nmcli d w l" \
+  bye='systemctl hibernate' \
+  share="getip; oneshot -p 8080 -a zip" \
+  utop='htop -t -u (whoami)' \
+  perms="stat -c '%a %n' *" \
+  mimetype="file --dereference --brief --mime-type" \
+  copyfile="xclip -selection clipboard" \
+  yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json"
+
+# Make common commands shorter
+alias \
+  q="exit" \
+  c="clear" \
+  s="sudo" \
+  e="$EDITOR" \
+  p="paccy" \
+  g="git" \
+  se="sudoedit" \
+  lg="lazygit" \
+  sp="sudo pacman" \
+  gc="git clone" \
+  lt="trash-list" \
+  t='trash-put' \
+  rt='trash-restore' \
+  ct='trash-empty' \
+
+# Navigation
+alias \
+  bin="cd ~/dotfiles/.local/bin"
+  dl="cd ~/Downloads"
+  dots="cd ~/dotfiles"
+  config="cd ~/dotfiles/.config"
+
+# Better flags
+alias \
+  grep="grep --color=auto" \
+  cp="cp -i" \
+  mv="mv -i" \
+  rm="rm -iv" \
+  mkdir="mkdir -p" \
+  free="free -h" \
+  df="df -h" \
+  upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
+  dd="dd bs=512k" \
+  gcc="gcc -Wall -W -pedantic" \
+  htop="htop -s PERCENT_CPU" \
+
+
+# Use bat if available
+[ -x "$(command -v bat)" ] && alias cat="bat"
