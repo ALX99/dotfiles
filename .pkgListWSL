@@ -1,20 +1,24 @@
+a2ps
 asciinema
 atool
 bat # better cat
+bind
 binutils
 calc
 catimg
 chafa # used for lf image preview
 clang
-ffmpeg
 cloc
 diff-so-fancy # better looking terminal diffs
 diffutils
 expac # requried by paccy
+exploitdb
 fd
+ffmpeg
 fish
 fzf
 gcc
+gdb
 go
 graphviz
 highlight # used for lf preview
@@ -25,27 +29,32 @@ jq # Json parser
 keychain
 lazygit
 lf
+masscan
 mediainfo # used for lf preview
 mkvtoolnix-cli
 mlocate # Locate
 neofetch
 neovim
+net-tools
 openssh
 p7zip # 7z extentions
-pacman-contrib # checkupdates, pactree and stuff
 pacutils
+pdftk
+perf
 perl-image-exiftool
 pkgfile # tool for searching files from packages
+poppler
 prettier
 python
-p7zip # 7z extentions
-lazygit
 python-pip
 reflector
 ripgrep
 shellcheck
 shfmt # shell format
 stow
+tcpdump
+tldr
+torsocks
 trash-cli
 tree
 unrar # RAR
