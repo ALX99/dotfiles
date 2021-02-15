@@ -12,6 +12,7 @@ Plug 'itchyny/vim-gitbranch'
 " https://github.com/junegunn/fzf.vim
 Plug 'junegunn/fzf.vim'
 Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
+"Plug 'preservim/nerdcommenter' " TODO setup
 "Plug 'tpope/vim-surround'
 "Plug 'junegunn/vim-easy-align' " https://github.com/junegunn/vim-easy-align
 "Plug 'terryma/vim-multiple-cursors' " https://github.com/terryma/vim-multiple-cursors#quick-start
@@ -40,10 +41,6 @@ set completeopt=menuone,noinsert,noselect
 "|   Plugins    |
 "----------------
 "
-" MarkdownPreview
-let g:mkdp_auto_start = 0 " auto start with markdown files
-let g:mkdp_refresh_slow = 1 " refresh on save the buffer or leave insert mode
-let g:mkdp_echo_preview_url = 1 " echo out url when starting the preview server
 
 let g:lightline = {
       \ 'colorscheme': 'jellybeans',
