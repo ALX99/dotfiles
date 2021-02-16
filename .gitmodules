@@ -4,3 +4,6 @@
 [submodule "libs/fast-syntax-highlighting"]
 	path = libs/fast-syntax-highlighting
 	url = https://github.com/zdharma/fast-syntax-highlighting
+[submodule "libs/zsh-autosuggestions"]
+	path = libs/zsh-autosuggestions
+	url = https://github.com/zsh-users/zsh-autosuggestions
