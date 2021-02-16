@@ -10,7 +10,8 @@ alias \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
   copyfile="xclip -selection clipboard" \
-  yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json"
+  yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
+  update="p -Syu"
 
 # Make common commands shorter
 alias \
@@ -29,16 +30,11 @@ alias \
   rt='trash-restore' \
   ct='trash-empty' \
 
-# Navigation
-alias \
-  bin="cd ~/dotfiles/.local/bin"
-  dl="cd ~/Downloads"
-  dots="cd ~/dotfiles"
-  config="cd ~/dotfiles/.config"
-
 # Better flags
 alias \
   grep="grep --color=auto" \
+	diff="diff --color=auto" \
+	ls="ls -hN --color=auto --group-directories-first" \
   cp="cp -i" \
   mv="mv -i" \
   rm="rm -iv" \
