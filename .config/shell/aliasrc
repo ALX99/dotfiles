@@ -11,7 +11,9 @@ alias \
   mimetype="file --dereference --brief --mime-type" \
   copyfile="xclip -selection clipboard" \
   yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
-  update="p -Syu"
+  update="p -Syu" \
+  kh="eval $(keychain --eval --agents ssh)"
+
 
 # Make common commands shorter
 alias \
