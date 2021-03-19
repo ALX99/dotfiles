@@ -132,6 +132,7 @@ which
 whois
 wireshark-qt
 wol # wake on lan
+x86_energy_perf_policy
 xclip
 xdg-utils
 xdo # Use with window swallowing
