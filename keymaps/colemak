@@ -21,46 +21,46 @@ xkb_symbols "basic" {
     key <AE11> { [        minus,   underscore,          endash,           emdash ] };
     key <AE12> { [        equal,         plus,        multiply,         division ] };
 
-    key <AD01> { [            q,            Q,      adiaeresis,       Adiaeresis, dollar ] };
+    key <AD01> { [            q,            Q,        asterisk,           dollar ] };
     key <AD02> { [            w,            W,            plus,            Aring ] };
     key <AD03> { [            f,            F,           minus,           Atilde ] };
-    key <AD04> { [            p,            P,                          Ooblique ] };
+    key <AD04> { [            p,            P,           equal,         Ooblique ] };
     key <AD05> { [            b,            B,     asciicircum,       asciitilde ] };
     key <AD06> { [            j,            J,         dstroke,          Dstroke ] };
-    key <AD07> { [            l,            L,                           Lstroke ] };
-    key <AD08> { [            u,            U,                            Uacute ] };
+    key <AD07> { [            l,            L,                              Home ] };
+    key <AD08> { [            u,            U,                               End ] };
     key <AD09> { [            y,            Y,      DeleteWord,       Udiaeresis ] };
-    key <AD10> { [    ] };
+    key <AD10> { [  ISO_Level3_Shift  ] };
     key <AD11> { [  bracketleft,    braceleft,   guillemotleft,        0x1002039 ] };
     key <AD12> { [ bracketright,   braceright,  guillemotright,        0x100203a ] };
     key <BKSL> { [    backslash,          bar,      asciitilde,       asciitilde ] };
 
-    key <AC01> { [            a,            A,                           Aogonek ] };
-    key <AC02> { [            r,            R,                        asciitilde ] }; 
-    key <AC03> { [            s,            S,                            Sacute ] }; 
-    key <AC04> { [            t,            T,                  dead_doubleacute ] };
+    key <AC01> { [            a,            A,                         semicolon ] };
+    key <AC02> { [            r,            R,                             colon ] };
+    key <AC03> { [            s,            S,                         parenleft ] };
+    key <AC04> { [            t,            T,                         parenright] };
     key <AC05> { [            g,            G,  dead_diaeresis,       asciitilde ] };
-    key <AC06> { [            k,            K,                        asciitilde ] };
-    key <AC07> { [            n,            N,                            Nacute ] };
-    key <AC08> { [            e,            E,                           Eogonek ] };
-    key <AC09> { [            i,            I,                           Iumlaut ] };
+    key <AC06> { [            k,            K,                              Left ] };
+    key <AC07> { [            n,            N,                              Down ] };
+    key <AC08> { [            e,            E,                                Up ] };
+    key <AC09> { [            i,            I,                             Right ] };
     key <AC10> { [            o,            O,          oacute,           Oacute ] };
     key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] }; 
 
-    key <AB01> { [            x,            X,                         Zabovedot ] };
-    key <AB02> { [            c,            C,          zacute,           Zacute ] };
-    key <AB03> { [            d,            D,           equal,           Cacute ] };
-    key <AB04> { [            v,            V,                                OE ] };
-    key <AB05> { [            z,            Z,      dead_breve,       asciitilde ] };
-    key <AB06> { [            m,            M,                        asciitilde ] };
-    key <AB07> { [            h,            H,                        asciitilde ] };
+    key <AB01> { [            x,            X,                           percent ] };
+    key <AB02> { [            c,            C,                            dollar ] };
+    key <AB03> { [            d,            D,                         ampersand ] };
+    key <AB04> { [            v,            V,                               bar ] };
+    key <AB05> { [            z,            Z,                        underscore ] };
+    key <AB06> { [            m,            M,                        braceleft  ] };
+    key <AB07> { [            h,            H,                        braceright ] };
     key <AB08> { [        comma,         less,    dead_cedilla,       asciitilde ] };
     key <AB09> { [       period,      greater,   dead_abovedot,       asciitilde ] };
     key <AB10> { [        slash,     question,    questiondown,       asciitilde ] };
 
-    // key <CAPS> { [ ISO_Level3_Shift ] };
+    key <CAPS> { [ ISO_Level3_Shift ] };
     // key <LSGT> { [        minus,   underscore,          endash,           emdash ] };
-    // key <SPCE> { [        space,        space,                      nobreakspace ] };
+    key <SPCE> { [        space,        space,                            Escape ] };
 
     include "level3(ralt_switch)"
 };
