@@ -7,11 +7,13 @@ android-tools
 anki
 arandr
 arch-install-scripts
+archinstall
 arp-scan
 atool # unarchive tool
 bat # better cat
-bc
+bc # Used by displayselect
 bibata-cursor-theme
+binance-electron
 bind
 brave-bin
 breeze-gtk
@@ -25,8 +27,6 @@ cloc
 ctags
 dash
 desktop-file-utils # Usually required by many things
-dhclient
-dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
@@ -43,19 +43,18 @@ fcitx-mozc
 fcitx-qt5
 fd # find directories and files
 ffmpeg
-fish
 flameshot
 fontpreview-git
 fzf
 gcolor3 # color picker
-genymotion
 glances
 gnome-keyring
+gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 graphviz
 highlight # used for lf preview
+hping
 htop
-hugo
 hyperfine
 imv
 inetutils
@@ -65,7 +64,6 @@ jdk-openjdk
 jdk8-openjdk
 jp2a # convert image to ascii
 jq # Json parser
-junit
 kvantum-qt5
 lazygit
 lf
@@ -74,18 +72,21 @@ libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lxappearance # Used to customize GTK theme
+macchanger
 maim # sceenshot utility
 man-db
 masscan
 mediainfo # used for lf preview
 megasync
+mitmproxy
 mlocate # Locate
 mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 ncurses # C formatting for VSCode
 neofetch
-neovim
+neovim-nightly-bin
+net-tools
 network-manager-applet
 nmap
 noto-fonts
@@ -94,7 +95,6 @@ noto-fonts-emoji # Google emojis
 ntfs-3g
 obs-studio
 obsidian-appimage
-openresolv
 openssh
 openssh-askpass
 overdue
@@ -107,14 +107,12 @@ pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
-prettier
 python
 python-pip
 qbittorrent
 redshift # nightlight
 reflector
 ripgrep
-routersploit
 shellcheck
 shfmt # shell format
 stow
@@ -131,12 +129,11 @@ ttf-font-awesome
 ttf-hack
 ttf-joypixels
 ttf-liberation
-typora
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
-urlscan
+upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
@@ -146,10 +143,8 @@ wavemon # wifi connection information
 wget
 which
 whois
-wireguard-tools
 wireshark-qt
 wol # wake on lan
-xcape
 xclip
 xdg-utils
 xdo # Use with window swallowing
@@ -162,8 +157,8 @@ xorg-xprop
 xorg-xsetroot
 xournal
 xwallpaper
-yarn
 youtube-dl
 zathura
 zathura-pdf-poppler
 zip
+zoom

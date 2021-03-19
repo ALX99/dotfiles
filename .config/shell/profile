@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Set environtment variables
-export PATH="$PATH:$(du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
+export PATH="$PATH:$HOME/go/bin:$(du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
 
 export TERM="xterm-256color"
 
