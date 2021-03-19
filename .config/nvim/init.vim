@@ -1,5 +1,8 @@
 hi Normal guibg=NONE ctermbg=NONE
 
+if exists('g:vscode')
+source $HOME/.config/nvim/vscode.vim
+else
 if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 	echo "Downloading junegunn/vim-plug to manage plugins..."
 	silent !mkdir -p ~/.config/nvim/autoload/
@@ -23,19 +26,11 @@ Plug 'norcalli/nvim-colorizer.lua'
 call plug#end()
 
 
-let g:completion_confirm_key = "\<C-y>"
-
-let g:ale_enabled = 0
-let g:ale_completion_enabled = 0
-let g:ale_completion_autoimport = 0
-set omnifunc=syntaxcomplete#Complete
 
 source $HOME/.config/nvim/general.vim
 source $HOME/.config/nvim/mappings.vim
 colorscheme dracula
 
-set completeopt=menuone,noinsert,noselect
-"set completeopt=menu,noinsert,noselect,menuone
 
 "----------------
 "|   Plugins    |
@@ -62,4 +57,5 @@ let g:ale_fixers = {
 \   'python': ['black'],
 \   'go': ['gofmt'],
 \}
-let g:ale_fix_on_save = 1
+
+endif
