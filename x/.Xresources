@@ -40,14 +40,19 @@
 
 ##C7C7C7
 ##6AAEFF
-dwm.normbgcolor: #A6AEDF
-dwm.normfgcolor: #16070C
-dwm.normbordercolor: #1A2940
-dwm.selbgcolor: #46A0F8
-dwm.selfgcolor: #16070C
-dwm.selbordercolor: #015EAC
+! Normal bar colour
+dwm.normbgcolor: #81443a
+! Selected bar colour
+dwm.selbgcolor: #c57561
+! Font colour
+dwm.normfgcolor: #f9e4d0
+! Selected border colour
+dwm.selbordercolor: #9b574e
+! Normal border colour
+dwm.normbordercolor: #6f252c
+dwm.selfgcolor: #f9e4d0
 
-!dwm.borderpx: 2
+dwm.borderpx: 3
 !dwm.snap:
 !dwm.showbar:
 !dwm.topbar:
