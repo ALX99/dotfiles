@@ -7,35 +7,30 @@ android-tools
 anki
 arandr
 arch-install-scripts
+archinstall
 arp-scan
 atool # unarchive tool
 bat # better cat
-bc
+bc # Used by displayselect
 bibata-cursor-theme
+binance-electron
 bind
 brave-bin
 breeze-gtk
-burpsuite
 calc
 cantarell-fonts
-catimg
 chafa # used for lf image preview
 clang
 cloc
-ctags
 dash
 desktop-file-utils # Usually required by many things
-dhclient
-dialog
 diff-so-fancy # better looking terminal diffs
 discord
 dmenu
+docker
 dosfstools # mkfs.fat
-dotnet-runtime
-dotnet-sdk
 dunst
 etcher-bin
-ethtool # required for TLP to disable WOL
 expac # requried by paccy
 exploitdb
 fcitx-configtool
@@ -43,19 +38,17 @@ fcitx-mozc
 fcitx-qt5
 fd # find directories and files
 ffmpeg
-fish
 flameshot
 fontpreview-git
 fzf
 gcolor3 # color picker
-genymotion
-glances
 gnome-keyring
+gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 graphviz
 highlight # used for lf preview
+hping
 htop
-hugo
 hyperfine
 imv
 inetutils
@@ -63,17 +56,15 @@ intellij-idea-community-edition
 inter-font
 jdk-openjdk
 jdk8-openjdk
-jp2a # convert image to ascii
 jq # Json parser
-junit
 kvantum-qt5
 lazygit
 lf
-libnatpmp
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lxappearance # Used to customize GTK theme
+macchanger
 maim # sceenshot utility
 man-db
 masscan
@@ -83,10 +74,9 @@ mlocate # Locate
 mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
-ncurses # C formatting for VSCode
 neofetch
-neovim
-network-manager-applet
+neovim-nightly-bin
+net-tools
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -94,7 +84,6 @@ noto-fonts-emoji # Google emojis
 ntfs-3g
 obs-studio
 obsidian-appimage
-openresolv
 openssh
 openssh-askpass
 overdue
@@ -102,26 +91,22 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
 papirus-icon-theme
-parsec-bin
 pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
-prettier
 python
 python-pip
 qbittorrent
 redshift # nightlight
 reflector
 ripgrep
-routersploit
 shellcheck
 shfmt # shell format
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tldr
-tlp # power management
 tmux
 traceroute
 trash-cli
@@ -131,12 +116,11 @@ ttf-font-awesome
 ttf-hack
 ttf-joypixels
 ttf-liberation
-typora
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
-urlscan
+upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 visual-studio-code-bin
@@ -146,10 +130,9 @@ wavemon # wifi connection information
 wget
 which
 whois
-wireguard-tools
 wireshark-qt
 wol # wake on lan
-xcape
+x86_energy_perf_policy
 xclip
 xdg-utils
 xdo # Use with window swallowing
@@ -162,7 +145,6 @@ xorg-xprop
 xorg-xsetroot
 xournal
 xwallpaper
-yarn
 youtube-dl
 zathura
 zathura-pdf-poppler
