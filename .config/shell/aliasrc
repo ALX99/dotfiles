@@ -31,6 +31,7 @@ alias \
   t='trash-put' \
   rt='trash-restore' \
   ct='trash-empty' \
+  sshp='ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no'
 
 # Better flags
 alias \
