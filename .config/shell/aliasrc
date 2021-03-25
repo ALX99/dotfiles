@@ -12,7 +12,10 @@ alias \
   copyfile="xclip -selection clipboard" \
   yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
   update="p -Syu" \
-  kh='eval $(keychain --eval --agents ssh)'
+  kh='eval $(keychain --eval --agents ssh)' \
+  run_arch="docker run -it --rm archlinux:latest" \
+  run_ubuntu="docker run -it --rm ubuntu:rolling" \
+  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"'
 
 
 # Make common commands shorter
