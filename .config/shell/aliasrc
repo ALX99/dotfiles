@@ -13,9 +13,11 @@ alias \
   yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
   update="p -Syu" \
   kh='eval $(keychain --eval --agents ssh)' \
-  run_arch="docker run -it --rm archlinux:latest" \
-  run_ubuntu="docker run -it --rm ubuntu:rolling" \
-  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"'
+  run_arch="docker run -it  --mount type=bind,source="$(pwd)"/tmp,target=/tmp --rm archlinux:latest" \
+  run_ubuntu="docker run -it --privileged --rm ubuntu:rolling" \
+  run_alpine="docker run -it --privileged --rm alpine:latest" \
+  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
+  clear_hosts="rm -f ~/.ssh/known_hosts"
 
 
 # Make common commands shorter
@@ -34,7 +36,8 @@ alias \
   t='trash-put' \
   rt='trash-restore' \
   ct='trash-empty' \
-  sshp='ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no'
+  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
+  ssh='ssh -o "StrictHostKeyChecking=no"'
 
 # Better flags
 alias \

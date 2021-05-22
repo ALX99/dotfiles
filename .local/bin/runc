@@ -1,0 +1,32 @@
+#!/bin/bash
+
+export FZF_DEFAULT_OPTS='--height 50% --reverse --border'
+
+if ! image=$(docker images --format '{{.Repository}}:{{.Tag}}' | fzf-tmux --reverse); then
+  echo "No images found"
+  exit 1
+fi
+
+printf "\n  \033[1mDocker image:\033[0m %s\n" "$image"
+read -ep $'  \e[1mOptions: \e[0m' -i "-it --rm" options
+printf "  \033[1mChoose the command: \033[0m"
+
+cmd=$(printf "/bin/bash\nsh" | fzf-tmux --reverse) ||
+  read -rep $'  \e[1mCustom command: \e[0m' cmd
+
+printf "  \033[1mCommand:\033[0m %s\n" "$cmd"
+
+dirs=$(fd -d 1 -t d --hidden)
+
+printf "  \033[1mChoose the volume: \033[0m"
+curDir=${PWD##*/}
+volume=$(printf ".\n%s\n" "$dirs" | fzf-tmux --reverse --multi)
+printf "  \033[1mVolume:\033[0m %s\n" "$volume"
+
+[[ $volume == '.' ]] &&
+  volume=$(pwd)":/$curDir -w /$curDir" ||
+  volume=$(pwd)"/$volume:/$volume -w /$volume"
+
+# todo check for volume symlinks and mount them aswell
+echo "docker run $options -v $volume $image $cmd"
+eval docker run "$options" -v "$volume" "$image" "$cmd"
