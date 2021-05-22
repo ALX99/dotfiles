@@ -24,8 +24,8 @@
     #pop = stash pop
 
     # Feature improving aliases
-    publish   = "!git push -u origin $(git branch-name)"
-    unpublish = "!git push origin :$(git branch-name)"
+    publish   = "!git push -u origin $(git branch --show-current)"
+    unpublish = "!git push origin :$(git branch --show-current)"
     #mm        = pull origin master:master
     plog      = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
     tlog      = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
