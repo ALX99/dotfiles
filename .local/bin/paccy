@@ -79,7 +79,7 @@ install() {
 }
 # Update the mirrors
 update() {
-    sudo reflector --latest 200 --protocol https --connection-timeout 3 --sort rate --verbose --save /etc/pacman.d/mirrorlist
+    sudo reflector --latest 50 --protocol https --connection-timeout 3 --sort rate --verbose --save /etc/pacman.d/mirrorlist
     echo "Done!"
 }
 # Get tracked packages under the variable 'tracked'
