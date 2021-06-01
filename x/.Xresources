@@ -41,16 +41,16 @@
 ##C7C7C7
 ##6AAEFF
 ! Normal bar colour
-dwm.normbgcolor: #81443a
+dwm.normbgcolor: #1e201f
 ! Selected bar colour
-dwm.selbgcolor: #c57561
+dwm.selbgcolor: #444444
 ! Font colour
-dwm.normfgcolor: #f9e4d0
+dwm.normfgcolor: #c9c1e5
 ! Selected border colour
-dwm.selbordercolor: #9b574e
+dwm.selbordercolor: #00b27c
 ! Normal border colour
-dwm.normbordercolor: #6f252c
-dwm.selfgcolor: #f9e4d0
+dwm.normbordercolor: #4a7166
+dwm.selfgcolor: #00b27c
 
 dwm.borderpx: 3
 !dwm.snap:

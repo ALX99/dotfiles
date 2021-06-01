@@ -28,9 +28,9 @@ diff-so-fancy # better looking terminal diffs
 discord
 dmenu
 docker
+docker-compose
 dosfstools # mkfs.fat
 dunst
-etcher-bin
 expac # requried by paccy
 exploitdb
 fcitx-configtool
@@ -54,6 +54,7 @@ imv
 inetutils
 intellij-idea-community-edition
 inter-font
+iptables-nft
 jdk-openjdk
 jdk8-openjdk
 jq # Json parser
@@ -106,6 +107,8 @@ shfmt # shell format
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
+tcpdump
+teams
 tldr
 tmux
 traceroute
@@ -149,3 +152,4 @@ youtube-dl
 zathura
 zathura-pdf-poppler
 zip
+zoom
