@@ -29,7 +29,6 @@ alias \
   p="paccy" \
   g="git" \
   se="sudoedit" \
-  lg="lazygit" \
   sp="sudo pacman" \
   gc="git clone" \
   lt="trash-list" \
