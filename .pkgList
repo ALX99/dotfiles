@@ -42,6 +42,7 @@ flameshot
 fontpreview-git
 fzf
 gcolor3 # color picker
+gitui
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
