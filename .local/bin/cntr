@@ -1,0 +1,15 @@
+#!/bin/bash
+
+cmd="docker run -it --rm"
+
+[[ -n $2 ]] &&
+    cmd+=" -v $(readlink -f "$2"):/mount -w /mount"
+
+if [[ $1 = "arch" ]]; then
+    $cmd archlinux:latest bash -c "pacman -Sy; bash --rcfile <(echo \"alias p=pacman\")"
+elif [[ $1 = "ubuntu" ]]; then
+    $cmd ubuntu:rolling bash -c "apt update; bash"
+else
+    echo "Unsupported distro"
+    exit 1
+fi

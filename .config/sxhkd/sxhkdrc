@@ -2,23 +2,19 @@
 # Launching stuff #
 ###################
 super + Return
-    st
+    $TERMINAL
 
 #super + d
 #    dmenu_run
 
 super + b
     $BROWSER
-super + p
-    killt
 
 super + c
     code
 
 super + p
     pcmanfm
-super + v
-    yt
 
 #super + shift + q
 #    qrmake
