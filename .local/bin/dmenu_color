@@ -1,0 +1,10 @@
+#!/bin/sh
+
+normbg=$(grep normbgcolor ~/.Xresources | awk {'print $2'})
+selbg=$(grep selbgcolor ~/.Xresources | awk {'print $2'})
+normfg=$(grep normfgcolor ~/.Xresources | awk {'print $2'})
+selborder=$(grep selbordercolor ~/.Xresources | awk {'print $2'})
+selfg=$(grep selfgcolor ~/.Xresources | awk {'print $2'})
+
+# -fn font setting missing
+dmenu -nb "$normbg" -nf "$normfg" -sb "$selborder" -sf "$selfg" $@

@@ -2,20 +2,21 @@
 
 i=''
 if [ "$(nmcli r w)" = "enabled" ]; then
-    info="$(nmcli -t -f active,SSID,SIGNAL,RATE,BARS dev wifi list | grep -w "yes")"
-    if [ -z "$info" ]; then
-        echo "$i Disconnected"
+    f=/proc/net/wireless
+    if [ ! -f "$f" ]; then
+        printf "%sn/a\n" "$i"
         exit
     fi
-    ssid="$(echo "$info" | cut -d':' -f2)"
-    sig="$(echo "$info" | cut -d':' -f3)"
-    rate="$(echo "$info" | cut -d':' -f4)"
-    bars="$(echo "$info" | cut -d':' -f5)"
-    # alternative
-    # nmcli -t -f active,ssid dev wifi | grep '^yes' | cut -d: -f2 
+    info="$(tail -n 1 $f)"
+    if [ -z "$info" ]; then
+        printf "%sn/a\n" "$i"
+        exit
+    fi
+    iface="$(echo "$info" | cut -d':' -f1)"
+    ssid="$(iw $iface link | grep SSID | cut -d":" -f2)"
 else
-    echo "$i Disabled"
+    printf "%sNo network\n" "$i"
     exit
 fi
 
-echo "$i $ssid"
+printf "%s%s\n" "$i" "$ssid"

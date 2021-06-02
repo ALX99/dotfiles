@@ -15,7 +15,9 @@ alias \
   kh='eval $(keychain --eval --agents ssh)' \
   run_arch="docker run -it --rm archlinux:latest" \
   run_ubuntu="docker run -it --rm ubuntu:rolling" \
-  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"'
+  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
+  gu="xdg-open \$(git config --get remote.origin.url)"
+
 
 
 # Make common commands shorter
