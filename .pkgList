@@ -14,9 +14,9 @@ bat # better cat
 bc # Used by displayselect
 bibata-cursor-theme
 binance-electron
-bind
 brave-bin
 breeze-gtk
+burpsuite
 calc
 cantarell-fonts
 chafa # used for lf image preview
@@ -24,7 +24,6 @@ clang
 cloc
 dash
 desktop-file-utils # Usually required by many things
-diff-so-fancy # better looking terminal diffs
 discord
 dmenu
 docker
@@ -42,6 +41,7 @@ flameshot
 fontpreview-git
 fzf
 gcolor3 # color picker
+git-delta-bin
 gitui
 gnome-keyring
 gnu-netcat
@@ -60,8 +60,6 @@ iw
 jdk-openjdk
 jdk8-openjdk
 jq # Json parser
-kvantum-qt5
-lazygit
 lf
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
@@ -72,12 +70,13 @@ maim # sceenshot utility
 man-db
 masscan
 mediainfo # used for lf preview
-megasync
+mkvtoolnix-cli
 mlocate # Locate
 mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 neofetch
+neovim
 neovim-nightly-bin
 net-tools
 nmap
@@ -85,10 +84,10 @@ noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 ntfs-3g
-obs-studio
 obsidian-appimage
 openssh
 openssh-askpass
+otf-cascadia-code
 overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
@@ -106,11 +105,11 @@ reflector
 ripgrep
 shellcheck
 shfmt # shell format
+simple-mtpfs
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
-teams
 tldr
 tmux
 traceroute
@@ -151,7 +150,7 @@ xorg-xsetroot
 xournal
 xwallpaper
 youtube-dl
+zaproxy
 zathura
 zathura-pdf-poppler
 zip
-zoom
