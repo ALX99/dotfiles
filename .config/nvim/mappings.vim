@@ -30,10 +30,6 @@ vnoremap L N
 " kk to esc
 inoremap kk <Esc>
 
-" TAB in general mode will move to text buffer
-nnoremap <TAB>   :bnext<CR>
-" SHIFT-TAB will go back
-nnoremap <S-TAB> :bprevious<CR>
 " Alternate ways to save and quit
 nnoremap <M-w> :w<CR>
 nnoremap <M-s> :wq<CR>
@@ -41,24 +37,6 @@ nnoremap <M-q> :q<CR>
 nnoremap <M-Q> :q!<CR>
 " Use control-c instead of escape
 nnoremap <C-c> <Esc>
-
-" <TAB>: completion.
-inoremap <expr><Down> pumvisible() ? "\<C-n>" : "\<Down>"
-inoremap <expr><Up> pumvisible() ? "\<C-p>" : "\<Up>"
-
-" Use alt + knei to move windows
-nnoremap <M-k> <C-w>h
-nnoremap <M-n> <C-w>j
-nnoremap <M-e> <C-w>k
-nnoremap <M-i> <C-w>l
-
-" Use ctrl + knei to resize windows
-nnoremap <C-n>    :resize -2<CR>
-nnoremap <C-e>    :resize +2<CR>
-nnoremap <C-k>    :vertical resize -2<CR>
-" Ahhh this is sending the TAB key
-" https://stackoverflow.com/questions/14641942/how-to-unmap-tab-and-do-not-make-ctrl-i-invalid-in-vim
-"nnoremap <C-i>    :vertical resize +2<CR>
 
 
 " Replace currently selected text with default register

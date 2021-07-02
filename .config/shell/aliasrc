@@ -11,6 +11,7 @@ alias \
   mimetype="file --dereference --brief --mime-type" \
   copyfile="xclip -selection clipboard" \
   yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
+  archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="p -Syu" \
   kh='eval $(keychain --eval --agents ssh)' \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
