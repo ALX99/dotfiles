@@ -6,7 +6,6 @@ set nowrap                              " Display long lines as just one line
 "set linebreak                           " Don't wrap words
 "set breakindent                         " Wrap lines at same indent level
 set encoding=utf-8                      " The encoding displayed
-set pumheight=10                        " Makes popup menu smaller
 set fileencoding=utf-8                  " The encoding written to file
 set ruler              			            " Show the cursor position all the time
 set cmdheight=2                         " More space for displaying messages
@@ -43,8 +42,6 @@ set title                               " set terminal title to the filename
 set showcmd                             " show command in bottom bar
 filetype plugin on                      " enable filetype plugins
 filetype indent on                      " load filetyp-specific intent files
-set wildmenu                            " visual autocomplete for command menu
-set wildmode=longest,full               " Enable file autocomplete in command mode
 set lazyredraw                          " redraw only when we need to.
 set showmatch                           " highlight matching [{()}]
 set mat=3                               " tenths of second to blink matching brackets

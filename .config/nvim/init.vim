@@ -9,14 +9,12 @@ endif
 call plug#begin('~/.config/nvim/plugged')
 Plug 'itchyny/lightline.vim'
 Plug 'itchyny/vim-gitbranch'
-Plug 'junegunn/fzf.vim'
 
 " Themes
 Plug 'dracula/vim', { 'as': 'dracula' }
 Plug 'gryf/wombat256grf'
 
 Plug 'norcalli/nvim-colorizer.lua'
-
 call plug#end()
 
 
