@@ -7,3 +7,6 @@
 [submodule "libs/zsh-autosuggestions"]
 	path = libs/zsh-autosuggestions
 	url = https://github.com/zsh-users/zsh-autosuggestions
+[submodule ".local/bin/adb-uninstall"]
+	path = .local/bin/adb-uninstall
+	url = https://github.com/alvarobrey/adb-uninstall
