@@ -15,7 +15,8 @@ alias \
   update="p -Syu" \
   kh='eval $(keychain --eval --agents ssh)' \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
-  gu="xdg-open \$(git config --get remote.origin.url)"
+  gu="xdg-open \$(git config --get remote.origin.url)" \
+  gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
 
 # Make common commands shorter
 alias \
@@ -32,8 +33,12 @@ alias \
   t='trash-put' \
   rt='trash-restore' \
   ct='trash-empty' \
+  please='sudo !!' \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  ssh='ssh -o "StrictHostKeyChecking=no"'
+  ssh='ssh -o "StrictHostKeyChecking=no"' \
+  gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+  gob='CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+  gor='go run'
 
 # Better flags
 alias \
@@ -51,5 +56,11 @@ alias \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU"
 
-# Use bat if available
+alias \
+  h='cd ~' \
+  bin='cd ~/dotfiles/.local/bin' \
+  dl='cd ~/Downloads' \
+  dots='cd ~/dotfiles' \
+  config='cd ~/dotfiles/.config'
+
 [ -x "$(command -v bat)" ] && alias cat="bat"

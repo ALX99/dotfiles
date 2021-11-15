@@ -1,15 +1,16 @@
 #!/bin/sh
 
 # Set environtment variables
-export PATH="$PATH:$HOME/go/bin:$(du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
+export PATH="$PATH:$HOME/go/bin:$(command du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
 
-export TERM="st-256color"
 
 # Default programs
 export TERMINAL="st"
+export TERM="st-256color"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export BROWSER="brave"
+export FILE="pcmanfm"
 
 # XDG
 export XDG_CACHE_HOME="$HOME/.cache"
@@ -32,6 +33,5 @@ export XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority" # This line will break some DMs.
 export WGETRC="${XDG_CONFIG_HOME:-$HOME/.config}/wget/wgetrc"
 export GTK2_RC_FILES="$XDG_CONFIG_HOME"/gtk-2.0/gtkrc
 
-[ ! -f ${XDG_CONFIG_HOME:-$HOME/.config}/shell/shortcutrc ] && shortcuts >/dev/null 2>&1 &
 
 [ "$(tty)" = "/dev/tty1" ] && ! pidof -s Xorg >/dev/null 2>&1 && exec startx >>/tmp/xLog 2>&1
