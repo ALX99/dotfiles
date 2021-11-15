@@ -1,42 +1,43 @@
-keycode 66 = Mode_switch
-keycode 33 = Mode_switch
+! This file isn't used anymore
+! keycode 66 = Mode_switch
+! keycode 33 = Mode_switch
 ! Lol who even uses Alt-Gr
-keycode 108 = Super_R
-keycode 94 = Escape
-keysym space = space Escape Escape
+! keycode 108 = Super_R
+! keycode 94 = Escape
+! keysym space = space Escape Escape
 
 
 ! Top Left
-keycode 24 = q Q asterisk
-keycode 25 = w W plus
-keycode 26 = f F minus
-keycode 27 = p P equal
-keycode 28 = b B asciicircum
+! keycode 24 = q Q asterisk
+! keycode 25 = w W plus
+! keycode 26 = f F minus
+! keycode 27 = p P equal
+! keycode 28 = b B asciicircum
 
 ! Top Right
-keysym l = l L Home
-keysym u = u U End
+! keysym l = l L Home
+! keysym u = u U End
 
 
 ! Home Left
-keycode 38 = a A semicolon
-keycode 39 = r R colon
-keycode 40 = s S parenleft
-keycode 41 = t T parenright
+! keycode 38 = a A semicolon
+! keycode 39 = r R colon
+! keycode 40 = s S parenleft
+! keycode 41 = t T parenright
 
 ! Home Right
-keycode 43 = k K Left
-keycode 44 = n N Down
-keycode 45 = e E Up
-keycode 46 = i I Right
+! keycode 43 = k K Left
+! keycode 44 = n N Down
+! keycode 45 = e E Up
+! keycode 46 = i I Right
 
 ! Bottom Left
-keycode 52 = x X percent
-keycode 53 = c C dollar
-keycode 54 = d D ampersand
-keycode 55 = v V bar
-keycode 56 = z Z underscore
+! keycode 52 = x X percent
+! keycode 53 = c C dollar
+! keycode 54 = d D ampersand
+! keycode 55 = v V bar
+! keycode 56 = z Z underscore
 
 ! Bottom Right
-keycode 57 = m M braceleft
-keycode 58 = h H braceright
+! keycode 57 = m M braceleft
+! keycode 58 = h H braceright

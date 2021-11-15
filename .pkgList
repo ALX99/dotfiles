@@ -23,12 +23,14 @@ chafa # used for lf image preview
 clang
 cloc
 dash
+deluge-gtk
 desktop-file-utils # Usually required by many things
 discord
 dmenu
 docker
 docker-compose
 dosfstools # mkfs.fat
+dragon-drag-and-drop-git
 dunst
 expac # requried by paccy
 exploitdb
@@ -88,6 +90,7 @@ obsidian-appimage
 openssh
 openssh-askpass
 otf-cascadia-code
+otf-ipafont
 overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
@@ -127,6 +130,7 @@ upower
 upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
+ventoy-bin
 visual-studio-code-bin
 vivid
 w3m # used for lf preview
@@ -154,3 +158,4 @@ zaproxy
 zathura
 zathura-pdf-poppler
 zip
+zoom
