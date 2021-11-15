@@ -14,6 +14,7 @@ cmd rename %[[ -e $1 ]] && printf "file exists" || mv $f $1
 cmd mkdir %printf "Directory name: " && read -e ans && mkdir "$ans"
 cmd mkfile %printf "File name: " && read -e ans && touch "$ans"
 cmd extract !atool -x "$f"
+cmd dragon &dragon-drag-and-drop --and-exit $f
 
 #     Prefix  Wait  Async  Stdin  Stdout  Stderr  UI action
 #     $       No    No     Yes    Yes     Yes     Pause and then resume
@@ -124,3 +125,4 @@ map oc code
 # execute current file (must be executable)
 map x $$f
 map X !$f
+map d dragon
