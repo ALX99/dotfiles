@@ -6,7 +6,7 @@ alias \
   wlist="nmcli d w l" \
   bye='systemctl hibernate' \
   share="getip; oneshot -p 8080 -a zip" \
-  utop='htop -t -u (whoami)' \
+  utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
   copyfile="xclip -selection clipboard" \

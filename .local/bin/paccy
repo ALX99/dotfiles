@@ -16,11 +16,11 @@ where:
     -s                      search for package(s)
     -u,  --update           update your pacman mirrors to use the fastest mirror
     -ia, --install-all      install every package in your package list
-    -la, --list-all         list all your packages  
-    -lt, --list-tracked     list all your tracked packages  
+    -la, --list-all         list all your packages
+    -lt, --list-tracked     list all your tracked packages
     -lu, --list-untracked   list all your untracked packages
-    -rt, --remove-tracked   remove all your tracked packages  
-    -ru, --remove-untracked remove all your untracked packages  
+    -rt, --remove-tracked   remove all your tracked packages
+    -ru, --remove-untracked remove all your untracked packages
     -it, --install-tracked  install a tracked package
 
     --browse                browse installed packages that aren't in base or base-devel
@@ -110,20 +110,23 @@ main() {
         exit 0
         ;;
     --browse)
-      comm -23 <(pacman -Qqt | sort) <({ pacman -Qqg base-devel; expac -l '\n' '%E' base; } | sort -u) | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
-      ;;
+        comm -23 <(pacman -Qqt | sort) <({
+            pacman -Qqg base-devel
+            expac -l '\n' '%E' base
+        } | sort -u) | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
+        ;;
     --summary)
-      printf "You have:\n"
+        printf "You have:\n"
 
-      mapfile -t explicit < <(pacman -Qe)
-      printf "\t%s explicitly installed packages\n" "${#explicit[@]}"
+        mapfile -t explicit < <(pacman -Qe)
+        printf "\t%s explicitly installed packages\n" "${#explicit[@]}"
 
-      mapfile -t foreign < <(pacman -Qm)
-      printf "\t%s foreign packages\n" "${#foreign[@]}"
+        mapfile -t foreign < <(pacman -Qm)
+        printf "\t%s foreign packages\n" "${#foreign[@]}"
 
-      mapfile -t orphans < <(pacman -Qtdq)
-      printf "\t%s orphans\n" "${#orphans[@]}"
-      ;;
+        mapfile -t orphans < <(pacman -Qtdq)
+        printf "\t%s orphans\n" "${#orphans[@]}"
+        ;;
     -Rns)
         shift
         read_pkgs "$@"

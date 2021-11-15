@@ -7,12 +7,12 @@
 copy="xclip -selection clipboard -t image/png"
 filename="$(date +"%d-%m-%Y_%H:%M").png"
 
-case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu_color -i -p "Screenshot which area?")" in
+case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "Screenshot which area?")" in
 "a selected area") maim -s | $copy ;;
 "current window") maim -i "$(xdotool getactivewindow)" | $copy ;;
 "full screen") maim | $copy ;;
 esac
-case "$(printf "copy\\nupload\\nsave" | dmenu_color -i -p "Action?")" in
+case "$(printf "copy\\nupload\\nsave" | dmenu -i -p "Action?")" in
 "upload")
     xclip -selection clipboard -o >"$filename"
     notify-send -u low "Screenshot" "Uploading screenshot"
@@ -27,6 +27,7 @@ case "$(printf "copy\\nupload\\nsave" | dmenu_color -i -p "Action?")" in
     xclip -selection clipboard -o >"$filename"
     ;;
 esac
+
 # Other upload sources
 # Text, PNG, JPG, GIF = https://clbin.com
 # Text, PNG, JPG, GIF = http://sprunge.us
