@@ -4,6 +4,7 @@ d="$(pwd)"
 general_config() {
     mkdir -p ~/.local/share ~/.config
     stow .config/ -t ~/.config/
+    stow .shell/ -t ~
 
     ln -sf "$d"/.local/bin/ ~/.local/
     ln -sf "$d"/.local/applications/ ~/.local/share/
