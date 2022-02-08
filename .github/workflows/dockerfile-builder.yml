@@ -13,5 +13,5 @@ jobs:
       - name: Build the Docker image
         run: |
           echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USER }}" --password-stdin docker.io
-          docker build . --file ./Docker/kali --tag docker.io/${{ secrets.DOCKER_HUB_USER }}/${{ secrets.DOCKER_HUB_REPO }}:latest
+          docker build . --file ./Docker/Kali --tag docker.io/${{ secrets.DOCKER_HUB_USER }}/${{ secrets.DOCKER_HUB_REPO }}:latest
           docker push docker.io/${{ secrets.DOCKER_HUB_USER }}/${{ secrets.DOCKER_HUB_REPO }}:latest
