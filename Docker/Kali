@@ -1,0 +1,5 @@
+FROM kalilinux/kali-rolling
+
+RUN apt update && apt -y upgrade && DEBIAN_FRONTEND=noninteractive apt -yqq install kali-linux-headless
+
+CMD [ "/bin/bash" ]
