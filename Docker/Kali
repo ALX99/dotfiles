@@ -3,7 +3,7 @@ FROM kalilinux/kali-rolling
 ENV PATH="$HOME/go/bin:${PATH}"
 
 RUN apt update \
-    && apt -y upgrade && \
+    && apt -y upgrade \
     && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip \
     && go install github.com/OJ/gobuster/v3@latest
 
