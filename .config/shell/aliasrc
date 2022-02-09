@@ -47,7 +47,7 @@ alias \
   ls="ls -hN --color=auto --group-directories-first" \
   cp="cp -i" \
   mv="mv -i" \
-  rm="rm -iv" \
+  rm="rm -v" \
   mkdir="mkdir -p" \
   free="free -h" \
   df="df -h" \
@@ -57,6 +57,9 @@ alias \
   htop="htop -s PERCENT_CPU"
 
 alias \
+  ..='cd ..' \
+  ...='cd ../..' \
+  ....='cd ../../..' \
   h='cd ~' \
   bin='cd ~/dotfiles/.local/bin' \
   dl='cd ~/Downloads' \

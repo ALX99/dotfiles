@@ -1,4 +1,5 @@
 #!/bin/sh
-for ARG in $(pacman -Qql $1); do
-  [ ! -d $ARG ] && [ -x $ARG ] && echo $ARG;
+
+for res in $(pacman -Qql "$1"); do
+  [ ! -d "$res" ] && [ -x "$res" ] && echo "$res";
 done
