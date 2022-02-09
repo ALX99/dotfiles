@@ -1,5 +1,11 @@
 FROM kalilinux/kali-rolling
 
-RUN apt update && apt -y upgrade && DEBIAN_FRONTEND=noninteractive apt -yqq install kali-linux-headless
+ENV PATH="$HOME/go/bin:${PATH}"
+
+RUN apt update \
+    && apt -y upgrade && \
+    && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip \
+    && go install github.com/OJ/gobuster/v3@latest
+
 
 CMD [ "/bin/bash" ]
