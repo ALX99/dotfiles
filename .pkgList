@@ -43,7 +43,7 @@ flameshot
 fontpreview-git
 fzf
 gcolor3 # color picker
-git-delta-bin
+git-delta
 gitui
 gnome-keyring
 gnu-netcat
@@ -89,6 +89,7 @@ ntfs-3g
 obsidian-appimage
 openssh
 openssh-askpass
+openvpn
 otf-cascadia-code
 otf-ipafont
 overdue
@@ -100,6 +101,7 @@ pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
+postman-bin
 python
 python-pip
 qbittorrent

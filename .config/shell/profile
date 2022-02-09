@@ -21,7 +21,7 @@ export XDG_DOWNLOAD_DIR="$HOME/Downloads"
 # Program settings
 export FZF_DEFAULT_COMMAND="rg --files --hidden"
 export FZF_LEGACY_KEYBINDINGS="0" # disable legacy keybindings
-export SUDO_ASKPASS="$HOME/.local/bin/dmenupass"
+export SUDO_ASKPASS="dmenupass"
 export _JAVA_AWT_WM_NONREPARENTING="1"
 export DOCKER_BUILDKIT=1
 
