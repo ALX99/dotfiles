@@ -5,7 +5,6 @@
 iswsl &&
     pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
     pkgList=${PKGLIST:-~/dotfiles/.pkgList}
-pkgs=() # Packages to be installed
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
@@ -32,10 +31,9 @@ changed by setting the PKGLIST environtment variable
 
 # Write the package to the pkgList
 log_pkg() {
-    printf "\n"
     # Only do something if the package already isn't there
-    if ! cut -d ' ' -f1 "$pkgList" | grep -w "$1\$" >/dev/null 2>&1; then
-        printf "Added '%s' to log\n" "$1"
+    if ! cut -d ' ' -f1 "$pkgList" | grep -w "$1\$" &>/dev/null; then
+        echo "Added '$1' to log"
         if [[ -z $comment ]]; then
             echo "$1" >>"$pkgList"
         else
@@ -52,24 +50,28 @@ log_pkg() {
 # Read packages to either install or remove
 read_pkgs() {
     while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
-        pkgs+=("$1")
+        pkgs+="$1 "
         shift
     done
+    echo "$pkgs"
 }
 
 # Remove a tracked package
-# 1: package do be untracked
+# 1: package(s) to be untracked
 remove_tracked() {
-    sed -i '/'"$1"'/d' "$pkgList"
-    printf "\nRemoved '%s' from log\n" "$1"
+    for pkg in "$@"; do
+        sed -i "/$pkg/d" "$pkgList"
+        echo "Removed '$pkg' from log"
+    done
 }
 
-# Installs and logs packages set in the pkgs array
+# Installs and logs packages
 install_pkgs() {
-    local installed=$(pacman -Qq)
-    for i in ${pkgs[*]}; do
+    local installed
+    installed="$(pacman -Qq)"
+    for pkg in "$@"; do
         # Make sure it was installed before logging it
-        echo "$installed" | grep -w "$i\$" >/dev/null 2>&1 && log_pkg "$i"
+        echo "$installed" | grep -w "$pkg\$" >/dev/null 2>&1 && log_pkg "$pkg"
     done
 }
 # Installs all the packages listed under the packagelist
@@ -101,11 +103,11 @@ main() {
         ;;
     -S)
         shift
-        read_pkgs "$@"
         read -rp "Comment to add for these package(s): " comment
 
-        yay -S ${pkgs[*]}
-        install_pkgs
+        read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
+        yay -S "${pkgs[@]}"
+        install_pkgs "${pkgs[@]}"
 
         exit 0
         ;;
@@ -129,15 +131,11 @@ main() {
         ;;
     -Rns)
         shift
-        read_pkgs "$@"
+        read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
 
-        # TODO
-        # This could be improved
-        if yay -Rns ${pkgs[*]}; then
-            for pkg in "${pkgs[@]}"; do
-                remove_tracked "$pkg"
-            done
-        fi
+        yay -Rns "${pkgs[@]}" &&
+            remove_tracked "${pkgs[@]}"
+
         exit 0
         ;;
     -la | --list-all)
@@ -162,11 +160,9 @@ main() {
         done
         [ ${#pkgs[@]} -eq 0 ] && exit
 
-        if yay -Rns ${pkgs[*]}; then
-            for pkg in "${pkgs[@]}"; do
-                remove_tracked "$pkg"
-            done
-        fi
+        yay -Rns "${pkgs[@]}" &&
+            remove_tracked "${pkgs[@]}"
+
         exit 0
         ;;
     -ru | --remove-untracked)
@@ -177,8 +173,8 @@ main() {
         done
         [ ${#pkgs[@]} -eq 0 ] && exit
 
-        sudo pacman -Rns ${pkgs[*]}
-        exit 0
+        sudo pacman -Rns "${pkgs[@]}"
+        exit $?
         ;;
     -it | --install-tracked)
         get_tracked
@@ -191,16 +187,16 @@ main() {
         done
         [ ${#pkgs[@]} -eq 0 ] && exit
 
-        yay -S ${pkgs[*]}
-        exit 0
+        yay -S "${pkgs[@]}"
+        exit $?
         ;;
     -s)
         shift
         for pkg in $(yay -Slq | fzf -m --preview 'yay -Si {1}'); do
             pkgs+=("$pkg")
         done
-        yay -S ${pkgs[*]}
-        install_pkgs
+        yay -S "${pkgs[@]}"
+        install_pkgs "${pkgs[@]}"
         exit 0
         ;; # Search in AUR
     -ia | --install-all)
