@@ -13,17 +13,51 @@ alias \
   yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="p -Syu" \
-  kh='eval $(keychain --eval --agents ssh)' \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
   gu="xdg-open \$(git config --get remote.origin.url)" \
   gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
+
+# Helm
+alias hls="helm ls" \
+  hdu="helm dependency update" \
+  hui="helm upgrade --install" \
+  hur="helm upgrade --reuse--values" \
+  hua='helm uninstall "$(helm ls --short)"'
+
+# Kubectl
+alias krc='kubectl config current-context' \
+  krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
+  kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
+  ksn='kubectl config set-context --current --namespace' \
+  kdcn='command kubectl delete ns "$(krn)"' \
+  kccn='command kubectl create ns "$(krn)"'
+
+# Docker
+alias drr="docker run -it --rm" \
+  dprune="docker system prune -a"
+
+# Git
+alias gco="git checkout" \
+  gcb="git checkout -b" \
+  gbd="git branch -D" \
+  gbl="git branch" \
+  gsb="git switch" \
+  gpr="git pull --rebase" \
+  gca="git commit --amend" \
+  gsp="git stash push" \
+  gspm="git stash push -m" \
+  gsP="git stash pop" \
+  push="git push origin HEAD:refs/for/master" \
+  gca="git commit --amend" \
+  gulc="git reset HEAD~" \
+  gtags='git log --tags --simplify-by-decoration --pretty="format:%ai %d"'
 
 # Make common commands shorter
 alias \
   q="exit" \
   c="clear" \
   s="sudo" \
-  e="$EDITOR" \
+  e="\$EDITOR" \
   p="paccy" \
   g="git" \
   se="sudoedit" \

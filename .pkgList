@@ -7,7 +7,6 @@ android-tools
 anki
 arandr
 arch-install-scripts
-archinstall
 arp-scan
 atool # unarchive tool
 bat # better cat
@@ -23,7 +22,6 @@ chafa # used for lf image preview
 clang
 cloc
 dash
-deluge-gtk
 desktop-file-utils # Usually required by many things
 discord
 dmenu
@@ -32,6 +30,7 @@ docker-compose
 dosfstools # mkfs.fat
 dragon-drag-and-drop-git
 dunst
+exfat-utils
 expac # requried by paccy
 exploitdb
 fcitx-configtool
@@ -59,9 +58,11 @@ intellij-idea-community-edition
 inter-font
 iptables-nft
 iw
-jdk-openjdk
 jdk8-openjdk
+jdk-openjdk
 jq # Json parser
+k9s
+kubectl
 lf
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
@@ -72,6 +73,7 @@ maim # sceenshot utility
 man-db
 masscan
 mediainfo # used for lf preview
+minikube
 mkvtoolnix-cli
 mlocate # Locate
 mpv
@@ -145,8 +147,8 @@ wol # wake on lan
 x86_energy_perf_policy
 xclip
 xdg-utils
-xdo # Use with window swallowing
 xdotool
+xdo # Use with window swallowing
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel

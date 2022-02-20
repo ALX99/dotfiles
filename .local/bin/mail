@@ -8,7 +8,7 @@
 #
 
 usage() {
->&2 cat <<EOF
+    cat >&2 <<EOF
 Usage: ${0##*/} [options] [address]
 
 [-g]               generate an address
@@ -16,39 +16,41 @@ Usage: ${0##*/} [options] [address]
 [-v id address]    view mail at [ID]
 [-f address]       view first mail in inbox
 EOF
-exit 1
+    exit 1
 }
 
 die() {
-    >&2 print '%s\n' "$*"
+    print >&2 '%s\n' "$*"
     exit 1
 }
 
 check_deps() {
-    for dep in curl jq ; do
+    for dep in curl jq; do
         command -v $dep >/dev/null ||
-        die "Missing dependency: $dep"
+            die "Missing dependency: $dep"
     done
 }
 
 gen_email() {
     acc=$(head /dev/urandom | tr -dc a-z0-9 | cut -c1-8)
-read -r tld <<EEOF
-$(\
-sort -R <<EOF
+    read -r tld <<EEOF
+$(
+        sort -R <<EOF
 com
 net
 org
 EOF
-)
+    )
 EEOF
-    printf '%s@1secmail.%s\n' "$acc" "$tld"
+    mail="$acc@1secmail.$tld"
+    echo "$mail"
+    echo "$mail" | xclip -selection clipboard
 }
 
 validate_email() {
     case $1 in
-        *@????????.???) ;;
-        *) usage
+    *@????????.???) ;;
+    *) usage ;;
     esac
 }
 
@@ -62,12 +64,12 @@ check_mail() {
 view_mail() {
     validate_email "$2"
     case $1 in
-        [0-9][0-9][0-9][0-9][0-9][0-9]*) ;;
-        *) usage
+    [0-9][0-9][0-9][0-9][0-9][0-9]*) ;;
+    *) usage ;;
     esac
     acc=${2%@*}
     tld=${2#*.}
-    curl -sL "http://www.1secmail.$tld/api/v1/?action=readMessage&login=$acc&domain=1secmail.$tld&id=$1" | \
+    curl -sL "http://www.1secmail.$tld/api/v1/?action=readMessage&login=$acc&domain=1secmail.$tld&id=$1" |
         jq -r '.body'
 }
 
@@ -80,11 +82,11 @@ view_first() {
 main() {
     check_deps
     case ${1#-} in
-        g) gen_email ;;
-        c) check_mail "$2" ;;
-        v) view_mail "$2" "$3" ;;
-        1|f) view_first "$2" ;;
-        *) usage
+    g) gen_email ;;
+    c) check_mail "$2" ;;
+    v) view_mail "$2" "$3" ;;
+    1 | f) view_first "$2" ;;
+    *) usage ;;
     esac
 }
 
