@@ -9,7 +9,7 @@ else
     fi
     notify-send "Turning on the nightlight"
     loc="$(curl -Ss ipinfo.io | jq -r '.loc' | tr , :)"
-    if [ -z loc ]; then
+    if [ -z "$loc" ]; then
       notify-send "Something went wront"
     else
       redshift -rl "$loc" >/dev/null 2>&1 &
