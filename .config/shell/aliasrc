@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 alias \
   ch="code . && exit" \
@@ -22,7 +22,7 @@ alias hls="helm ls" \
   hdu="helm dependency update" \
   hui="helm upgrade --install" \
   hur="helm upgrade --reuse--values" \
-  hua='helm uninstall "$(helm ls --short)"'
+  hua='helm uninstall $(helm ls --short)'
 
 # Kubectl
 alias krc='kubectl config current-context' \
@@ -58,6 +58,7 @@ alias \
   c="clear" \
   s="sudo" \
   e="\$EDITOR" \
+  k="kubectl" \
   p="paccy" \
   g="git" \
   se="sudoedit" \
@@ -70,9 +71,8 @@ alias \
   please='sudo !!' \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   ssh='ssh -o "StrictHostKeyChecking=no"' \
-  gop='CGO_ENABLED=0 go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  gob='CGO_ENABLED=0 go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  gor='go run'
+  gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+  gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
 
 # Better flags
 alias \
@@ -101,3 +101,7 @@ alias \
   config='cd ~/dotfiles/.config'
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
+
+. <(kubectl completion bash)
+. <(helm completion bash)
+complete -F __start_kubectl k

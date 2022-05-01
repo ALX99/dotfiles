@@ -3,36 +3,36 @@
 # Set environtment variables
 export PATH="$PATH:$HOME/go/bin:$(command du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
 
-
 # Default programs
-export TERMINAL="st"
-export TERM="st-256color"
-export EDITOR="nvim"
-export VISUAL="nvim"
-export BROWSER="brave"
-export FILE="pcmanfm"
+export TERMINAL="st" \
+    TERM="st-256color" \
+    EDITOR="nvim" \
+    VISUAL="nvim" \
+    BROWSER="brave" \
+    FILE="pcmanfm"
 
 # XDG
-export XDG_CACHE_HOME="$HOME/.cache"
-export XDG_CONFIG_HOME="$HOME/.config"
-export XDG_DATA_HOME="$HOME/.local/share"
-export XDG_DOWNLOAD_DIR="$HOME/Downloads"
+export XDG_CACHE_HOME="$HOME/.cache" \
+    XDG_CONFIG_HOME="$HOME/.config" \
+    XDG_DATA_HOME="$HOME/.local/share" \
+    XDG_DOWNLOAD_DIR="$HOME/Downloads"
 
 # Program settings
-export FZF_DEFAULT_COMMAND="rg --files --hidden"
-export FZF_LEGACY_KEYBINDINGS="0" # disable legacy keybindings
-export SUDO_ASKPASS="dmenupass"
-export _JAVA_AWT_WM_NONREPARENTING="1"
-export DOCKER_BUILDKIT=1
+export FZF_DEFAULT_COMMAND="rg --files --hidden" \
+    FZF_LEGACY_KEYBINDINGS="0" \
+    SUDO_ASKPASS="dmenupass" \
+    _JAVA_AWT_WM_NONREPARENTING="1" \
+    DOCKER_BUILDKIT="1" \
+    CGO_ENABLED="0"
 
 # Clean up ~/
-export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
-export LESSHISTFILE="-"
-export LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
-export XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority" # This line will break some DMs.
-export WGETRC="${XDG_CONFIG_HOME:-$HOME/.config}/wget/wgetrc"
-export GTK2_RC_FILES="$XDG_CONFIG_HOME"/gtk-2.0/gtkrc
-
+# The XAUTHORITY line will break some DMs.
+export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh" \
+    LESSHISTFILE="-" \
+    LESSKEY="$XDG_CONFIG_HOME"/less/lesskey \
+    XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority" \
+    WGETRC="${XDG_CONFIG_HOME:-$HOME/.config}/wget/wgetrc" \
+    GTK2_RC_FILES="$XDG_CONFIG_HOME"/gtk-2.0/gtkrc
 
 [ "$(tty)" = "/dev/tty1" ] && ! pidof -s Xorg >/dev/null 2>&1 && exec startx >>/tmp/xLog 2>&1
 # Load aliases
