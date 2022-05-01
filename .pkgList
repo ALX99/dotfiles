@@ -9,10 +9,12 @@ arandr
 arch-install-scripts
 arp-scan
 atool # unarchive tool
+bash-completion
 bat # better cat
 bc # Used by displayselect
 bibata-cursor-theme
 binance-electron
+bmon # Network tool
 brave-bin
 breeze-gtk
 burpsuite
@@ -30,6 +32,7 @@ docker-compose
 dosfstools # mkfs.fat
 dragon-drag-and-drop-git
 dunst
+etcher-bin
 exfat-utils
 expac # requried by paccy
 exploitdb
@@ -48,6 +51,7 @@ gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 graphviz
+helm
 highlight # used for lf preview
 hping
 htop
@@ -58,8 +62,8 @@ intellij-idea-community-edition
 inter-font
 iptables-nft
 iw
-jdk8-openjdk
 jdk-openjdk
+jdk8-openjdk
 jq # Json parser
 k9s
 kubectl
@@ -83,6 +87,7 @@ neofetch
 neovim
 neovim-nightly-bin
 net-tools
+nload # Network tool
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -139,6 +144,7 @@ visual-studio-code-bin
 vivid
 w3m # used for lf preview
 wavemon # wifi connection information
+websocat
 wget
 which
 whois
@@ -147,8 +153,8 @@ wol # wake on lan
 x86_energy_perf_policy
 xclip
 xdg-utils
-xdotool
 xdo # Use with window swallowing
+xdotool
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
@@ -162,4 +168,3 @@ zaproxy
 zathura
 zathura-pdf-poppler
 zip
-zoom

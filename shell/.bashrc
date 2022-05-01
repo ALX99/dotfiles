@@ -3,12 +3,16 @@
 
 # If not running interactively, don't do anything
 case $- in
-    *i*) ;;
-      *) return;;
+*i*) ;;
+*) return ;;
 esac
+if [ $EUID -ne 0 ]; then
+  export PS1='\[\e[0;38;5;141m\]\W \[\e[0;38;5;153m\]>\[\e[0;38;5;153m\]<\[\e[0;38;5;153m\]> \[\e[0m\]'
+else
+  export PS1='\[\e[0;38;5;141m\]\W \[\e[0;91m\]>\[\e[0;91m\]<\[\e[0;91m\]> \[\e[0m\]'
+fi
 
-export PS1="\u@\h \[$(tput sgr0)\]\[\033[38;5;81m\]\W\[$(tput sgr0)\]\[\033[38;5;15m\]->\[$(tput sgr0)\]"
-export PROMPT_COMMAND='history -a' # Record each line as it gets issued
+export PROMPT_COMMAND='history -a'                     # Record each line as it gets issued
 export HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear" # Don't record some commands
 export HISTSIZE=-1
 export HISTFILESIZE=-1
@@ -60,4 +64,3 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
 }
-
