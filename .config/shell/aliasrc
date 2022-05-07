@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 alias \
   ch="code . && exit" \
@@ -104,4 +104,3 @@ alias \
 
 . <(kubectl completion bash)
 . <(helm completion bash)
-complete -F __start_kubectl k

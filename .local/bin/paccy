@@ -1,6 +1,7 @@
 #!/bin/bash
 # Pacman + yay wrapper that adds very useful features
 # Requires expac, fzf, iswsl
+set -eou pipefail
 
 iswsl &&
     pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
