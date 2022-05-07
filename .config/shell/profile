@@ -23,7 +23,8 @@ export FZF_DEFAULT_COMMAND="rg --files --hidden" \
     SUDO_ASKPASS="dmenupass" \
     _JAVA_AWT_WM_NONREPARENTING="1" \
     DOCKER_BUILDKIT="1" \
-    CGO_ENABLED="0"
+    CGO_ENABLED="0" \
+    LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 
 # Clean up ~/
 # The XAUTHORITY line will break some DMs.

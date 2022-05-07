@@ -14,9 +14,6 @@ general_config() {
     # Export new path so we get access to everything in bin
     export PATH="$PATH:$d/.local/bin"
 
-    # Specify keybindings for less
-    lesskey "$d"/misc/lesskey
-
     # Root config
     sudo ln -sf "$d"/shell/.bashrc /root/.bashrc
     sudo ln -sf "$d"/shell/.aliasrc /root/.aliasrc
