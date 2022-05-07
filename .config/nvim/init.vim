@@ -7,21 +7,22 @@ if ! filereadable(expand('~/.config/nvim/autoload/plug.vim'))
 endif
 
 call plug#begin('~/.config/nvim/plugged')
-Plug 'itchyny/lightline.vim'
-Plug 'itchyny/vim-gitbranch'
+Plug 'itchyny/lightline.vim'       " https://github.com/itchyny/lightline.vim
+Plug 'itchyny/vim-gitbranch'       " https://github.com/itchyny/vim-gitbranch
+Plug 'junegunn/vim-easy-align'     " https://github.com/junegunn/vim-easy-align
+Plug 'norcalli/nvim-colorizer.lua' " https://github.com/norcalli/nvim-colorizer.lua
 
 " Themes
-Plug 'dracula/vim', { 'as': 'dracula' }
-Plug 'gryf/wombat256grf'
+Plug 'dracula/vim', { 'as': 'dracula' } " https://github.com/dracula/vim
+Plug 'gryf/wombat256grf'                " https://github.com/gryf/wombat256grf
 
-Plug 'norcalli/nvim-colorizer.lua'
 call plug#end()
 
 
 source $HOME/.config/nvim/general.vim
 source $HOME/.config/nvim/mappings.vim
 
-colorscheme dracula
+colorscheme wombat256grf
 
 "----------------
 "|   Plugins    |
@@ -29,13 +30,15 @@ colorscheme dracula
 "
 
 let g:lightline = {
-      \ 'colorscheme': 'jellybeans',
+      \ 'colorscheme': 'wombat',
       \ 'active': {
       \   'left': [ [ 'mode', 'paste' ],
-      \             [ 'gitbranch', 'readonly', 'filename', 'modified' ] ]
+      \             [ 'gitbranch', 'readonly', 'filename', 'modified' ] ],
+      \   'right': [ [ 'lineinfo' ],
+      \              [ 'percent' ],
+      \              [ 'fileformat', 'fileencoding', 'filetype' ] ]
       \ },
       \ 'component_function': {
       \   'gitbranch': 'gitbranch#name'
       \ },
       \ }
-
