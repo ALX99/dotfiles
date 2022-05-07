@@ -141,7 +141,6 @@ util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
-vivid
 w3m # used for lf preview
 wavemon # wifi connection information
 websocat
