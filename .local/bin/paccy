@@ -77,8 +77,7 @@ install_pkgs() {
 }
 # Installs all the packages listed under the packagelist
 install() {
-    get_tracked
-    yay -S --needed $tracked
+    yay -S --needed "$(get_tracked)"
 }
 # Update the mirrors
 update() {
@@ -87,14 +86,13 @@ update() {
 }
 # Get tracked packages under the variable 'tracked'
 get_tracked() {
-    tracked="$(cut -d ' ' -f1 "$pkgList")"
+    cut -d ' ' -f1 "$pkgList"
 }
 # Get untracked packages under the variable 'untracked'
 get_untracked() {
-    get_tracked
-    untracked="$(diff --new-line-format="" --unchanged-line-format="" \
+    diff --new-line-format="" --unchanged-line-format="" \
         <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base-devel | sort)) \
-        <(echo "$tracked"))"
+        <(get_tracked) || true
 }
 main() {
     case "$1" in
@@ -144,19 +142,15 @@ main() {
         exit 0
         ;;
     -lt | --list-tracked)
-        get_tracked
-        echo "$tracked" | "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)'
+        "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_tracked)
         exit 0
         ;;
     -lu | --list-untracked)
-        get_untracked
-        echo "$untracked" | "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)'
+        "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_untracked)
         exit 0
         ;;
     -rt | --remove-tracked)
-        get_tracked
-
-        for pkg in $(echo "$tracked" | "${preview[@]}" -m); do
+        for pkg in $("${preview[@]}" -m < <(get_tracked)); do
             pkgs+=("$pkg")
         done
         [ ${#pkgs[@]} -eq 0 ] && exit
@@ -167,9 +161,7 @@ main() {
         exit 0
         ;;
     -ru | --remove-untracked)
-        get_untracked
-
-        for pkg in $(echo "$untracked" | "${preview[@]}" -m); do
+        for pkg in $("${preview[@]}" -m < <(get_untracked)); do
             pkgs+=("$pkg")
         done
         [ ${#pkgs[@]} -eq 0 ] && exit
@@ -178,8 +170,7 @@ main() {
         exit $?
         ;;
     -it | --install-tracked)
-        get_tracked
-        echo "$tracked" >/tmp/tracked
+        echo "$(get_tracked)" >/tmp/tracked
         pacman -Qq >/tmp/all
         diff=$(comm -23 /tmp/tracked /tmp/all)
 
