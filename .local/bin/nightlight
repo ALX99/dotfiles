@@ -1,4 +1,5 @@
 #!/bin/sh
+set -eou pipefail
 if pgrep redshift >/dev/null; then
     notify-send "Turning off the nightlight"
     pkill redshift
@@ -9,9 +10,5 @@ else
     fi
     notify-send "Turning on the nightlight"
     loc="$(curl -Ss ipinfo.io | jq -r '.loc' | tr , :)"
-    if [ -z "$loc" ]; then
-      notify-send "Something went wront"
-    else
       redshift -rl "$loc" >/dev/null 2>&1 &
-    fi
 fi
