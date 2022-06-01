@@ -14,7 +14,7 @@ alias \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="p -Syu" \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
-  gu="xdg-open \$(git config --get remote.origin.url)" \
+  gu='xdg-open $(git config --get remote.origin.url)' \
   gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
 
 # Helm
@@ -62,8 +62,6 @@ alias \
   p="paccy" \
   g="git" \
   se="sudoedit" \
-  sp="sudo pacman" \
-  gc="git clone" \
   lt="trash-list" \
   t='trash-put' \
   rt='trash-restore' \
@@ -88,7 +86,8 @@ alias \
   upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU"
+  htop="htop -s PERCENT_CPU" \
+  wget="wget --hsts-file=/tmp/.wget-hsts"
 
 alias \
   ..='cd ..' \
