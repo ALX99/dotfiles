@@ -38,6 +38,11 @@ else
   echo "Could not load aliases"
 fi
 
+# Work alises
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/shell/workaliasrc" ]; then
+  . "${XDG_CONFIG_HOME:-$HOME/.config}/shell/workaliasrc"
+fi
+
 ###########
 # For FZF #
 ###########
