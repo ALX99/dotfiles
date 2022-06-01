@@ -1,14 +1,14 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 d="$(pwd)"
-general_config() {
-    mkdir -p ~/.local/share ~/.config
-    stow .config/ -t ~/.config/
-    stow .shell/ -t ~
-    ln -sf "$d"/shell/.* "$HOME"
 
-    ln -sf "$d"/.local/bin/ ~/.local/
-    ln -sf "$d"/.local/applications/ ~/.local/share/
+minimal_config() {
+    stow .config/
+    stow .local/
+    stow shell/ -t ~
+}
+
+general_config() {
     ln -sf "$d"/.gitconfig ~/
 
     # Export new path so we get access to everything in bin
@@ -40,8 +40,6 @@ arch_config() {
     rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
     cd -
     ! ~/.local/bin/iswsl && stow x/
-    stow shell/
-    stow spectr/
     sudo ln -sf "$d"/hooks /etc/pacman.d/
 
     # Since dash is faster than bash
@@ -74,6 +72,7 @@ kde() {
 }
 
 main() {
+    minimal_config
     arch_config
     general_config
     arch_dep
