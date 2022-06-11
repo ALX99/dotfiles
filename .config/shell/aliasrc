@@ -60,7 +60,6 @@ alias \
   e="\$EDITOR" \
   k="kubectl" \
   p="paccy" \
-  g="git" \
   se="sudoedit" \
   lt="trash-list" \
   t='trash-put' \
@@ -77,6 +76,7 @@ alias \
   grep="grep --color=auto" \
   diff="diff --color=auto" \
   ls="ls -hN --color=auto --group-directories-first" \
+  ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
   rm="rm -v" \
@@ -86,8 +86,7 @@ alias \
   upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU" \
-  wget="wget --hsts-file=/tmp/.wget-hsts"
+  htop="htop -s PERCENT_CPU"
 
 alias \
   ..='cd ..' \
