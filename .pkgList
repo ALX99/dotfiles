@@ -122,7 +122,6 @@ stow
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
-tldr
 tmux
 traceroute
 tree

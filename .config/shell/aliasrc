@@ -5,7 +5,6 @@ alias \
   cx="chmod +x" \
   wlist="nmcli d w l" \
   bye='systemctl hibernate' \
-  share="getip; oneshot -p 8080 -a zip" \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
@@ -15,7 +14,8 @@ alias \
   update="p -Syu" \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
-  gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"'
+  gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
+  cheat='_x() { curl cht.sh/"$1"; }; _x'
 
 # Helm
 alias hls="helm ls" \
@@ -52,15 +52,15 @@ gsb() {
   local bs b
   bs=$(git --no-pager branch -vv) &&
     b=$(echo "$bs" | fzf-tmux -p +m) &&
-    git checkout $(echo "$b" | awk '{print $1}' | sed "s/.* //")
+    git checkout "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
 }
 
 # Git branch delete
 gbd() {
   local bs b
-  bs=$(git --no-pager branch -vv) &&
+  bs=$(git --no-pager branch -vv | grep -v '\Wmaster\W\|\Wmain\W') &&
     b=$(echo "$bs" | fzf-tmux -p -m) &&
-    git branch -D $(echo "$b" | awk '{print $1}' | sed "s/.* //")
+    git branch -D "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
 }
 
 # Git commmit hash
@@ -86,16 +86,11 @@ alias \
   c="clear" \
   s="sudo" \
   e="\$EDITOR" \
+  g="git" \
   k="kubectl" \
   p="paccy" \
   se="sudoedit" \
-  lt="trash-list" \
-  t='trash-put' \
-  rt='trash-restore' \
-  ct='trash-empty' \
-  please='sudo !!' \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  ssh='ssh -o "StrictHostKeyChecking=no"' \
   gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
   gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
   bs='source ~/.bashrc'
@@ -128,7 +123,8 @@ alias \
   upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU"
+  htop="htop -s PERCENT_CPU" \
+  ssh='ssh -o "StrictHostKeyChecking=no"'
 
 alias \
   ..='cd ..' \
