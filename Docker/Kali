@@ -5,9 +5,9 @@ ENV PATH="$HOME/go/bin:${PATH}"
 RUN apt update \
     && set -x \
     && apt -y upgrade \
-    && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip jq \
+    && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip jq man \
     && go install github.com/OJ/gobuster/v3@latest \
-    && mkdir ~/tools/PEASS-ng \
+    && mkdir -p ~/tools/PEASS-ng \
     && cd ~/tools/PEASS-ng \
     && curl -s https://api.github.com/repos/carlospolop/PEASS-ng/releases/latest | jq -r '.assets[] | .browser_download_url' > urls \
     && xargs -n 1 curl -L --remote-name-all < urls \
