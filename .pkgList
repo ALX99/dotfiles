@@ -47,7 +47,6 @@ fontpreview-git
 fzf
 gcolor3 # color picker
 git-delta
-gitui
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
