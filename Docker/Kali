@@ -3,9 +3,16 @@ FROM kalilinux/kali-rolling
 ENV PATH="$HOME/go/bin:${PATH}"
 
 RUN apt update \
+    && set -x \
     && apt -y upgrade \
-    && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip \
-    && go install github.com/OJ/gobuster/v3@latest
+    && DEBIAN_FRONTEND=noninteractive apt -y install kali-linux-headless golang-go python3-pip jq \
+    && go install github.com/OJ/gobuster/v3@latest \
+    && mkdir ~/tools/PEASS-ng \
+    && cd ~/tools/PEASS-ng \
+    && curl -s https://api.github.com/repos/carlospolop/PEASS-ng/releases/latest | jq -r '.assets[] | .browser_download_url' > urls \
+    && xargs -n 1 curl -L --remote-name-all < urls \
+    && rm urls \
+    && set +x
 
 
 CMD [ "/bin/bash" ]
