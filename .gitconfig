@@ -11,56 +11,40 @@
     remotes  = remote -v
     d        = diff
     dc       = diff --cached
-    bd       = branch -d
     st       = status -sb
-    sl       = stash list
-    ua       = reset # unstage all
-    uf       = reset -- # unstage file
     discard  = checkout --
     undo     = reset --soft HEAD~1
-    #mu = "!git fetch upstream && git merge upstream/master"
-    cb = "!git checkout --track $(git branch -a | fzf | tr -d  '[:space:]')"
-    #stash = stash save
-    #pop = stash pop
 
-    # Feature improving aliases
-    publish   = "!git push -u origin $(git branch --show-current)"
-    unpublish = "!git push origin :$(git branch --show-current)"
-    #mm        = pull origin master:master
     plog      = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
     tlog      = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
     lg        = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
     rank      = shortlog -sn --no-merges
 [core]
     whitespace = trailing-space,space-before-tab
-    pager = diff-so-fancy | less --tabs=4 -RFX
+    pager = delta
+
+[interactive]
+    diffFilter = delta --color-only
+
+[delta]
+    navigate = true  # use n and N to move between diff sections
+    light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+    line-numbers = true
+    # side-by-side = true
+
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
 [apply]
     whitespace = fix
+
 [user]
 	email = 46844683+ALX99@users.noreply.github.com
 	name  = ALX99
-
-# diff-so-fancy
-[pager]
-    diff = diff-so-fancy | less --tabs=4 -RFXS --pattern '^(Date|added|deleted|modified): '
-[color]
-    ui = true
-[color "diff-highlight"]
-    oldNormal    = red bold
-    oldHighlight = red bold 52
-    newNormal    = green bold
-    newHighlight = green bold 22
-[color "diff"]
-    meta = 11
-    frag = magenta bold
-    commit = yellow bold
-    old = red bold
-    new = green bold
-    whitespace = red reverse
-[diff-so-fancy]
-    markEmptyLines = true
-[pull]
-	rebase = false
 
 # Push over SSH instead of HTTPS
 [url "ssh://git@github.com/"]
