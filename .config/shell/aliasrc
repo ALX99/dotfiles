@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 alias \
   ch="code . && exit" \
@@ -39,18 +39,46 @@ alias drr="docker run -it --rm" \
 # Git
 alias gco="git checkout" \
   gcb="git checkout -b" \
-  gbd="git branch -D" \
   gbl="git branch" \
-  gsb="git switch" \
   gpr="git pull --rebase" \
   gca="git commit --amend" \
-  gsp="git stash push" \
+  gsp="git stash pop" \
   gspm="git stash push -m" \
-  gsP="git stash pop" \
   push="git push origin HEAD:refs/for/master" \
-  gca="git commit --amend" \
-  gulc="git reset HEAD~" \
-  gtags='git log --tags --simplify-by-decoration --pretty="format:%ai %d"'
+  gca="git commit --amend"
+
+# Git switch branch
+gsb() {
+  local bs b
+  bs=$(git --no-pager branch -vv) &&
+    b=$(echo "$bs" | fzf-tmux -p +m) &&
+    git checkout $(echo "$b" | awk '{print $1}' | sed "s/.* //")
+}
+
+# Git branch delete
+gbd() {
+  local bs b
+  bs=$(git --no-pager branch -vv) &&
+    b=$(echo "$bs" | fzf-tmux -p -m) &&
+    git branch -D $(echo "$b" | awk '{print $1}' | sed "s/.* //")
+}
+
+# Git commmit hash
+gcs() {
+  local c cs
+  cs=$(git log --color=always --pretty=oneline --abbrev-commit --reverse) &&
+    c=$(echo "$cs" | fzf-tmux -p --tac +s +m -e --ansi --reverse) &&
+    echo -n "$(echo "$c" | sed "s/ .*//")"
+}
+
+# Git browse
+gbrowse() {
+  git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
+    fzf --ansi --no-sort --reverse --tiebreak=index +m \
+      --bind 'ctrl-m:execute: git show --color=always $(echo {} | cut -d" " -f2)' \
+      --preview 'git show --stat --color=always $(echo {} | cut -d" " -f2)' \
+      --preview-window=right,60
+}
 
 # Make common commands shorter
 alias \
@@ -69,7 +97,21 @@ alias \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   ssh='ssh -o "StrictHostKeyChecking=no"' \
   gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)'
+  gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+  bs='source ~/.bashrc'
+
+# Switch directory
+sd() {
+  local t
+  t="$({ fd . "$HOME" --type directory -I 2>/dev/null || find "$HOME" -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
+  [ -n "$t" ] && cd "$t" && ls
+}
+
+sd.() {
+  local t
+  t="$({ fd . "$HOME" --type directory -HIE '.git' 2>/dev/null || find "$HOME" -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
+  [ -n "$t" ] && cd "$t" && ls
+}
 
 # Better flags
 alias \

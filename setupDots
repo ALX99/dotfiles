@@ -3,8 +3,8 @@ set -euo pipefail
 d="$(pwd)"
 
 minimal_config() {
-    stow .config/
-    stow .local/
+    stow .config/ -t ~/.config/
+    stow .local/ -t ~/.local/
     stow shell/ -t ~
 }
 
@@ -59,7 +59,7 @@ arch_dep() {
 # Cache keys
 ssh_agent() {
     mkdir ~/.ssh/
-    echo "AddKeysToAgent yes" >~/.ssh/config
+    echo "AddKeysToAgent yes" >>~/.ssh/config
     ln -sf "$(pwd)"/misc/.pam_environment ~/
     systemctl --user enable ssh-agent
     systemctl --user start ssh-agent
