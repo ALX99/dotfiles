@@ -19,4 +19,4 @@ else
     exit
 fi
 
-printf "%s%s\n" "$i" "$ssid"
+printf "%s%b\n" "$i" "$ssid"
