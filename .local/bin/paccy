@@ -14,7 +14,6 @@ where:
     -Syu                    update package(s)
     -S                      install package(s)
     -s                      search for package(s)
-    -um,  --update-mirrors  update your pacman mirrors to use the fastest mirror
     -ia, --install-all      install every package in your package list
     -la, --list-all         list all your packages
     -lt, --list-tracked     list all your tracked packages
@@ -78,11 +77,6 @@ install_pkgs() {
 # Installs all the packages listed under the packagelist
 install() {
     yay -S --needed "$(get_tracked)"
-}
-# Update the mirrors
-update() {
-    sudo reflector --latest 50 --protocol https --connection-timeout 3 --sort rate --verbose --save /etc/pacman.d/mirrorlist
-    echo "Done!"
 }
 # Get tracked packages under the variable 'tracked'
 get_tracked() {
@@ -193,10 +187,6 @@ main() {
         ;; # Search in AUR
     -ia | --install-all)
         install
-        exit 0
-        ;;
-    -um | --update-mirrors)
-        update
         exit 0
         ;;
     -Syu)

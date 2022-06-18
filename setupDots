@@ -6,6 +6,7 @@ minimal_config() {
     stow .config/ -t ~/.config/
     stow .local/ -t ~/.local/
     stow shell/ -t ~
+    sudo stow shell -t /root/
 }
 
 general_config() {
@@ -13,10 +14,6 @@ general_config() {
 
     # Export new path so we get access to everything in bin
     export PATH="$PATH:$d/.local/bin"
-
-    # Root config
-    sudo ln -sf "$d"/shell/.bashrc /root/.bashrc
-    sudo ln -sf "$d"/shell/.aliasrc /root/.aliasrc
 
     # Return if we are running in WSL
     ~/.local/bin/iswsl && return
@@ -29,29 +26,20 @@ general_config() {
 }
 
 arch_config() {
-    sudo pacman -S stow zsh --noconfirm --needed
+    sudo pacman -S stow dash --noconfirm --needed
     # Pacman setup
     sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
     sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
     sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
-    # Remove the default stuff
-    cd ~
-    rm -f .xinitrc .bashrc .config/gtk3-0/settings.ini .zshrc .bash_profile
-    cd -
     ! ~/.local/bin/iswsl && stow x/
     sudo ln -sf "$d"/hooks /etc/pacman.d/
 
     # Since dash is faster than bash
-    sudo pacman -S dash
     sudo ln -sfT dash /usr/bin/sh
-
-    # Change to the zsh shell
-    chsh -s /bin/zsh
 }
 
 arch_dep() {
-    sudo pacman -S reflector --noconfirm
     ~/.local/bin/paccy -u
     ~/.local/bin/paccy -ia
 }
