@@ -114,7 +114,6 @@ python
 python-pip
 qbittorrent
 redshift # nightlight
-reflector
 ripgrep
 shellcheck
 shfmt # shell format
