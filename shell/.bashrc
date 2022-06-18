@@ -32,15 +32,15 @@ shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmd
 stty -ixon # Disable ctrl-s and ctrl-q.
 
 # Load aliases
-if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/shell/aliasrc" ]; then
-  . "${XDG_CONFIG_HOME:-$HOME/.config}/shell/aliasrc"
+if [ -f "$HOME/.aliasrc" ]; then
+  . "$HOME/.aliasrc"
 else
   echo "Could not load aliases"
 fi
 
 # Work alises
-if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/shell/workaliasrc" ]; then
-  . "${XDG_CONFIG_HOME:-$HOME/.config}/shell/workaliasrc"
+if [ -f "$HOME/.workaliasrc" ]; then
+  . "$HOME/.workaliasrc"
 fi
 
 ###########
