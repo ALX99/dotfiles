@@ -31,7 +31,6 @@ dnscrypt-proxy
 docker
 docker-compose
 dosfstools # mkfs.fat
-dragon-drag-and-drop-git
 dunst
 etcher-bin
 exfat-utils
@@ -109,6 +108,7 @@ pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
+postgresql-libs
 postman-bin
 python
 python-pip

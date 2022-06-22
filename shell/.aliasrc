@@ -60,7 +60,7 @@ gbd() {
   local bs b
   bs=$(git --no-pager branch -vv | grep -v '\Wmaster\W\|\Wmain\W') &&
     b=$(echo "$bs" | fzf-tmux -p -m) &&
-    git branch -D "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
+    echo "$b" | awk '{print $1}' | grep -v "\*" | sed "s/.* //" | xargs -I{} git branch -D '{}'
 }
 
 # Git commmit hash
