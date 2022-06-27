@@ -6,7 +6,6 @@ nnoremap e k
 vnoremap k h
 vnoremap e k
 
-
 nnoremap h e
 nnoremap H E
 nnoremap i l
