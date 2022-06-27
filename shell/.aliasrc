@@ -34,7 +34,7 @@ alias krc='kubectl config current-context' \
 
 # Docker
 alias drr="docker run -it --rm" \
-  dprune="docker system prune -a"
+  dprune="docker stop \$(docker ps -q); docker system prune -a"
 
 # Git
 alias gco="git checkout" \
@@ -49,10 +49,11 @@ alias gco="git checkout" \
 
 # Git switch branch
 gsb() {
+  [ -n "$1" ] && { git switch "$1"; return; }
   local bs b
   bs=$(git --no-pager branch -vv) &&
     b=$(echo "$bs" | fzf-tmux -p +m) &&
-    git checkout "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
+    git switch "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
 }
 
 # Git branch delete
