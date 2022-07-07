@@ -66,4 +66,3 @@ main() {
     arch_dep
     ! ~/.local/bin/iswsl && ssh_agent
 }
-main
