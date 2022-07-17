@@ -3,7 +3,7 @@
 
 set -a
 
-PATH="$PATH:$HOME/go/bin:$(command du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
+PATH="$PATH:$HOME/go/bin:$PATH:$HOME/.cargo/bin:$(command du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
 
 # XDG
 XDG_CACHE_HOME="$HOME/.cache"
