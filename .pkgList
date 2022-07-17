@@ -22,7 +22,6 @@ calc
 cantarell-fonts
 chafa # used for lf image preview
 clang
-cloc
 dash
 desktop-file-utils # Usually required by many things
 discord
@@ -116,6 +115,7 @@ python-pip
 qbittorrent
 redshift # nightlight
 ripgrep
+rustup
 shellcheck
 shfmt # shell format
 simple-mtpfs
@@ -124,6 +124,7 @@ sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
 tmux
+tokei
 traceroute
 tree
 ttf-cascadia-code # programming font
