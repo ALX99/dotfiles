@@ -13,7 +13,7 @@ return require("packer").startup(
             return -- The rest of the stuff is not needed for vscode
         end
 
-        -- Simple plugins can be specified as strings
+        use "neovim/nvim-lspconfig"
         use "folke/tokyonight.nvim" -- https://github.com/folke/tokyonight.nvim
         use "gryf/wombat256grf" -- https://github.com/junegunn/vim-easy-align
         use "kyazdani42/nvim-tree.lua"

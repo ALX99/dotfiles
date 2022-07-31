@@ -164,7 +164,7 @@ main() {
         exit $?
         ;;
     -it | --install-tracked)
-        echo "$(get_tracked)" >/tmp/tracked
+        get_tracked >/tmp/tracked
         pacman -Qq >/tmp/all
         diff=$(comm -23 /tmp/tracked /tmp/all)
 
