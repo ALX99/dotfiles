@@ -141,3 +141,6 @@ alias \
 
 . <(kubectl completion bash)
 . <(helm completion bash)
+
+# FZF aliases
+[ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
