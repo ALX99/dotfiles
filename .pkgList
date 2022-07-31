@@ -10,6 +10,7 @@ arch-install-scripts
 arp-scan
 atool # unarchive tool
 bash-completion
+bash-language-server
 bat # better cat
 bc # Used by displayselect
 bibata-cursor-theme
@@ -163,6 +164,7 @@ xorg-xprop
 xorg-xsetroot
 xournal
 xwallpaper
+yaml-language-server
 yt-dlp
 zaproxy
 zathura
