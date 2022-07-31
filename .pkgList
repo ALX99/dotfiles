@@ -117,6 +117,7 @@ redshift # nightlight
 ripgrep
 rustup
 shellcheck
+shellharden
 shfmt # shell format
 simple-mtpfs
 stow
