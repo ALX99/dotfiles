@@ -1,5 +1,5 @@
 -- Functional wrapper for mapping custom keybindings
-function map(mode, lhs, rhs, opts)
+local function map(mode, lhs, rhs, opts)
     local options = { noremap = true }
     if opts then
         options = vim.tbl_extend("force", options, opts)
@@ -51,9 +51,10 @@ map("v", "L", "N")
 -- Map kk to esc
 map("i", "kk", "<Esc>")
 
-
-
 -- Plugin mappings
 -- TODO move them somewhere else
-vim.keymap.set('n', '<leader>/', "v:count == 0 ? '<Plug>(comment_toggle_current_linewise)' : '<Plug>(comment_toggle_linewise_count)'", { expr = true, remap = true })
+vim.keymap.set('n', '<leader>/',
+    "v:count == 0 ? '<Plug>(comment_toggle_current_linewise)' : '<Plug>(comment_toggle_linewise_count)'",
+    { expr = true, remap = true })
 vim.keymap.set('v', '<leader>/', '<Plug>(comment_toggle_linewise_visual)')
+

@@ -5,7 +5,7 @@ local o = vim.o
 -- use :h <command> for help info
 --
 g.mapleader = " "
-o.guicursor = "" -- No GUI cursor
+-- o.guicursor = "" -- No GUI cursor
 o.clipboard = 'unnamedplus' -- Copy paste between vim and everything else
 
 

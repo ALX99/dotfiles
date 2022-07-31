@@ -71,6 +71,7 @@ lf
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
+lua-language-server
 lxappearance # Used to customize GTK theme
 macchanger
 maim # sceenshot utility
@@ -111,6 +112,7 @@ perl-image-exiftool
 pkgfile # tool for searching files from packages
 postgresql-libs
 postman-bin
+pyright
 python
 python-pip
 qbittorrent
