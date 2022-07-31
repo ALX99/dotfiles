@@ -7,16 +7,22 @@ function map(mode, lhs, rhs, opts)
     vim.api.nvim_set_keymap(mode, lhs, rhs, options)
 end
 
-map("n", "<leader>w", "<cmd>w<CR>")
-map("n", "<leader>q", "<cmd>q<CR>")
+if (not vim.g.vscode) then
+    -- These do not work correctly with vscode
+    map("n", "<leader>w", "<cmd>w<CR>")
+    map("n", "<leader>q", "<cmd>q<CR>")
+end
 
 -- Colemak remappings
+-- k -> h, n -> j
 map("n", "k", "h")
 map("n", "e", "k")
 map("v", "k", "h")
 map("v", "e", "k")
 map("n", "n", "j")
+map("n", "N", "J")
 map("v", "n", "j")
+map("v", "N", "J")
 
 -- Map h to e
 map("n", "h", "e")
