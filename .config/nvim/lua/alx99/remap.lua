@@ -48,7 +48,7 @@ map("n", "<leader>b", "<C-O>")
 -- map("n", "<leader>n", "<C-w>j")
 -- map("n", "<leader>e", "<C-w>k")
 -- map("n", "<leader>i", "<C-w>l")
-map("n", "<leader>o", "<cmd>Telescope fd<CR>")
+map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
 map("n", "<leader>lg", "<cmd>Telescope live_grep<CR>")
 map({ "n", "v" }, "ga", "<Plug>(EasyAlign)")
 
