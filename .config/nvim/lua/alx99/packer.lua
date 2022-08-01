@@ -26,21 +26,27 @@ return require("packer").startup(
 
         -- LSP & IDE features
         use "neovim/nvim-lspconfig"
+        -- Treesitter is able to generate ASTs for almost all languages
         use { "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" }
+        -- Better completion menu
         use "hrsh7th/cmp-nvim-lsp"
         use "hrsh7th/nvim-cmp"
-        use "hrsh7th/cmp-buffer"
-        use "hrsh7th/cmp-path"
-        use "hrsh7th/cmp-vsnip"
-        use "hrsh7th/vim-vsnip"
-        use "ray-x/lsp_signature.nvim"
-        use "kyazdani42/nvim-tree.lua"
-        use "lewis6991/gitsigns.nvim"
+        use "hrsh7th/cmp-buffer" -- Complete from buffer
+        use "hrsh7th/cmp-path" -- Complete from path
+        use "hrsh7th/vim-vsnip" -- Snippet engine
+        use "hrsh7th/cmp-vsnip" -- Snippet engine support
+        use "ray-x/lsp_signature.nvim" -- Show LSP signatures
+        use "kyazdani42/nvim-tree.lua" -- Tree file manager (maybe remove/switch)
+        use "lewis6991/gitsigns.nvim" -- Git gutters and blames
+        use 'j-hui/fidget.nvim' -- Eyecandy for loading lsp
+        use {
+            "nvim-telescope/telescope.nvim", tag = '0.1.0',
+            requires = { { "nvim-lua/plenary.nvim" } }
+        }
 
         -- To check out in future
         -- https://github.com/folke/trouble.nvim
         -- https://github.com/jose-elias-alvarez/null-ls.nvim
-        -- https://github.com/nvim-telescope/telescope.nvim
         -- https://github.com/junegunn/fzf.vim
         -- https://github.com/L3MON4D3/LuaSnip
         -- https://github.com/folke/twilight.nvim

@@ -87,7 +87,6 @@ mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 neofetch
 neovim
-neovim-nightly-bin
 net-tools
 nload # Network tool
 nmap

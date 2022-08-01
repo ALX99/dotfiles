@@ -5,6 +5,14 @@ if cmp == nil or lspconfig == nil then
     return
 end
 
+-- Eyecandy https://github.com/j-hui/fidget.nvim
+require("fidget").setup {
+    text = {
+        spinner = "line",
+        done = ":)",
+    },
+}
+
 cmp.setup({
     snippet = {
         expand = function(args)
@@ -95,7 +103,7 @@ local on_attach = function(client, bufnr)
     vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
     vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<leader>f', vim.lsp.buf.formatting, bufopts)
+    vim.keymap.set('n', 'gf', vim.lsp.buf.formatting, bufopts)
 
     -- https://github.com/ray-x/lsp_signature.nvim#configure
     require("lsp_signature").on_attach({

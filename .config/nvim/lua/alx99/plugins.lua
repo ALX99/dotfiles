@@ -1,4 +1,4 @@
-require('gitsigns').setup {
+require("gitsigns").setup {
     on_attach = function(bufnr)
         local gs = package.loaded.gitsigns
         vim.keymap.set({ 'n', 'v' }, '<leader>ss', ':Gitsigns stage_hunk<CR>')
@@ -23,7 +23,7 @@ require("nvim-tree").setup({
         adaptive_size = true,
     },
 })
-vim.api.nvim_set_keymap('n', '<leader>b', '<cmd>NvimTreeFindFile<CR>', { noremap = true })
+vim.api.nvim_set_keymap('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>', { noremap = true })
 
 
 -- Treesitter
