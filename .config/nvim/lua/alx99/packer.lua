@@ -26,7 +26,7 @@ return require("packer").startup(
 
         -- LSP & IDE features
         use "neovim/nvim-lspconfig"
-        use "nvim-treesitter/nvim-treesitter"
+        use { "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" }
         use "hrsh7th/cmp-nvim-lsp"
         use "hrsh7th/nvim-cmp"
         use "hrsh7th/cmp-buffer"
@@ -35,6 +35,7 @@ return require("packer").startup(
         use "hrsh7th/vim-vsnip"
         use "ray-x/lsp_signature.nvim"
         use "kyazdani42/nvim-tree.lua"
+        use "lewis6991/gitsigns.nvim"
 
         -- To check out in future
         -- https://github.com/folke/trouble.nvim

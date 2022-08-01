@@ -1,6 +1,7 @@
 -- Setup nvim-cmp
 local cmp = require("cmp")
-if cmp == nil then
+local lspconfig = require("lspconfig")
+if cmp == nil or lspconfig == nil then
     return
 end
 
@@ -57,17 +58,22 @@ cmp.setup.cmdline(':', {
 })
 
 -- nvim-cmp capabiltiies to pass to lspconfig
+-- This announces what features the editor can support
 local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
 
 local opts = { noremap = true, silent = true }
 -- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
+
+vim.opt.completeopt = "menu,menuone,noselect" -- https://github.com/hrsh7th/nvim-cmp
 -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
 
 -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
 -- map('n', 'gw', ':lua vim.lsp.buf.workspace_symbol()<cr>')
 
+-- This is a callback function that will e executed when a
+-- language server is attached to a buffer.
 local on_attach = function(client, bufnr)
     -- Enable completion triggered by <c-x><c-o>
     -- vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
@@ -106,30 +112,31 @@ end
 
 
 -- Requires gopls
-require("lspconfig").gopls.setup {
+lspconfig.gopls.setup {
     capabilities = capabilities,
     on_attach = on_attach,
 }
+
 -- Requires shellcheck and https://github.com/bash-lsp/bash-language-server
-require("lspconfig").bashls.setup {
+lspconfig.bashls.setup {
     capabilities = capabilities,
     on_attach = on_attach,
 }
 
 -- Requires pyright
-require("lspconfig").pyright.setup {
+lspconfig.pyright.setup {
     capabilities = capabilities,
     on_attach = on_attach,
 }
 
 -- Requires https://github.com/rcjsuen/dockerfile-language-server-nodejs (used by the vscode docker extension)
-require("lspconfig").dockerls.setup {
+lspconfig.dockerls.setup {
     capabilities = capabilities,
     on_attach = on_attach,
 }
 
 -- Requires https://github.com/redhat-developer/yaml-language-server
-require("lspconfig").yamlls.setup {
+lspconfig.yamlls.setup {
     on_attach = on_attach,
     capabilities = capabilities,
     settings = {
@@ -141,7 +148,7 @@ require("lspconfig").yamlls.setup {
     },
 }
 
-require("lspconfig").sumneko_lua.setup {
+lspconfig.sumneko_lua.setup {
     on_attach = on_attach,
     settings = {
         Lua = {
