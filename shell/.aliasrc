@@ -21,7 +21,7 @@ alias \
 alias hls="helm ls" \
   hdu="helm dependency update" \
   hui="helm upgrade --install" \
-  hur="helm upgrade --reuse--values" \
+  hur="helm upgrade --reuse-values" \
   hua='helm uninstall $(helm ls --short)'
 
 # Kubectl
