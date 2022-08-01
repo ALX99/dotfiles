@@ -111,7 +111,6 @@ pcmanfm-gtk3
 perl-image-exiftool
 pkgfile # tool for searching files from packages
 postgresql-libs
-postman-bin
 pyright
 python
 python-pip
