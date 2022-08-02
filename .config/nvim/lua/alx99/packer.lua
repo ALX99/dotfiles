@@ -3,41 +3,36 @@
 -- Only required if you have packer configured as `opt`
 vim.cmd [[packadd packer.nvim]]
 
-return require("packer").startup(
+return require('packer').startup(
     function(use)
-        use "wbthomason/packer.nvim" -- Packer can mange itself
+        use 'wbthomason/packer.nvim' -- Packer can mange itself
 
         -- Functionality
-        use "junegunn/vim-easy-align"
-        use({
-            "numToStr/Comment.nvim",
-            config = function()
-                require("Comment").setup()
-            end
-        })
+        use 'junegunn/vim-easy-align'
+        use 'numToStr/Comment.nvim'
 
         if vim.g.vscode then
             return -- The rest of the stuff is not needed for vscode
         end
 
         -- Colorschemes
-        use "folke/tokyonight.nvim"
-        use "gryf/wombat256grf"
+        use 'folke/tokyonight.nvim'
+        use 'gryf/wombat256grf'
 
         -- LSP & IDE features
-        use "neovim/nvim-lspconfig"
+        use 'neovim/nvim-lspconfig'
         -- Treesitter is able to generate ASTs for almost all languages
         use { "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" }
         -- Better completion menu
-        use "hrsh7th/cmp-nvim-lsp"
-        use "hrsh7th/nvim-cmp"
-        use "hrsh7th/cmp-buffer" -- Complete from buffer
-        use "hrsh7th/cmp-path" -- Complete from path
-        use "hrsh7th/vim-vsnip" -- Snippet engine
-        use "hrsh7th/cmp-vsnip" -- Snippet engine support
-        use "ray-x/lsp_signature.nvim" -- Show LSP signatures
-        use "kyazdani42/nvim-tree.lua" -- Tree file manager (maybe remove/switch)
-        use "lewis6991/gitsigns.nvim" -- Git gutters and blames
+        use 'hrsh7th/cmp-nvim-lsp'
+        use 'hrsh7th/nvim-cmp'
+        use 'hrsh7th/cmp-buffer' -- Complete from buffer
+        use 'hrsh7th/cmp-path' -- Complete from path
+        use 'hrsh7th/vim-vsnip' -- Snippet engine
+        use 'hrsh7th/cmp-vsnip' -- Snippet engine support
+        use 'ray-x/lsp_signature.nvim' -- Show LSP signatures
+        use 'kyazdani42/nvim-tree.lua' -- Tree file manager (maybe remove/switch)
+        use 'lewis6991/gitsigns.nvim' -- Git gutters and blames
         use 'rcarriga/nvim-notify' -- Eyecandy for loading lsp
         use {
             "nvim-telescope/telescope.nvim", tag = '0.1.0',

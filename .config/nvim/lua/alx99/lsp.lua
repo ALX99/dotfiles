@@ -1,11 +1,10 @@
 -- Setup nvim-cmp
-local cmp = require("cmp")
-local lspconfig = require("lspconfig")
+local cmp = require('cmp')
+local lspconfig = require('lspconfig')
+local utils = require('alx99.utils')
 if cmp == nil or lspconfig == nil then
     return
 end
-
-vim.notify = require("notify")
 
 cmp.setup({
     snippet = {
@@ -61,15 +60,15 @@ cmp.setup.cmdline(':', {
 
 -- nvim-cmp capabiltiies to pass to lspconfig
 -- This announces what features the editor can support
-local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
+local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
 
 local opts = { noremap = true, silent = true }
--- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
-vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
-vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
+-- utils.map('n', '<space>e', vim.diagnostic.open_float, opts)
+utils.map('n', '[d', vim.diagnostic.goto_prev, opts)
+utils.map('n', ']d', vim.diagnostic.goto_next, opts)
 
 vim.opt.completeopt = "menu,menuone,noselect" -- https://github.com/hrsh7th/nvim-cmp
--- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
+-- utils.map('n', '<space>q', vim.diagnostic.setloclist, opts)
 
 -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
 -- map('n', 'gw', ':lua vim.lsp.buf.workspace_symbol()<cr>')
@@ -83,24 +82,24 @@ local on_attach = function(client, bufnr)
     -- Mappings.
     -- See `:help vim.lsp.*` for documentation on any of the below functions
     local bufopts = { noremap = true, silent = true, buffer = bufnr }
-    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, bufopts)
-    vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, bufopts)
-    vim.keymap.set('n', 'gh', vim.lsp.buf.hover, bufopts)
-    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, bufopts)
-    vim.keymap.set('n', 'gs', vim.lsp.buf.signature_help, bufopts)
-    vim.keymap.set('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
-    vim.keymap.set('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
-    vim.keymap.set('n', '<leader>wl', function()
+    utils.map('n', 'gd', vim.lsp.buf.definition, bufopts)
+    utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts)
+    utils.map('n', 'gh', vim.lsp.buf.hover, bufopts)
+    utils.map('n', 'gi', vim.lsp.buf.implementation, bufopts)
+    utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
+    utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
+    utils.map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
+    utils.map('n', '<leader>wl', function()
         print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
     end, bufopts)
-    vim.keymap.set('n', '<leader>D', vim.lsp.buf.type_definition, bufopts)
-    vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
-    vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
-    vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', 'gf', vim.lsp.buf.formatting, bufopts)
+    utils.map('n', '<leader>D', vim.lsp.buf.type_definition, bufopts)
+    utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
+    utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
+    utils.map('n', 'gr', vim.lsp.buf.references, bufopts)
+    utils.map('n', 'gf', vim.lsp.buf.formatting, bufopts)
 
     -- https://github.com/ray-x/lsp_signature.nvim#configure
-    require("lsp_signature").on_attach({
+    require('lsp_signature').on_attach({
         bind = true, -- This is mandatory, otherwise border config won't get registered.
         floating_window = true,
         always_trigger = true,
@@ -112,11 +111,29 @@ local on_attach = function(client, bufnr)
 
 end
 
+----------------------
+-- Language servers --
+----------------------
 
 -- Requires gopls
 lspconfig.gopls.setup {
     capabilities = capabilities,
     on_attach = on_attach,
+    settings = {
+        gopls = {
+            experimentalPostfixCompletions = true,
+            -- https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md
+            analyses = {
+                unusedparams = true,
+                shadow = true,
+                fieldalignment = true,
+                nilness = true,
+                unusedwrite = true,
+                useany = true
+            },
+            staticcheck = true,
+        },
+    },
 }
 
 -- Requires shellcheck and https://github.com/bash-lsp/bash-language-server
