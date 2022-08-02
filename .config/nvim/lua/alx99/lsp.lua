@@ -5,13 +5,7 @@ if cmp == nil or lspconfig == nil then
     return
 end
 
--- Eyecandy https://github.com/j-hui/fidget.nvim
-require("fidget").setup {
-    text = {
-        spinner = "line",
-        done = ":)",
-    },
-}
+vim.notify = require("notify")
 
 cmp.setup({
     snippet = {

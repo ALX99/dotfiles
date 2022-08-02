@@ -38,7 +38,7 @@ return require("packer").startup(
         use "ray-x/lsp_signature.nvim" -- Show LSP signatures
         use "kyazdani42/nvim-tree.lua" -- Tree file manager (maybe remove/switch)
         use "lewis6991/gitsigns.nvim" -- Git gutters and blames
-        use 'j-hui/fidget.nvim' -- Eyecandy for loading lsp
+        use 'rcarriga/nvim-notify' -- Eyecandy for loading lsp
         use {
             "nvim-telescope/telescope.nvim", tag = '0.1.0',
             requires = { { "nvim-lua/plenary.nvim" } }
