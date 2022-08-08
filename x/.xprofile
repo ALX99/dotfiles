@@ -7,14 +7,9 @@ export SSH_AUTH_SOCK
 . /etc/X11/xinit/xinitrc.d/50-systemd-user.sh
 
 # Move Brave cache to tmpfs
-mkdir -p /tmp/brave/Service\ Worker \
-    /tmp/brave/GPUCache
-rm -rf "$XDG_CONFIG_HOME"/BraveSoftware/Brave-Browser/Default/Service\ Worker \
-    "$XDG_CONFIG_HOME"/BraveSoftware/Brave-Browser/Default/GPUCache \
-    "$XDG_CACHE_HOME"/BraveSoftware/Brave-Browser/Default
-ln -sf /tmp/brave/Service\ Worker "$XDG_CONFIG_HOME"/BraveSoftware/Brave-Browser/Default/Service\ Worker
-ln -sf /tmp/brave/GPUCache "$XDG_CONFIG_HOME"/BraveSoftware/Brave-Browser/Default/GPUCache
-ln -sf /tmp/brave "$XDG_CACHE_HOME"/BraveSoftware/Brave-Browser/Default
+mkdir -p /tmp/BraveSoftware
+rm -rf "$XDG_CACHE_HOME/"/BraveSoftware
+ln -sf /tmp/tmp/BraveSoftware "$XDG_CACHE_HOME"/BraveSoftware
 
 xwallpaper --zoom ~/.config/bg.jpg
 xinput set-prop 10 300 1
@@ -25,6 +20,7 @@ xset r rate 210 30
 
 # Start background services
 dwmblocks >>$log 2>&1 & # DWM bar
-dunst >>$log 2>&1 &     # Notification service
-sxhkd >>$log 2>&1 &     # Hotkey daemon
+dunst     >>$log 2>&1 & # Notification service
+sxhkd     >>$log 2>&1 & # Hotkey daemon
 unclutter >>$log 2>&1 & # Remove mouse
+picom -b  >>$log 2>&1 & # Remove mouse
