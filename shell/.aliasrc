@@ -99,13 +99,13 @@ alias \
 # Switch directory
 sd() {
   local t
-  t="$({ fd . "$HOME" --type directory -I 2>/dev/null || find "$HOME" -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
+  t="$({ fd . --type directory -I 2>/dev/null || find -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
   [ -n "$t" ] && cd "$t" && ls
 }
 
 sd.() {
   local t
-  t="$({ fd . "$HOME" --type directory -HIE '.git' 2>/dev/null || find "$HOME" -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
+  t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
   [ -n "$t" ] && cd "$t" && ls
 }
 
@@ -114,6 +114,7 @@ alias \
   grep="grep --color=auto" \
   diff="diff --color=auto" \
   ls="ls -hN --color=auto --group-directories-first" \
+  ll="ls -l" \
   ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
@@ -139,8 +140,8 @@ alias \
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
 
-. <(kubectl completion bash)
-. <(helm completion bash)
+command -v kubectl 2>&1 >/dev/null && . <(kubectl completion bash)
+command -v helm 2>&1 >/dev/null && . <(helm completion bash)
 
 # FZF aliases
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
