@@ -67,9 +67,11 @@ jdk-openjdk
 jq # Json parser
 k9s
 kubectl
+lazygit
 lf
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
+libxft-bgra
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
 lxappearance # Used to customize GTK theme
@@ -108,6 +110,7 @@ papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
 perl-image-exiftool
+picom
 pkgfile # tool for searching files from packages
 postgresql-libs
 pyright
@@ -116,6 +119,7 @@ python-pip
 qbittorrent
 redshift # nightlight
 ripgrep
+rust-analyzer
 rustup
 shellcheck
 shellharden
@@ -130,6 +134,8 @@ tokei
 traceroute
 tree
 ttf-cascadia-code # programming font
+ttf-dejavu
+ttf-fira-code
 ttf-font-awesome
 ttf-hack
 ttf-joypixels
