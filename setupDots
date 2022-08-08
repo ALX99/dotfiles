@@ -29,7 +29,6 @@ arch_config() {
     sudo pacman -S stow dash --noconfirm --needed
     # Pacman setup
     sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
-    sudo sed -i '/TotalDownload/s/^#//g' /etc/pacman.conf
     sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
     ! ~/.local/bin/iswsl && stow x/
