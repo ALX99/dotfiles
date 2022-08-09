@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC1090
 
 alias \
   ch="code . && exit" \
@@ -15,7 +16,8 @@ alias \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
   gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
-  cheat='_x() { curl cht.sh/"$1"; }; _x'
+  cheat='_x() { curl cht.sh/"$1"; }; _x' \
+  tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
 
 # Helm
 alias hls="helm ls" \
@@ -52,8 +54,8 @@ gsb() {
   [ -n "$1" ] && { git switch "$1"; return; }
   local bs b
   bs=$(git --no-pager branch -vv) &&
-    b=$(echo "$bs" | fzf-tmux -p +m) &&
-    git switch "$(echo "$b" | awk '{print $1}' | sed "s/.* //")"
+    b=$(echo "$bs" | grep -v '^\*' | fzf-tmux -p +m) &&
+    git switch "$(echo "$b" | awk '{print $1}')"
 }
 
 # Git branch delete
@@ -69,7 +71,7 @@ gcs() {
   local c cs
   cs=$(git log --color=always --pretty=oneline --abbrev-commit --reverse) &&
     c=$(echo "$cs" | fzf-tmux -p --tac +s +m -e --ansi --reverse) &&
-    echo -n "$(echo "$c" | sed "s/ .*//")"
+    echo -n "${c%%\ *}"
 }
 
 # Git browse
@@ -140,8 +142,8 @@ alias \
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
 
-command -v kubectl 2>&1 >/dev/null && . <(kubectl completion bash)
-command -v helm 2>&1 >/dev/null && . <(helm completion bash)
+command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
+command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 
 # FZF aliases
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
