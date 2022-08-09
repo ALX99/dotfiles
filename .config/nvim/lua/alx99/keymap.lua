@@ -46,10 +46,10 @@ utils.map("n", "<leader>wv", "<cmd>vsplit<CR>")
 
 
 -- TODO, need to decide on navigation workflow
-utils.map("n", "<M-k>", "<C-w>h")
-utils.map("n", "<M-n>", "<C-w>j")
-utils.map("n", "<M-e>", "<C-w>k")
-utils.map("n", "<M-i>", "<C-w>l")
+utils.map("n", "<leader>k", "<C-w>h")
+utils.map("n", "<leader>n", "<C-w>j")
+utils.map("n", "<leader>e", "<C-w>k")
+utils.map("n", "<leader>i", "<C-w>l")
 utils.map("n", "<S-i>", ":tabnext<CR>")
 utils.map("n", "<S-k>", ":tabprevious<CR>")
 
