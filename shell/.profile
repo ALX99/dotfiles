@@ -42,4 +42,9 @@ XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority"
 WGETRC="${XDG_CONFIG_HOME:-$HOME/.config}/wget/wgetrc"
 GTK2_RC_FILES="${XDG_CONFIG_HOME:-$HOME/.config}"/gtk-2.0/gtkrc
 
+# IM
+GTK_IM_MODULE="fcitx"
+QT_IM_MODULE="fcitx"
+XMODIFIERS="@im=fcitx"
+
 set +a
