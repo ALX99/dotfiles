@@ -35,10 +35,11 @@ dunst
 etcher-bin
 exfat-utils
 expac # requried by paccy
-exploitdb
-fcitx-configtool
-fcitx-mozc
-fcitx-qt5
+fcitx5
+fcitx5-configtool
+fcitx5-gtk
+fcitx5-mozc
+fcitx5-qt
 fd # find directories and files
 ffmpeg
 firefox
