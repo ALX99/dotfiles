@@ -8,6 +8,14 @@
       {
         "language": "go",
         "path": "./snippets/go.json"
+      },
+      {
+        "language": "rust",
+        "path": "./snippets/rust.json"
+      },
+      {
+        "language": "rust",
+        "path": "./snippets/rust_custom.json"
       }
     ]
   }

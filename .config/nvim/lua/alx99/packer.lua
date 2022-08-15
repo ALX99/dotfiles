@@ -1,8 +1,4 @@
 -- This file can be loaded by calling `lua require('plugins')` from your init.vim
-
--- Only required if you have packer configured as `opt`
-vim.cmd [[packadd packer.nvim]]
-
 return require('packer').startup(
   function(use)
     use 'wbthomason/packer.nvim' -- Packer can mange itself
@@ -10,13 +6,17 @@ return require('packer').startup(
     -- Functionality
     use 'junegunn/vim-easy-align'
     use 'numToStr/Comment.nvim'
+    use 'akinsho/toggleterm.nvim'
 
     if vim.g.vscode then
       return -- The rest of the stuff is not needed for vscode
     end
 
     -- Colorschemes
-    use 'folke/tokyonight.nvim'
+    use {
+      'navarasu/onedark.nvim',
+      config = function() require('onedark').load() end,
+    }
     use 'rebelot/kanagawa.nvim'
 
 
@@ -24,11 +24,10 @@ return require('packer').startup(
     use 'windwp/nvim-autopairs'
     use 'neovim/nvim-lspconfig'
     -- Treesitter is able to generate ASTs for almost all languages
-    use { "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" }
+    use 'nvim-treesitter/nvim-treesitter'
     use 'hrsh7th/cmp-nvim-lsp'
     use 'hrsh7th/nvim-cmp' -- Better completion menu
     use 'hrsh7th/cmp-buffer' -- Complete from buffer
-    use 'hrsh7th/cmp-path' -- Complete from path
     use 'L3MON4D3/LuaSnip' -- Snippet engine
     use 'saadparwaiz1/cmp_luasnip' -- Snippet engine support for autocomplete
     use 'ray-x/lsp_signature.nvim' -- LSP signature popup

@@ -96,7 +96,8 @@ alias \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
   gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  bs='source ~/.bashrc'
+  bs='source ~/.bashrc' \
+  lg='lazygit'
 
 # Switch directory
 sd() {
@@ -128,7 +129,7 @@ alias \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
-  ssh='ssh -o "StrictHostKeyChecking=no"'
+  mpv='mpv --hwdec=auto'
 
 alias \
   ..='cd ..' \
