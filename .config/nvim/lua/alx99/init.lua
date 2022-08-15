@@ -4,6 +4,7 @@ require('alx99.set')
 require('alx99.plugins.comment')
 if (not vim.g.vscode) then
   require('alx99.plugins.notify') -- Notifications
+  require('alx99.plugins.toggleterm') -- Better terminal
   require('alx99.plugins.autopairs') -- Autopairs
   require('alx99.plugins.treesitter') -- Generate ASTs
   require('alx99.plugins.cmp') -- Completion

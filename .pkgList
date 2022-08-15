@@ -41,6 +41,7 @@ fcitx-mozc
 fcitx-qt5
 fd # find directories and files
 ffmpeg
+firefox
 flameshot
 fontpreview-git
 fzf
@@ -50,6 +51,7 @@ gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 graphviz
+helix
 helm
 highlight # used for lf preview
 hping
