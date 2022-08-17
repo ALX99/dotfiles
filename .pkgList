@@ -18,14 +18,11 @@ bind
 bmon # Network tool
 brave-bin
 breeze-gtk
-burpsuite
 calc
 cantarell-fonts
-chafa # used for lf image preview
 clang
 dash
 desktop-file-utils # Usually required by many things
-discord
 dmenu
 dnscrypt-proxy
 docker
@@ -51,16 +48,13 @@ git-delta
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
-graphviz
 helix
 helm
-highlight # used for lf preview
 hping
 htop
 hyperfine
 imv
 inetutils
-intellij-idea-community-edition
 inter-font
 iotop
 iptables-nft
@@ -71,7 +65,6 @@ jq # Json parser
 k9s
 kubectl
 lazygit
-lf
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 libxft-bgra
@@ -82,10 +75,7 @@ macchanger
 maim # sceenshot utility
 man-db
 man-pages
-masscan
-mediainfo # used for lf preview
 minikube
-mkvtoolnix-cli
 mlocate # Locate
 mpv
 mtr # Network diagnostics
@@ -98,11 +88,7 @@ nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
-ntfs-3g
-obsidian-appimage
 openssh
-openssh-askpass
-openvpn
 otf-cascadia-code
 otf-ipafont
 overdue
@@ -112,7 +98,6 @@ pacutils
 papirus-icon-theme
 pavucontrol
 pcmanfm-gtk3
-perl-image-exiftool
 picom
 pkgfile # tool for searching files from packages
 postgresql-libs
@@ -147,19 +132,16 @@ unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
-upx
 util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
-w3m # used for lf preview
 wavemon # wifi connection information
 websocat
 wget
 which
 whois
 wireshark-qt
-wol # wake on lan
 x86_energy_perf_policy
 xclip
 xdg-utils
@@ -171,11 +153,9 @@ xorg-xfontsel
 xorg-xinput
 xorg-xprop
 xorg-xsetroot
-xournal
 xwallpaper
 yaml-language-server
 yt-dlp
-zaproxy
 zathura
 zathura-pdf-poppler
 zip

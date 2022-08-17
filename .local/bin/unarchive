@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eou pipefail
 
-[ ! -f "$1" ] && echo "'$1' is not a valid file" && exit 1
+[ ! -r "$1" ] && echo "'$1' is not a readable file" && exit 1
 
 case $1 in
 *.tar.bz2) tar xjf "$1" ;;
