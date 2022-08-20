@@ -9,7 +9,7 @@ export SSH_AUTH_SOCK
 # Move Brave cache to tmpfs
 mkdir -p /tmp/BraveSoftware
 rm -rf "$XDG_CACHE_HOME/"/BraveSoftware
-ln -sf /tmp/tmp/BraveSoftware "$XDG_CACHE_HOME"/BraveSoftware
+ln -sf /tmp/BraveSoftware "$XDG_CACHE_HOME"/BraveSoftware
 
 xwallpaper --zoom ~/.config/bg.jpg
 xinput set-prop 10 300 1
