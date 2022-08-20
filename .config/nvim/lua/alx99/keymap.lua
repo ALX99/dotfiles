@@ -34,6 +34,12 @@ utils.map("i", "tn", "<Esc>")
 -- Yep, I go backwards quite a lot
 utils.map("n", "<leader>b", "<C-O>")
 
+------------
+-- Visual --
+------------
+utils.map("x", "<", "<gv") -- Stay in indent mode
+utils.map("x", ">", ">gv") -- Stay in indent mode
+
 -----------------
 -- WINDOW MODE --
 -----------------
@@ -56,13 +62,12 @@ utils.map("n", "<S-k>", ":tabprevious<CR>")
 ---------------
 -- FILE MODE --
 ---------------
-utils.map("n", "<leader>fo", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
+utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 if (not vim.g.vscode) then
   -- These do not work correctly with vscode
   utils.map("n", "<leader>w", "<cmd>w<CR>")
   utils.map("n", "<leader>q", "<cmd>q<CR>")
 end
-utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 
 -- Resize with arrows
 -- utils.map("n", "<C-Up>", ":resize +2<CR>")
@@ -70,15 +75,16 @@ utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 -- utils.map("n", "<C-Left>", ":vertical resize -2<CR>")
 -- utils.map("n", "<C-Right>", ":vertical resize +2<CR>")
 
--- Visual
--- Stay in indent mode
-utils.map("x", "<", "<gv")
-utils.map("x", ">", ">gv")
+
+-- These are used so frequently that I want to
+-- have them one keypress away
+utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
+utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
+utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
 
 -- Terminal mode mappings
 utils.map("t", "<C-\\><C-n>", "<nop>")
 utils.map("t", "<C-\\><C-n>i", "<nop>")
-utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
 utils.map("t", "<Esc>", "<C-\\><C-n>")
 
 -- Smarter delete
