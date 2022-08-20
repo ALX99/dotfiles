@@ -42,13 +42,13 @@ super + 2
 
 # Audio
 XF86AudioMute
-	amixer sset Master toggle && pkill -RTMIN+21 dwmblocks
+	amixer sset Master toggle && pkill -51 zimple
 XF86Audio{Raise,Lower}Volume
-	amixer sset Master 3%{+,-} && pkill -RTMIN+21 dwmblocks
+	amixer sset Master 3%{+,-} && pkill -51 zimple
 
 # Brightness
 {XF86MonBrightnessUp,XF86MonBrightnessDown}
-    xbacklight {-inc,-dec} 2 && pkill -RTMIN+20 dwmblocks
+    xbacklight {-inc,-dec} 2 && pkill -50 zimple
 
 
 super + XF86Sleep

@@ -1,0 +1,39 @@
+settings:
+  separator: " / "
+blocks:
+  - command: getconn
+    interval: 60s
+    icon: " "
+
+  - command: gettraffic
+    interval: 10s
+
+  - command: getupdates
+    interval: 1h
+    icon: " "
+
+  - command: getvol
+    update_signals: [51]
+
+  - command: sh
+    icon: " "
+    update_signals: [50]
+    args: [-c, printf "%.1f%%\n" "$(xbacklight)"]
+
+  - command: getmem
+    icon: " "
+    interval: 10s
+
+  - command: getbat
+    enabled: "[[ -d /sys/class/power_supply/BAT0 ]]"
+    interval: 120s
+
+  - command: date
+    interval: 1h
+    icon: " "
+    args: [+%b %d]
+
+  - command: date
+    interval: 30s
+    icon: " "
+    args: [+%I:%M%p]
