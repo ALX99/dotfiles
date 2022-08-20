@@ -2,7 +2,7 @@
     "print_line": {
         "prefix": "pl",
         "body": [
-            "println!(\"$1\");"
+            "println!($1);"
         ],
         "description": "Print a line"
     }
