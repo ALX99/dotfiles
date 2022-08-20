@@ -105,6 +105,7 @@ lspconfig.dockerls.setup {
   capabilities = capabilities,
   on_attach = on_attach,
 }
+
 -- Requires rust-analyzer
 lspconfig.rust_analyzer.setup {
   capabilities = capabilities,
