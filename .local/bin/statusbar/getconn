@@ -1,22 +1,17 @@
 #!/bin/sh
+set -eu
 
-i=''
-if [ "$(nmcli r w)" = "enabled" ]; then
-    f=/proc/net/wireless
-    if [ ! -f "$f" ]; then
-        printf "%sn/a\n" "$i"
-        exit
-    fi
-    info="$(tail -n 1 $f)"
-    if [ -z "$info" ]; then
-        printf "%sn/a\n" "$i"
-        exit
-    fi
-    iface="$(echo "$info" | cut -d':' -f1)"
-    ssid="$(iw $iface link | grep SSID | cut -d":" -f2)"
-else
-    printf "%sNo network\n" "$i"
-    exit
+if [ "$(nmcli r w)" != "enabled" ]; then
+  echo "No network"
 fi
 
-printf "%s%b\n" "$i" "$ssid"
+f=/proc/net/wireless
+if [ "$(cat $f | wc -l)" -le 2 ]; then
+  echo "No network"
+  exit
+fi
+
+info="$(tail -n 1 $f)"
+iface="$(echo "$info" | cut -d':' -f1)"
+ssid="$(iw "$iface" link | grep SSID | cut -d":" -f2)"
+echo "$ssid"

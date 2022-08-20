@@ -12,4 +12,4 @@ fi
 if echo "$res" | grep "off" >/dev/null 2>&1; then
     i=''
 fi
-echo "$i $p%"
+printf "%s %s" "$i" "$p%"
