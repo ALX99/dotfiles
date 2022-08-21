@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eou pipefail
+set -eu
 
 [ ! -r "$1" ] && echo "'$1' is not a readable file" && exit 1
 
