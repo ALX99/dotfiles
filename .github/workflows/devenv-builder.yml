@@ -1,0 +1,15 @@
+name: Denvenv Docker Image CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the Docker image
+        run: |
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USER }}" --password-stdin docker.io
+          docker build . --tag docker.io/${{ secrets.DOCKER_HUB_USER }}/dev:latest
+          docker push docker.io/${{ secrets.DOCKER_HUB_USER }}/dev:latest
