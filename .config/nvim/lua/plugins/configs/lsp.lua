@@ -150,8 +150,15 @@ lspconfig.sumneko_lua.setup {
     },
   },
 }
+
 -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#jsonls
 lspconfig.jsonls.setup {
   capabilities = capabilities,
   on_attach = on_attach,
+}
+
+-- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#html
+capabilities.textDocument.completion.completionItem.snippetSupport = true
+lspconfig.html.setup {
+  capabilities = capabilities,
 }
