@@ -20,15 +20,29 @@ local plugins = {
 
   -- Colorschemes
   ['navarasu/onedark.nvim'] = {
-    disable = vim.g.vscode,
+    disable = true,
     config = function() require('onedark').load() end,
+  },
+  ['folke/tokyonight.nvim'] = {
+    disable = true,
   },
   ['rebelot/kanagawa.nvim'] = {
     disable = vim.g.vscode,
+    -- config = function() vim.cmd("colorscheme kanagawa") end,
   },
-  ['folke/tokyonight.nvim'] = {
+  ['EdenEast/nightfox.nvim'] = {
     disable = vim.g.vscode,
+    config = function()
+      require('nightfox').setup({
+        options = {
+          dim_inactive = true, -- Non focused panes set to alternative background
+        }
+      })
+      vim.cmd("colorscheme nightfox")
+    end,
   },
+
+
 
   ['rcarriga/nvim-notify'] = {
     disable = vim.g.vscode,
@@ -68,6 +82,7 @@ local plugins = {
 
   ['kyazdani42/nvim-tree.lua'] = {
     disable = vim.g.vscode,
+    config = function() require('plugins.configs.nvimtree') end,
   }, -- Tree file manager
 
   ['lewis6991/gitsigns.nvim'] = {

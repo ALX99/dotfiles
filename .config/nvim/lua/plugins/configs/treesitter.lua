@@ -1,5 +1,5 @@
 -- Treesitter
-local ok, treesitter = pcall(require, 'nvim-treesitter')
+local ok, treesitter = pcall(require, 'nvim-treesitter.configs')
 if not ok then
   vim.notify("Could not load nvim-treesitter", vim.log.levels.ERROR)
   return
@@ -7,13 +7,13 @@ end
 
 treesitter.setup {
   -- A list of parser names, or "all"
-  ensure_installed = { "bash", "c", "c_sharp", "commonlisp", "cpp", "css", "dockerfile", "go", "gomod", "gowork",
+  ensure_installed = { "bash", "c", "cpp", "css", "dockerfile", "go", "gomod", "gowork",
     "html", "java", "javascript", "json", "make", "python", "rust",
-    "sql", "typescript", "vim", "yaml" },
-  -- ensure_installed = "all",
+    "typescript", "yaml" },
+  -- sql, typescript, vim, c_sharp
 
   -- Install parsers synchronously (only applied to `ensure_installed`)
-  sync_install = false,
+  sync_install = true,
 
   -- Automatically install missing parsers when entering buffer
   auto_install = true,
