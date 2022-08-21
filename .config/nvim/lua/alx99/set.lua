@@ -102,8 +102,6 @@ end
 -- set iskeyword+=-          -- treat dash separated words as a word text object--
 -- set formatoptions-=cro    -- Stop newline continution of comments
 -- set autochdir                           -- Your working directory will always be the same as your working directory
--- filetype plugin on -- enable filetype plugins
--- filetype indent on -- load filetyp-specific intent files
 -- Settings configured for plugins
 -- o.laststatus = 2 -- Always show statusbar
 -- o.showmode = false  -- We don't need to see things like -- INSERT -- due to the statusbar plugin
