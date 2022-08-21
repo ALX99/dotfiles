@@ -62,7 +62,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
         stdout_buffered = true,
         stderr_buffered = true,
         on_stdout = function(_, data)
-          if data then
+          if data and data[1] ~= '' then
             vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, data)
           end
         end,
