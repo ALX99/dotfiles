@@ -9,5 +9,5 @@ jobs:
       - name: Install deps
         run: sudo snap install shfmt shellcheck
       - uses: actions/checkout@v2
-      - name: Build the Docker image
+      - name: Lint shell scripts
         run: while read -r f; do echo "checking $f"; shellcheck "$f"; done < <(shfmt -f .)
