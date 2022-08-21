@@ -45,6 +45,7 @@ fontpreview-git
 fzf
 gcolor3 # color picker
 git-delta
+github-cli
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
@@ -90,6 +91,7 @@ noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 openssh
 otf-cascadia-code
+otf-font-awesome
 otf-ipafont
 overdue
 p7zip # 7z extentions
@@ -128,6 +130,7 @@ ttf-font-awesome
 ttf-hack
 ttf-joypixels
 ttf-liberation
+ttf-nerd-fonts-symbols-mono
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
