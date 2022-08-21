@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install deps
-        run: sudo apt-get -y install shfmt shellcheck
+        run: sudo snap install shfmt shellcheck
       - uses: actions/checkout@v2
       - name: Build the Docker image
         run: while read -r f; do echo "checking $f"; shellcheck "$f"; done < <(shfmt -f .)
