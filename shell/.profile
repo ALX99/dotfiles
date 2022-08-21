@@ -3,7 +3,7 @@
 
 set -a
 
-PATH="$PATH:$HOME/go/bin:$PATH:$HOME/.cargo/bin:$(command du "$HOME/.local/bin/" | cut -f2 | paste -sd':')"
+PATH="$PATH:$HOME/go/bin:$PATH:$HOME/.cargo/bin:$HOME/.local/bin/"
 
 # XDG
 XDG_CACHE_HOME="$HOME/.cache"
@@ -35,12 +35,12 @@ LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 # Clean up ~/
 # https://wiki.archlinux.org/title/XDG_Base_Directory
 # The XAUTHORITY line will break some DMs.
-ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+ZDOTDIR="$XDG_CONFIG_HOME/.config}/zsh"
 LESSHISTFILE="-"
-LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
+LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
 XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority"
-WGETRC="${XDG_CONFIG_HOME:-$HOME/.config}/wget/wgetrc"
-GTK2_RC_FILES="${XDG_CONFIG_HOME:-$HOME/.config}"/gtk-2.0/gtkrc
+WGETRC="$XDG_CONFIG_HOME/.config/wget/wgetrc"
+GTK2_RC_FILES="$XDG_CONFIG_HOME/gtk-2.0/gtkrc"
 
 # IM
 GTK_IM_MODULE="fcitx"
