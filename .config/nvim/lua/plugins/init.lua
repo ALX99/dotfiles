@@ -3,8 +3,12 @@ local plugins = {
 
   -- Functionality
   ['junegunn/vim-easy-align'] = {},
-  ['numToStr/Comment.nvim'] = {
-    config = function() require('plugins.configs.comment') end
+  ['alx99/qc.lua'] = {
+    config = function()
+      require('qc').setup {
+        shortcut = "<leader>/"
+      }
+    end
   },
   ['akinsho/toggleterm.nvim'] = {
     disable = vim.g.vscode,
