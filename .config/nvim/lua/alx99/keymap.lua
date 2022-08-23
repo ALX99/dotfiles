@@ -27,7 +27,7 @@ utils.map({ "n", "x" }, "I", "L")
 utils.map({ "n", "x" }, "l", "n")
 utils.map({ "n", "x" }, "L", "N")
 
--- Map kk to esc
+-- Esc is hard to press
 utils.map("i", "kk", "<Esc>")
 utils.map("i", "tn", "<Esc>")
 

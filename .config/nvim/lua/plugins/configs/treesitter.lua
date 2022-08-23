@@ -1,9 +1,8 @@
 -- Treesitter
-local ok, treesitter = pcall(require, 'nvim-treesitter.configs')
-if not ok then
-  vim.notify("Could not load nvim-treesitter", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
+
+local treesitter = utils.require('nvim-treesitter.configs')
+if not treesitter then return end
 
 treesitter.setup {
   -- A list of parser names, or "all"

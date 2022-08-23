@@ -1,14 +1,7 @@
-local utils_ok, utils = pcall(require, 'alx99.utils')
-if not utils_ok then
-  vim.notify("Could not load utils", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
 
-local gitsigns_ok, gitsigns = pcall(require, 'gitsigns')
-if not gitsigns_ok then
-  vim.notify("Could not load gitsigns", vim.log.levels.ERROR)
-  return
-end
+local gitsigns = utils.require('gitsigns')
+if not gitsigns then return end
 
 gitsigns.setup {
   on_attach = function(bufnr)

@@ -1,28 +1,13 @@
-local utils_ok, utils = pcall(require, 'alx99.utils')
-if not utils_ok then
-  vim.notify("Could not load utils", vim.log.levels.ERROR)
-  return
-end
-local actions_ok, actions = pcall(require, 'telescope.actions')
-if not actions_ok then
-  vim.notify("Could not load telescope actions", vim.log.levels.ERROR)
-  return
-end
-local telescope_ok, telescope = pcall(require, 'telescope')
-if not telescope_ok then
-  vim.notify("Could not load telescope", vim.log.levels.ERROR)
-  return
-end
-local pickers_ok, pickers = pcall(require, 'telescope.pickers')
-if not pickers_ok then
-  vim.notify("Could not load telescope.pickers", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
 
-local conf = require("telescope.config").values
-local previewers = require "telescope.previewers"
-local finders = require "telescope.finders"
+local telescope = utils.require('telescope')
+local actions = utils.require('telescope.actions')
+local pickers = utils.require('telescope.pickers')
+local conf = utils.require('telescope.config').values
+local previewers = utils.require('telescope.previewers')
+local finders = utils.require('telescope.finders')
 
+if not (telescope and actions and pickers and conf and previewers and finders) then return end
 
 telescope.setup {
   defaults = {
@@ -38,6 +23,7 @@ telescope.setup {
         ["v"] = actions.select_vertical,
         ["<C-x>"] = false,
         ["s"] = actions.select_horizontal,
+        ["q"] = "close", -- This ruins macros in the telescope windows but why would I want that
       },
       i = {
         ["<M-v>"] = actions.select_vertical,
