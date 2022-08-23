@@ -100,32 +100,7 @@ local plugins = {
   -- Fuzzy finder that does it all
   ['nvim-telescope/telescope.nvim'] = {
     disable = vim.g.vscode,
-    config = function()
-      local actions = require('telescope.actions')
-      require("telescope").setup {
-        defaults = {
-          mappings = {
-            n = {
-              ["n"] = actions.move_selection_next,
-              ["j"] = false,
-              ["e"] = actions.move_selection_previous,
-              ["k"] = false,
-              ["<C-t>"] = false,
-              ["t"] = actions.select_tab,
-              ["<C-v>"] = false,
-              ["v"] = actions.select_vertical,
-              ["<C-x>"] = false,
-              ["s"] = actions.select_horizontal,
-            },
-            i = {
-              ["<M-v>"] = actions.select_vertical,
-              ["<M-s>"] = actions.select_horizontal,
-              ["<M-t>"] = actions.select_tab,
-            },
-          },
-        },
-      }
-    end,
+    config = function() require('plugins.configs.telescope') end,
     tag = '0.1.0',
     requires = 'nvim-lua/plenary.nvim'
   },
