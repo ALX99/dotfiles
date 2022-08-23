@@ -3,7 +3,7 @@ local plugins = {
 
   -- Functionality
   ['junegunn/vim-easy-align'] = {},
-  ['alx99/qc.lua'] = {
+  ['core/qc.lua'] = {
     config = function()
       require('qc').setup {
         shortcut = "<leader>/"

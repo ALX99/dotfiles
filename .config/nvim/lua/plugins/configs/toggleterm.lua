@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local toggle_term = utils.require('toggleterm')
 if not toggle_term then return end

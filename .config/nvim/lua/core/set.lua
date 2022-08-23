@@ -79,7 +79,7 @@ local default_plugins = {
   "vimballPlugin",
   "zip",
   "zipPlugin",
-  "tutor",
+  -- "tutor",
   "rplugin",
   "syntax",
   "synmenu",

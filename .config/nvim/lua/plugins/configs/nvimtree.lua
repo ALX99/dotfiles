@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local nvim_tree = utils.require('nvim-tree')
 if not nvim_tree then return end

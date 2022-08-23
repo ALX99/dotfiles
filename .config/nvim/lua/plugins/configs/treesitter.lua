@@ -1,5 +1,5 @@
 -- Treesitter
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local treesitter = utils.require('nvim-treesitter.configs')
 if not treesitter then return end

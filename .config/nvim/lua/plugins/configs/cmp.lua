@@ -1,5 +1,5 @@
 -- Sets up completion with nvim-cmp and luasnip
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local cmp = utils.require('cmp')
 local luasnip = utils.require('luasnip')

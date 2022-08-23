@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local lspconfig = utils.require('lspconfig')
 local cmp_lsp = utils.require('cmp_nvim_lsp')
