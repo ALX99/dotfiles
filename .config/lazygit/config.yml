@@ -20,3 +20,7 @@ keybinding:
     scrollRight: 'I' # scroll right within list view
     nextMatch: 'l'
     prevMatch: 'L'
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never
