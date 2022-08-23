@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local gitsigns = utils.require('gitsigns')
 if not gitsigns then return end

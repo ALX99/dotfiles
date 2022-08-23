@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local notify = utils.require('notify')
 if not notify then return end

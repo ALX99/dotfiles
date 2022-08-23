@@ -1,4 +1,4 @@
-local ok, utils = pcall(require, 'alx99.utils')
+local ok, utils = pcall(require, 'core.utils')
 if not ok then
   vim.notify("Could not load utils", vim.log.levels.ERROR)
   return

@@ -1,4 +1,4 @@
-local utils = require('alx99.utils')
+local utils = require('core.utils')
 
 local telescope = utils.require('telescope')
 local actions = utils.require('telescope.actions')
