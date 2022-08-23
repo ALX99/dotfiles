@@ -33,6 +33,7 @@ _JAVA_AWT_WM_NONREPARENTING="1"
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
+MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Clean up ~/
 # https://wiki.archlinux.org/title/XDG_Base_Directory
