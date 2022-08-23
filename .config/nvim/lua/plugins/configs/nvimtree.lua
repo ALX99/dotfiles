@@ -1,8 +1,7 @@
-local nvim_tree_ok, nvim_tree = pcall(require, 'nvim-tree')
-if not nvim_tree_ok then
-  vim.notify("Could not load nvim-tree", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
+
+local nvim_tree = utils.require('nvim-tree')
+if not nvim_tree then return end
 
 -- :help nvim-tree-setup
 -- :help nvim-tree.OPTION_NAME

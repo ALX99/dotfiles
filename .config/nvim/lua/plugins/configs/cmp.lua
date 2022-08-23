@@ -1,27 +1,11 @@
 -- Sets up completion with nvim-cmp and luasnip
-local cmp_ok, cmp  = pcall(require, 'cmp')
-if not cmp_ok then
-  vim.notify("Could not load cmp", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
 
-local luasnip_ok, luasnip = pcall(require, 'luasnip')
-if not luasnip_ok then
-  vim.notify("Could not load luasnip", vim.log.levels.ERROR)
-  return
-end
-
-local cmp_autopairs_ok, cmp_autopairs = pcall(require, 'nvim-autopairs.completion.cmp')
-if not cmp_autopairs_ok then
-  vim.notify("Could not load autopairs", vim.log.levels.ERROR)
-  return
-end
-
-local vscode_snips_ok, vscode_snips = pcall(require, 'luasnip.loaders.from_vscode')
-if not vscode_snips_ok then
-  vim.notify("Could not load luasnip.loaders.from_vscode", vim.log.levels.ERROR)
-  return
-end
+local cmp = utils.require('cmp')
+local luasnip = utils.require('luasnip')
+local cmp_autopairs = utils.require('nvim-autopairs.completion.cmp')
+local vscode_snips = utils.require('luasnip.loaders.from_vscode')
+if not (cmp and luasnip and cmp_autopairs and vscode_snips) then return end
 
 -- Load snippets
 vscode_snips.lazy_load()

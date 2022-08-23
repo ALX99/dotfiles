@@ -1,17 +1,12 @@
-local utils_ok, utils = pcall(require, 'alx99.utils')
-if not utils_ok then
-  vim.notify("Could not load utils", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
 
-local lspconfig_ok, lspconfig = pcall(require, 'lspconfig')
-if not lspconfig_ok then
-  vim.notify("Could not load lspconfig", vim.log.levels.ERROR)
-  return
-end
+local lspconfig = utils.require('lspconfig')
+local cmp_lsp = utils.require('cmp_nvim_lsp')
+local lsp_signature = utils.require('lsp_signature')
+if not (lspconfig and cmp_lsp and lsp_signature) then return end
 
 -- nvim-cmp capabiltiies to pass to lspconfig (announce what features the editor can support)
-local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
+local capabilities = cmp_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
 
 
 -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
@@ -41,16 +36,11 @@ local on_attach = function(client, bufnr)
   utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
   utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
   utils.map('n', 'gr', vim.lsp.buf.references, bufopts)
+  --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
   utils.map('n', 'gf', vim.lsp.buf.formatting, bufopts)
 
-  local sig_ok, sig = pcall(require, 'lsp_signature')
-  if not sig_ok then
-    vim.notify("Could not load lsp_signature", vim.log.levels.ERROR)
-    return
-  end
-
   -- https://github.com/ray-x/lsp_signature.nvim#configure
-  sig.on_attach({
+  lsp_signature.on_attach({
     bind = true, -- This is mandatory, otherwise border config won't get registered.
     floating_window = true,
     always_trigger = true,

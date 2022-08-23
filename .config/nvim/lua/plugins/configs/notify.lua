@@ -1,8 +1,7 @@
-local ok, notify = pcall(require, 'notify')
-if not ok then
-  vim.notify("Could not load notify", vim.log.levels.ERROR)
-  return
-end
+local utils = require('alx99.utils')
+
+local notify = utils.require('notify')
+if not notify then return end
 
 -- Transparent
 notify.setup {
