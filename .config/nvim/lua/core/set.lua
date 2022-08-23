@@ -21,6 +21,8 @@ o.numberwidth    = 2
 
 -- Tabs
 o.showtabline = 2 -- Always show tabs
+o.list        = true
+o.listchars   = "tab:>-"
 
 -- Indenting
 o.expandtab   = true -- Converts tabs to spaces
