@@ -2,144 +2,147 @@
 # shellcheck disable=SC1090
 
 alias \
-  ch="code . && exit" \
-  cx="chmod +x" \
-  wlist="nmcli d w l" \
-  bye='systemctl hibernate' \
-  utop='htop -t -u $(whoami)' \
-  perms="stat -c '%a %n' *" \
-  mimetype="file --dereference --brief --mime-type" \
-  copyfile="xclip -selection clipboard" \
-  yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
-  archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
-  update="p -Syu" \
-  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
-  gu='xdg-open $(git config --get remote.origin.url)' \
-  gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
-  cheat='_x() { curl cht.sh/"$1"; }; _x' \
-  tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
+	ch="code . && exit" \
+	cx="chmod +x" \
+	wlist="nmcli d w l" \
+	bye='systemctl hibernate' \
+	utop='htop -t -u $(whoami)' \
+	perms="stat -c '%a %n' *" \
+	mimetype="file --dereference --brief --mime-type" \
+	copyfile="xclip -selection clipboard" \
+	yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
+	archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
+	update="p -Syu" \
+	gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
+	gu='xdg-open $(git config --get remote.origin.url)' \
+	gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
+	cheat='_x() { curl cht.sh/"$1"; }; _x' \
+	tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
 
 # Helm
 alias hls="helm ls" \
-  hdu="helm dependency update" \
-  hui="helm upgrade --install" \
-  hur="helm upgrade --reuse-values" \
-  hua='helm uninstall $(helm ls --short)'
+	hdu="helm dependency update" \
+	hui="helm upgrade --install" \
+	hur="helm upgrade --reuse-values" \
+	hua='helm uninstall $(helm ls --short)'
 
 # Kubectl
 alias krc='kubectl config current-context' \
-  krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
-  kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
-  ksn='kubectl config set-context --current --namespace' \
-  kdcn='command kubectl delete ns "$(krn)"' \
-  kccn='command kubectl create ns "$(krn)"'
+	krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
+	kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
+	ksn='kubectl config set-context --current --namespace' \
+	kdcn='command kubectl delete ns "$(krn)"' \
+	kccn='command kubectl create ns "$(krn)"'
 
 # Docker
 alias drr="docker run -it --rm" \
-  dprune="docker stop \$(docker ps -q); docker system prune -a"
+	dprune="docker stop \$(docker ps -q); docker system prune -a"
 
 # Git
 alias gco="git checkout" \
-  gcb="git checkout -b" \
-  gbl="git branch" \
-  gpr="git pull --rebase" \
-  gca="git commit --amend" \
-  gsp="git stash pop" \
-  gspm="git stash push -m" \
-  push="git push origin HEAD:refs/for/master" \
-  gca="git commit --amend"
+	gcb="git checkout -b" \
+	gbl="git branch" \
+	gpr="git pull --rebase" \
+	gca="git commit --amend" \
+	gsp="git stash pop" \
+	gspm="git stash push -m" \
+	push="git push origin HEAD:refs/for/master" \
+	gca="git commit --amend"
 
 # Git switch branch
 gsb() {
-  [ -n "$1" ] && { git switch "$1"; return; }
-  local bs b
-  bs=$(git --no-pager branch -vv) &&
-    b=$(echo "$bs" | grep -v '^\*' | fzf-tmux -p +m) &&
-    git switch "$(echo "$b" | awk '{print $1}')"
+	[ -n "$1" ] && {
+		git switch "$1"
+		return
+	}
+	local bs b
+	bs=$(git --no-pager branch -vv) &&
+		b=$(echo "$bs" | grep -v '^\*' | fzf-tmux -p +m) &&
+		git switch "$(echo "$b" | awk '{print $1}')"
 }
 
 # Git branch delete
 gbd() {
-  local bs b
-  bs=$(git --no-pager branch -vv | grep -v '\Wmaster\W\|\Wmain\W') &&
-    b=$(echo "$bs" | fzf-tmux -p -m) &&
-    echo "$b" | awk '{print $1}' | grep -v "\*" | sed "s/.* //" | xargs -I{} git branch -D '{}'
+	local bs b
+	bs=$(git --no-pager branch -vv | grep -v '\Wmaster\W\|\Wmain\W') &&
+		b=$(echo "$bs" | fzf-tmux -p -m) &&
+		echo "$b" | awk '{print $1}' | grep -v "\*" | sed "s/.* //" | xargs -I{} git branch -D '{}'
 }
 
 # Git commmit hash
 gcs() {
-  local c cs
-  cs=$(git log --color=always --pretty=oneline --abbrev-commit --reverse) &&
-    c=$(echo "$cs" | fzf-tmux -p --tac +s +m -e --ansi --reverse) &&
-    echo -n "${c%%\ *}"
+	local c cs
+	cs=$(git log --color=always --pretty=oneline --abbrev-commit --reverse) &&
+		c=$(echo "$cs" | fzf-tmux -p --tac +s +m -e --ansi --reverse) &&
+		echo -n "${c%%\ *}"
 }
 
 # Git browse
 gbrowse() {
-  git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
-    fzf --ansi --no-sort --reverse --tiebreak=index +m \
-      --bind 'ctrl-m:execute: git show --color=always $(echo {} | cut -d" " -f2)' \
-      --preview 'git show --stat --color=always $(echo {} | cut -d" " -f2)' \
-      --preview-window=right,60
+	git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
+		fzf --ansi --no-sort --reverse --tiebreak=index +m \
+			--bind 'ctrl-m:execute: git show --color=always $(echo {} | cut -d" " -f2)' \
+			--preview 'git show --stat --color=always $(echo {} | cut -d" " -f2)' \
+			--preview-window=right,60
 }
 
 # Make common commands shorter
 alias \
-  q="exit" \
-  c="clear" \
-  s="sudo" \
-  e="\$EDITOR" \
-  g="git" \
-  k="kubectl" \
-  p="paccy" \
-  se="sudoedit" \
-  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
-  bs='source ~/.bashrc' \
-  lg='lazygit'
+	q="exit" \
+	c="clear" \
+	s="sudo" \
+	e="\$EDITOR" \
+	g="git" \
+	k="kubectl" \
+	p="paccy" \
+	se="sudoedit" \
+	sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
+	gop='go install -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+	gob='go build -v -a -ldflags "-s -w" -gcflags=all=-trimpath=$(pwd) -asmflags=all=-trimpath=$(pwd)' \
+	bs='source ~/.bashrc' \
+	lg='lazygit'
 
 # Switch directory
 sd() {
-  local t
-  t="$({ fd . --type directory -I 2>/dev/null || find -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
+	local t
+	t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
+	[ -n "$t" ] && cd "$t" && ls
 }
 
 sd.() {
-  local t
-  t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
+	local t
+	t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
+	[ -n "$t" ] && cd "$t" && ls
 }
 
 # Better flags
 alias \
-  grep="grep --color=auto" \
-  diff="diff --color=auto" \
-  ls="ls -hN --color=auto --group-directories-first" \
-  ll="ls -l" \
-  ip="ip -color=auto" \
-  cp="cp -i" \
-  mv="mv -i" \
-  rm="rm -v" \
-  mkdir="mkdir -p" \
-  free="free -h" \
-  df="df -h" \
-  upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
-  dd="dd bs=512k" \
-  gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto'
+	grep="grep --color=auto" \
+	diff="diff --color=auto" \
+	ls="ls -hN --color=auto --group-directories-first" \
+	ll="ls -l" \
+	ip="ip -color=auto" \
+	cp="cp -i" \
+	mv="mv -i" \
+	rm="rm -v" \
+	mkdir="mkdir -p" \
+	free="free -h" \
+	df="df -h" \
+	upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
+	dd="dd bs=512k" \
+	gcc="gcc -Wall -W -pedantic" \
+	htop="htop -s PERCENT_CPU" \
+	mpv='mpv --hwdec=auto'
 
 alias \
-  ..='cd ..' \
-  ...='cd ../..' \
-  ....='cd ../../..' \
-  h='cd ~' \
-  bin='cd ~/dotfiles/.local/bin' \
-  dl='cd ~/Downloads' \
-  dots='cd ~/dotfiles' \
-  config='cd ~/dotfiles/.config'
+	..='cd ..' \
+	...='cd ../..' \
+	....='cd ../../..' \
+	h='cd ~' \
+	bin='cd ~/dotfiles/.local/bin' \
+	dl='cd ~/Downloads' \
+	dots='cd ~/dotfiles' \
+	config='cd ~/dotfiles/.config'
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
 
@@ -148,3 +151,4 @@ command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 
 # FZF aliases
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+
