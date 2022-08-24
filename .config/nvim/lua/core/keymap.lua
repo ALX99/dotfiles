@@ -65,7 +65,7 @@ utils.map("n", "<S-k>", ":tabprevious<CR>")
 utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 if (not vim.g.vscode) then
   -- These do not work correctly with vscode
-  utils.map("n", "<leader>w", "<cmd>w<CR>")
+  utils.map("n", "<leader>w", "<cmd>close<CR>")
   utils.map("n", "<leader>q", "<cmd>bd<CR>")
 end
 
