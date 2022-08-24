@@ -3,7 +3,6 @@ local plugins = {
 
   -- Functionality
   ['junegunn/vim-easy-align'] = {},
-  ['core/qc.lua'] = {
   ['alx99/qc.lua'] = {
     config = function()
       require('qc').setup {
@@ -104,6 +103,12 @@ local plugins = {
     config = function() require('plugins.configs.telescope') end,
     tag = '0.1.0',
     requires = 'nvim-lua/plenary.nvim'
+  },
+
+  -- Code actions for telescope
+  ['nvim-telescope/telescope-ui-select.nvim'] = {
+    disable = vim.g.vscode,
+    requires = 'nvim-telescope/telescope.nvim'
   },
 }
 
