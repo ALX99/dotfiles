@@ -45,3 +45,5 @@ utils.map("n", "<leader><leader>d", function()
     sorter = conf.file_sorter({}),
   }):find()
 end)
+
+telescope.load_extension("ui-select")
