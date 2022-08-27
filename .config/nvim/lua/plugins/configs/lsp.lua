@@ -15,8 +15,6 @@ local capabilities = cmp_lsp.update_capabilities(vim.lsp.protocol.make_client_ca
 -- This is a callback function that will e executed when a
 -- language server is attached to a buffer.
 local on_attach = function(client, bufnr)
-  -- Enable completion triggered by <c-x><c-o>
-  -- vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
   -- https://sbulav.github.io/til/til-neovim-highlight-references/
   if client.server_capabilities.documentHighlightProvider then
     local group = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
@@ -35,6 +33,18 @@ local on_attach = function(client, bufnr)
     })
   end
 
+
+  -- Formatting for rust and lua
+  if client.resolved_capabilities.document_formatting then
+    local client_name = client.name
+    if client_name == "sumneko_lua" or client_name == "rust_analyzer" then
+      vim.api.nvim_create_autocmd("InsertLeavePre", {
+        group = vim.api.nvim_create_augroup("AutoFmt", { clear = true }),
+        pattern = "*",
+        callback = vim.lsp.buf.formatting_sync
+      })
+    end
+  end
   -- Mappings.
   -- See `:help vim.lsp.*` for documentation on any of the below functions
   local bufopts = { noremap = true, silent = true, buffer = bufnr }
