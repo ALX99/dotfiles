@@ -58,14 +58,10 @@ local plugins = {
   },
 
   -- Snippet engine, configured with cmp
-  ['L3MON4D3/LuaSnip'] = {
-    disable = vim.g.vscode,
-  },
+  ['L3MON4D3/LuaSnip'] = { disable = vim.g.vscode, },
 
   -- Snippet engine support for cmp, configured with cmp
-  ['saadparwaiz1/cmp_luasnip'] = {
-    disable = vim.g.vscode,
-  },
+  ['saadparwaiz1/cmp_luasnip'] = { disable = vim.g.vscode },
 
   -- Autocompletion
   ['hrsh7th/nvim-cmp'] = {
