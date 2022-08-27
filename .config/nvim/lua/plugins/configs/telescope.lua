@@ -32,6 +32,11 @@ telescope.setup {
       },
     },
   },
+  pickers = {
+    lsp_references = {
+      initial_mode = "normal",
+    }
+  }
 }
 
 -- Open any dotfiles

@@ -45,26 +45,26 @@ local on_attach = function(client, bufnr)
       })
     end
   end
+
   -- Mappings.
   -- See `:help vim.lsp.*` for documentation on any of the below functions
   local bufopts = { noremap = true, silent = true, buffer = bufnr }
-  -- vim.api.nvim_buf_set_keymap(bufnr, "n", "gd", "<cmd>tab split | lua vim.lsp.buf.definition()<CR>", opts)
-  utils.map('n', 'gd', vim.lsp.buf.definition, bufopts)
-  utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts)
+  utils.map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', bufopts) -- vim.lsp.buf.definition
+  utils.map('n', 'gr', '<cmd>Telescope lsp_references<CR>', bufopts) -- vim.lsp.buf.references
+  utils.map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', bufopts) --vim.lsp.buf.implementation
+  utils.map('n', 'gt', vim.lsp.buf.type_definition, bufopts)
+--   utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
   utils.map('n', 'gh', vim.lsp.buf.hover, bufopts)
-  utils.map('n', 'gi', vim.lsp.buf.implementation, bufopts)
   utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
   utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
   utils.map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
   utils.map('n', '<leader>wl', function()
     print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
   end, bufopts)
-  utils.map('n', '<leader>D', vim.lsp.buf.type_definition, bufopts)
   utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
   utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
-  utils.map('n', 'gr', vim.lsp.buf.references, bufopts)
   --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
-  utils.map('n', 'gf', vim.lsp.buf.formatting, bufopts)
+  utils.map('n', '=', vim.lsp.buf.formatting, bufopts)
 
   -- https://github.com/ray-x/lsp_signature.nvim#configure
   lsp_signature.on_attach({
