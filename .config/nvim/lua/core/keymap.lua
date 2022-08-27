@@ -28,11 +28,12 @@ utils.map({ "n", "x" }, "l", "n")
 utils.map({ "n", "x" }, "L", "N")
 
 -- Esc is hard to press
-utils.map("i", "kk", "<Esc>")
+utils.map({ "i", "t" }, "kk", "<Esc>")
 utils.map("i", "tn", "<Esc>")
 
 -- Yep, I go backwards quite a lot
-utils.map("n", "<leader>b", "<C-O>")
+utils.map("n", "<leader>b", "<C-o>")
+utils.map("n", "<leader>B", "<C-i>")
 
 ------------
 -- Visual --
@@ -49,6 +50,7 @@ utils.map("n", "<leader>wns", "<cmd>new<CR>")
 utils.map("n", "<leader>wnv", "<cmd>vnew<CR>")
 utils.map("n", "<leader>wo", "<cmd>vsplit<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
 utils.map("n", "<leader>wO", "<cmd>split<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
+utils.map("n", "<leader>w=", "<C-w>=")
 utils.map("n", "<leader>k", "<C-w>h")
 utils.map("n", "<leader>n", "<C-w>j")
 utils.map("n", "<leader>e", "<C-w>k")
@@ -81,6 +83,7 @@ end
 utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
 utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
 utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
+utils.map("n", "<leader>T", ":ToggleTerm direction=tab<CR>")
 
 -- Terminal mode mappings
 utils.map("t", "<C-\\><C-n>", "<nop>")
