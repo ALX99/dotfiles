@@ -17,6 +17,23 @@ local capabilities = cmp_lsp.update_capabilities(vim.lsp.protocol.make_client_ca
 local on_attach = function(client, bufnr)
   -- Enable completion triggered by <c-x><c-o>
   -- vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
+  -- https://sbulav.github.io/til/til-neovim-highlight-references/
+  if client.server_capabilities.documentHighlightProvider then
+    local group = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
+    vim.api.nvim_clear_autocmds({ buffer = bufnr, group = group })
+    vim.api.nvim_create_autocmd("CursorHold", {
+      group = group,
+      callback = vim.lsp.buf.document_highlight,
+      buffer = bufnr,
+      desc = "Document Highlight",
+    })
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      group = group,
+      callback = vim.lsp.buf.clear_references,
+      buffer = bufnr,
+      desc = "Clear All the References",
+    })
+  end
 
   -- Mappings.
   -- See `:help vim.lsp.*` for documentation on any of the below functions
@@ -49,8 +66,6 @@ local on_attach = function(client, bufnr)
       border = "rounded"
     }
   }, bufnr)
-
-  -- todo https://sbulav.github.io/til/til-neovim-highlight-references/
 end
 
 ----------------------
