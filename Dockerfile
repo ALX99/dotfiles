@@ -19,13 +19,13 @@ RUN set -x && apk add --no-cache \
   vscode-langservers-extracted  \
   bash-language-server \
   yaml-language-server \
+  pyright \
   && git clone --depth 1 https://github.com/wbthomason/packer.nvim \
   /home/owo/.local/share/nvim/site/pack/packer/start/packer.nvim \
   && adduser --disabled-password -h /home/owo -s /bin/bash owo \
   && chown -R owo:owo /home/owo \
   && su - owo -c '\
   export USER=owo \
-  && pip install pyright \
   && nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync" \
   && nvim --headless -c "TSUpdate" -c q \
   && nvim --headless -c "NightfoxCompile" -c q \
