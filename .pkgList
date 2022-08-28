@@ -8,7 +8,6 @@ anki
 arandr
 arch-install-scripts
 arp-scan
-atool # unarchive tool
 bash-completion
 bash-language-server
 bat # better cat
@@ -18,6 +17,7 @@ bind
 bmon # Network tool
 brave-bin
 breeze-gtk
+bubblewrap
 calc
 cantarell-fonts
 clang
@@ -49,9 +49,9 @@ github-cli
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
+go-yq
 helix
 helm
-hping
 htop
 hyperfine
 imv
@@ -72,6 +72,7 @@ libxft-bgra
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
 lxappearance # Used to customize GTK theme
+lynis
 macchanger
 maim # sceenshot utility
 man-db
@@ -82,6 +83,7 @@ mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 neofetch
+neovide
 neovim
 net-tools
 nload # Network tool
@@ -116,6 +118,7 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 stow
+strace
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
@@ -123,6 +126,7 @@ tmux
 tokei
 traceroute
 tree
+trivy
 ttf-cascadia-code # programming font
 ttf-dejavu
 ttf-fira-code
@@ -144,7 +148,6 @@ websocat
 wget
 which
 whois
-wireshark-qt
 x86_energy_perf_policy
 xclip
 xdg-utils
