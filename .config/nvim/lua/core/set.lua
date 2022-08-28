@@ -127,7 +127,6 @@ vim.keymap.set({'n', 'i'}, "<C-BS>", function() ResetGuiFont() end, opts)
 
 -- TODO stuff left over from general.vim
 --au! BufWritePost $MYVIMRC source %      " auto source when writing to init.vm alternatively you can run :source $MYVIMRC
--- yntax enable             -- Enables syntax highlighing
 -- set breakindent                         -- Wrap lines at same indent level
 -- set iskeyword+=-          -- treat dash separated words as a word text object--
 -- set formatoptions-=cro    -- Stop newline continution of comments
