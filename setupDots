@@ -3,65 +3,72 @@ set -euo pipefail
 d="$(pwd)"
 
 minimal_config() {
-    stow .config/ -t ~/.config/
-    stow .local/ -t ~/.local/
-    stow shell/ -t ~
-    sudo stow shell -t /root/
+	stow .config/ -t ~/.config/
+	stow .local/ -t ~/.local/
+	stow shell/ -t ~
+	sudo stow shell -t /root/
 }
 
 general_config() {
-    ln -sf "$d"/.gitconfig ~/
+	ln -sf "$d"/.gitconfig ~/
 
-    # Export new path so we get access to everything in bin
-    export PATH="$PATH:$d/.local/bin"
+	# Export new path so we get access to everything in bin
+	export PATH="$PATH:$d/.local/bin"
 
-    # Return if we are running in WSL
-    ~/.local/bin/iswsl && return
-    # Keymap
-    sudo ln -sf "$d"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-    # Touchpad
-    sudo ln -sf "$d"/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
-    # Prefer RAM over swap
-    sudo ln -sf "$d"/misc/99-swappiness.conf /etc/sysctl.d/
+	# Return if we are running in WSL
+	~/.local/bin/iswsl && return
+	# Keymap
+	sudo ln -sf "$d"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+	# Touchpad
+	sudo ln -sf "$d"/misc/40-libinput.conf /etc/X11/xorg.conf.d/40-libinput.conf
+	# Prefer RAM over swap
+	sudo ln -sf "$d"/misc/99-swappiness.conf /etc/sysctl.d/
 }
 
 arch_config() {
-    sudo pacman -S stow dash --noconfirm --needed
-    # Pacman setup
-    sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
-    sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+	[ ! -x "$(command -v pacman)" ] && return
 
-    ! ~/.local/bin/iswsl && stow x/
-    sudo ln -sf "$d"/hooks /etc/pacman.d/
+	sudo pacman -S stow dash --noconfirm --needed
+	# Pacman setup
+	sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
+	sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
-    # Since dash is faster than bash
-    sudo ln -sfT dash /usr/bin/sh
+	! ~/.local/bin/iswsl && stow x/
+	sudo ln -sf "$d"/hooks /etc/pacman.d/
+
+	# Since dash is faster than bash
+	sudo ln -sfT dash /usr/bin/sh
 }
 
 arch_dep() {
-    ~/.local/bin/paccy -u
-    ~/.local/bin/paccy -ia
+	[ ! -x "$(command -v pacman)" ] && return
+
+	~/.local/bin/paccy -u
+	~/.local/bin/paccy -ia
 }
 
 # Cache keys
 ssh_agent() {
-    mkdir ~/.ssh/
-    echo "AddKeysToAgent yes" >>~/.ssh/config
-    ln -sf "$(pwd)"/misc/.pam_environment ~/
-    systemctl --user enable ssh-agent
-    systemctl --user start ssh-agent
+	mkdir ~/.ssh/
+	echo "AddKeysToAgent yes" >>~/.ssh/config
+	ln -sf "$(pwd)"/misc/.pam_environment ~/
+	systemctl --user enable ssh-agent
+	systemctl --user start ssh-agent
 }
 
 # Get rid of the stupid KDE wallet thing
 kde() {
-    kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
-    kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
+	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
+	kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 }
 
 main() {
-    minimal_config
-    arch_config
-    general_config
-    arch_dep
-    ! ~/.local/bin/iswsl && ssh_agent
+	minimal_config
+	arch_config
+	general_config
+	arch_dep
+	! ~/.local/bin/iswsl && ssh_agent
 }
+
+minimal_config
+
