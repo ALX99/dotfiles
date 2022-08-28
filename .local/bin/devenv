@@ -2,7 +2,7 @@
 
 tmux -S .tmux new -d
 
-args=(run -it --rm --network none -v "$PWD":/wrk -w /wrk)
+args=(run -it --rm --network none --cap-drop all -v "$PWD":/wrk -w /wrk)
 
 case "$1" in
 go)
