@@ -2,8 +2,7 @@ local utils = require('core.utils')
 
 local lspconfig = utils.require('lspconfig')
 local cmp_lsp = utils.require('cmp_nvim_lsp')
-local lsp_signature = utils.require('lsp_signature')
-if not (lspconfig and cmp_lsp and lsp_signature) then return end
+if not (lspconfig and cmp_lsp) then return end
 
 -- nvim-cmp capabiltiies to pass to lspconfig (announce what features the editor can support)
 local capabilities = cmp_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
@@ -53,7 +52,7 @@ local on_attach = function(client, bufnr)
   utils.map('n', 'gr', '<cmd>Telescope lsp_references<CR>', bufopts) -- vim.lsp.buf.references
   utils.map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', bufopts) --vim.lsp.buf.implementation
   utils.map('n', 'gt', vim.lsp.buf.type_definition, bufopts)
---   utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
+  --   utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
   utils.map('n', 'gh', vim.lsp.buf.hover, bufopts)
   utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
   utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
@@ -65,17 +64,6 @@ local on_attach = function(client, bufnr)
   utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
   --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
   utils.map('n', '=', vim.lsp.buf.formatting, bufopts)
-
-  -- https://github.com/ray-x/lsp_signature.nvim#configure
-  lsp_signature.on_attach({
-    bind = true, -- This is mandatory, otherwise border config won't get registered.
-    floating_window = true,
-    always_trigger = true,
-    hint_prefix = "> ",
-    handler_opts = {
-      border = "rounded"
-    }
-  }, bufnr)
 end
 
 ----------------------

@@ -30,7 +30,7 @@ local plugins = {
     disable = true,
   },
   ['rebelot/kanagawa.nvim'] = {
-    disable = vim.g.vscode,
+    disable = true,
     -- config = function() vim.cmd("colorscheme kanagawa") end,
   },
   ['EdenEast/nightfox.nvim'] = {
@@ -47,7 +47,7 @@ local plugins = {
 
   -- Eyecandy for notifications
   ['rcarriga/nvim-notify'] = {
-    disable = vim.g.vscode,
+    disable = true,
     config = function() require('plugins.configs.notify') end,
   },
 
@@ -78,7 +78,7 @@ local plugins = {
   ['neovim/nvim-lspconfig'] = {
     disable = vim.g.vscode,
     config = function() require('plugins.configs.lsp') end,
-    requires = { 'hrsh7th/cmp-nvim-lsp', 'ray-x/lsp_signature.nvim' },
+    requires = { 'hrsh7th/cmp-nvim-lsp' },
   },
 
   -- Tree file manager
