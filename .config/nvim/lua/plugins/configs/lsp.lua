@@ -33,17 +33,6 @@ local on_attach = function(client, bufnr)
   end
 
 
-  -- Formatting for rust and lua
-  if client.resolved_capabilities.document_formatting then
-    local client_name = client.name
-    if client_name == "sumneko_lua" or client_name == "rust_analyzer" then
-      vim.api.nvim_create_autocmd("InsertLeavePre", {
-        group = vim.api.nvim_create_augroup("AutoFmt", { clear = true }),
-        pattern = "*",
-        callback = vim.lsp.buf.formatting_sync
-      })
-    end
-  end
 
   -- Mappings.
   -- See `:help vim.lsp.*` for documentation on any of the below functions
@@ -64,6 +53,30 @@ local on_attach = function(client, bufnr)
   utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
   --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
   utils.map('n', '=', vim.lsp.buf.formatting, bufopts)
+
+
+
+
+
+  -- Auto format
+  if client.resolved_capabilities.document_formatting then
+    local client_name = client.name
+    local when = ""
+
+    if client_name == "sumneko_lua" or client_name == "gopls" then
+      when = "InsertLeavePre"
+    elseif client_name == "rust_analyzer" then
+      when = "BufWritePre"
+    else
+      return
+    end
+
+    vim.api.nvim_create_autocmd(when, {
+      group = vim.api.nvim_create_augroup("AutoFmt", { clear = true }),
+      pattern = "*",
+      callback = vim.lsp.buf.formatting_sync
+    })
+  end
 end
 
 ----------------------
