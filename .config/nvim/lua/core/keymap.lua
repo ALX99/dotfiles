@@ -107,5 +107,5 @@ utils.map('n', '[d', vim.diagnostic.goto_prev, opts)
 utils.map('n', ']d', vim.diagnostic.goto_next, opts)
 --utils.map('n', '<space>a', vim.diagnostic.setloclist, opts)
 
-utils.map("n", "<leader>lg", "<cmd>Telescope live_grep<CR>")
+utils.map("n", "<leader>fg", "<cmd>Telescope live_grep<CR>")
 utils.map({ "n", "x" }, "ga", "<Plug>(EasyAlign)")
