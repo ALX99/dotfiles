@@ -18,7 +18,7 @@ alias \
 	gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
 	cheat='_x() { curl cht.sh/"$1"; }; _x' \
 	tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
-
+#
 # Helm
 alias hls="helm ls" \
 	hdu="helm dependency update" \
@@ -32,7 +32,8 @@ alias krc='kubectl config current-context' \
 	kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
 	ksn='kubectl config set-context --current --namespace' \
 	kdcn='command kubectl delete ns "$(krn)"' \
-	kccn='command kubectl create ns "$(krn)"'
+	kccn='command kubectl create ns "$(krn)"' \
+	k='kubectl'
 
 # Docker
 alias drr="docker run -it --rm" \
@@ -147,6 +148,7 @@ alias \
 [ -x "$(command -v bat)" ] && alias cat="bat"
 
 command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
+command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 
 # FZF aliases
