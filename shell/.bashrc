@@ -15,6 +15,15 @@ function parse_git_branch {
 }
 export PS1='\[\e[38;5;211m\]\W\[\e[\033[38;5;48m\]$(parse_git_branch)\[\e[\033[00m\] ><> '
 
+# autocd autocd
+# cdspell fix minor spelling mistakes in dirname of a cd command
+# dirspell Bash attempts spelling correction on directory names during word completion if the directory name initially supplied does not exist.
+# histappend append to $HISTFILE instead of overwriting it
+# checkjobs check if there are any stopped or running jobs before exiting an interactive shell
+# checkwinsize check the window size after each external command and, if necessary, updates the values of $LINES and $COLUMNSk
+# cmdhist save multiple-line commands in the same history entry
+shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist
+
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then
 	. "$HOME/.aliasrc"
