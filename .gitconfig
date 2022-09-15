@@ -36,7 +36,8 @@
     conflictstyle = diff3
 
 [diff]
-    colorMoved = default
+  colorMoved = default
+  submodule = log
 
 [apply]
     whitespace = fix
@@ -48,3 +49,5 @@
 # Push over SSH instead of HTTPS
 [url "ssh://git@github.com/"]
         pushInsteadOf = https://github.com/
+[status]
+	submoduleSummary = true
