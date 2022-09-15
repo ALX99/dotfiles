@@ -3,6 +3,7 @@ local g = vim.g
 local o = vim.o
 
 -- use :h <command> for help info
+o.shell = 'bash'
 
 g.mapleader = " "
 -- o.guicursor = "" -- No GUI cursor
@@ -100,7 +101,7 @@ g.gui_font_size = vim.g.gui_font_default_size
 g.gui_font_face = "Fira Code Retina"
 
 RefreshGuiFont = function()
-  vim.opt.guifont = string.format("%s:h%s",vim.g.gui_font_face, vim.g.gui_font_size)
+  vim.opt.guifont = string.format("%s:h%s", vim.g.gui_font_face, vim.g.gui_font_size)
 end
 
 ResizeGuiFont = function(delta)
@@ -108,7 +109,7 @@ ResizeGuiFont = function(delta)
   RefreshGuiFont()
 end
 
-ResetGuiFont = function ()
+ResetGuiFont = function()
   vim.g.gui_font_size = vim.g.gui_font_default_size
   RefreshGuiFont()
 end
@@ -120,9 +121,9 @@ ResetGuiFont()
 
 local opts = { noremap = true, silent = true }
 
-vim.keymap.set({'n', 'i'}, "<C-+>", function() ResizeGuiFont(1)  end, opts)
-vim.keymap.set({'n', 'i'}, "<C-->", function() ResizeGuiFont(-1) end, opts)
-vim.keymap.set({'n', 'i'}, "<C-BS>", function() ResetGuiFont() end, opts)
+vim.keymap.set({ 'n', 'i' }, "<C-+>", function() ResizeGuiFont(1) end, opts)
+vim.keymap.set({ 'n', 'i' }, "<C-->", function() ResizeGuiFont(-1) end, opts)
+vim.keymap.set({ 'n', 'i' }, "<C-BS>", function() ResetGuiFont() end, opts)
 
 
 -- TODO stuff left over from general.vim
