@@ -3,13 +3,13 @@ res="$(amixer sget Master)"
 p="$(echo "$res" | awk -F"[][]" '/dB/ { print $2 }')"
 p="${p::-1}"
 if [ "$p" -gt 66 ]; then
-    i=''
+  i=''
 elif [ "$p" -gt 66 ]; then
-    i='􏚨'
+  i='􏚨'
 else
-    i=''
+  i=''
 fi
 if echo "$res" | grep "off" >/dev/null 2>&1; then
-    i=''
+  i=''
 fi
 printf "%s %s" "$i" "$p%"

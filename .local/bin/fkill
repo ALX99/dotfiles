@@ -1,18 +1,18 @@
 #!/bin/bash
 
 [ "$UID" != "0" ] &&
-    pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}') ||
-    pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+  pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}') ||
+  pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
 
 if [ "x$pid" != "x" ]; then
-    # Send SIGTERM
-    echo "$pid" | xargs kill -"${1:-15}"
+  # Send SIGTERM
+  echo "$pid" | xargs kill -"${1:-15}"
 
-    (
-        sleep 10
-        for p in $pid; do
-            # Send SIGKILL
-            ps --pid "$p" &>/dev/null && kill -s 9 "$p"
-        done
-    ) &
+  (
+    sleep 10
+    for p in $pid; do
+      # Send SIGKILL
+      ps --pid "$p" &>/dev/null && kill -s 9 "$p"
+    done
+  ) &
 fi

@@ -3,9 +3,9 @@
 
 sudo x86_energy_perf_policy --hwp-enable
 if [ "$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor | head -n1)" = "performance" ]; then
-    sudo x86_energy_perf_policy performance
-    echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+  sudo x86_energy_perf_policy performance
+  echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 else
-    sudo x86_energy_perf_policy balance-performance
-    echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+  sudo x86_energy_perf_policy balance-performance
+  echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 fi

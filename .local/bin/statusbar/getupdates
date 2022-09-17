@@ -1,6 +1,6 @@
 #!/bin/sh
 
 # Prints the amount of available upgradable packages
-arch=$(checkupdates 2> /dev/null | wc -l ) || arch=0
-aur=$(yay -Qum 2> /dev/null | wc -l) || aur=0
+arch=$(checkupdates 2>/dev/null | wc -l) || arch=0
+aur=$(yay -Qum 2>/dev/null | wc -l) || aur=0
 printf "%d" "$((arch + aur))"

@@ -6,11 +6,10 @@ args=(run -it --rm --network none --cap-drop all -v "$PWD":/wrk -w /wrk)
 
 case "$1" in
 go)
-	args+=(-v "$HOME"/go/pkg:/home/owo/go/pkg:ro)
-	args+=(-e GOPRIVATE)
-	;;
+  args+=(-v "$HOME"/go/pkg:/home/owo/go/pkg:ro)
+  args+=(-e GOPRIVATE)
+  ;;
 esac
 
 docker "${args[@]}" alx99/dev bash
 rm .tmux
-

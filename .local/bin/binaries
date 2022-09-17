@@ -1,5 +1,5 @@
 #!/bin/sh
 
 for res in $(pacman -Qql "$1"); do
-  [ ! -d "$res" ] && [ -x "$res" ] && echo "$res";
+  [ ! -d "$res" ] && [ -x "$res" ] && echo "$res"
 done

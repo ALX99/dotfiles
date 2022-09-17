@@ -4,8 +4,8 @@
 set -eou pipefail
 
 iswsl &&
-    pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
-    pkgList=${PKGLIST:-~/dotfiles/.pkgList}
+  pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
+  pkgList=${PKGLIST:-~/dotfiles/.pkgList}
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
@@ -31,177 +31,177 @@ changed by setting the PKGLIST environtment variable
 
 # Write the package to the pkgList
 log_pkg() {
-    # Only do something if the package already isn't there
-    if ! cut -d ' ' -f1 "$pkgList" | grep -w "$1\$" &>/dev/null; then
-        echo "Added '$1' to log"
-        if [[ -z ${comment:-} ]]; then
-            echo "$1" >>"$pkgList"
-        else
-            echo "$1 # $comment" >>"$pkgList"
-        fi
+  # Only do something if the package already isn't there
+  if ! cut -d ' ' -f1 "$pkgList" | grep -w "$1\$" &>/dev/null; then
+    echo "Added '$1' to log"
+    if [[ -z ${comment:-} ]]; then
+      echo "$1" >>"$pkgList"
     else
-        return
+      echo "$1 # $comment" >>"$pkgList"
     fi
+  else
+    return
+  fi
 
-    # Sort and remove dupes
-    sort -uo "$pkgList" "$pkgList"
+  # Sort and remove dupes
+  sort -uo "$pkgList" "$pkgList"
 }
 
 # Read packages to either install or remove
 read_pkgs() {
-    while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
-        pkgs+="$1 "
-        shift
-    done
-    echo "$pkgs"
+  while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
+    pkgs+="$1 "
+    shift
+  done
+  echo "$pkgs"
 }
 
 # Remove a tracked package
 # 1: package(s) to be untracked
 remove_tracked() {
-    for pkg in "$@"; do
-        sed -i "/$pkg/d" "$pkgList"
-        echo "Removed '$pkg' from log"
-    done
+  for pkg in "$@"; do
+    sed -i "/$pkg/d" "$pkgList"
+    echo "Removed '$pkg' from log"
+  done
 }
 
 # Installs and logs packages
 install_pkgs() {
-    local installed
-    installed="$(pacman -Qq)"
-    for pkg in "$@"; do
-        # Make sure it was installed before logging it
-        echo "$installed" | grep -w "$pkg\$" >/dev/null 2>&1 && log_pkg "$pkg"
-    done
+  local installed
+  installed="$(pacman -Qq)"
+  for pkg in "$@"; do
+    # Make sure it was installed before logging it
+    echo "$installed" | grep -w "$pkg\$" >/dev/null 2>&1 && log_pkg "$pkg"
+  done
 }
 # Installs all the packages listed under the packagelist
 install() {
-    yay -S --needed "$(get_tracked)"
+  yay -S --needed "$(get_tracked)"
 }
 # Get tracked packages under the variable 'tracked'
 get_tracked() {
-    cut -d ' ' -f1 "$pkgList"
+  cut -d ' ' -f1 "$pkgList"
 }
 # Get untracked packages under the variable 'untracked'
 get_untracked() {
-    diff --new-line-format="" --unchanged-line-format="" \
-        <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base-devel | sort)) \
-        <(get_tracked) || true
+  diff --new-line-format="" --unchanged-line-format="" \
+    <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base-devel | sort)) \
+    <(get_tracked) || true
 }
 main() {
-    case "$1" in
-    -h | --help)
-        echo "$usage"
-        exit 0
-        ;;
-    -S)
-        shift
-        read -rp "Comment to add for these package(s): " comment
+  case "$1" in
+  -h | --help)
+    echo "$usage"
+    exit 0
+    ;;
+  -S)
+    shift
+    read -rp "Comment to add for these package(s): " comment
 
-        read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
-        yay -S "${pkgs[@]}"
-        install_pkgs "${pkgs[@]}"
+    read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
+    yay -S "${pkgs[@]}"
+    install_pkgs "${pkgs[@]}"
 
-        exit 0
-        ;;
-    --browse)
-        comm -23 <(pacman -Qqt | sort) <({
-            pacman -Qqg base-devel
-            expac -l '\n' '%E' base
-        } | sort -u) | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
-        ;;
-    --summary)
-        printf "You have:\n"
+    exit 0
+    ;;
+  --browse)
+    comm -23 <(pacman -Qqt | sort) <({
+      pacman -Qqg base-devel
+      expac -l '\n' '%E' base
+    } | sort -u) | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
+    ;;
+  --summary)
+    printf "You have:\n"
 
-        mapfile -t explicit < <(pacman -Qe)
-        printf "\t%s explicitly installed packages\n" "${#explicit[@]}"
+    mapfile -t explicit < <(pacman -Qe)
+    printf "\t%s explicitly installed packages\n" "${#explicit[@]}"
 
-        mapfile -t foreign < <(pacman -Qm)
-        printf "\t%s foreign packages\n" "${#foreign[@]}"
+    mapfile -t foreign < <(pacman -Qm)
+    printf "\t%s foreign packages\n" "${#foreign[@]}"
 
-        mapfile -t orphans < <(pacman -Qtdq)
-        printf "\t%s orphans\n" "${#orphans[@]}"
-        ;;
-    -Rns)
-        shift
-        read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
+    mapfile -t orphans < <(pacman -Qtdq)
+    printf "\t%s orphans\n" "${#orphans[@]}"
+    ;;
+  -Rns)
+    shift
+    read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
 
-        yay -Rns "${pkgs[@]}" &&
-            remove_tracked "${pkgs[@]}"
+    yay -Rns "${pkgs[@]}" &&
+      remove_tracked "${pkgs[@]}"
 
-        exit 0
-        ;;
-    -la | --list-all)
-        pacman -Qq | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
-        exit 0
-        ;;
-    -lt | --list-tracked)
-        "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_tracked)
-        exit 0
-        ;;
-    -lu | --list-untracked)
-        "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_untracked)
-        exit 0
-        ;;
-    -rt | --remove-tracked)
-        for pkg in $("${preview[@]}" -m < <(get_tracked)); do
-            pkgs+=("$pkg")
-        done
-        [ ${#pkgs[@]} -eq 0 ] && exit
+    exit 0
+    ;;
+  -la | --list-all)
+    pacman -Qq | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
+    exit 0
+    ;;
+  -lt | --list-tracked)
+    "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_tracked)
+    exit 0
+    ;;
+  -lu | --list-untracked)
+    "${preview[@]}" --bind 'enter:execute(pacman -Qil {} | less)' < <(get_untracked)
+    exit 0
+    ;;
+  -rt | --remove-tracked)
+    for pkg in $("${preview[@]}" -m < <(get_tracked)); do
+      pkgs+=("$pkg")
+    done
+    [ ${#pkgs[@]} -eq 0 ] && exit
 
-        yay -Rns "${pkgs[@]}" &&
-            remove_tracked "${pkgs[@]}"
+    yay -Rns "${pkgs[@]}" &&
+      remove_tracked "${pkgs[@]}"
 
-        exit 0
-        ;;
-    -ru | --remove-untracked)
-        for pkg in $("${preview[@]}" -m < <(get_untracked)); do
-            pkgs+=("$pkg")
-        done
-        [ ${#pkgs[@]} -eq 0 ] && exit
+    exit 0
+    ;;
+  -ru | --remove-untracked)
+    for pkg in $("${preview[@]}" -m < <(get_untracked)); do
+      pkgs+=("$pkg")
+    done
+    [ ${#pkgs[@]} -eq 0 ] && exit
 
-        sudo pacman -Rns "${pkgs[@]}"
-        exit $?
-        ;;
-    -it | --install-tracked)
-        get_tracked >/tmp/tracked
-        pacman -Qq >/tmp/all
-        diff=$(comm -23 /tmp/tracked /tmp/all)
+    sudo pacman -Rns "${pkgs[@]}"
+    exit $?
+    ;;
+  -it | --install-tracked)
+    get_tracked >/tmp/tracked
+    pacman -Qq >/tmp/all
+    diff=$(comm -23 /tmp/tracked /tmp/all)
 
-        for pkg in $(echo "$diff" | fzf -m --preview 'yay -Si {1}'); do
-            pkgs+=("$pkg")
-        done
-        [ ${#pkgs[@]} -eq 0 ] && exit
+    for pkg in $(echo "$diff" | fzf -m --preview 'yay -Si {1}'); do
+      pkgs+=("$pkg")
+    done
+    [ ${#pkgs[@]} -eq 0 ] && exit
 
-        yay -S "${pkgs[@]}"
-        exit $?
-        ;;
-    -s)
-        shift
-        for pkg in $(yay -Slq | fzf -m --preview 'yay -Si {1}'); do
-            pkgs+=("$pkg")
-        done
-        yay -S "${pkgs[@]}"
-        install_pkgs "${pkgs[@]}"
-        exit 0
-        ;; # Search in AUR
-    -ia | --install-all)
-        install
-        exit 0
-        ;;
-    -Syu)
-        yay -Syu --answerdiff All --answerclean NotInstalled
-        exit 0
-        ;;
-    *)
-        echo "***************************************************************************************"
-        echo "* The argument(s) didn't match anything paccy could handle so it was passed on to yay *"
-        echo "* Run paccy -h for usage                                                              *"
-        echo "***************************************************************************************"
-        yay "$@"
-        exit 1
-        ;;
-    esac
+    yay -S "${pkgs[@]}"
+    exit $?
+    ;;
+  -s)
+    shift
+    for pkg in $(yay -Slq | fzf -m --preview 'yay -Si {1}'); do
+      pkgs+=("$pkg")
+    done
+    yay -S "${pkgs[@]}"
+    install_pkgs "${pkgs[@]}"
+    exit 0
+    ;; # Search in AUR
+  -ia | --install-all)
+    install
+    exit 0
+    ;;
+  -Syu)
+    yay -Syu --answerdiff All --answerclean NotInstalled
+    exit 0
+    ;;
+  *)
+    echo "***************************************************************************************"
+    echo "* The argument(s) didn't match anything paccy could handle so it was passed on to yay *"
+    echo "* Run paccy -h for usage                                                              *"
+    echo "***************************************************************************************"
+    yay "$@"
+    exit 1
+    ;;
+  esac
 }
 
 preview=(fzf --preview 'pacman -Qil {}')
