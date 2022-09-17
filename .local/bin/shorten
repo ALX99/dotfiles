@@ -1,8 +1,9 @@
 #!/bin/sh
+set -eu
 
 url="$(curl -sF "shorten=http://$1" http://0x0.st)"
 if [ $? ]; then
-    echo "$url" | xclip -selection clipboard
+  echo "$url" | xclip -selection clipboard
 else
-    echo "Something went wrong"
+  echo "Something went wrong"
 fi

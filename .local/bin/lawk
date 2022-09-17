@@ -1,14 +1,14 @@
 #!/bin/sh
 if [ -z "$1" ] || [ "$1" = "-" ]; then
-    input=$(mktemp)
-    trap 'rm -f "$input"' EXIT
-    cat /dev/stdin > "$input"
+  input=$(mktemp)
+  trap 'rm -f "$input"' EXIT
+  cat /dev/stdin >"$input"
 else
-    input=$1
+  input=$1
 fi
 
-echo '' \
-    | fzf --disabled \
-          --preview-window='down:95%' \
-          --print-query \
-          --preview "gawk {q} $input"
+echo '' |
+  fzf --disabled \
+    --preview-window='down:95%' \
+    --print-query \
+    --preview "gawk {q} $input"

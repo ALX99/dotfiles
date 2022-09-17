@@ -14,18 +14,18 @@ case "$(printf "a selected area\\ncurrent window\\nfull screen" | dmenu -i -p "S
 esac
 case "$(printf "copy\\nupload\\nsave" | dmenu -i -p "Action?")" in
 "upload")
-    xclip -selection clipboard -o >"$filename"
-    notify-send -u low "Screenshot" "Uploading screenshot"
-    if curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard; then
-        notify-send -u low "Sceenshot" "URL copied to clipboard"
-    else
-        notify-send -u critical "Screenshot" "Upload failed "
-    fi
-    rm -f "$filename"
-    ;;
+  xclip -selection clipboard -o >"$filename"
+  notify-send -u low "Screenshot" "Uploading screenshot"
+  if curl -sF file=@"$filename" https://api.dnlk.de | jq -r '.url' | xclip -selection clipboard; then
+    notify-send -u low "Sceenshot" "URL copied to clipboard"
+  else
+    notify-send -u critical "Screenshot" "Upload failed "
+  fi
+  rm -f "$filename"
+  ;;
 "save")
-    xclip -selection clipboard -o >"$filename"
-    ;;
+  xclip -selection clipboard -o >"$filename"
+  ;;
 esac
 
 # Other upload sources

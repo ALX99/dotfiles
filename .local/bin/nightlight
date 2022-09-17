@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eou pipefail
 if pgrep redshift >/dev/null; then
-    notify-send "Turning off the nightlight"
-    pkill redshift
+  notify-send "Turning off the nightlight"
+  pkill redshift
 else
-    if ! ping -q -c 1 -W 1 google.com >/dev/null; then
-        notify-send  "No internet connectivity!"
-        exit 1
-    fi
-    notify-send "Turning on the nightlight"
-    loc="$(curl -Ss ipinfo.io | jq -r '.loc' | tr , :)"
-      redshift -rl "$loc" >/dev/null 2>&1 &
+  if ! ping -q -c 1 -W 1 google.com >/dev/null; then
+    notify-send "No internet connectivity!"
+    exit 1
+  fi
+  notify-send "Turning on the nightlight"
+  loc="$(curl -Ss ipinfo.io | jq -r '.loc' | tr , :)"
+  redshift -rl "$loc" >/dev/null 2>&1 &
 fi

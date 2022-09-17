@@ -1,4 +1,3 @@
 #!/bin/sh
 
 grep color"$1": ~/.Xresources | awk '{print $2}'
-
