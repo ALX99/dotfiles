@@ -19,7 +19,7 @@ unmountandroid() {
 }
 
 asktype() {
-  choice="$(printf "USB\\nAndroid" | dmenu -i -p "Unmount a USB drive or Android device?")" || exit 1
+  choice="$(printf 'USB\nAndroid' | dmenu -i -p "Unmount a USB drive or Android device?")" || exit 1
   case "$choice" in
   USB) unmountusb ;;
   Android) unmountandroid ;;
