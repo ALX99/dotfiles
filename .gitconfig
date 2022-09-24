@@ -1,53 +1,54 @@
 [alias]
-    a        = add
-    s        = status
-    co       = checkout
-    cob      = checkout -b
-    f        = fetch
-    fa       = fetch --all
-    c        = commit
-    p        = push
-    branches = branch -a
-    remotes  = remote -v
-    d        = diff
-    dc       = diff --cached
-    st       = status -sb
-    discard  = checkout --
-    undo     = reset --soft HEAD~1
+  a        = add
+  s        = status
+  co       = checkout
+  cob      = checkout -b
+  f        = fetch
+  fa       = fetch --all
+  c        = commit
+  p        = push
+  branches = branch -a
+  remotes  = remote -v
+  d        = diff
+  dc       = diff --cached
+  st       = status -sb
+  undo     = reset --soft HEAD~1
 
-    plog      = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
-    tlog      = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
-    lg        = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-    rank      = shortlog -sn --no-merges
+  plog      = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
+  tlog      = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
+  lg        = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+  rank      = shortlog -sn --no-merges
+
 [core]
-    whitespace = trailing-space,space-before-tab
-    pager = delta
+  pager = delta
+  whitespace = trailing-space,space-before-tab
 
 [interactive]
-    diffFilter = delta --color-only
+  diffFilter = delta --color-only
 
 [delta]
-    navigate = true  # use n and N to move between diff sections
-    light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
-    line-numbers = true
-    # side-by-side = true
+  navigate = true  # use n and N to move between diff sections
+  light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+  line-numbers = true
+  # side-by-side = true
 
 [merge]
-    conflictstyle = diff3
+  conflictstyle = diff3
 
 [diff]
   colorMoved = default
   submodule = log
 
 [apply]
-    whitespace = fix
+  whitespace = fix
 
 [user]
-	email = 46844683+ALX99@users.noreply.github.com
-	name  = ALX99
+  email = 46844683+ALX99@users.noreply.github.com
+  name  = ALX99
 
 # Push over SSH instead of HTTPS
 [url "ssh://git@github.com/"]
-        pushInsteadOf = https://github.com/
+  pushInsteadOf = https://github.com/
+
 [status]
 	submoduleSummary = true
