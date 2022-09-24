@@ -1,0 +1,11 @@
+k9s:
+  refreshRate: 1
+  # enableMouse: true
+  headless: true
+  crumbsless: true
+  noIcons: false
+  # Persists per cluster preferences for favorite namespaces and view.
+  clusters:
+    kind:
+      view:
+        active: po
