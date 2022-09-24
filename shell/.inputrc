@@ -10,3 +10,25 @@ set mark-symlinked-directories On
 set colored-completion-prefix On
 # Color the common prefix in menu-complete
 set menu-complete-display-prefix On
+
+###########
+# Vi mode #
+###########
+
+set editing-mode vi
+set show-mode-in-prompt on
+
+set vi-ins-mode-string \1\e[6 q\2
+set vi-cmd-mode-string \1\e[2 q\2
+
+# https://www.gnu.org/software/bash/manual/html_node/Bindable-Readline-Commands.html
+$if mode=vi
+  set keymap vi-command
+  n: history-search-forward
+  e: history-search-backward
+  i: forward-char
+  k: backward-char
+
+  set keymap vi-insert                          
+  "kk": vi-movement-mode
+$endif
