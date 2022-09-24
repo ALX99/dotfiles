@@ -17,13 +17,13 @@ stty -ixon # Disable ctrl-s and ctrl-q.
 
 # Stuff that I want to conditionally set
 if true; then
-	# Default programs
-	TERMINAL="st"
-	TERM="st-256color"
-	EDITOR="nvim"
-	VISUAL="nvim"
-	BROWSER="brave"
-	FILE="pcmanfm"
+  # Default programs
+  TERMINAL="st"
+  TERM="st-256color"
+  EDITOR="nvim"
+  VISUAL="nvim"
+  BROWSER="brave"
+  FILE="pcmanfm"
 fi
 
 # Program settings
