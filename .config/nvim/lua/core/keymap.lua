@@ -19,7 +19,7 @@ utils.map({ "n", "x" }, "H", "E")
 utils.map({ "n", "x" }, "s", "i")
 utils.map({ "n", "x" }, "S", "I")
 
--- Map i to l (will be overwritten below)
+-- Map i to l
 utils.map({ "n", "x" }, "i", "l")
 utils.map({ "n", "x" }, "I", "L")
 

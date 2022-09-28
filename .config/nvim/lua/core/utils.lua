@@ -9,6 +9,7 @@ function M.map(mode, lhs, rhs, opts)
   vim.keymap.set(mode, lhs, rhs, options)
 end
 
+-- Wrapper for the pcall function with errors being written with vim.notify
 function M.require(modnames)
   local ok, mod = pcall(require, modnames)
   if not ok then
