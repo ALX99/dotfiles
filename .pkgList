@@ -1,4 +1,3 @@
-adapta-gtk-theme
 alacritty
 alsa-utils
 android-apktool
@@ -7,6 +6,7 @@ android-tools
 anki
 arandr
 arch-install-scripts
+archiso
 arp-scan
 bash-completion
 bash-language-server
@@ -16,7 +16,6 @@ bibata-cursor-theme
 bind
 bmon # Network tool
 brave-bin
-breeze-gtk
 bubblewrap
 calc
 cantarell-fonts
@@ -34,7 +33,6 @@ exfat-utils
 expac # requried by paccy
 fcitx5
 fcitx5-configtool
-fcitx5-gtk
 fcitx5-mozc
 fcitx5-qt
 fd # find directories and files
@@ -101,7 +99,7 @@ pacman-contrib # checkupdates, pactree and stuff
 pacutils
 papirus-icon-theme
 pavucontrol
-pcmanfm-gtk3
+pgadmin4
 picom
 pkgfile # tool for searching files from packages
 postgresql-libs
@@ -148,6 +146,7 @@ websocat
 wget
 which
 whois
+wireshark-qt
 x86_energy_perf_policy
 xclip
 xdg-utils

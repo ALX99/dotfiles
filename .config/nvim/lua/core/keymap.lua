@@ -28,7 +28,7 @@ utils.map({ "n", "x" }, "l", "n")
 utils.map({ "n", "x" }, "L", "N")
 
 -- Esc is hard to press
-utils.map({ "i", "t" }, "kk", "<Esc>")
+utils.map("i", "kk", "<Esc>")
 utils.map("i", "tn", "<Esc>")
 
 -- Yep, I go backwards quite a lot
@@ -83,12 +83,14 @@ end
 utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
 utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
 utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
+utils.map("n", "<M-t>", ":ToggleTerm direction=float<CR>")
 utils.map("n", "<leader>T", ":ToggleTerm direction=tab<CR>")
 
 -- Terminal mode mappings
 utils.map("t", "<C-\\><C-n>", "<nop>")
 utils.map("t", "<C-\\><C-n>i", "<nop>")
-utils.map("t", "<Esc>", "<C-\\><C-n>")
+utils.map("t", "<Esc>", "<C-\\><C-n>") -- Who needs ESC in the shell anyway lol
+utils.map("t", "<M-t>", "<C-\\><C-n>:ToggleTerm<CR>")
 
 -- Smarter delete
 local function dd()
