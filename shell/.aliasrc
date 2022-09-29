@@ -99,7 +99,8 @@ alias \
   se="sudoedit" \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   bs='source ~/.bashrc' \
-  lg='lazygit'
+  lg='lazygit' \
+  golint='drr -v $PWD:$PWD -w $PWD golangci/golangci-lint:latest golangci-lint run'
 
 # Switch directory
 sd() {
