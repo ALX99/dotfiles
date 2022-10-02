@@ -55,11 +55,8 @@ local on_attach = function(client, bufnr)
   utils.map('n', '=', vim.lsp.buf.formatting, bufopts)
 
 
-
-
-
   -- Auto format
-  if client.resolved_capabilities.document_formatting then
+  if client.server_capabilities.documentFormattingProvider then
     local client_name = client.name
     local when = ""
 
