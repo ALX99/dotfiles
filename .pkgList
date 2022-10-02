@@ -66,7 +66,7 @@ kubectl
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
-libxft-bgra
+libxft
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
 lxappearance # Used to customize GTK theme
