@@ -52,27 +52,35 @@ local on_attach = function(client, bufnr)
   utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
   utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
   --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
-  utils.map('n', '=', vim.lsp.buf.formatting, bufopts)
+  utils.map({ 'n', 'v' }, '=', vim.lsp.buf.format, bufopts)
 
 
   -- Auto format
   if client.server_capabilities.documentFormattingProvider then
-    local client_name = client.name
-    local when = ""
-
-    if client_name == "sumneko_lua" or client_name == "gopls" then
-      when = "InsertLeavePre"
-    elseif client_name == "rust_analyzer" then
-      when = "BufWritePre"
-    else
-      return
-    end
-
-    vim.api.nvim_create_autocmd(when, {
-      group = vim.api.nvim_create_augroup("AutoFmt", { clear = true }),
+    -- Format before leaving insert mode
+    vim.api.nvim_create_autocmd("InsertLeavePre", {
+      group = vim.api.nvim_create_augroup("AutoFmtInsertLeavePre", { clear = true }),
       pattern = "*",
-      callback = vim.lsp.buf.formatting_sync
+      callback = function()
+        vim.lsp.buf.format({
+          bufnr = bufnr,
+          filter = function(c) return c.name == "sumneko_lua" or c.name == "gopls" end
+        })
+      end
     })
+
+    -- Format before saving
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = vim.api.nvim_create_augroup("AutoFmtBufWritePre", { clear = true }),
+      pattern = "*",
+      callback = function()
+        vim.lsp.buf.format({
+          bufnr = bufnr,
+          name = "rust_analyzer"
+        })
+      end
+    })
+
   end
 end
 
