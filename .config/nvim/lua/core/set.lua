@@ -60,12 +60,12 @@ o.matchtime = 3 -- Tenths of a second to show the matching paren, when 'showmatc
 o.so = 8 -- Always leave 15 spaces when scrolling
 o.background = "dark" -- tell vim what the background color looks like
 
-
-
 -- Hide statusline by setting laststatus and cmdheight to 0.
-o.laststatus = 0
-o.cmdheight = 0
--- o.statusline = ""
+if vim.fn.has('nvim-0.8') then
+  o.laststatus = 0
+  o.cmdheight = 0
+  -- o.statusline = ""
+end
 
 -- disable some builtin vim plugins
 local default_plugins = {
