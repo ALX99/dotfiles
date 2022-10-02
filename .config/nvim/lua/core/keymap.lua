@@ -102,6 +102,7 @@ local function dd()
 end
 
 utils.map("n", "dd", dd, { noremap = true, expr = true })
+utils.map("n", "<C-b>", utils.togglewinbar)
 
 local opts = { noremap = true, silent = true }
 --utils.map('n', '<space>e', vim.diagnostic.open_float, opts)

@@ -20,10 +20,8 @@ o.number         = true -- Show line numbers
 o.relativenumber = true -- Relative line numbers
 o.numberwidth    = 2
 
--- Tabs
-o.showtabline = 2 -- Always show tabs
-o.list        = true
-o.listchars   = "tab:>-"
+o.list      = true
+o.listchars = "tab:>-"
 
 -- Indenting
 o.expandtab   = true -- Converts tabs to spaces
@@ -49,7 +47,7 @@ o.ruler         = true -- Show the cursor position all the time (bottom bar)
 o.smartindent   = true -- Makes indenting smart
 
 o.ignorecase = true -- Ignore case in the pattern normally
-o.smartcase  = true -- If the pattern contains a multiline character it is case sensative
+o.smartcase  = true -- If the pattern contains a multiline character it is case sensitive
 o.title      = true -- set terminal title to the filename
 o.showcmd    = true -- show command in bottom bar
 o.lazyredraw = true -- redraw only when we need to.
@@ -61,6 +59,13 @@ o.wrap      = false -- Display long lines as just one line
 o.matchtime = 3 -- Tenths of a second to show the matching paren, when 'showmatch' is set.
 o.so = 8 -- Always leave 15 spaces when scrolling
 o.background = "dark" -- tell vim what the background color looks like
+
+
+
+-- Hide statusline by setting laststatus and cmdheight to 0.
+o.laststatus = 0
+o.cmdheight = 0
+-- o.statusline = ""
 
 -- disable some builtin vim plugins
 local default_plugins = {
@@ -117,8 +122,6 @@ end
 -- Call function on startup to set default value
 ResetGuiFont()
 
--- Keymaps
-
 local opts = { noremap = true, silent = true }
 
 vim.keymap.set({ 'n', 'i' }, "<C-+>", function() ResizeGuiFont(1) end, opts)
@@ -135,4 +138,3 @@ vim.keymap.set({ 'n', 'i' }, "<C-BS>", function() ResetGuiFont() end, opts)
 -- Settings configured for plugins
 -- o.laststatus = 2 -- Always show statusbar
 -- o.showmode = false  -- We don't need to see things like -- INSERT -- due to the statusbar plugin
--- o.mouse = "a"               -- Enable your mouse
