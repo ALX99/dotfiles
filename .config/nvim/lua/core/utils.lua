@@ -1,4 +1,6 @@
-local M = {}
+local M = {
+  winbar = false
+}
 
 -- Functional wrapper for mapping custom keybindings
 function M.map(mode, lhs, rhs, opts)
@@ -17,6 +19,16 @@ function M.require(modnames)
     return nil
   end
   return mod
+end
+
+function M.togglewinbar()
+  if M.winbar then
+    vim.o.winbar = ""
+    M.winbar = false
+  else
+    vim.o.winbar = "%<%f %y %h%m%r%=%-14.(%l,%c%V%) %P"
+    M.winbar = true
+  end
 end
 
 return M
