@@ -22,14 +22,12 @@ function M.require(modnames)
 end
 
 function M.togglewinbar()
-  if vim.fn.has('nvim-0.8') then
-    if M.winbar then
-      vim.o.winbar = ""
-      M.winbar = false
-    else
-      vim.o.winbar = "%<%f %y %h%m%r%=%-14.(%l,%c%V%) %P"
-      M.winbar = true
-    end
+  if M.winbar then
+    vim.o.winbar = ""
+    M.winbar = false
+  else
+    vim.o.winbar = "%<%f %y %h%m%r%=%-14.(%l,%c%V%) %P"
+    M.winbar = true
   end
 end
 
