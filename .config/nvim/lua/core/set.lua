@@ -9,7 +9,6 @@ g.mapleader = " "
 -- o.guicursor = "" -- No GUI cursor
 o.clipboard = 'unnamedplus' -- Copy paste between vim and everything else
 
-o.cmdheight = 2 -- More space for displaying messages
 o.conceallevel = 0 -- So that I can see `` in markdown files
 o.fileencoding = "utf-8" -- The encoding written to file
 
@@ -61,11 +60,10 @@ o.so = 8 -- Always leave 15 spaces when scrolling
 o.background = "dark" -- tell vim what the background color looks like
 
 -- Hide statusline by setting laststatus and cmdheight to 0.
-if vim.fn.has('nvim-0.8') then
-  o.laststatus = 0
-  o.cmdheight = 0
-  -- o.statusline = ""
-end
+o.laststatus = 0
+o.cmdheight = 0
+-- o.statusline = ""
+
 
 -- disable some builtin vim plugins
 local default_plugins = {
