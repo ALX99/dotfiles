@@ -68,7 +68,8 @@ utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 if (not vim.g.vscode) then
   -- These do not work correctly with vscode
   utils.map("n", "<leader>w", "<cmd>close<CR>")
-  utils.map("n", "<leader>q", "<cmd>bd<CR>")
+  utils.map("n", "<leader>q", "<cmd>q<CR>")
+  utils.map("n", "<leader>Q", "<cmd>q!<CR>")
 end
 
 -- Resize with arrows
@@ -83,8 +84,9 @@ end
 utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
 utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
 utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
-utils.map("n", "<M-t>", ":ToggleTerm direction=float<CR>")
-utils.map("n", "<leader>T", ":ToggleTerm direction=tab<CR>")
+utils.map("n", "<M-t>", ":ToggleTerm direction=tab<CR>")
+utils.map("n", "<leader>t", ":ToggleTerm direction=tab<CR>")
+utils.map("n", "<leader>T", ":ToggleTerm direction=float<CR>")
 
 -- Terminal mode mappings
 utils.map("t", "<C-\\><C-n>", "<nop>")

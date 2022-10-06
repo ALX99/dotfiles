@@ -36,9 +36,8 @@ RUN set -x && apk add --no-cache \
   && mv ./lazygit ~/.local/bin \
   && cd ~ && rm -rf ~/tmp \
   ' \
-  && apk del libstdc++ g++
+  && apk del g++
 
-# && nvim --headless -c "TSInstallSync bash c cpp css dockerfile go gomod gowork html java javascript json make python rust typescript yaml" \
 USER owo
 WORKDIR /home/owo
 

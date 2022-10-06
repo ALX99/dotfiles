@@ -147,6 +147,7 @@ lspconfig.yamlls.setup {
 }
 
 lspconfig.sumneko_lua.setup {
+  capabilities = capabilities,
   on_attach = on_attach,
   settings = {
     Lua = {
@@ -179,9 +180,11 @@ lspconfig.jsonls.setup {
 }
 
 -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#html
-capabilities.textDocument.completion.completionItem.snippetSupport = true
 lspconfig.html.setup {
   capabilities = capabilities,
+}
+
+lspconfig.robotframework_ls.setup {
 }
 
 -- Setup some nicer icons for diagnostics in the gutter
