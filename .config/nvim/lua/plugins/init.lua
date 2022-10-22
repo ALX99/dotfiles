@@ -19,6 +19,9 @@ local plugins = {
   ['nvim-treesitter/nvim-treesitter'] = {
     disable = vim.g.vscode,
     config = function() require('plugins.configs.treesitter') end,
+    requires = {
+      'nvim-treesitter/playground'
+    }
   },
 
   -- Colorschemes
@@ -27,7 +30,7 @@ local plugins = {
     config = function() require('onedark').load() end,
   },
   ['folke/tokyonight.nvim'] = {
-    disable = true,
+    disable = false,
   },
   ['rebelot/kanagawa.nvim'] = {
     disable = true,
@@ -53,7 +56,7 @@ local plugins = {
 
   -- Autopairs
   ['windwp/nvim-autopairs'] = {
-    disable = vim.g.vscode,
+    disable = true,
     config = function() require('plugins.configs.autopairs') end,
   },
 
@@ -105,6 +108,12 @@ local plugins = {
   ['nvim-telescope/telescope-ui-select.nvim'] = {
     disable = vim.g.vscode,
     requires = 'nvim-telescope/telescope.nvim'
+  },
+
+  -- Utilities
+  ['echasnovski/mini.nvim'] = {
+    disable = vim.g.vscode,
+    config = function() require('plugins.configs.mini') end,
   },
 }
 

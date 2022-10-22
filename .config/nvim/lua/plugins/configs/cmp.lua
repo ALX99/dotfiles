@@ -3,18 +3,12 @@ local utils = require('core.utils')
 
 local cmp = utils.require('cmp')
 local luasnip = utils.require('luasnip')
-local cmp_autopairs = utils.require('nvim-autopairs.completion.cmp')
 local vscode_snips = utils.require('luasnip.loaders.from_vscode')
-if not (cmp and luasnip and cmp_autopairs and vscode_snips) then return end
+if not (cmp and luasnip and vscode_snips) then return end
 
 -- Load snippets
 vscode_snips.lazy_load()
 
--- Used with autopairs
-cmp.event:on(
-  'confirm_done',
-  cmp_autopairs.on_confirm_done()
-)
 
 -- Helper function
 local has_words_before = function()
