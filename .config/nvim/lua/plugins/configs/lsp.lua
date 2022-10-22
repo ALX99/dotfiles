@@ -1,12 +1,12 @@
 local utils = require('core.utils')
 
+local tabline = utils.require('mini.tabline')
 local lspconfig = utils.require('lspconfig')
 local cmp_lsp = utils.require('cmp_nvim_lsp')
 if not (lspconfig and cmp_lsp) then return end
 
 -- nvim-cmp capabiltiies to pass to lspconfig (announce what features the editor can support)
-local capabilities = cmp_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
-
+local capabilities = cmp_lsp.default_capabilities()
 
 -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
 -- map('n', 'gw', ':lua vim.lsp.buf.workspace_symbol()<cr>')
