@@ -2,7 +2,7 @@ local plugins = {
   ['wbthomason/packer.nvim'] = {}, -- Packer can mange itself
 
   -- Functionality
-  ['junegunn/vim-easy-align'] = {},
+  ['ggandor/leap.nvim'] = {},
   ['alx99/qc.lua'] = {
     config = function()
       require('qc').setup {

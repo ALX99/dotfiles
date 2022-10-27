@@ -19,8 +19,8 @@ o.number         = true -- Show line numbers
 o.relativenumber = true -- Relative line numbers
 o.numberwidth    = 2
 
-o.list      = true
-o.listchars = "tab:>-"
+-- o.list      = true
+-- o.listchars = "tab:>-"
 
 -- Indenting
 o.expandtab   = true -- Converts tabs to spaces

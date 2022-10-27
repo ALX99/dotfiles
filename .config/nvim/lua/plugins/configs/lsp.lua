@@ -43,7 +43,7 @@ local on_attach = function(client, bufnr)
   utils.map('n', 'gt', vim.lsp.buf.type_definition, bufopts)
   --   utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
   utils.map('n', 'gh', vim.lsp.buf.hover, bufopts)
-  utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
+  --   utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
   utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
   utils.map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
   utils.map('n', '<leader>wl', function()
