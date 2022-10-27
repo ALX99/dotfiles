@@ -1,10 +1,17 @@
 -- Treesitter
 local utils = require('core.utils')
 
-local treesitter = utils.require('nvim-treesitter.configs')
-if not treesitter then return end
+local treesitter_configs = utils.require('nvim-treesitter.configs')
+local treesitter_parsers = utils.require('nvim-treesitter.parsers')
+if not treesitter_configs or not treesitter_parsers then return end
 
-treesitter.setup {
+-- vim.filetype.add({
+--   extension = {
+--     robot = 'robot',
+--   },
+-- })
+
+treesitter_configs.setup {
   -- A list of parser names, or "all"
   ensure_installed = { "bash", "c", "cpp", "css", "dockerfile", "go", "gomod", "gowork",
     "html", "java", "javascript", "json", "make", "python", "rust",
@@ -34,6 +41,25 @@ treesitter.setup {
     -- Instead of true it can also be a list of languages
     additional_vim_regex_highlighting = false,
   },
+
+  playground = {
+    enable = true,
+    disable = {},
+    updatetime = 25, -- Debounced time for highlighting nodes in the playground from source code
+    persist_queries = false, -- Whether the query persists across vim sessions
+    keybindings = {
+      toggle_query_editor = 'q',
+      toggle_hl_groups = 'h',
+      toggle_injected_languages = 't',
+      toggle_anonymous_nodes = 'a',
+      toggle_language_display = 'I',
+      focus_language = 'f',
+      unfocus_language = 'F',
+      update = 'R',
+      goto_node = '<cr>',
+      show_help = '?',
+    },
+  }
 }
 
 vim.opt.foldmethod = "expr"
