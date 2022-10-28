@@ -63,7 +63,6 @@ local on_attach = function(client, bufnr)
       pattern = "*",
       callback = function()
         vim.lsp.buf.format({
-          bufnr = bufnr,
           filter = function(c) return c.name == "sumneko_lua" or c.name == "gopls" end
         })
       end
@@ -75,7 +74,6 @@ local on_attach = function(client, bufnr)
       pattern = "*",
       callback = function()
         vim.lsp.buf.format({
-          bufnr = bufnr,
           name = "rust_analyzer"
         })
       end
