@@ -65,12 +65,8 @@ utils.map("n", "<S-k>", ":tabprevious<CR>")
 -- FILE MODE --
 ---------------
 utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
-if (not vim.g.vscode) then
-  -- These do not work correctly with vscode
-  utils.map("n", "<leader>w", "<cmd>close<CR>")
-  utils.map("n", "<leader>q", "<cmd>q<CR>")
-  utils.map("n", "<leader>Q", "<cmd>q!<CR>")
-end
+utils.map("n", "<leader>q", "<cmd>q<CR>")
+utils.map("n", "<leader>Q", "<cmd>q!<CR>")
 
 -- Resize with arrows
 -- utils.map("n", "<C-Up>", ":resize +2<CR>")
