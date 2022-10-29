@@ -77,7 +77,8 @@ local plugins = {
     requires = {
       'hrsh7th/cmp-buffer',
       'saadparwaiz1/cmp_luasnip',
-      'L3MON4D3/LuaSnip'
+      'L3MON4D3/LuaSnip',
+      'alx99/lspkind.nvim'
     },
   },
 
