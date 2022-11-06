@@ -28,12 +28,10 @@ blocks:
     enabled: "[[ -d /sys/class/power_supply/BAT0 ]]"
     interval: 120s
 
-  - command: date
+  - command: getdate
     interval: 1h
     icon: " "
-    args: [+%b %d]
 
-  - command: date
+  - command: gettime
     interval: 30s
     icon: " "
-    args: [+%I:%M%p]

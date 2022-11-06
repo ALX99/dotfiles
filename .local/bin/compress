@@ -27,4 +27,4 @@ done
 eval set -- "$PARAMS"
 
 tar -cvf archive.tar "$PARAMS" &&
-  zstd -z --rm -"$cLevel" -T"$(nproc)" archive.tar -o archive.tar.zstd
+  zstd -z --rm -"$cLevel" -T"$(nproc)" archive.tar -o archive.tar.zst
