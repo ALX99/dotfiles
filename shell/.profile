@@ -58,4 +58,5 @@ HISTFILESIZE=-1                                 # Infinite history
 HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
 set +a
+eval "$(dircolors -p | perl -pe 's/^((CAP|S[ET]|O[TR]|M|E)\w+).*/$1 00/' | dircolors -)"
 

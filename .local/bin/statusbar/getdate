@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+printf "%s月%s日" "$(date +%m)" "$(date +%d)"
+
+case "$(date +%u)" in
+1) printf " (月)\n" ;;
+2) printf " (火)\n" ;;
+3) printf " (水)\n" ;;
+4) printf " (木)\n" ;;
+5) printf " (金)\n" ;;
+6) printf " (土)\n" ;;
+7) printf " (日)\n" ;;
+esac

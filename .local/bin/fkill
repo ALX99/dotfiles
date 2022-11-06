@@ -9,7 +9,7 @@ if [ "x$pid" != "x" ]; then
   echo "$pid" | xargs kill -"${1:-15}"
 
   (
-    sleep 10
+    sleep 5
     for p in $pid; do
       # Send SIGKILL
       ps --pid "$p" &>/dev/null && kill -s 9 "$p"

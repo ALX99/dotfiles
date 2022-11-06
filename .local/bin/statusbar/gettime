@@ -1,0 +1,3 @@
+#!/bin/sh
+
+[ "$(date +%p)" = "PM" ] && printf "%s午後\n" "$(date +%I:%M)" || printf "%s午後\n" "$(date +%I:%M)"
