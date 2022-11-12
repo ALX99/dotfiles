@@ -36,10 +36,10 @@ local plugins = {
     config = function() require('onedark').load() end,
   },
   ['folke/tokyonight.nvim'] = {
-    disable = false,
+    disable = true,
   },
   ['rebelot/kanagawa.nvim'] = {
-    disable = false,
+    disable = true,
     -- config = function() vim.cmd("colorscheme kanagawa") end,
   },
   ['EdenEast/nightfox.nvim'] = {
