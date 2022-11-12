@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine:latest
 
 COPY .local/bin /home/owo/.local/bin
 COPY .config /home/owo/.config
@@ -6,7 +6,7 @@ COPY shell/* /home/owo/
 
 # https://wiki.alpinelinux.org/wiki/How_to_get_regular_stuff_working
 RUN set -x && apk add --no-cache \
-  util-linux coreutils binutils findutils grep \
+  util-linux coreutils binutils findutils grep docker \
   util-linux-doc coreutils-doc binutils-doc findutils-doc bash-doc man-pages grep-doc \
   neovim gcc libstdc++ g++ \
   bat fd fzf git jq ripgrep tmux curl delta \
@@ -16,8 +16,6 @@ RUN set -x && apk add --no-cache \
   npm \
   && npm i -g \
   dockerfile-language-server-nodejs \
-  vscode-langservers-extracted  \
-  bash-language-server \
   yaml-language-server \
   pyright \
   && git clone --depth 1 https://github.com/wbthomason/packer.nvim \
@@ -60,3 +58,7 @@ CMD [ "bash" ]
 
 # vscode-langservers-extracted is maintained by the guy who maintains nvim-cmp
 # https://github.com/hrsh7th/vscode-langservers-extracted
+
+# removed for now:
+# vscode-langservers-extracted  \
+# bash-language-server \
