@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:edge
 
 COPY .local/bin /home/owo/.local/bin
 COPY .config /home/owo/.config
