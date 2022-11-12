@@ -145,7 +145,8 @@ alias \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto'
+  mpv='mpv --hwdec=auto' \
+  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .'
 
 alias \
   ..='cd ..' \
@@ -168,4 +169,3 @@ bind -x '"\eO":"open_hidden_file"'
 
 # FZF aliases
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
-
