@@ -44,11 +44,11 @@ alias gco="git checkout" \
   gcb="git checkout -b" \
   gbl="git branch" \
   gpr="git pull --rebase" \
-  gca="git commit --amend" \
+  gca="git commit --amend --no-edit" \
+  gcam="git commit --amend" \
   gsp="git stash pop" \
   gspm="git stash push -m" \
-  push="git push origin HEAD:refs/for/master" \
-  gca="git commit --amend"
+  push="git push origin HEAD:refs/for/master"
 
 # Git switch branch
 gsb() {
