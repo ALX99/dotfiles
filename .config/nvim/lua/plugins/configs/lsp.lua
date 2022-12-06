@@ -1,6 +1,5 @@
 local utils = require('core.utils')
 
-local tabline = utils.require('mini.tabline')
 local lspconfig = utils.require('lspconfig')
 local cmp_lsp = utils.require('cmp_nvim_lsp')
 if not (lspconfig and cmp_lsp) then return end
@@ -105,12 +104,6 @@ lspconfig.gopls.setup {
       staticcheck = true,
     },
   },
-}
-
--- Requires shellcheck and https://github.com/bash-lsp/bash-language-server
-lspconfig.bashls.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
 }
 
 -- Requires pyright

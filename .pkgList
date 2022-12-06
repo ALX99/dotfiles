@@ -9,7 +9,6 @@ arch-install-scripts
 archiso
 arp-scan
 bash-completion
-bash-language-server
 bat # better cat
 bc # Used by displayselect
 bibata-cursor-theme
@@ -22,11 +21,14 @@ cantarell-fonts
 clang
 dash
 desktop-file-utils # Usually required by many things
+desmume
 dmenu
 dnscrypt-proxy
 docker
 docker-compose
 dosfstools # mkfs.fat
+dragon-drop
+dstat
 dunst
 etcher-bin
 exfat-utils
@@ -75,13 +77,13 @@ macchanger
 maim # sceenshot utility
 man-db
 man-pages
+megasync-bin
 minikube
 mlocate # Locate
 mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 neofetch
-neovide
 neovim
 net-tools
 nload # Network tool
@@ -90,6 +92,7 @@ noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 openssh
+openssl-1.1
 otf-cascadia-code
 otf-font-awesome
 otf-ipafont
@@ -105,6 +108,7 @@ pkgfile # tool for searching files from packages
 postgresql-libs
 pyright
 python
+python-black
 python-pip
 qbittorrent
 redshift # nightlight
@@ -141,6 +145,7 @@ util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
+vivid
 wavemon # wifi connection information
 websocat
 wget
