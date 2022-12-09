@@ -37,7 +37,7 @@ alias krc='kubectl config current-context' \
 
 # Docker
 alias drr="docker run -it --rm" \
-  dprune="docker stop \$(docker ps -q); docker system prune -a"
+  dprune="docker stop \$(docker ps -q); docker system prune -a --volumes"
 
 # Git
 alias gco="git checkout" \
