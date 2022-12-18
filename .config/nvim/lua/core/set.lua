@@ -28,6 +28,7 @@ o.shiftwidth  = 2 -- Number of spaces to use for each step of (auto)indent
 o.tabstop     = 2 -- Number of spaces that a <Tab> in the file counts for
 o.softtabstop = 2 -- Number of spaces that a <Tab> counts for while performing editing operations, like inserting a <Tab> or using <BS>
 o.autoindent  = true -- Auto indent
+o.breakindent = true -- Enable break indent
 o.smartindent = true -- Make it smart
 
 o.smarttab = true -- Makes tabbing smarter will realize you have 2 vs 4
@@ -43,7 +44,6 @@ o.incsearch = true -- search as characters are entered
 o.termguicolors = true -- Enables 24-bit RGB color in the TUI
 o.cursorline    = true -- Enable highlighting of the current line
 o.ruler         = true -- Show the cursor position all the time (bottom bar)
-o.smartindent   = true -- Makes indenting smart
 
 o.ignorecase = true -- Ignore case in the pattern normally
 o.smartcase  = true -- If the pattern contains a multiline character it is case sensitive
@@ -51,6 +51,8 @@ o.title      = true -- set terminal title to the filename
 o.showcmd    = true -- show command in bottom bar
 o.lazyredraw = true -- redraw only when we need to.
 o.showmatch  = true -- highlight matching [{()}]
+o.undofile   = true -- save undo history
+
 
 o.linebreak = false -- Don't wrap words
 o.wrap      = false -- Display long lines as just one line
@@ -101,7 +103,6 @@ end
 
 -- TODO stuff left over from general.vim
 --au! BufWritePost $MYVIMRC source %      " auto source when writing to init.vm alternatively you can run :source $MYVIMRC
--- set breakindent                         -- Wrap lines at same indent level
 -- set iskeyword+=-          -- treat dash separated words as a word text object--
 -- set formatoptions-=cro    -- Stop newline continution of comments
 -- set autochdir                           -- Your working directory will always be the same as your working directory
