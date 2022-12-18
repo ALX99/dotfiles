@@ -9,6 +9,9 @@ local finders = utils.require('telescope.finders')
 
 if not (telescope and actions and pickers and conf and previewers and finders) then return end
 
+-- Enable telescope fzf native, if installed
+pcall(telescope.load_extension, 'fzf')
+
 telescope.setup {
   defaults = {
     mappings = {
