@@ -1,3 +1,4 @@
 [submodule ".local/bin/adb-uninstall"]
 	path = .local/bin/adb-uninstall
 	url = https://github.com/alvarobrey/adb-uninstall
+  branch = master
