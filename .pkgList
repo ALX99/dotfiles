@@ -1,3 +1,5 @@
+adwaita-qt5
+adwaita-qt6
 alacritty
 alsa-utils
 android-apktool
@@ -20,6 +22,7 @@ calc
 cantarell-fonts
 clang
 dash
+dbeaver
 desktop-file-utils # Usually required by many things
 desmume
 dmenu
@@ -65,6 +68,7 @@ jdk-openjdk
 jq # Json parser
 k9s
 kubectl
+lazydocker-bin
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
@@ -100,9 +104,7 @@ overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
-papirus-icon-theme
 pavucontrol
-pgadmin4
 picom
 pkgfile # tool for searching files from packages
 postgresql-libs
@@ -111,6 +113,7 @@ python
 python-black
 python-pip
 qbittorrent
+qt6ct
 redshift # nightlight
 ripgrep
 rust-analyzer
