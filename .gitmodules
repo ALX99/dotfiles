@@ -1,6 +1,3 @@
 [submodule ".local/bin/adb-uninstall"]
 	path = .local/bin/adb-uninstall
 	url = https://github.com/alvarobrey/adb-uninstall
-[submodule "shell/complete-alias"]
-	path = shell/complete-alias
-	url = https://github.com/cykerway/complete-alias
