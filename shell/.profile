@@ -30,9 +30,11 @@ fi
 FZF_DEFAULT_COMMAND="rg --files --hidden"
 FZF_LEGACY_KEYBINDINGS="0"
 _JAVA_AWT_WM_NONREPARENTING="1"
+QT_QPA_PLATFORMTHEME=qt6ct
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
+TASK_TEMP_DIR='/tmp/.task'
 [ -x "$(command -v bat)" ] && MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Clean up ~/
@@ -59,4 +61,3 @@ HISTCONTROL=ignoreboth                          # Don't record duplicate stuff &
 
 set +a
 eval "$(dircolors -p | perl -pe 's/^((CAP|S[ET]|O[TR]|M|E)\w+).*/$1 00/' | dircolors -)"
-
