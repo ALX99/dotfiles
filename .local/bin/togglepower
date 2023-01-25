@@ -1,11 +1,66 @@
 #!/bin/sh
-# https://wiki.archlinux.org/index.php/CPU_frequency_scaling
 
-sudo x86_energy_perf_policy --hwp-enable
-if [ "$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor | head -n1)" = "performance" ]; then
-  sudo x86_energy_perf_policy performance
-  echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-else
-  sudo x86_energy_perf_policy balance-performance
-  echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-fi
+MONITOR_INTERVAL=10
+
+getState() {
+  upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -oP "(?<=state:).*" | sed 's/^[ \t]*//'
+}
+
+# https://wiki.archlinux.org/index.php/CPU_frequency_scaling
+monitor() {
+  echo "Monitoring started"
+  prevState="-"
+  state="-"
+  while true; do
+    prevState="$state"
+    state="$(getState)"
+
+    # Sleep and continue if no change
+    if [ "$state" = "$prevState" ]; then
+      sleep $MONITOR_INTERVAL
+      continue
+    fi
+
+    if [ "$state" = "charging" ]; then
+      sudo x86_energy_perf_policy balance-performance
+      echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+    else
+      sudo x86_energy_perf_policy performance
+      echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+    fi
+
+    sleep $MONITOR_INTERVAL
+  done
+}
+
+argparse() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -h | --help)
+      echo "Usage: ./${0##*/} [OPTION]...
+
+Options:
+  -m, --monitor  continously monitor the battery and enable the performance if a charger is connected
+  -h, --help    Display this help text"
+      exit 0
+      ;;
+
+    -m | --monitor)
+      monitor=true
+      ;;
+
+    *)
+      echo "Invalid argument: $1"
+      exit 1
+      ;;
+    esac
+    shift
+  done
+}
+
+main() {
+  argparse "$@"
+  "${monitor:-false}" && monitor
+
+}
+main "$@"

@@ -19,8 +19,9 @@ xrdb ~/.Xresources
 xset r rate 210 30
 
 # Start background services
-zimple    >>$log 2>&1 & # DWM bar
-dunst     >>$log 2>&1 & # Notification service
-sxhkd     >>$log 2>&1 & # Hotkey daemon
+zimple >>$log 2>&1 &    # DWM bar
+dunst >>$log 2>&1 &     # Notification service
+sxhkd >>$log 2>&1 &     # Hotkey daemon
 unclutter >>$log 2>&1 & # Remove mouse
-picom -b  >>$log 2>&1 & # Remove mouse
+picom -b >>$log 2>&1 &  # X11 compositor
+togglepower -m &        # Montitor and change CPU frequency scaling
