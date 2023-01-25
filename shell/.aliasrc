@@ -47,7 +47,7 @@ alias gco="git checkout" \
   gcam="git commit --amend" \
   gsp="git stash pop" \
   gspm="git stash push -m" \
-  push="git push origin HEAD:refs/for/master"
+  greview="git push origin HEAD:refs/for/master"
 
 # Git switch branch
 gsb() {
