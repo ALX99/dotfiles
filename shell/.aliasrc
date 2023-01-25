@@ -18,7 +18,7 @@ alias \
   gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
-#
+
 # Helm
 alias hls="helm ls" \
   hdu="helm dependency update" \
