@@ -15,7 +15,6 @@ alias \
   update="p -Syu" \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(code {})"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
-  gmod='go list -m all | fzf --height 40% --color --preview "go mod why -m \$(echo {} | cut -f 1 -d'"'"' '"'"')"' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}'
 
@@ -113,18 +112,6 @@ sdh() {
   local t
   t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
   [ -n "$t" ] && cd "$t" && ls
-}
-
-open_file() {
-  local t
-  t="$({ fd . --type file -I 2>/dev/null || find . -type f -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && nvim "$t"
-}
-
-open_hidden_file() {
-  local t
-  t="$({ fd . --type file -HIE '.git' 2>/dev/null || find . -type f -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && nvim "$t"
 }
 
 # Better flags
