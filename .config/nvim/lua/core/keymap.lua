@@ -112,5 +112,5 @@ utils.map('n', 'dl', vim.diagnostic.setloclist, opts)
 
 utils.map("n", "<leader>fg", "<cmd>Telescope live_grep<CR>")
 --utils.map({ "n", "x" }, "ga", "<Plug>(EasyAlign)")
-utils.map({ "n", "x" }, "gs", "<Plug>(leap-forward-to)")
-utils.map({ "n", "x" }, "gS", "<Plug>(leap-backward-to)")
+utils.map({ "n", "x" }, "<leader>f", "<Plug>(leap-forward-to)")
+utils.map({ "n", "x" }, "<leader>F", "<Plug>(leap-backward-to)")
