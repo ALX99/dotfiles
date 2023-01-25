@@ -25,6 +25,7 @@ dash
 dbeaver
 desktop-file-utils # Usually required by many things
 desmume
+discord
 dmenu
 dnscrypt-proxy
 docker
@@ -160,6 +161,7 @@ xclip
 xdg-utils
 xdotool
 xdo # Use with window swallowing
+xf86-input-synaptics
 xorg-xbacklight
 xorg-xev
 xorg-xfontsel
