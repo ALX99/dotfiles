@@ -31,8 +31,8 @@ else
   echo "Could not load aliases"
 fi
 
-# Work alises
-[ -f "$HOME/.workaliasrc" ] && . "$HOME/.workaliasrc"
+# Private rc file
+[ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
 ###########
 # For FZF #
