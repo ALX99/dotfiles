@@ -6,11 +6,13 @@ if not nvim_tree then return end
 -- :help nvim-tree-setup
 -- :help nvim-tree.OPTION_NAME
 nvim_tree.setup {
-  adaptive_size = true,
   open_on_setup = true,
   remove_keymaps = true,
   view = {
-    adaptive_size = false,
+    width = {
+      min = "10%",
+      max = "40%"
+    },
     mappings = {
       custom_only = true,
       list = {
