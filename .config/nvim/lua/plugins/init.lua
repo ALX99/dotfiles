@@ -114,15 +114,12 @@ local plugins = {
   -- Fuzzy finder that does it all
   ['nvim-telescope/telescope.nvim'] = {
     config = function() require('plugins.configs.telescope') end,
-    tag = '0.1.0',
+    tag = '0.1.x',
     requires = {
       { 'nvim-lua/plenary.nvim' },
-      { 'nvim-telescope/telescope-fzf-native.nvim', run = 'make', cond = vim.fn.executable 'make' == 1 }
+      { 'nvim-telescope/telescope-ui-select.nvim' }, -- Code actions for telescope
+      { 'nvim-telescope/telescope-fzf-native.nvim', run = 'make' } -- Fuzzy finder
     }
-  },
-
-  -- Code actions for telescope
-  ['nvim-telescope/telescope-ui-select.nvim'] = {
   },
 
   -- Utilities
