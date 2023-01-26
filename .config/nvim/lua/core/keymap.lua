@@ -77,8 +77,8 @@ utils.map("n", "<leader>Q", "<cmd>q!<CR>")
 
 -- These are used so frequently that I want to
 -- have them one keypress away
-utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
-utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
+utils.map("n", "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>")
+utils.map("n", "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>")
 utils.map("n", "<leader>t", ":ToggleTerm direction=float<CR>")
 utils.map("n", "<M-t>", ":ToggleTerm direction=tab<CR>")
 utils.map("n", "<leader>t", ":ToggleTerm direction=tab<CR>")
@@ -110,7 +110,8 @@ utils.map('n', 'do', vim.diagnostic.open_float, opts)
 utils.map('n', 'dl', vim.diagnostic.setloclist, opts)
 --utils.map('n', '<space>a', vim.diagnostic.setloclist, opts)
 
-utils.map("n", "<leader>fg", "<cmd>Telescope live_grep<CR>")
+utils.map("n", "<leader>fg", "<cmd>Telescope current_buffer_fuzzy_find<CR>")
+utils.map("n", "<leader>Fg", "<cmd>Telescope live_grep<CR>")
 --utils.map({ "n", "x" }, "ga", "<Plug>(EasyAlign)")
 utils.map({ "n", "x" }, "<leader>f", "<Plug>(leap-forward-to)")
 utils.map({ "n", "x" }, "<leader>F", "<Plug>(leap-backward-to)")
