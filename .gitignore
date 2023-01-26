@@ -3,3 +3,5 @@
 
 .config/mpv/watch_later/*
 .config/lazygit/state.yml
+
+shell/.privrc
