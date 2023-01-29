@@ -1,6 +1,12 @@
 return {
   "folke/tokyonight.nvim",
-  "ggandor/leap.nvim",
+  {
+    "ggandor/leap.nvim",
+    keys = {
+      { "<leader>f", "<Plug>(leap-forward-to)", { "n", "x" } },
+      { "<leader>F", "<Plug>(leap-backward-to)", { "n", "x" } },
+    },
+  },
   {
     "alx99/qc.lua",
     config = {
