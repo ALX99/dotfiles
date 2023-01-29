@@ -6,6 +6,7 @@ return {
     'nvim-telescope/telescope-ui-select.nvim', -- Code actions for telescope
     { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make' } -- Fuzzy finder
   },
+  cmd = "Telescope",
   keys = {
     { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
     { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
