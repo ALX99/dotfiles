@@ -3,7 +3,7 @@ return {
   keys = {
     { "<leader>ft", "<cmd>NvimTreeFindFile<CR>" },
   },
-  config = {
+  opts = {
     -- :help nvim-tree-setup
     -- :help nvim-tree.OPTION_NAME
     open_on_setup = false,
