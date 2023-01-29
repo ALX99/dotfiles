@@ -9,7 +9,7 @@ return {
   },
   {
     "alx99/qc.lua",
-    config = {
+    opts = {
       shortcut = "<leader>/"
     }
   },
