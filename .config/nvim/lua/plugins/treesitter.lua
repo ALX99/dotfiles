@@ -1,12 +1,11 @@
 return {
   "nvim-treesitter/nvim-treesitter",
+  dependencies = { "nvim-treesitter/playground" },
   config = function()
     -- Treesitter
-    local utils = require('core.utils')
 
-    local treesitter_configs = utils.require('nvim-treesitter.configs')
-    local treesitter_parsers = utils.require('nvim-treesitter.parsers')
-    if not treesitter_configs or not treesitter_parsers then return end
+    local treesitter_configs = require('nvim-treesitter.configs')
+    local treesitter_parsers = require('nvim-treesitter.parsers')
 
     -- vim.filetype.add({
     --   extension = {
@@ -70,5 +69,4 @@ return {
     -- vim.opt.foldminlines = 20
     vim.opt.foldenable = false
   end,
-  dependencies = { "nvim-treesitter/playground" }
 }
