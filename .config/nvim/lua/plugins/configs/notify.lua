@@ -1,7 +1,4 @@
-local utils = require('core.utils')
-
-local notify = utils.require('notify')
-if not notify then return end
+local notify = require('notify')
 
 -- Transparent
 notify.setup {

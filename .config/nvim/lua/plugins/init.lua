@@ -8,12 +8,6 @@ return {
     }
   },
   {
-    "alx99/tidy.nvim",
-    config = {
-      filetype_exclude = { "markdown", "diff" },
-    },
-  },
-  {
     "EdenEast/nightfox.nvim",
     config = function()
       require('nightfox').setup({
