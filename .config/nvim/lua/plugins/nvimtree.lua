@@ -1,5 +1,8 @@
 return {
   "kyazdani42/nvim-tree.lua",
+  keys = {
+    { "<leader>ft", "<cmd>NvimTreeFindFile<CR>" },
+  },
   config = function()
     local utils = require('core.utils')
 
@@ -9,7 +12,7 @@ return {
     -- :help nvim-tree-setup
     -- :help nvim-tree.OPTION_NAME
     nvim_tree.setup {
-      open_on_setup = true,
+      open_on_setup = false,
       remove_keymaps = true,
       view = {
         width = {
