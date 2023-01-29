@@ -13,6 +13,9 @@ return {
     { "<leader>wO", "<cmd>split<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
     { "<leader>fg", "<cmd>Telescope current_buffer_fuzzy_find<CR>" },
     { "<leader>Fg", "<cmd>Telescope live_grep<CR>" },
+    { "<leader>fsa", "<cmd>Telescope lsp_document_symbols<CR>" },
+    { "<leader>fsm", "<cmd>Telescope lsp_document_symbols symbols=method<CR>" },
+    { "<leader>M", "<cmd>Telescope man_pages<CR>" },
   },
   config = function()
     local telescope = require('telescope')
