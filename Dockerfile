@@ -8,8 +8,8 @@ COPY shell/* /home/owo/
 RUN set -x && apk add --no-cache \
   util-linux coreutils binutils findutils grep docker \
   util-linux-doc coreutils-doc binutils-doc findutils-doc bash-doc man-pages grep-doc \
-  neovim gcc libstdc++ g++ \
-  bat fd fzf git jq ripgrep curl delta \
+  neovim make g++ \
+  bat fd fzf git jq yq ripgrep curl \
   go gopls \
   python3 py3-pip \
   shfmt shellcheck bash-completion \
@@ -19,7 +19,8 @@ RUN set -x && apk add --no-cache \
   yaml-language-server \
   pyright \
   && adduser --disabled-password -h /home/owo -s /bin/bash owo \
-  && chown -R owo:owo /home/owo
+  && chown -R owo:owo /home/owo \
+  && apk del npm
 
 USER owo
 WORKDIR /home/owo
@@ -33,9 +34,6 @@ RUN set -x \
   tar xz \
   && mv ./k9s ~/.local/k9s \
   && rm -rf ~/tmp
-
-USER root
-RUN apk del g++
 
 USER owo
 ENV USER=owo
