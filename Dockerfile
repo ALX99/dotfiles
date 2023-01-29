@@ -9,7 +9,7 @@ RUN set -x && apk add --no-cache \
   util-linux coreutils binutils findutils grep docker \
   util-linux-doc coreutils-doc binutils-doc findutils-doc bash-doc man-pages grep-doc \
   neovim make g++ \
-  bat fd fzf git jq yq ripgrep curl \
+  bat fzf git jq yq ripgrep curl \
   go gopls \
   python3 py3-pip \
   shfmt shellcheck bash-completion \
