@@ -56,11 +56,6 @@ utils.map("n", "<leader>n", "<C-w>j")
 utils.map("n", "<leader>e", "<C-w>k")
 utils.map("n", "<leader>i", "<C-w>l")
 
--- TODO, need to decide on navigation workflow
-utils.map("n", "<S-i>", ":tabnext<CR>")
-utils.map("n", "<S-k>", ":tabprevious<CR>")
-
-
 ---------------
 -- FILE MODE --
 ---------------
