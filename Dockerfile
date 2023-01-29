@@ -18,27 +18,30 @@ RUN set -x && apk add --no-cache \
   dockerfile-language-server-nodejs \
   yaml-language-server \
   pyright \
-  && git clone --depth 1 https://github.com/wbthomason/packer.nvim \
-  /home/owo/.local/share/nvim/site/pack/packer/start/packer.nvim \
   && adduser --disabled-password -h /home/owo -s /bin/bash owo \
-  && chown -R owo:owo /home/owo \
-  && su - owo -c '\
-  export USER=owo \
-  && nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync" \
-  && nvim --headless -c "TSUpdate" -c q \
-  && nvim --headless -c "NightfoxCompile" -c q \
-  && mkdir ~/tmp && cd ~/tmp \
-  && curl -L \
-  "https://github.com/jesseduffield/lazygit/releases/download/v0.35/lazygit_0.35_Linux_x86_64.tar.gz" | \
-  tar xz \
-  && mv ./lazygit ~/.local/bin \
-  && cd ~ && rm -rf ~/tmp \
-  ' \
-  && apk del g++
+  && chown -R owo:owo /home/owo
 
 USER owo
 WORKDIR /home/owo
 
+RUN set -x \
+  && nvim --headless -c "Lazy install" -c q \
+  && nvim --headless -c "TSUpdate" -c q \
+  && mkdir ~/tmp && cd ~/tmp \
+  && curl -L \
+  "https://github.com/jesseduffield/lazygit/releases/download/v0.36.0/lazygit_0.36.0_Linux_x86_64.tar.gz" | \
+  tar xz \
+  && mv ./lazygit ~/.local/bin \
+  && curl -L \
+  "https://github.com/derailed/k9s/releases/download/v0.27.0/k9s_Linux_amd64.tar.gz" | \
+  tar xz \
+  && mv ./k9s ~/.local/k9s \
+  && rm -rf ~/tmp
+
+USER root
+RUN apk del g++
+
+USER owo
 ENV USER=owo
 ENV TERM="xterm-256color"
 ENV HOME=/home/owo
