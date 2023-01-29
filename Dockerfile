@@ -29,10 +29,6 @@ RUN set -x \
   && nvim --headless -c "TSUpdate" -c q \
   && mkdir ~/tmp && cd ~/tmp \
   && curl -L \
-  "https://github.com/jesseduffield/lazygit/releases/download/v0.36.0/lazygit_0.36.0_Linux_x86_64.tar.gz" | \
-  tar xz \
-  && mv ./lazygit ~/.local/bin \
-  && curl -L \
   "https://github.com/derailed/k9s/releases/download/v0.27.0/k9s_Linux_amd64.tar.gz" | \
   tar xz \
   && mv ./k9s ~/.local/k9s \
