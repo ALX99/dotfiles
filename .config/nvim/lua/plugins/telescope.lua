@@ -1,16 +1,26 @@
 return {
   "nvim-telescope/telescope.nvim",
+  version = '0.1.x',
+  dependencies = {
+    'nvim-lua/plenary.nvim',
+    'nvim-telescope/telescope-ui-select.nvim', -- Code actions for telescope
+    { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make' } -- Fuzzy finder
+  },
+  keys = {
+    { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
+    { "<leader>wo", "<cmd>vsplit<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>wO", "<cmd>split<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>fg", "<cmd>Telescope current_buffer_fuzzy_find<CR>" },
+    { "<leader>Fg", "<cmd>Telescope live_grep<CR>" },
+  },
   config = function()
-    local utils = require('core.utils')
-
-    local telescope = utils.require('telescope')
-    local actions = utils.require('telescope.actions')
-    local pickers = utils.require('telescope.pickers')
-    local conf = utils.require('telescope.config').values
-    local previewers = utils.require('telescope.previewers')
-    local finders = utils.require('telescope.finders')
-
-    if not (telescope and actions and pickers and conf and previewers and finders) then return end
+    local telescope = require('telescope')
+    local actions = require('telescope.actions')
+    --     local pickers = require('telescope.pickers')
+    --     local conf = require('telescope.config').values
+    --     local previewers = require('telescope.previewers')
+    --     local finders = require('telescope.finders')
 
     telescope.setup {
       defaults = {
@@ -42,26 +52,8 @@ return {
       }
     }
 
-    -- Open any dotfiles
-    utils.map("n", "<leader><leader>d", function()
-      pickers.new({}, {
-        prompt_title = '~~ dotfiles ~~',
-        finder = finders.new_oneshot_job({
-          "fd", "--hidden", "--color", "never", "--type", "file", ".", os.getenv("HOME") .. "/dotfiles"
-        }),
-        previewer = previewers.vim_buffer_cat.new({}),
-        sorter = conf.file_sorter({}),
-      }):find()
-    end)
-
     -- Load telescope plugins
     telescope.load_extension("fzf")
     telescope.load_extension("ui-select")
   end,
-  tag = '0.1.x',
-  dependencies = {
-    { 'nvim-lua/plenary.nvim' },
-    { 'nvim-telescope/telescope-ui-select.nvim' }, -- Code actions for telescope
-    { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make' } -- Fuzzy finder
-  }
 }
