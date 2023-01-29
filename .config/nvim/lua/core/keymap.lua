@@ -54,10 +54,6 @@ utils.map("n", "<leader>n", "<C-w>j")
 utils.map("n", "<leader>e", "<C-w>k")
 utils.map("n", "<leader>i", "<C-w>l")
 
----------------
--- FILE MODE --
----------------
-utils.map('n', '<leader>ft', '<cmd>NvimTreeFindFile<CR>')
 utils.map("n", "<leader>q", "<cmd>q<CR>")
 utils.map("n", "<leader>Q", "<cmd>q!<CR>")
 
