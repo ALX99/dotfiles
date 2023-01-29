@@ -3,8 +3,8 @@ return {
   {
     "ggandor/leap.nvim",
     keys = {
-      { "<leader>f", "<Plug>(leap-forward-to)", { "n", "x" } },
-      { "<leader>F", "<Plug>(leap-backward-to)", { "n", "x" } },
+      { "<leader>a", "<Plug>(leap-forward-to)", { "n", "x" } },
+      { "<leader>A", "<Plug>(leap-backward-to)", { "n", "x" } },
     },
   },
   {
