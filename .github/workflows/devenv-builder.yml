@@ -1,4 +1,4 @@
-name: Denvenv Docker Image CI
+name: Devenv Docker Image CI
 
 on:
   workflow_dispatch:
