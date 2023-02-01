@@ -1,7 +1,0 @@
-github.com/KyleBanks/depth/cmd/depth
-github.com/goretk/redress
-github.com/jondot/goweight
-github.com/gokcehan/lf
-github.com/kisielk/godepgraph
-honnef.co/go/tools/cmd/staticcheck
-github.com/raphaelreyna/oneshot
