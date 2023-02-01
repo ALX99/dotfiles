@@ -1,9 +1,27 @@
 # Dotfiles
 
-Arch Linux can be installed by my installation script found here on my [Github](https://github.com/ALX99/Arch-AI).  
-The dotfiles here are meant for my own usage and uploaded for the sake of sharing. Grab anything you think is useful.  
-Packages I use are found under [.pkgList](https://github.com/ALX99/dotfiles/blob/master/.pkgList) and are managed by my pacman/yay wrapper [paccy](https://github.com/ALX99/dotfiles/blob/master/.local/bin/paccy).
+These dotfiles are primarily uploaded for personal backup & sync purposes, however 
+you may discover useful aliases and scripts within as I tend to use the shell a lot.  
+Here is a list of places which might be interesting to check out:
 
-**Potentially useful shellscripts are found under [.local/bin/](https://github.com/ALX99/dotfiles/tree/master/.local/bin).**
+- [.profile](https://github.com/ALX99/dotfiles/blob/master/shell/.profile)
+- [.bashrc](https://github.com/ALX99/dotfiles/blob/master/shell/.bashrc)
+- [.aliasrc](https://github.com/ALX99/dotfiles/blob/master/shell/.aliasrc)
+- [bin/](https://github.com/ALX99/dotfiles/tree/master/.local/bin)
 
-_If the keybindings for some applications look weird it's because they are. I use Colemak-DH as a keyboard layout._
+## Current setup
+
+### Preview
+
+![preview](./preview.png)
+
+### Software suite
+
+- Window Manager: [dwm](https://dwm.suckless.org/)
+- Menu Bar: [dmenu](https://tools.suckless.org/dmenu/)
+- Browser: [Brave](https://brave.com/)
+- Editor: [Neovim](https://neovim.io/)
+- Terminal Emulator: [st](https://st.suckless.org/)
+- Terminal Multiplexer: [tmux](https://github.com/tmux/tmux)
+- Shell: [bash](https://www.gnu.org/software/bash/)
+
