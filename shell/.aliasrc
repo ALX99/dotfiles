@@ -1,23 +1,32 @@
 #!/bin/bash
 # shellcheck disable=SC1090
 
+# Make common commands shorter
 alias \
+  q="exit" \
+  c="clear" \
+  e="\$EDITOR" \
+  g="git" \
+  k="kubectl" \
+  p="paccy" \
+  se="sudoedit" \
+  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
+  bs='source ~/.bashrc' \
+  lg='lazygit' \
   ch="code . && exit" \
-  cx="chmod +x" \
   wlist="nmcli d w l" \
   bye='systemctl hibernate' \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
-  copyfile="xclip -selection clipboard" \
-  yt-archive="youtube-dl -f best -o '%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s' --write-info-json" \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
-  update="p -Syu" \
+  update="paccy -Syu" \
   gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(nvim {})"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}' \
-  pnav='cd "$(_projselect)"'
+  pnav='cd "$(_projselect)"' \
+  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .'
 
 # Helm
 alias hls="helm ls" \
@@ -87,21 +96,6 @@ gbrowse() {
       --preview-window=right,60
 }
 
-# Make common commands shorter
-alias \
-  q="exit" \
-  c="clear" \
-  s="sudo" \
-  e="\$EDITOR" \
-  g="git" \
-  k="kubectl" \
-  p="paccy" \
-  se="sudoedit" \
-  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  bs='source ~/.bashrc' \
-  lg='lazygit' \
-  golint='drr -v $PWD:$PWD -w $PWD golangci/golangci-lint:latest golangci-lint run'
-
 # Switch directory
 sd() {
   local t
@@ -133,9 +127,9 @@ alias \
   dd="dd bs=512k" \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto' \
-  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .'
+  mpv='mpv --hwdec=auto'
 
+# Navigation
 alias \
   ..='cd ..' \
   ...='cd ../..' \
@@ -152,8 +146,6 @@ command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
 command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 
-bind -x '"\eo":"open_file"'
-bind -x '"\eO":"open_hidden_file"'
-
 # FZF aliases
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+
