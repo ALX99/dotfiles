@@ -18,8 +18,6 @@ return {
         math.randomseed(os.time())
         return choices[math.random(1, #choices)]
       end
-
-
     })
 
     -- require('mini.pairs').setup({})
