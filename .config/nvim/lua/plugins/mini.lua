@@ -24,7 +24,12 @@ return {
     require('mini.tabline').setup({})
     require('mini.cursorword').setup({})
     require('mini.statusline').setup({})
-    require('mini.align').setup({})
+    require('mini.align').setup({
+      mappings = {
+        start = '<leader>Pa',
+        start_with_preview = '<leader>PA'
+      },
+    })
     require('mini.indentscope').setup({
       mappings = {
         object_scope = 'o',
