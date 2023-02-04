@@ -35,6 +35,13 @@ utils.map("i", "tn", "<Esc>")
 utils.map("n", "<leader>b", "<C-o>")
 utils.map("n", "<leader>B", "<C-i>")
 
+------------------
+-- Applications --
+------------------
+utils.map({ "n", "x" }, "<leader>Al", ":Lazy<CR>", { desc = "Lazy" })
+utils.map({ "n", "x" }, "<leader>At", ":Telescope<CR>", { desc = "Telescope" })
+
+
 ------------
 -- Visual --
 ------------
