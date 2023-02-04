@@ -13,14 +13,13 @@ vim.api.nvim_create_autocmd({ "InsertEnter", "WinLeave" }, {
 
 -- return to last edit position when opening files
 vim.api.nvim_create_autocmd('BufReadPost', {
-  group    = vim.api.nvim_create_augroup('ReturnToPos', { clear = true }),
-  pattern  = '*',
   callback = function()
-    if vim.fn.line("'\"") > 0 and vim.fn.line("'\"") <= vim.fn.line("$") then
-      vim.fn.setpos('.', vim.fn.getpos("'\""))
-      vim.api.nvim_feedkeys('zz', 'n', true)
+    local mark = vim.api.nvim_buf_get_mark(0, '"')
+    local lcount = vim.api.nvim_buf_line_count(0)
+    if mark[1] > 0 and mark[1] <= lcount then
+      pcall(vim.api.nvim_win_set_cursor, 0, mark)
     end
-  end
+  end,
 })
 
 -- https://github.com/neovim/nvim-lspconfig/issues/115
