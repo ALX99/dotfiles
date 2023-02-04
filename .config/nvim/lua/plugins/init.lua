@@ -2,10 +2,19 @@ return {
   "folke/tokyonight.nvim",
   {
     "ggandor/leap.nvim",
+    event = "VeryLazy",
     keys = {
-      { "<leader>a", "<Plug>(leap-forward-to)", { "n", "x" } },
-      { "<leader>A", "<Plug>(leap-backward-to)", { "n", "x" } },
+      { "<leader>s", "<Plug>(leap-forward-to)", { "n", "x" }, desc = "Leap forwards" },
+      { "<leader>S", "<Plug>(leap-backward-to)", { "n", "x" }, desc = "Leap backwards" },
     },
+    config = function()
+      local leap = require('leap')
+      leap.opts.safe_labels = { "r", "t", "c", "g", "n", "e", "h", "o", "w", "f", "l", "u" }
+      leap.opts.special_keys = {
+        next_target = { '<enter>', '.', '<A-n>' },
+        prev_target = { '<tab>', ',', '<A-e>' },
+      }
+    end
   },
   {
     "alx99/qc.lua",
