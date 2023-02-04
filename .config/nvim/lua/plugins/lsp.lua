@@ -60,15 +60,15 @@ return {
       -- Auto format
       if client.server_capabilities.documentFormattingProvider then
         -- Format before leaving insert mode
-        vim.api.nvim_create_autocmd("InsertLeavePre", {
-          group = vim.api.nvim_create_augroup("AutoFmtInsertLeavePre", { clear = true }),
-          pattern = "*",
-          callback = function()
-            vim.lsp.buf.format({
-              filter = function(c) return c.name == "sumneko_lua" or c.name == "gopls" end
-            })
-          end
-        })
+        -- vim.api.nvim_create_autocmd("InsertLeavePre", {
+        --   group = vim.api.nvim_create_augroup("AutoFmtInsertLeavePre", { clear = true }),
+        --   pattern = "*",
+        --   callback = function()
+        --     vim.lsp.buf.format({
+        --       filter = function(c) return c.name == "sumneko_lua" or c.name == "gopls" end
+        --     })
+        --   end
+        -- })
 
         -- Format before saving
         vim.api.nvim_create_autocmd("BufWritePre", {
@@ -76,7 +76,11 @@ return {
           pattern = "*",
           callback = function()
             vim.lsp.buf.format({
-              name = "rust_analyzer"
+              filter = function(c)
+                return c.name == "sumneko_lua"
+                    or c.name == "gopls"
+                    or c.name == "rust_analyzer"
+              end
             })
           end
         })
