@@ -20,7 +20,7 @@ return {
     opts = {
       shortcut = "<leader>/"
     }
-  },
+  }
 }
 
 
