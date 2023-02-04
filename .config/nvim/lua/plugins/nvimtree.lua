@@ -1,7 +1,7 @@
 return {
   "kyazdani42/nvim-tree.lua",
   keys = {
-    { "<leader>ft", "<cmd>NvimTreeFindFile<CR>" },
+    { "<leader>ft", "<cmd>NvimTreeFindFile<CR>", desc = "Open filetree" },
   },
   opts = {
     -- :help nvim-tree-setup
