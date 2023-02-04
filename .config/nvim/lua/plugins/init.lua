@@ -1,6 +1,13 @@
 return {
   "folke/tokyonight.nvim",
   {
+    "projekt0n/github-nvim-theme",
+    version = "0.0.x",
+    config = function()
+      require('github-theme').setup()
+    end
+  },
+  {
     "ggandor/leap.nvim",
     event = "VeryLazy",
     keys = {
