@@ -1,12 +1,4 @@
 return {
-  "folke/tokyonight.nvim",
-  {
-    "projekt0n/github-nvim-theme",
-    version = "0.0.x",
-    config = function()
-      require('github-theme').setup()
-    end
-  },
   {
     "ggandor/leap.nvim",
     event = "VeryLazy",
@@ -28,17 +20,6 @@ return {
     opts = {
       shortcut = "<leader>/"
     }
-  },
-  {
-    "EdenEast/nightfox.nvim",
-    config = function()
-      require('nightfox').setup({
-        options = {
-          dim_inactive = true, -- Non focused panes set to alternative background
-        }
-      })
-      vim.cmd("colorscheme carbonfox")
-    end,
   },
 }
 
