@@ -9,10 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
         with:
-          go-version: '^1.19'
+          submodules: true
       - name: Install task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
       - name: Lint shell
-        run: ./bin/task c:lint:shell
+        run: ./bin/task -v c:lint:shell
