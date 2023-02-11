@@ -50,12 +50,24 @@ return {
             ["<M-t>"] = actions.select_tab,
           },
         },
+        vimgrep_arguments = {
+          "rg",
+          "--hidden",
+          "--iglob",
+          "!.git",
+          "--color=never",
+          "--no-heading",
+          "--with-filename",
+          "--line-number",
+          "--column",
+          "--smart-case"
+        }
       },
       pickers = {
         lsp_references = {
           initial_mode = "normal",
         }
-      }
+      },
     }
 
     -- Load telescope plugins
