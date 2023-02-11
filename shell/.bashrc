@@ -26,12 +26,14 @@ shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmd
 
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then
+  # shellcheck disable=SC1091
   . "$HOME/.aliasrc"
 else
   echo "Could not load aliases"
 fi
 
 # Private rc file
+# shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
 ###########
@@ -45,3 +47,4 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
 }
+

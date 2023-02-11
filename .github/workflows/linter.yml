@@ -1,13 +1,18 @@
 name: Linter
 
-on: push
+on:
+  - workflow_dispatch
+  - push
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Install deps
-        run: sudo snap install shfmt shellcheck
-      - uses: actions/checkout@v2
-      - name: Lint shell scripts
-        run: while read -r f; do echo "checking $f"; shellcheck "$f"; done < <(shfmt -f .)
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '^1.19'
+      - name: Install task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+      - name: Lint shell
+        run: ./bin/task c:lint:shell
