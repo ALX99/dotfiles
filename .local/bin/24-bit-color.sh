@@ -89,3 +89,4 @@ for i in $(seq 255 128); do
   echo -n " "
 done
 resetOutput
+

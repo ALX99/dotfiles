@@ -45,7 +45,7 @@ xkb_symbols "basic" {
     key <AC08> { [            e,            E,                                Up ] };
     key <AC09> { [            i,            I,                             Right ] };
     key <AC10> { [            o,            O,          oacute,           Oacute ] };
-    key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] }; 
+    key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] };
 
     key <AB01> { [            x,            X,                           percent ] };
     key <AB02> { [            c,            C,                            dollar ] };

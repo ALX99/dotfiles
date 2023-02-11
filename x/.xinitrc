@@ -1,5 +1,7 @@
 #!/bin/sh
-[ -r ~/.xprofile ] && . ~/.xprofile
+#
+# shellcheck disable=SC1091
+[ -r ~/.xprofile ] && . "$HOME/.xprofile"
 
 #exec startplasma-x11
 #exec startxfce4
