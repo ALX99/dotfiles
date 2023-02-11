@@ -23,7 +23,7 @@ for file in $pacnew_files; do
   read -rn 1 -p "Choose 1-3:"
   case "$REPLY" in
   1) mv -f "$file" "$original" ;;
-  2 | *) rm --interactive=never "$file" ;;
+  2) rm --interactive=never "$file" ;;
   3) continue ;;
   esac
 
