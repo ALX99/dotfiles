@@ -5,3 +5,6 @@
 [submodule ".config/mpv/scripts/subs2srs"]
 	path = .config/mpv/scripts/subs2srs
 	url = https://github.com/Ajatt-Tools/mpvacious
+[submodule "task"]
+	path = task
+	url = https://github.com/ALX99/task
