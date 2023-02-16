@@ -29,6 +29,7 @@ discord
 dmenu
 dnscrypt-proxy
 docker
+docker-buildx
 docker-compose
 dosfstools # mkfs.fat
 dragon-drop
