@@ -3,7 +3,7 @@ return {
     "ggandor/leap.nvim",
     event = "VeryLazy",
     keys = {
-      { "<leader>s", "<Plug>(leap-forward-to)", { "n", "x" }, desc = "Leap forwards" },
+      { "<leader>s", "<Plug>(leap-forward-to)",  { "n", "x" }, desc = "Leap forwards" },
       { "<leader>S", "<Plug>(leap-backward-to)", { "n", "x" }, desc = "Leap backwards" },
     },
     config = function()
@@ -20,7 +20,13 @@ return {
     opts = {
       shortcut = "<leader>/"
     }
-  }
+  },
+  {
+    "m4xshen/smartcolumn.nvim",
+    opts = {
+      disabled_filetypes = { "help", "text", },
+    }
+  },
 }
 
 
