@@ -26,40 +26,40 @@ xkb_symbols "basic" {
     key <AD03> { [            f,            F,           minus,           Atilde ] };
     key <AD04> { [            p,            P,           equal,         Ooblique ] };
     key <AD05> { [            b,            B,     asciicircum,       asciitilde ] };
-    key <AD06> { [            j,            J,         dstroke,          Dstroke ] };
-    key <AD07> { [            l,            L,                              Home ] };
-    key <AD08> { [            u,            U,                               End ] };
-    key <AD09> { [            y,            Y,      DeleteWord,       Udiaeresis ] };
+    key <AD06> { [            j,            J,         percent,          Dstroke ] };
+    key <AD07> { [            l,            L,                            exclam ] };
+    key <AD08> { [            u,            U,                              Home ] };
+    key <AD09> { [            y,            Y,                               End ] };
     key <AD10> { [  ISO_Level3_Shift  ] };
     key <AD11> { [  bracketleft,    braceleft,   guillemotleft,        0x1002039 ] };
     key <AD12> { [ bracketright,   braceright,  guillemotright,        0x100203a ] };
     key <BKSL> { [    backslash,          bar,      asciitilde,       asciitilde ] };
 
-    key <AC01> { [            a,            A,                         semicolon ] };
-    key <AC02> { [            r,            R,                             colon ] };
+    key <AC01> { [            a,            A,                             colon ] };
+    key <AC02> { [            r,            R,                        underscore ] };
     key <AC03> { [            s,            S,                         parenleft ] };
     key <AC04> { [            t,            T,                         parenright] };
-    key <AC05> { [            g,            G,  dead_diaeresis,       asciitilde ] };
-    key <AC06> { [            k,            K,                              Left ] };
+    key <AC05> { [            g,            G                                    ] };
+    key <AC06> { [            m,            M,                              Left ] };
     key <AC07> { [            n,            N,                              Down ] };
     key <AC08> { [            e,            E,                                Up ] };
     key <AC09> { [            i,            I,                             Right ] };
     key <AC10> { [            o,            O,          oacute,           Oacute ] };
     key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] };
 
-    key <AB01> { [            x,            X,                           percent ] };
-    key <AB02> { [            c,            C,                            dollar ] };
+    key <AB01> { [            x,            X,                            dollar ] };
+    key <AB02> { [            c,            C,                               bar ] };
     key <AB03> { [            d,            D,                         ampersand ] };
-    key <AB04> { [            v,            V,                               bar ] };
-    key <AB05> { [            z,            Z,                        underscore ] };
-    key <AB06> { [            m,            M,                        braceleft  ] };
+    key <AB04> { [            v,            V                                    ] };
+    key <AB05> { [            z,            Z                                    ] };
+    key <AB06> { [            k,            K,                        braceleft  ] };
     key <AB07> { [            h,            H,                        braceright ] };
     key <AB08> { [        comma,         less,    dead_cedilla,       asciitilde ] };
     key <AB09> { [       period,      greater,   dead_abovedot,       asciitilde ] };
     key <AB10> { [        slash,     question,    questiondown,       asciitilde ] };
 
     key <CAPS> { [ ISO_Level3_Shift ] };
-    // key <LSGT> { [        minus,   underscore,          endash,           emdash ] };
+    // key <LSGT> { [        minus,   underscore,          endash,        emdash ] };
     key <SPCE> { [        space,        space,                            Escape ] };
 
     include "level3(ralt_switch)"
