@@ -25,3 +25,9 @@ Here is a list of places which might be interesting to check out:
 - Terminal Multiplexer: [tmux](https://github.com/tmux/tmux)
 - Shell: [bash](https://www.gnu.org/software/bash/)
 
+### Keyboard layout
+
+I use [Colemak Mod-DH](https://colemakmods.github.io/mod-dh/) as base with an additional 
+custom snap layer in order to be able to reach commonly-used keys.
+
+![keyboard](./keyboard.png)
