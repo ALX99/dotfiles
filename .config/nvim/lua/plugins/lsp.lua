@@ -80,6 +80,7 @@ return {
                 return c.name == "sumneko_lua"
                     or c.name == "gopls"
                     or c.name == "rust_analyzer"
+                    or c.name == "robotframework_ls"
               end
             })
           end
@@ -183,6 +184,8 @@ return {
     }
 
     lspconfig.robotframework_ls.setup {
+      capabilities = capabilities,
+      on_attach = on_attach,
     }
 
     -- Setup some nicer icons for diagnostics in the gutter
