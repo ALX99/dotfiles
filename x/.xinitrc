@@ -1,5 +1,5 @@
 #!/bin/sh
-#
+
 # shellcheck disable=SC1091
 [ -r ~/.xprofile ] && . "$HOME/.xprofile"
 
