@@ -1,4 +1,5 @@
 return {
+  -- harpoon for navigating between files
   {
     "ThePrimeagen/harpoon",
     keys = {
@@ -12,5 +13,31 @@ return {
     dependencies = {
       'nvim-lua/plenary.nvim',
     },
+  },
+
+  -- leap for jumping around the file
+  {
+    "ggandor/leap.nvim",
+    event = "VeryLazy",
+    keys = {
+      { "<leader>s", "<Plug>(leap-forward-to)",  { "n", "x" }, desc = "Leap forwards" },
+      { "<leader>S", "<Plug>(leap-backward-to)", { "n", "x" }, desc = "Leap backwards" },
+    },
+    config = function()
+      local leap = require('leap')
+      leap.opts.safe_labels = { "r", "t", "c", "g", "n", "e", "h", "o", "w", "f", "l", "u" }
+      leap.opts.special_keys = {
+        next_target = { '<enter>', '.', '<A-n>' },
+        prev_target = { '<tab>', ',', '<A-e>' },
+      }
+    end
+  },
+
+  -- qc for commenting
+  {
+    "alx99/qc.lua",
+    opts = {
+      shortcut = "<leader>/"
+    }
   },
 }
