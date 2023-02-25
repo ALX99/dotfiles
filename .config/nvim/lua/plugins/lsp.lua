@@ -65,7 +65,7 @@ return {
         --   pattern = "*",
         --   callback = function()
         --     vim.lsp.buf.format({
-        --       filter = function(c) return c.name == "sumneko_lua" or c.name == "gopls" end
+        --       filter = function(c) return c.name == "lua_ls" or c.name == "gopls" end
         --     })
         --   end
         -- })
@@ -77,7 +77,7 @@ return {
           callback = function()
             vim.lsp.buf.format({
               filter = function(c)
-                return c.name == "sumneko_lua"
+                return c.name == "lua_ls"
                     or c.name == "gopls"
                     or c.name == "rust_analyzer"
                     or c.name == "robotframework_ls"
