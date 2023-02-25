@@ -5,7 +5,7 @@ return {
     require('mini.trailspace').setup({})
 
     -- require('mini.pairs').setup({})
-    require('mini.tabline').setup({})
+    require('mini.tabline').setup({ show_icons = false })
     require('mini.cursorword').setup({})
     require('mini.statusline').setup({})
     require('mini.align').setup({
