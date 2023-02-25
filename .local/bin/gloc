@@ -1,0 +1,10 @@
+#!/bin/sh -eu
+
+d=/tmp/$$.tmpsh
+mkdir -p "$d"
+trap 'rm -rf -- "${d:-?}"' EXIT INT TERM HUP
+cd "$d"
+git clone "$1" ./a
+tokei .
+(${SHELL:-/bin/sh})
+
