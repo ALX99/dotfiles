@@ -20,5 +20,14 @@ return {
         object_scope_with_border = 'ao',
       },
     })
+
+
+    -- disable trailspace on markdown files
+    vim.api.nvim_create_autocmd('BufReadPost', {
+      pattern  = '*.md',
+      callback = function()
+        vim.b.minitrailspace_disable = true
+      end,
+    })
   end,
 }
