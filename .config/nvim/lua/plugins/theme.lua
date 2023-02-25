@@ -6,14 +6,13 @@ return {
   },
   { "catppuccin/nvim",
     name = "catppuccin",
-    lazy = false,
+    event = "VeryLazy",
     opts = {
       flavour = "mocha",
       transparent_background = false,
     },
     config = function(_, opts)
       require('catppuccin').setup(opts)
-      vim.cmd.colorscheme("catppuccin")
     end
   },
   {
@@ -25,13 +24,14 @@ return {
   },
   {
     "EdenEast/nightfox.nvim",
-    event = "VeryLazy",
+    lazy = false,
     config = function()
       require('nightfox').setup({
         options = {
           dim_inactive = true, -- Non focused panes set to alternative background
         }
       })
+      vim.cmd.colorscheme("carbonfox")
     end,
   },
 }
