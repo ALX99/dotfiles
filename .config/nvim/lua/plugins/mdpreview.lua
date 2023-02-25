@@ -1,5 +1,5 @@
 return {
   "iamcco/markdown-preview.nvim",
-  event = "VeryLazy",
+  cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
   build = "cd app && yarn install",
 }
