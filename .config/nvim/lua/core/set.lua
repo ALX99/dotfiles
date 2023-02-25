@@ -12,6 +12,11 @@ o.clipboard = 'unnamedplus' -- Copy paste between vim and everything else
 o.conceallevel = 0 -- So that I can see `` in markdown files
 o.fileencoding = "utf-8" -- The encoding written to file
 
+g.loaded_python3_provider = 0
+g.loaded_node_provider    = 0
+g.loaded_perl_provider    = 0
+g.loaded_ruby_provider    = 0
+
 vim.opt.updatetime = 1000 -- If this many milliseconds nothing is typed the swap file will be written to disk
 
 -- Appearance
