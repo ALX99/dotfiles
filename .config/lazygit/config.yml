@@ -8,7 +8,7 @@ keybinding:
     prevItem-alt: '<up>' # go one line up
     nextItem-alt: '<down>' # go one line down
 
-    prevBlock: 'k' # goto the previous block / panel
+    prevBlock: 'm' # goto the previous block / panel
     nextBlock: 'i' # goto the next block / panel
 
     scrollUpMain: 'E' # main panel scroll up
@@ -16,7 +16,7 @@ keybinding:
     scrollUpMain-alt1: '<pgup>' # main panel scroll up
     scrollDownMain-alt1: '<pgdown>' # main panel scroll down
 
-    scrollLeft: 'K' # scroll left within list view
+    scrollLeft: 'M' # scroll left within list view
     scrollRight: 'I' # scroll right within list view
     nextMatch: 'l'
     prevMatch: 'L'
