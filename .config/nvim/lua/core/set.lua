@@ -2,39 +2,41 @@
 local g = vim.g
 local o = vim.o
 
--- use :h <command> for help info
-o.shell = 'bash'
 
 g.mapleader = " "
--- o.guicursor = "" -- No GUI cursor
-o.clipboard = 'unnamedplus' -- Copy paste between vim and everything else
 
-o.conceallevel = 0 -- So that I can see `` in markdown files
-o.fileencoding = "utf-8" -- The encoding written to file
+
+-- use :h <command> for help info
+o.shell                   = 'bash'
 
 g.loaded_python3_provider = 0
 g.loaded_node_provider    = 0
 g.loaded_perl_provider    = 0
 g.loaded_ruby_provider    = 0
 
+
+o.clipboard        = 'unnamedplus' -- Copy paste between vim and everything else
+o.conceallevel     = 0 -- So that I can see `` in markdown files
+o.fileencoding     = "utf-8" -- The encoding written to file
+
 vim.opt.updatetime = 1000 -- If this many milliseconds nothing is typed the swap file will be written to disk
 
 -- Appearance
-o.termguicolors  = true -- Enables 24-bit RGB color in the TUI
-o.breakindent    = true -- Enable break indent
-o.cursorline     = true -- Enable highlighting of the current line
-o.linebreak      = false -- Don't wrap words
-o.wrap           = false -- Display long lines as just one line
-o.number         = true -- Show line numbers
-o.relativenumber = true -- Relative line numbers
-o.numberwidth    = 2
-o.splitbelow     = true -- Horizontal splits (:split) will automatically be below
-o.splitright     = true -- Vertical splits (:vsplit) will automatically be to the right
-o.ruler          = true -- Show the cursor position all the time (bottom bar)
-o.showmode       = false -- We don't need to see things like -- INSERT -- due to the statusbar plugin
-o.signcolumn     = 'yes' -- Always show sign column (otherwise it will shift text)
-o.fillchars      = 'eob: ' -- Don't show `~` outside of buffer
-o.hlsearch       = true -- highlight matches<Paste>
+o.termguicolors    = true -- Enables 24-bit RGB color in the TUI
+o.breakindent      = true -- Enable break indent
+o.cursorline       = true -- Enable highlighting of the current line
+o.linebreak        = false -- Don't wrap words
+o.wrap             = false -- Display long lines as just one line
+o.number           = true -- Show line numbers
+o.relativenumber   = true -- Relative line numbers
+o.numberwidth      = 2
+o.splitbelow       = true -- Horizontal splits (:split) will automatically be below
+o.splitright       = true -- Vertical splits (:vsplit) will automatically be to the right
+o.ruler            = true -- Show the cursor position all the time (bottom bar)
+o.showmode         = false -- We don't need to see things like -- INSERT -- due to the statusbar plugin
+o.signcolumn       = 'yes' -- Always show sign column (otherwise it will shift text)
+o.fillchars        = 'eob: ' -- Don't show `~` outside of buffer
+o.hlsearch         = true -- highlight matches<Paste>
 
 -- o.list      = true
 -- o.listchars = "tab:>-"
