@@ -85,13 +85,24 @@ return {
             })
           end
         })
-
       end
     end
 
-    ----------------------
-    -- Language servers --
-    ----------------------
+    -- https://github.com/neovim/nvim-lspconfig
+    local lsps = {
+      pyright = {},
+      dockerls = {},
+      rust_analyzer = {},
+      jsonls = {},
+      html = {},
+      robotframework_ls = {},
+    }
+    for name, _ in pairs(lsps) do
+      lspconfig[name].setup({
+        capabilities = capabilities,
+        on_attach = on_attach,
+      })
+    end
 
     -- Requires gopls
     lspconfig.gopls.setup {
@@ -112,24 +123,6 @@ return {
           staticcheck = true,
         },
       },
-    }
-
-    -- Requires pyright
-    lspconfig.pyright.setup {
-      capabilities = capabilities,
-      on_attach = on_attach,
-    }
-
-    -- Requires https://github.com/rcjsuen/dockerfile-language-server-nodejs (used by the vscode docker extension)
-    lspconfig.dockerls.setup {
-      capabilities = capabilities,
-      on_attach = on_attach,
-    }
-
-    -- Requires rust-analyzer
-    lspconfig.rust_analyzer.setup {
-      capabilities = capabilities,
-      on_attach = on_attach,
     }
 
     -- Requires https://github.com/redhat-developer/yaml-language-server
@@ -170,22 +163,6 @@ return {
           telemetry = { enable = false },
         },
       },
-    }
-
-    -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#jsonls
-    lspconfig.jsonls.setup {
-      capabilities = capabilities,
-      on_attach = on_attach,
-    }
-
-    -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#html
-    lspconfig.html.setup {
-      capabilities = capabilities,
-    }
-
-    lspconfig.robotframework_ls.setup {
-      capabilities = capabilities,
-      on_attach = on_attach,
     }
 
     -- Setup some nicer icons for diagnostics in the gutter
