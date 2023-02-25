@@ -5,7 +5,7 @@ return {
     'hrsh7th/cmp-buffer',
     'saadparwaiz1/cmp_luasnip',
     'L3MON4D3/LuaSnip',
-    'alx99/lspkind.nvim',
+    'onsails/lspkind.nvim',
   },
   config = function()
     local cmp = require('cmp')
