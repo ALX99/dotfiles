@@ -1,13 +1,13 @@
 FROM alpine:edge
 
-COPY .local/bin /home/owo/.local/bin
-COPY .config /home/owo/.config
-COPY shell/* /home/owo/
+COPY .local/bin /home/hai/.local/bin
+COPY .config /home/hai/.config
+COPY shell/* /home/hai/
 
 # https://wiki.alpinelinux.org/wiki/How_to_get_regular_stuff_working
 RUN set -x && apk add --no-cache \
   util-linux coreutils binutils findutils grep docker \
-  util-linux-doc coreutils-doc binutils-doc findutils-doc bash-doc man-pages grep-doc \
+  docs \
   neovim make g++ \
   bat fzf git jq yq ripgrep curl \
   go gopls \
@@ -18,27 +18,34 @@ RUN set -x && apk add --no-cache \
   dockerfile-language-server-nodejs \
   yaml-language-server \
   pyright \
-  && adduser --disabled-password -h /home/owo -s /bin/bash owo \
-  && chown -R owo:owo /home/owo \
+  && adduser --disabled-password -h /home/hai -s /bin/bash hai \
+  && chown -R hai:hai /home/hai \
   && apk del npm
 
-USER owo
-WORKDIR /home/owo
+USER hai
+WORKDIR /home/hai
 
 RUN set -x \
   && nvim --headless -c "Lazy install" -c q \
   && nvim --headless -c "TSUpdate" -c q \
   && mkdir ~/tmp && cd ~/tmp \
   && curl -L \
-  "https://github.com/derailed/k9s/releases/download/v0.27.0/k9s_Linux_amd64.tar.gz" | \
+  "https://github.com/derailed/k9s/releases/download/v0.27.3/k9s_Linux_amd64.tar.gz" | \
   tar xz \
-  && mv ./k9s ~/.local/k9s \
+  && curl -L \
+  "https://github.com/jesseduffield/lazygit/releases/download/v0.37.0/lazygit_0.37.0_Linux_x86_64.tar.gz" | \
+  tar xz \
+  && curl -L \
+  "https://dl.k8s.io/release/v1.23.16/bin/linux/amd64/kubectl" \
+  -o ~/.local/bin/kubectl \
+  && mv ./k9s ~/.local/bin/k9s \
+  && mv ./lazygit ~/.local/bin/lazygit \
   && rm -rf ~/tmp
 
-USER owo
-ENV USER=owo
+USER hai
+ENV USER=hai
 ENV TERM="xterm-256color"
-ENV HOME=/home/owo
+ENV HOME=/home/hai
 ENV PATH="$PATH:${HOME}/go/bin:$PATH:${HOME}/.cargo/bin:${HOME}/.local/bin/"
 ENV EDITOR=nvim
 ENV VISUAL=nvim
