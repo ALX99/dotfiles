@@ -40,6 +40,7 @@ RUN set -x \
   -o ~/.local/bin/kubectl \
   && mv ./k9s ~/.local/bin/k9s \
   && mv ./lazygit ~/.local/bin/lazygit \
+  && chmod +x ~/.local/bin/kubectl \
   && rm -rf ~/tmp
 
 USER hai

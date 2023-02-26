@@ -2,11 +2,13 @@ return {
   {
     "folke/tokyonight.nvim",
     event = "VeryLazy",
-    name = "tokyonight"
+    name = "tokyonight",
+    enabled = os.getenv("USER") ~= "hai",
   },
   { "catppuccin/nvim",
     name = "catppuccin",
     event = "VeryLazy",
+    enabled = os.getenv("USER") ~= "hai",
     opts = {
       flavour = "mocha",
       transparent_background = false,
@@ -18,6 +20,7 @@ return {
   {
     "projekt0n/github-nvim-theme",
     version = "0.0.x",
+    enabled = os.getenv("USER") ~= "hai",
     --     config = function()
     --       require('github-theme').setup()
     --     end
