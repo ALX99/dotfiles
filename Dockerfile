@@ -1,8 +1,8 @@
 FROM alpine:edge
 
-COPY .local/bin /home/hai/.local/bin
-COPY .config /home/hai/.config
-COPY shell/* /home/hai/
+COPY .local/bin /root/.local/bin
+COPY .config /root/.config
+COPY shell/* /root/
 
 # https://wiki.alpinelinux.org/wiki/How_to_get_regular_stuff_working
 RUN set -x && apk add --no-cache \
@@ -18,14 +18,7 @@ RUN set -x && apk add --no-cache \
   dockerfile-language-server-nodejs \
   yaml-language-server \
   pyright \
-  && adduser --disabled-password -h /home/hai -s /bin/bash hai \
-  && chown -R hai:hai /home/hai \
-  && apk del npm
-
-USER hai
-WORKDIR /home/hai
-
-RUN set -x \
+  && apk del npm \
   && nvim --headless -c "Lazy install" -c q \
   && nvim --headless -c "TSUpdate" -c q \
   && mkdir ~/tmp && cd ~/tmp \
@@ -43,10 +36,9 @@ RUN set -x \
   && chmod +x ~/.local/bin/kubectl \
   && rm -rf ~/tmp
 
-USER hai
-ENV USER=hai
+ENV USER=root
 ENV TERM="xterm-256color"
-ENV HOME=/home/hai
+ENV HOME=/root
 ENV PATH="$PATH:${HOME}/go/bin:$PATH:${HOME}/.cargo/bin:${HOME}/.local/bin/"
 ENV EDITOR=nvim
 ENV VISUAL=nvim
