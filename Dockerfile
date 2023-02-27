@@ -34,7 +34,8 @@ RUN set -x && apk add --no-cache \
   && mv ./k9s ~/.local/bin/k9s \
   && mv ./lazygit ~/.local/bin/lazygit \
   && chmod +x ~/.local/bin/kubectl \
-  && rm -rf ~/tmp
+  && rm -rf ~/tmp \
+  && sed -i 's/\/bin\/ash/\/bin\/bash/' /etc/passwd
 
 ENV USER=root
 ENV TERM="xterm-256color"
