@@ -9,13 +9,11 @@ anki
 arandr
 arch-install-scripts
 archiso
-arp-scan
 bash-completion
 bat # better cat
 bc # Used by displayselect
 bibata-cursor-theme
 bind
-bmon # Network tool
 brave-bin
 bubblewrap
 calc
@@ -24,7 +22,7 @@ clang
 dash
 dbeaver
 desktop-file-utils # Usually required by many things
-desmume
+desmume # Nintendo DS emulator
 discord
 dmenu
 dnscrypt-proxy
@@ -33,7 +31,6 @@ docker-buildx
 docker-compose
 dosfstools # mkfs.fat
 dragon-drop
-dstat
 dunst
 etcher-bin
 exfat-utils
@@ -48,24 +45,19 @@ firefox
 flameshot
 fontpreview-git
 fzf
-gcolor3 # color picker
 git-delta
 github-cli
 gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
-helix
 helm
 htop
 hyperfine
 imv
 inetutils
-inter-font
-iotop
 iptables-nft
 iw
-jdk8-openjdk
 jdk-openjdk
 jq # Json parser
 k9s
@@ -78,8 +70,6 @@ libxft
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
 lxappearance # Used to customize GTK theme
-lynis
-macchanger
 maim # sceenshot utility
 man-db
 man-pages
@@ -92,7 +82,6 @@ ncdu # better du (find what is taking up space)
 neofetch
 neovim
 net-tools
-nload # Network tool
 nmap
 noto-fonts
 noto-fonts-cjk
@@ -125,7 +114,6 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 stow
-strace
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
@@ -138,7 +126,6 @@ ttf-cascadia-code # programming font
 ttf-dejavu
 ttf-fira-code
 ttf-font-awesome
-ttf-hack
 ttf-joypixels
 ttf-liberation
 ttf-nerd-fonts-symbols-mono
@@ -151,8 +138,6 @@ vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
 vivid
-wavemon # wifi connection information
-websocat
 wget
 which
 whois
