@@ -33,6 +33,10 @@ monitor() {
   done
 }
 
+check() {
+  cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+}
+
 argparse() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -41,12 +45,16 @@ argparse() {
 
 Options:
   -m, --monitor  continously monitor the battery and enable the performance if a charger is connected
+  -c, --check   Check the current mode
   -h, --help    Display this help text"
       exit 0
       ;;
 
     -m | --monitor)
       monitor=true
+      ;;
+    -c | --check)
+      check=true
       ;;
 
     *)
@@ -60,7 +68,9 @@ Options:
 
 main() {
   argparse "$@"
+  "${check:-false}" && check
   "${monitor:-false}" && monitor
 
 }
 main "$@"
+
