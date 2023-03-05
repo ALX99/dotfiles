@@ -21,7 +21,7 @@ monitor() {
       continue
     fi
 
-    if [ "$state" = "charging" ]; then
+    if [ "$state" = "charging" ] || [ "$state" = "fully-charged" ]; then
       sudo x86_energy_perf_policy balance-performance
       echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
     else
