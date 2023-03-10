@@ -97,13 +97,3 @@ end
 
 utils.map("n", "dd", dd, { noremap = true, expr = true })
 utils.map("n", "<C-b>", utils.togglewinbar)
-
-local opts = { noremap = true, silent = true }
---utils.map('n', '<space>e', vim.diagnostic.open_float, opts)
---utils.map('n', 'dN', vim.diagnostic.goto_prev, opts)
---utils.map('n', 'dn', vim.diagnostic.goto_next, opts)
---utils.map('n', 'do', vim.diagnostic.open_float, opts)
---utils.map('n', 'dl', vim.diagnostic.setloclist, opts)
---utils.map('n', '<space>a', vim.diagnostic.setloclist, opts)
-
---utils.map({ "n", "x" }, "ga", "<Plug>(EasyAlign)")
