@@ -8,7 +8,11 @@ return {
     local cmp_lsp = require('cmp_nvim_lsp')
 
     -- nvim-cmp capabiltiies to pass to lspconfig (announce what features the editor can support)
-    local capabilities = cmp_lsp.default_capabilities()
+    local capabilities = vim.tbl_deep_extend(
+      'force',
+      lspconfig.util.default_config.capabilities,
+      cmp_lsp.default_capabilities()
+    )
 
     -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
     -- map('n', 'gw', ':lua vim.lsp.buf.workspace_symbol()<cr>')
@@ -18,16 +22,16 @@ return {
     local on_attach = function(client, bufnr)
       -- https://sbulav.github.io/til/til-neovim-highlight-references/
       if client.server_capabilities.documentHighlightProvider then
-        local group = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
-        vim.api.nvim_clear_autocmds({ buffer = bufnr, group = group })
+        local id = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
+        vim.api.nvim_clear_autocmds({ buffer = bufnr, group = id })
         vim.api.nvim_create_autocmd("CursorHold", {
-          group = group,
+          group = id,
           callback = vim.lsp.buf.document_highlight,
           buffer = bufnr,
           desc = "Document Highlight",
         })
         vim.api.nvim_create_autocmd("CursorMoved", {
-          group = group,
+          group = id,
           callback = vim.lsp.buf.clear_references,
           buffer = bufnr,
           desc = "Clear All the References",
@@ -40,12 +44,12 @@ return {
       -- See `:help vim.lsp.*` for documentation on any of the below functions
       local bufopts = { noremap = true, silent = true, buffer = bufnr }
       utils.map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', bufopts) -- vim.lsp.buf.definition
-      utils.map('n', 'gr', '<cmd>Telescope lsp_references<CR>', bufopts) -- vim.lsp.buf.references
+      utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
       utils.map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', bufopts) --vim.lsp.buf.implementation
-      utils.map('n', 'gt', vim.lsp.buf.type_definition, bufopts)
-      --   utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
-      utils.map('n', 'gh', vim.lsp.buf.hover, bufopts)
-      --   utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
+      utils.map('n', 'gk', vim.lsp.buf.hover, bufopts)
+      utils.map('n', 'go', vim.lsp.buf.type_definition, bufopts)
+      utils.map('n', 'gr', '<cmd>Telescope lsp_references<CR>', bufopts) -- vim.lsp.buf.references
+      utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
       utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
       utils.map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
       utils.map('n', '<leader>wl', function()
@@ -53,24 +57,18 @@ return {
       end, bufopts)
       utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
       utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
-      --   utils.map('n', 'gf', function() vim.lsp.buf.format { async = true } end, bufopts)
+      utils.map('x', '<leader>ca', vim.lsp.buf.range_code_action, bufopts)
       utils.map({ 'n', 'v' }, '=', vim.lsp.buf.format, bufopts)
 
 
-      -- Auto format
-      if client.server_capabilities.documentFormattingProvider then
-        -- Format before leaving insert mode
-        -- vim.api.nvim_create_autocmd("InsertLeavePre", {
-        --   group = vim.api.nvim_create_augroup("AutoFmtInsertLeavePre", { clear = true }),
-        --   pattern = "*",
-        --   callback = function()
-        --     vim.lsp.buf.format({
-        --       filter = function(c) return c.name == "lua_ls" or c.name == "gopls" end
-        --     })
-        --   end
-        -- })
+      utils.map('n', 'gl', vim.diagnostic.open_float, bufopts)
+      utils.map('n', '[d', vim.diagnostic.goto_prev, bufopts)
+      utils.map('n', ']d', vim.diagnostic.goto_next, bufopts)
+      -- utils.map('n', '<space>a', vim.diagnostic.setloclist, bufopts)
 
-        -- Format before saving
+
+      -- Auto format before saving
+      if client.server_capabilities.documentFormattingProvider then
         vim.api.nvim_create_autocmd("BufWritePre", {
           group = vim.api.nvim_create_augroup("AutoFmtBufWritePre", { clear = true }),
           pattern = "*",
@@ -97,6 +95,7 @@ return {
       html = {},
       robotframework_ls = {},
     }
+
     for name, _ in pairs(lsps) do
       lspconfig[name].setup({
         capabilities = capabilities,
@@ -175,8 +174,19 @@ return {
     vim.diagnostic.config({
       virtual_text = true,
       signs = true,
-      underline = true,
+      --       underline = true,
       severity_sort = true, -- Errors first
+      float = { border = 'rounded' },
     })
+
+    vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
+      vim.lsp.handlers.hover,
+      { border = 'rounded' }
+    )
+
+    vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+      vim.lsp.handlers.signature_help,
+      { border = 'rounded' }
+    )
   end,
 }
