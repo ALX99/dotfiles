@@ -35,7 +35,8 @@ QT_QPA_PLATFORMTHEME=qt6ct
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
-TASK_TEMP_DIR='/tmp/.task'
+TASK_TEMP_DIR="/tmp/.task"
+CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
 [ -x "$(command -v bat)" ] && MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Clean up ~/
