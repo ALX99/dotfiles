@@ -24,3 +24,5 @@ git:
   paging:
     colorArg: always
     pager: delta --dark --paging=never
+gui:
+  showFileTree: false
