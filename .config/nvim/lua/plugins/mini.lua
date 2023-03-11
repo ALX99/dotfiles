@@ -23,10 +23,17 @@ return {
 
 
     -- disable trailspace on markdown files
-    vim.api.nvim_create_autocmd('BufReadPost', {
-      pattern  = '*.md',
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern  = 'markdown',
       callback = function()
         vim.b.minitrailspace_disable = true
+      end,
+    })
+
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern  = { "NvimTree", "FTerm", "lazy" },
+      callback = function()
+        vim.b.miniindentscope_disable = true
       end,
     })
   end,
