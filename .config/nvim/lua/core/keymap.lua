@@ -83,7 +83,7 @@ utils.map("n", "<leader>Q", "<cmd>q!<CR>")
 -- Terminal mode mappings
 -- utils.map("t", "<C-\\><C-n>", "<nop>")
 -- utils.map("t", "<C-\\><C-n>i", "<nop>")
--- utils.map("t", "<Esc>", "<C-\\><C-n>") -- Who needs ESC in the shell anyway lol
+-- utils.map("t", "<Esc>", "<C-\\><C-n>") -- Who needs ESC in the shell anyway
 -- utils.map("t", "<M-t>", "<C-\\><C-n>:ToggleTerm<CR>")
 
 -- Smarter delete

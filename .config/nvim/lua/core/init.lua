@@ -15,6 +15,22 @@ vim.opt.rtp:prepend(lazypath)
 
 vim.g.mapleader = " " -- make sure to set `mapleader` before lazy so your mappings are correct
 
-require('lazy').setup('plugins', { change_detection = { notify = false, }, })
+require('lazy').setup('plugins',
+  {
+    change_detection = { notify = false },
+    performance = {
+      rtp = {
+        disabled_plugins = {
+          "gzip",
+          "matchit",
+          "netrwPlugin",
+          "tarPlugin",
+          "tohtml",
+          "zipPlugin",
+          "rplugin",
+        },
+      },
+    },
+  })
 require('core.keymap')
 require('core.autocmds')
