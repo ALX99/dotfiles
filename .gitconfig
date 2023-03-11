@@ -1,27 +1,29 @@
-[alias]
-  a        = add
-  s        = status
-  co       = checkout
-  cob      = checkout -b
-  f        = fetch
-  fa       = fetch --all
-  c        = commit
-  p        = push
-  branches = branch -a
-  remotes  = remote -v
-  d        = diff
-  dc       = diff --cached
-  st       = status -sb
-  undo     = reset --soft HEAD~1
+# https://git-scm.com/docs/git-config
+[user]
+  email = 46844683+ALX99@users.noreply.github.com
+  name  = ALX99
 
-  plog      = log --graph --pretty='format:%C(red)%d%C(reset) %C(yellow)%h%C(reset) %ar %C(green)%aN%C(reset) %s'
-  tlog      = log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative
-  lg        = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-  rank      = shortlog -sn --no-merges
+[pull]
+  rebase = merges
+
+[rebase]
+  autoStash = true
+
+[apply]
+  whitespace = fix
+
+[status]
+  # Display submodule rev change summaries in status
+  submoduleSummary = true
+  # Recursively traverse untracked directories to display all contents
+  showUntrackedFiles = all
 
 [core]
   pager = delta
-  whitespace = trailing-space,space-before-tab
+
+[diff]
+  colorMoved = default
+  submodule = log
 
 [interactive]
   diffFilter = delta --color-only
@@ -30,25 +32,47 @@
   navigate = true  # use n and N to move between diff sections
   light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
   line-numbers = true
-  # side-by-side = true
 
-[merge]
-  conflictstyle = diff3
+[alias]
+  a = add
+  f = fetch --all
+  p = pull
+  s = status -sb
 
-[diff]
-  colorMoved = default
-  submodule = log
+  # commits
+  c   = commit
+  cm  = c -m
+  ca  = c --amend --no-edit
+  cam = c --amend
+  ch  = !source ~/dotfiles/shell/.gitalias && gch $1
+  cu  = reset --mixed HEAD~1
 
-[apply]
-  whitespace = fix
+  # diff
+  d  = diff
+  d  = diff --stat
+  dc = diff --cached
 
-[user]
-  email = 46844683+ALX99@users.noreply.github.com
-  name  = ALX99
+  # branches
+  bd = !source ~/dotfiles/shell/.gitalias && gbd $1
+  bl = branch
+  bs = !source ~/dotfiles/shell/.gitalias && gbs $1
+
+  # stashes
+  sa = stash push
+  sp = stash pop
+
+  # misc
+  al = "! git config --get-regexp '^alias\\.' | cut -c7-"
+  co = checkout
+  st = status
+
+
+  lg      = log --graph --date=relative --pretty=format:'%C(auto)%h%Creset -%C(auto)%d%Creset %s %C(blue)[%an] %C(black)(%ad)%Creset'
+  rank    = shortlog -sn --no-merges
+  remotes = remote -v
+  review  = push origin HEAD:refs/for/master
 
 # Push over SSH instead of HTTPS
 [url "ssh://git@github.com/"]
   pushInsteadOf = https://github.com/
 
-[status]
-	submoduleSummary = true

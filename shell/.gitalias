@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Git branch switch
+gbs() {
+  set -eu
+  [ -n "${1-}" ] && {
+    git switch "$1"
+    return
+  }
+
+  bs="$(git --no-pager branch -vv | grep -v '^\*')"
+  [ "$(echo "$bs" | wc -l)" -le 0 ] && return
+  b="$(echo "$bs" | fzf-tmux -p +m)"
+  git switch "$(echo "$b" | awk '{print $1}')"
+}
+
+# Git branch delete
+gbd() {
+  set -eu
+  [ -n "${1-}" ] && {
+    git branch -D "$1"
+    return
+  }
+
+  bs="$(git --no-pager branch -vv | grep -v '\Wmaster\W\|\Wmain\W')"
+  [ "$(echo "$bs" | wc -l)" -le 0 ] && return
+  b="$(echo "$bs" | fzf-tmux -p -m)"
+  echo "$b" | awk '{print $1}' | grep -v "\*" | sed "s/.* //" | xargs -I{} git branch -D '{}'
+}
+
+# Git commmit hash
+gch() {
+  set -eu
+  [ -n "${1-}" ] && {
+    git branch -D "$1"
+    return
+  }
+
+  cs="$(git log --color=always --pretty=oneline --abbrev-commit --reverse)"
+  c="$(echo "$cs" | fzf-tmux -p --tac +s +m -e --ansi --reverse)"
+  echo "${c%%\ *}"
+}
+
