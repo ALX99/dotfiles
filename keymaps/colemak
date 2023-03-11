@@ -38,8 +38,8 @@ xkb_symbols "basic" {
     key <AC01> { [            a,            A,                             colon ] };
     key <AC02> { [            r,            R,                        underscore ] };
     key <AC03> { [            s,            S,                         parenleft ] };
-    key <AC04> { [            t,            T,                         parenright] };
-    key <AC05> { [            g,            G                                    ] };
+    key <AC04> { [            t,            T,                        parenright ] };
+    key <AC05> { [            g,            G,                          quotedbl ] };
     key <AC06> { [            m,            M,                              Left ] };
     key <AC07> { [            n,            N,                              Down ] };
     key <AC08> { [            e,            E,                                Up ] };
@@ -47,6 +47,8 @@ xkb_symbols "basic" {
     key <AC10> { [            o,            O,          oacute,           Oacute ] };
     key <AC11> { [   apostrophe,     quotedbl,          otilde,           Otilde ] };
 
+
+    key <LSGT> { [    semicolon                                                  ] };
     key <AB01> { [            x,            X,                            dollar ] };
     key <AB02> { [            c,            C,                               bar ] };
     key <AB03> { [            d,            D,                         ampersand ] };
