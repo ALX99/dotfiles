@@ -5,7 +5,14 @@ return {
     name = "tokyonight",
     enabled = os.getenv("USER") ~= "root",
   },
-  { "catppuccin/nvim",
+  {
+    "rebelot/kanagawa.nvim",
+    event = "VeryLazy",
+    config = true,
+    enabled = os.getenv("USER") ~= "root",
+  },
+  {
+    "catppuccin/nvim",
     name = "catppuccin",
     event = "VeryLazy",
     enabled = os.getenv("USER") ~= "root",
