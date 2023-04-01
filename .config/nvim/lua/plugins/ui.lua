@@ -121,6 +121,7 @@ return {
             min = "10%",
             max = "40%"
           },
+          side = "right",
         },
         diagnostics = {
           enable = true,
@@ -136,6 +137,14 @@ return {
     cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
     enabled = vim.fn.executable("yarn") == 1,
     build = "cd app && yarn install",
+  },
+
+  -- smartcolumn for automatically showing/hiding the smartcolumn
+  {
+    "m4xshen/smartcolumn.nvim",
+    opts = {
+      disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
+    }
   },
 
 }
