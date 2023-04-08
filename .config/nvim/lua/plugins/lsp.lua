@@ -43,8 +43,8 @@ return {
       -- Mappings.
       -- See `:help vim.lsp.*` for documentation on any of the below functions
       local bufopts = { noremap = true, silent = true, buffer = bufnr }
-      utils.map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', bufopts) -- vim.lsp.buf.definition
-      utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts) -- Many LSPs do not implement this
+      utils.map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', bufopts)     -- vim.lsp.buf.definition
+      utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts)                  -- Many LSPs do not implement this
       utils.map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', bufopts) --vim.lsp.buf.implementation
       utils.map('n', 'gk', vim.lsp.buf.hover, bufopts)
       utils.map('n', 'go', vim.lsp.buf.type_definition, bufopts)
@@ -93,6 +93,7 @@ return {
       rust_analyzer = {},
       jsonls = {},
       html = {},
+      tsserver = {},
       robotframework_ls = {},
     }
 

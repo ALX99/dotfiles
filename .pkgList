@@ -5,7 +5,7 @@ alsa-utils
 android-apktool
 android-file-transfer
 android-tools
-anki
+anki-bin
 arandr
 arch-install-scripts
 archiso
@@ -51,6 +51,7 @@ gnome-keyring
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
+graphviz
 helm
 htop
 hyperfine
@@ -74,6 +75,7 @@ maim # sceenshot utility
 man-db
 man-pages
 megasync-bin
+microsoft-edge-stable-bin
 minikube
 mlocate # Locate
 mpv
@@ -121,7 +123,6 @@ tmux
 tokei
 traceroute
 tree
-trivy
 ttf-cascadia-code # programming font
 ttf-dejavu
 ttf-fira-code
@@ -129,6 +130,7 @@ ttf-font-awesome
 ttf-joypixels
 ttf-liberation
 ttf-nerd-fonts-symbols-mono
+typescript-language-server
 unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
@@ -138,6 +140,7 @@ vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
 vivid
+wezterm
 wget
 which
 whois
