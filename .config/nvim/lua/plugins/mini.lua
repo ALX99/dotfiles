@@ -1,6 +1,5 @@
 return {
   "echasnovski/mini.nvim",
-  version = "^0.7.0",
   config = function()
     require('mini.trailspace').setup({})
 
