@@ -2,6 +2,8 @@
 local g = vim.g
 local o = vim.o
 
+-- :options
+-- :Telescope vim_options
 
 g.mapleader = " "
 
@@ -22,21 +24,22 @@ o.fileencoding     = "utf-8"       -- The encoding written to file
 vim.opt.updatetime = 1000          -- If this many milliseconds nothing is typed the swap file will be written to disk
 
 -- Appearance
-o.termguicolors    = true    -- Enables 24-bit RGB color in the TUI
-o.breakindent      = true    -- Enable break indent
-o.cursorline       = true    -- Enable highlighting of the current line
-o.linebreak        = false   -- Don't wrap words
-o.wrap             = false   -- Display long lines as just one line
-o.number           = true    -- Show line numbers
-o.relativenumber   = true    -- Relative line numbers
+o.termguicolors    = true     -- Enables 24-bit RGB color in the TUI
+o.breakindent      = true     -- Enable break indent
+o.cursorline       = true     -- Enable highlighting of the current line
+o.cursorlineopt    = "number" -- Only highlight number
+o.linebreak        = false    -- Don't wrap words
+o.wrap             = false    -- Display long lines as just one line
+o.number           = true     -- Show line numbers
+o.relativenumber   = true     -- Relative line numbers
 o.numberwidth      = 2
-o.splitbelow       = true    -- Horizontal splits (:split) will automatically be below
-o.splitright       = true    -- Vertical splits (:vsplit) will automatically be to the right
-o.ruler            = true    -- Show the cursor position all the time (bottom bar)
-o.showmode         = false   -- We don't need to see things like -- INSERT -- due to the statusbar plugin
-o.signcolumn       = 'yes'   -- Always show sign column (otherwise it will shift text)
-o.fillchars        = 'eob: ' -- Don't show `~` outside of buffer
-o.hlsearch         = true    -- highlight matches<Paste>
+o.splitbelow       = true     -- Horizontal splits (:split) will automatically be below
+o.splitright       = true     -- Vertical splits (:vsplit) will automatically be to the right
+o.ruler            = true     -- Show the cursor position all the time (bottom bar)
+o.showmode         = false    -- We don't need to see things like -- INSERT -- due to the statusbar plugin
+o.signcolumn       = 'yes'    -- Always show sign column (otherwise it will shift text)
+o.fillchars        = 'eob: '  -- Don't show `~` outside of buffer
+o.hlsearch         = true     -- highlight matches<Paste>
 
 -- o.list      = true
 -- o.listchars = "tab:>-"
