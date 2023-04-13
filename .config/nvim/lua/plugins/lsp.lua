@@ -14,77 +14,130 @@ return {
       cmp_lsp.default_capabilities()
     )
 
-    -- map('n', 'gw', ':lua vim.lsp.buf.document_symbol()<cr>')
-    -- map('n', 'gw', ':lua vim.lsp.buf.workspace_symbol()<cr>')
+    local function mappings(buf)
+      -- See `:help vim.lsp.*` for documentation on any of the below functions
+      local opts = { buffer = buf }
+      vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)                  -- Many LSPs do not implement this
+      vim.keymap.set('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', opts)     -- vim.lsp.buf.definition
+      vim.keymap.set('n', 'gk', vim.lsp.buf.hover, opts)
+      vim.keymap.set('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', opts) -- vim.lsp.buf.implementation
+      vim.keymap.set('n', 'gs', vim.lsp.buf.signature_help, opts)
+      vim.keymap.set('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, opts)
+      vim.keymap.set('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, opts)
+      vim.keymap.set('n', '<leader>wl', function()
+        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+      end, opts)
+      vim.keymap.set('n', 'gt', vim.lsp.buf.type_definition, opts)
+      vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+      vim.keymap.set({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, opts)
+      vim.keymap.set('n', 'gr', '<cmd>Telescope lsp_references<CR>', opts) -- vim.lsp.buf.references
+      vim.keymap.set({ 'n', 'v' }, '=', function()
+        vim.lsp.buf.format { async = true }
+      end, opts)
+    end
 
-    -- This is a callback function that will e executed when a
-    -- language server is attached to a buffer.
-    local on_attach = function(client, bufnr)
+    local function highlight_references(client, buf)
       -- https://sbulav.github.io/til/til-neovim-highlight-references/
       if client.server_capabilities.documentHighlightProvider then
-        local id = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
-        vim.api.nvim_clear_autocmds({ buffer = bufnr, group = id })
+        local grp = vim.api.nvim_create_augroup("lsp_document_highlight", {})
+        vim.api.nvim_clear_autocmds({ group = grp, buffer = buf })
         vim.api.nvim_create_autocmd("CursorHold", {
-          group = id,
-          callback = vim.lsp.buf.document_highlight,
-          buffer = bufnr,
           desc = "Document Highlight",
+          callback = function() vim.schedule(vim.lsp.buf.document_highlight) end,
+          group = grp,
+          buffer = buf,
         })
         vim.api.nvim_create_autocmd("CursorMoved", {
-          group = id,
-          callback = vim.lsp.buf.clear_references,
-          buffer = bufnr,
           desc = "Clear All the References",
+          callback = function() vim.schedule(vim.lsp.buf.clear_references) end,
+          group = grp,
+          buffer = buf,
         })
       end
+    end
 
-
-
-      -- Mappings.
-      -- See `:help vim.lsp.*` for documentation on any of the below functions
-      local bufopts = { noremap = true, silent = true, buffer = bufnr }
-      utils.map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', bufopts)     -- vim.lsp.buf.definition
-      utils.map('n', 'gD', vim.lsp.buf.declaration, bufopts)                  -- Many LSPs do not implement this
-      utils.map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', bufopts) --vim.lsp.buf.implementation
-      utils.map('n', 'gk', vim.lsp.buf.hover, bufopts)
-      utils.map('n', 'go', vim.lsp.buf.type_definition, bufopts)
-      utils.map('n', 'gr', '<cmd>Telescope lsp_references<CR>', bufopts) -- vim.lsp.buf.references
-      utils.map('n', 'gs', vim.lsp.buf.signature_help, bufopts)
-      utils.map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, bufopts)
-      utils.map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
-      utils.map('n', '<leader>wl', function()
-        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-      end, bufopts)
-      utils.map('n', '<leader>rn', vim.lsp.buf.rename, bufopts)
-      utils.map('n', '<leader>ca', vim.lsp.buf.code_action, bufopts)
-      utils.map('x', '<leader>ca', vim.lsp.buf.range_code_action, bufopts)
-      utils.map({ 'n', 'v' }, '=', vim.lsp.buf.format, bufopts)
-
-
-      utils.map('n', 'gl', vim.diagnostic.open_float, bufopts)
-      utils.map('n', '[d', vim.diagnostic.goto_prev, bufopts)
-      utils.map('n', ']d', vim.diagnostic.goto_next, bufopts)
-      -- utils.map('n', '<space>a', vim.diagnostic.setloclist, bufopts)
-
-
-      -- Auto format before saving
+    local function formatting(client, buf)
       if client.server_capabilities.documentFormattingProvider then
+        -- Auto format before saving
         vim.api.nvim_create_autocmd("BufWritePre", {
-          group = vim.api.nvim_create_augroup("AutoFmtBufWritePre", { clear = true }),
-          pattern = "*",
           callback = function()
+            local view = vim.fn.winsaveview()
             vim.lsp.buf.format({
               filter = function(c)
                 return c.name == "lua_ls"
                     or c.name == "gopls"
                     or c.name == "rust_analyzer"
                     or c.name == "robotframework_ls"
-              end
+              end,
             })
-          end
+            vim.fn.winrestview(view)
+          end,
+          group = vim.api.nvim_create_augroup("LspFormat", { clear = true }),
+          buffer = buf,
         })
       end
     end
+
+    vim.api.nvim_create_autocmd('LspAttach', {
+      callback = function(ev)
+        local client = vim.lsp.get_client_by_id(ev.data.client_id)
+
+        if client.server_capabilities.definitionProvider then
+          vim.bo[ev.buf].tagfunc = "v:lua.vim.lsp.tagfunc"
+        end
+        if client.server_capabilities.documentFormattingProvider then
+          vim.bo[ev.buf].formatexpr = "v:lua.vim.lsp.formatexpr()"
+        end
+
+        mappings(ev.buf)
+        highlight_references(client, ev.buf)
+        formatting(client, ev.buf)
+      end,
+      group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+    })
+
+    -----------------
+    -- Diagnostics --
+    -----------------
+
+    local bufopts = { noremap = true, silent = true }
+    utils.map('n', 'gl', vim.diagnostic.open_float, bufopts)
+    utils.map('n', '[d', vim.diagnostic.goto_prev, bufopts)
+    utils.map('n', ']d', vim.diagnostic.goto_next, bufopts)
+
+    -- Setup some nicer icons for diagnostics in the gutter
+    local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
+    for type, icon in pairs(signs) do
+      local hl = "DiagnosticSign" .. type
+      vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
+    end
+
+    vim.diagnostic.config({
+      virtual_text = true,
+      underline = true,
+      update_in_insert = false,
+      severity_sort = true, -- Errors first
+      float = {
+        focusable = true,
+        style = "minimal",
+        border = "rounded",
+        source = "always",
+      },
+    })
+
+    vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
+      vim.lsp.handlers.hover,
+      { focusable = true, style = "minimal", border = "rounded" }
+    )
+
+    vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+      vim.lsp.handlers.signature_help,
+      { focusable = true, style = "minimal", border = "rounded" }
+    )
+
+    -----------------
+    -- LSP Servers --
+    -----------------
 
     -- https://github.com/neovim/nvim-lspconfig
     local lsps = {
@@ -100,14 +153,12 @@ return {
     for name, _ in pairs(lsps) do
       lspconfig[name].setup({
         capabilities = capabilities,
-        on_attach = on_attach,
       })
     end
 
     -- Requires gopls
     lspconfig.gopls.setup {
       capabilities = capabilities,
-      on_attach = on_attach,
       settings = {
         gopls = {
           experimentalPostfixCompletions = true,
@@ -127,7 +178,6 @@ return {
 
     -- Requires https://github.com/redhat-developer/yaml-language-server
     lspconfig.yamlls.setup {
-      on_attach = on_attach,
       capabilities = capabilities,
       settings = {
         yaml = {
@@ -140,7 +190,6 @@ return {
 
     lspconfig.lua_ls.setup {
       capabilities = capabilities,
-      on_attach = on_attach,
       settings = {
         Lua = {
           runtime = {
@@ -164,30 +213,5 @@ return {
         },
       },
     }
-
-    -- Setup some nicer icons for diagnostics in the gutter
-    local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
-    for type, icon in pairs(signs) do
-      local hl = "DiagnosticSign" .. type
-      vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
-    end
-
-    vim.diagnostic.config({
-      virtual_text = true,
-      signs = true,
-      --       underline = true,
-      severity_sort = true, -- Errors first
-      float = { border = 'rounded' },
-    })
-
-    vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
-      vim.lsp.handlers.hover,
-      { border = 'rounded' }
-    )
-
-    vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
-      vim.lsp.handlers.signature_help,
-      { border = 'rounded' }
-    )
   end,
 }
