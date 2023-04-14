@@ -70,4 +70,7 @@ return {
     -- vim.opt.foldminlines = 20
     vim.opt.foldenable = false
   end,
+  enabled = function()
+    return not require('core.utils').is_vscodevim()
+  end
 }

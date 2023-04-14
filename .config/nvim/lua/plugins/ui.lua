@@ -15,6 +15,9 @@ return {
         ["<leader>w"] = { name = "+windows" },
       })
     end,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   },
 
   -- gitsigns for git gutter
@@ -44,6 +47,9 @@ return {
         end
       }
     end,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   },
 
   -- nvim-tree for a file tree
@@ -128,6 +134,9 @@ return {
           show_on_dirs = true,
         },
       })
+    end,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
     end
   },
 
@@ -135,8 +144,10 @@ return {
   {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
-    enabled = vim.fn.executable("yarn") == 1,
     build = "cd app && yarn install",
+    enabled = function()
+      return not require('core.utils').is_vscodevim() or vim.fn.executable("yarn") == 1
+    end
   },
 
   -- smartcolumn for automatically showing/hiding the smartcolumn
@@ -144,7 +155,9 @@ return {
     "m4xshen/smartcolumn.nvim",
     opts = {
       disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
-    }
+    },
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   },
-
 }
