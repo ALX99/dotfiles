@@ -13,6 +13,9 @@ return {
     dependencies = {
       'nvim-lua/plenary.nvim',
     },
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   },
 
   -- leap for jumping around the file

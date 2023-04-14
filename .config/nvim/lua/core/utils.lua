@@ -21,4 +21,12 @@ function M.togglewinbar()
   end
 end
 
+function M.is_vscodevim()
+  if vim.g.vscode then
+    return true
+  else
+    return false
+  end
+end
+
 return M

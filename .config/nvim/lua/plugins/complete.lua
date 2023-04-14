@@ -6,6 +6,9 @@ return {
     config = function()
       require("luasnip.loaders.from_vscode").lazy_load()
     end,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   },
 
   -- completion
@@ -103,6 +106,9 @@ return {
           { name = 'buffer' }
         }
       })
+    end,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
     end
   }
 }
