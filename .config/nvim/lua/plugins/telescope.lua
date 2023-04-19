@@ -14,10 +14,8 @@ return {
       desc =
       "Telescope"
     },
-    { "<leader>o",  "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
-    { "<leader>O",  "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
-    { "<leader>wo", "<cmd>vsplit<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
-    { "<leader>wO", "<cmd>split<CR><cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
     {
       "<leader>ff",
       "<cmd>Telescope current_buffer_fuzzy_find<CR>",
@@ -48,7 +46,6 @@ return {
       desc =
       "Goto function"
     },
-    { "<leader>M", "<cmd>Telescope man_pages<CR>" },
   },
   config = function()
     local telescope = require('telescope')

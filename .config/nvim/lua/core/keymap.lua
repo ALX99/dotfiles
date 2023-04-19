@@ -5,34 +5,33 @@ if not ok then
 end
 
 -- Colemak-DH remappings
+local colemak_maps = {
+  m = 'h', -- Left
+  n = 'j', -- Down
+  e = 'k', -- Up
+  i = 'l', -- Right
+}
 
--- Left
-utils.map({ "n", "x", "o" }, "m", "h")
-utils.map({ "n", "x", "o" }, "M", "H")
+for k, v in pairs(colemak_maps) do
+  utils.map({ "n", "x", "o" }, k, v)
+  utils.map({ "n", "x", "o" }, string.upper(k), string.upper(v))
+end
 
--- Down
-utils.map({ "n", "x", "o" }, "n", "j")
-utils.map({ "n", "x", "o" }, "N", "J")
+-- Additional fixes due to colemak remappings
+for k, v in pairs({
+  k = 'm', -- k is the new m
+  l = 'n', -- l is the new n
+  h = 'e', -- h is the new e
+  s = 'i', -- s is the new i
+}) do
+  utils.map({ "n", "x", "o" }, k, v)
+  utils.map({ "n", "x", "o" }, string.upper(k), string.upper(v))
+end
 
--- Up
-utils.map({ "n", "x", "o" }, "e", "k")
-utils.map({ "n", "x", "o" }, "E", "K")
-
--- Right
-utils.map({ "n", "x", "o" }, "i", "l")
-utils.map({ "n", "x", "o" }, "I", "L")
-
--- Map l (locate) to n
-utils.map({ "n", "x", "o" }, "l", "n")
-utils.map({ "n", "x", "o" }, "L", "N")
-
--- Map s to i
-utils.map({ "n", "x", "o" }, "s", "i")
-utils.map({ "n", "x", "o" }, "S", "I")
-
--- Map k (keep) to k
-utils.map({ "n", "x", "o" }, "k", "m")
-utils.map({ "n", "x", "o" }, "K", "M")
+utils.map({ "n", "x", "o" }, "gh", "ge")
+utils.map({ "n", "x", "o" }, "gH", "gE")
+utils.map({ "n", "x", "o" }, "ge", "<Nop>")
+utils.map({ "n", "x", "o" }, "gE", "<Nop>")
 
 -- Remove some mappings that are bothersome
 utils.map({ "n", "x", "o" }, "vi", "<Nop>")
@@ -58,33 +57,28 @@ utils.map("x", ">", ">gv") -- Stay in indent mode
 -----------------
 -- WINDOW MODE --
 -----------------
-utils.map("n", "<leader>ws", "<cmd>split<CR>")
-utils.map("n", "<leader>wv", "<cmd>vsplit<CR>")
+utils.map("n", "<leader>w", "<C-w>")
 utils.map("n", "<leader>wns", "<cmd>new<CR>")
 utils.map("n", "<leader>wnv", "<cmd>vnew<CR>")
-utils.map("n", "<leader>w=", "<C-w>=")
-utils.map("n", "<leader>m", "<C-w>h")
-utils.map("n", "<leader>n", "<C-w>j")
-utils.map("n", "<leader>e", "<C-w>k")
-utils.map("n", "<leader>i", "<C-w>l")
 
-utils.map("n", "<leader>q", "<cmd>q<CR>")
-utils.map("n", "<leader>Q", "<cmd>q!<CR>")
+for k, v in pairs(colemak_maps) do
+  utils.map("n", "<leader>" .. k, "<C-w>" .. v)
+  utils.map("n", "<leader>w" .. string.upper(k), "<C-w>" .. string.upper(v))
+  utils.map("n", "<C-w>" .. v, "<Nop>")
+  utils.map("n", "<C-w>" .. string.upper(v), "<Nop>")
+end
+
+-- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
+-- todo read about tags
+-- utils.map("n", "gp", "<C-w>}")
+
+utils.map("n", "<leader>q", ":hide<CR>", { silent = true })
 
 -- Resize with arrows
 -- utils.map("n", "<C-Up>", ":resize +2<CR>")
 -- utils.map("n", "<C-Down>", ":resize -2<CR>")
 -- utils.map("n", "<C-Left>", ":vertical resize -2<CR>")
 -- utils.map("n", "<C-Right>", ":vertical resize +2<CR>")
-
-
--- These are used so frequently that I want to
-
--- Terminal mode mappings
--- utils.map("t", "<C-\\><C-n>", "<nop>")
--- utils.map("t", "<C-\\><C-n>i", "<nop>")
--- utils.map("t", "<Esc>", "<C-\\><C-n>") -- Who needs ESC in the shell anyway
--- utils.map("t", "<M-t>", "<C-\\><C-n>:ToggleTerm<CR>")
 
 -- Smarter delete
 local function dd()
