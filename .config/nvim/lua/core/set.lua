@@ -73,9 +73,5 @@ o.background = "dark" -- tell vim what the background color looks like
 -- o.cmdheight = 0
 -- o.statusline = ""
 
--- TODO stuff left over from general.vim
--- set iskeyword+=-          -- treat dash separated words as a word text object--
--- set autochdir                           -- Your working directory will always be the same as your working directory
--- o.laststatus = 2 -- Always show statusbar
 vim.opt.spelllang = 'en_us,en_gb'
 vim.opt.spell = true
