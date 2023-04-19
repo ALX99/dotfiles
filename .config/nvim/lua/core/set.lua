@@ -45,7 +45,6 @@ o.hlsearch         = true     -- highlight matches<Paste>
 -- o.listchars = "tab:>-"
 
 
-
 -- Editing
 o.ignorecase  = true -- Ignore case in the pattern normally
 o.incsearch   = true -- search as characters are entered
@@ -78,3 +77,5 @@ o.background = "dark" -- tell vim what the background color looks like
 -- set iskeyword+=-          -- treat dash separated words as a word text object--
 -- set autochdir                           -- Your working directory will always be the same as your working directory
 -- o.laststatus = 2 -- Always show statusbar
+vim.opt.spelllang = 'en_us,en_gb'
+vim.opt.spell = true
