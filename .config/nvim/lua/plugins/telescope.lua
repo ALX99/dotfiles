@@ -93,8 +93,11 @@ return {
       pickers = {
         lsp_references = {
           initial_mode = "normal",
+        },
+        colorscheme = {
+          enable_preview = true
         }
-      },
+      }
     }
 
     -- Load telescope plugins
