@@ -9,7 +9,7 @@ return {
   cmd = "Telescope",
   keys = {
     {
-      "<leader>Pt",
+      "<leader>pt",
       ":Telescope<CR>",
       desc =
       "Telescope"

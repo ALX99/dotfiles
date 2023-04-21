@@ -4,13 +4,13 @@ return {
     require('mini.trailspace').setup({})
 
     -- require('mini.pairs').setup({})
-    require('mini.tabline').setup({ show_icons = false })
+    --     require('mini.tabline').setup({ show_icons = false })
     require('mini.cursorword').setup({})
     require('mini.statusline').setup({})
     require('mini.align').setup({
       mappings = {
-        start = '<leader>Pa',
-        start_with_preview = '<leader>PA'
+        start = '<leader>pa',
+        start_with_preview = '<leader>pA'
       },
     })
     require('mini.indentscope').setup({
