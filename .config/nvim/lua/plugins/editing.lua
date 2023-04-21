@@ -35,12 +35,4 @@ return {
       }
     end
   },
-
-  -- qc for commenting
-  {
-    "alx99/qc.lua",
-    opts = {
-      shortcut = "<leader>/"
-    }
-  },
 }
