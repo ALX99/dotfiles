@@ -46,7 +46,7 @@ utils.map("n", "<leader>B", "<C-i>")
 -------------
 -- Plugins --
 -------------
-utils.map({ "n", "x", "o" }, "<leader>Pl", ":Lazy<CR>", { desc = "Lazy" })
+utils.map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
 
 ------------
 -- Visual --
