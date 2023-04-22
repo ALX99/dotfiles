@@ -1,3 +1,16 @@
+if require('core.utils').is_vscodevim() then
+  return
+end
+
+local function get_session_file()
+  local pattern = "/"
+  if vim.fn.has("win32") == 1 then
+    pattern = "[\\:]"
+  end
+  return vim.fn.expand(vim.fn.stdpath("state") .. "/sessions/")
+      .. vim.fn.getcwd():gsub(pattern, "%%") .. ".vim"
+end
+
 -- show cursor line only in active window
 local cursorGrp = vim.api.nvim_create_augroup("CursorLine", { clear = true })
 vim.api.nvim_create_autocmd({ "InsertLeave", "WinEnter" }, {
@@ -21,6 +34,27 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     end
   end,
 })
+
+local sessionGrp = vim.api.nvim_create_augroup("auto_sessions", { clear = true })
+vim.api.nvim_create_autocmd("VimEnter", {
+  callback = function()
+    local session = get_session_file()
+    if vim.fn.filereadable(session) ~= 0 then
+      vim.cmd("silent! source " .. vim.fn.fnameescape(session))
+    end
+  end,
+  group = sessionGrp,
+  nested = true,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    if vim.fn.getcwd() ~= vim.env.HOME then
+      vim.cmd("mks! " .. vim.fn.fnameescape(get_session_file()))
+    end
+  end,
+  group = sessionGrp
+})
+
 
 -- Check if we need to reload the file when it changed
 vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {

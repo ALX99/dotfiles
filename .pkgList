@@ -109,8 +109,8 @@ qbittorrent
 qt6ct
 redshift # nightlight
 ripgrep
+rust
 rust-analyzer
-rustup
 shellcheck
 shellharden
 shfmt # shell format
