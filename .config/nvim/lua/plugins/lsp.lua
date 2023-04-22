@@ -2,8 +2,7 @@ return {
   "neovim/nvim-lspconfig",
   dependencies = { "hrsh7th/cmp-nvim-lsp" },
   config = function()
-    local utils = require('core.utils')
-
+    local map = require('core.utils').map
     local lspconfig = require('lspconfig')
     local cmp_lsp = require('cmp_nvim_lsp')
 
@@ -17,21 +16,21 @@ return {
     local function mappings(buf)
       -- See `:help vim.lsp.*` for documentation on any of the below functions
       local opts = { buffer = buf }
-      vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)                  -- Many LSPs do not implement this
-      vim.keymap.set('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', opts)     -- vim.lsp.buf.definition
-      vim.keymap.set('n', 'gk', vim.lsp.buf.hover, opts)
-      vim.keymap.set('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', opts) -- vim.lsp.buf.implementation
-      vim.keymap.set('n', 'gs', vim.lsp.buf.signature_help, opts)
-      vim.keymap.set('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, opts)
-      vim.keymap.set('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, opts)
-      vim.keymap.set('n', '<leader>wl', function()
+      map('n', 'gD', vim.lsp.buf.declaration, opts)                  -- Many LSPs do not implement this
+      map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', opts)     -- vim.lsp.buf.definition
+      map('n', 'gk', vim.lsp.buf.hover, opts)
+      map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', opts) -- vim.lsp.buf.implementation
+      map('n', 'gs', vim.lsp.buf.signature_help, opts)
+      map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, opts)
+      map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, opts)
+      map('n', '<leader>wl', function()
         print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
       end, opts)
-      vim.keymap.set('n', 'gt', vim.lsp.buf.type_definition, opts)
-      vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
-      vim.keymap.set({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, opts)
-      vim.keymap.set('n', 'gr', '<cmd>Telescope lsp_references<CR>', opts) -- vim.lsp.buf.references
-      vim.keymap.set({ 'n', 'v' }, '=', function()
+      map('n', 'gt', vim.lsp.buf.type_definition, opts)
+      map('n', '<leader>rn', vim.lsp.buf.rename, opts)
+      map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, opts)
+      map('n', 'gr', '<cmd>Telescope lsp_references<CR>', opts) -- vim.lsp.buf.references
+      map({ 'n', 'v' }, '=', function()
         vim.lsp.buf.format { async = true }
       end, opts)
     end
@@ -100,10 +99,9 @@ return {
     -- Diagnostics --
     -----------------
 
-    local bufopts = { noremap = true, silent = true }
-    utils.map('n', 'gl', vim.diagnostic.open_float, bufopts)
-    utils.map('n', '[d', vim.diagnostic.goto_prev, bufopts)
-    utils.map('n', ']d', vim.diagnostic.goto_next, bufopts)
+    map('n', 'gl', vim.diagnostic.open_float)
+    map('n', '[d', vim.diagnostic.goto_prev)
+    map('n', ']d', vim.diagnostic.goto_next)
 
     -- Setup some nicer icons for diagnostics in the gutter
     local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
