@@ -2,7 +2,8 @@ return {
   "echasnovski/mini.nvim",
   config = function()
     require('mini.trailspace').setup({})
-    -- require('mini.sessions').setup({ autoread = true })
+    -- require('mini.tabline').setup({ show_icons = false })
+    -- require('mini.cursorword').setup({})
     require('mini.comment').setup({
       options = {
         ignore_blank_line = true,
@@ -14,9 +15,7 @@ return {
       },
     })
 
-    -- require('mini.pairs').setup({})
-    -- require('mini.tabline').setup({ show_icons = false })
-    -- require('mini.cursorword').setup({})
+    require('mini.pairs').setup({})
     require('mini.statusline').setup({})
     require('mini.align').setup({
       mappings = {
