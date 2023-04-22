@@ -22,6 +22,12 @@ vim.api.nvim_create_autocmd('BufReadPost', {
   end,
 })
 
+-- Check if we need to reload the file when it changed
+vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+  group = vim.api.nvim_create_augroup("checktime", { clear = true }),
+  command = "checktime",
+})
+
 -- https://github.com/neovim/nvim-lspconfig/issues/115
 -- https://github.com/golang/tools/blob/master/gopls/doc/vim.md#neovim-imports
 vim.api.nvim_create_autocmd('BufWritePre', {
@@ -45,12 +51,11 @@ vim.api.nvim_create_autocmd('BufWritePre', {
 })
 
 -- Highlight on yank
-local highlight_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
 vim.api.nvim_create_autocmd('TextYankPost', {
   callback = function()
     vim.highlight.on_yank()
   end,
-  group = highlight_group,
+  group = vim.api.nvim_create_augroup('YankHighlight', { clear = true }),
   pattern = '*',
 })
 
