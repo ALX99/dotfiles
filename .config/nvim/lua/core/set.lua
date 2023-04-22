@@ -41,8 +41,6 @@ o.signcolumn       = 'yes'    -- Always show sign column (otherwise it will shif
 o.fillchars        = 'eob: '  -- Don't show `~` outside of buffer
 o.hlsearch         = true     -- highlight matches<Paste>
 
--- o.list      = true
--- o.listchars = "tab:>-"
 
 
 -- Editing
@@ -65,13 +63,20 @@ o.smarttab    = true -- Makes tabbing smarter will realize you have 2 vs 4
 
 
 o.matchtime = 3       -- Tenths of a second to show the matching paren, when 'showmatch' is set.
-o.so = 8              -- Always leave 15 spaces when scrolling
+o.so = 8              -- Leave x spaces when scrolling
 o.background = "dark" -- tell vim what the background color looks like
+
+vim.opt.spelllang = 'en_us,en_gb'
+vim.opt.spell = true
+
+-- Show some invisible characters
+o.list = true
+vim.opt.backspace = "indent,eol,start"
+vim.opt.listchars = { space = "⋅", tab = "▸ ", trail = "·" } -- eol = "↲"
+
+o.helpheight = 25
 
 -- Hide statusline by setting laststatus and cmdheight to 0.
 -- o.laststatus = 0
 -- o.cmdheight = 0
 -- o.statusline = ""
-
-vim.opt.spelllang = 'en_us,en_gb'
-vim.opt.spell = true
