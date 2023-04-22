@@ -23,12 +23,14 @@ return {
     "ggandor/leap.nvim",
     event = "VeryLazy",
     keys = {
-      { "<leader>s", "<Plug>(leap-forward-to)",  { "n", "x" }, desc = "Leap forwards" },
-      { "<leader>S", "<Plug>(leap-backward-to)", { "n", "x" }, desc = "Leap backwards" },
+      { "<leader>t", "<Plug>(leap-forward-to)",  { "n", "v" }, desc = "Leap forwards" },
+      { "<leader>a", "<Plug>(leap-backward-to)", { "n", "v" }, desc = "Leap backwards" },
     },
     config = function()
       local leap = require('leap')
-      leap.opts.safe_labels = { "r", "t", "c", "g", "n", "e", "h", "o", "w", "f", "l", "u" }
+      leap.opts.safe_labels = {
+        "t", "f", "g", "q", "w", "b", "n", "e", "h", "u", "o", "l", "u",
+        "T", "F", "G", "Q", "W", "B", "N", "E", "H", "U", "O", "L", "U" }
       leap.opts.special_keys = {
         next_target = { '<enter>', '.', '<A-n>' },
         prev_target = { '<tab>', ',', '<A-e>' },

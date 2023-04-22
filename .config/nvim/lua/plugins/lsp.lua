@@ -2,11 +2,11 @@ return {
   "neovim/nvim-lspconfig",
   dependencies = { "hrsh7th/cmp-nvim-lsp" },
   config = function()
-    local map = require('core.utils').map
+    local utils = require('core.utils')
     local lspconfig = require('lspconfig')
     local cmp_lsp = require('cmp_nvim_lsp')
 
-    -- nvim-cmp capabiltiies to pass to lspconfig (announce what features the editor can support)
+    -- nvim-cmp capabilities to pass to lspconfig (announce what features the editor can support)
     local capabilities = vim.tbl_deep_extend(
       'force',
       lspconfig.util.default_config.capabilities,
@@ -14,25 +14,33 @@ return {
     )
 
     local function mappings(buf)
+      local map = function(mode, lhs, rhs, opts)
+        local options = { buffer = buf }
+        if opts then
+          options = vim.tbl_extend("force", options, opts)
+        end
+        utils.map(mode, lhs, rhs, opts)
+      end
+
       -- See `:help vim.lsp.*` for documentation on any of the below functions
-      local opts = { buffer = buf }
-      map('n', 'gD', vim.lsp.buf.declaration, opts)                  -- Many LSPs do not implement this
-      map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', opts)     -- vim.lsp.buf.definition
-      map('n', 'gk', vim.lsp.buf.hover, opts)
-      map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', opts) -- vim.lsp.buf.implementation
-      map('n', 'gs', vim.lsp.buf.signature_help, opts)
-      map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder, opts)
-      map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder, opts)
-      map('n', '<leader>wl', function()
-        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-      end, opts)
-      map('n', 'gt', vim.lsp.buf.type_definition, opts)
-      map('n', '<leader>rn', vim.lsp.buf.rename, opts)
-      map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, opts)
-      map('n', 'gr', '<cmd>Telescope lsp_references<CR>', opts) -- vim.lsp.buf.references
+      map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                     -- Many LSPs do not implement this
+      map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', { desc = "Go to definition" })         -- vim.lsp.buf.definition
+      map('n', 'gk', vim.lsp.buf.hover, { desc = "Hover" })
+      map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+      map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
+      map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+      map('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
+      map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
+      map('n', 'gr', '<cmd>Telescope lsp_references<CR>', { desc = "Go to reference" }) -- vim.lsp.buf.references
       map({ 'n', 'v' }, '=', function()
         vim.lsp.buf.format { async = true }
-      end, opts)
+      end, { desc = "Format file" })
+
+      -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
+      -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
+      -- map('n', '<leader>wl', function()
+      --   print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+      -- end)
     end
 
     local function highlight_references(client, buf)
@@ -99,9 +107,9 @@ return {
     -- Diagnostics --
     -----------------
 
-    map('n', 'gl', vim.diagnostic.open_float)
-    map('n', '[d', vim.diagnostic.goto_prev)
-    map('n', ']d', vim.diagnostic.goto_next)
+    utils.map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
+    utils.map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
+    utils.map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
 
     -- Setup some nicer icons for diagnostics in the gutter
     local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
