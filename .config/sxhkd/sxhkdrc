@@ -10,9 +10,6 @@ super + Return
 super + b
     $BROWSER
 
-super + shift + m
-    dmenumount
-
 super + c
     code
 

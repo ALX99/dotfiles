@@ -6,11 +6,12 @@ local colemak_maps = {
   n = 'j', -- Down
   e = 'k', -- Up
   i = 'l', -- Right
+  M = 'H', -- Top of buffer
+  I = 'L', -- End of buffer
 }
 
 for k, v in pairs(colemak_maps) do
-  map({ "n", "x", "o" }, k, v)
-  map({ "n", "x", "o" }, string.upper(k), string.upper(v))
+  map({ "n", "v", "o" }, k, v)
 end
 
 -- Fix conflicts caused by the above mappings
@@ -20,42 +21,53 @@ for k, v in pairs({
   h = 'e', -- h is the new e
   s = 'i', -- s is the new i
 }) do
-  map({ "n", "x", "o" }, k, v)
-  map({ "n", "x", "o" }, string.upper(k), string.upper(v))
+  -- if k == 'l' then
+  --   map({ "n", "v", "o" }, k, v .. "zzzv", { desc = "search next and center" })
+  --   map({ "n", "v", "o" }, string.upper(k), string.upper(v) .. "zzzv", { desc = "search prev and center" })
+  -- else
+  map({ "n", "v", "o" }, k, v)
+  map({ "n", "v", "o" }, string.upper(k), string.upper(v))
+  -- end
 end
 
+
 -- Additional fixes (h is the new e)
-map({ "n", "x", "o" }, "gh", "ge")
-map({ "n", "x", "o" }, "gH", "gE")
+map({ "n", "x", "o" }, "gh", "ge", { desc = "Previous end of word" })
+map({ "n", "x", "o" }, "gH", "gE", { desc = "Previous end of word" })
 map({ "n", "x", "o" }, "ge", "<Nop>")
 map({ "n", "x", "o" }, "gE", "<Nop>")
+map({ "n", "x", "o" }, "vi", "<Nop>")                          -- I use 'vs' instead
+map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
 
-map({ "n", "x", "o" }, "vi", "<Nop>") -- I use 'vs' instead
-map("i", "tn", "<Esc>")               -- Esc is hard to press
 
--- Yep, I go backwards quite a lot
-map("n", "<leader>b", "<C-o>")
-map("n", "<leader>B", "<C-i>")
+-- QoL
+map("x", "<", "<gv")    -- Stay in indent mode
+map("x", ">", ">gv")    -- Stay in indent mode
+map("i", "tn", "<Esc>") -- Esc is hard to press
+map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
+map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
+map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
+map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Prevous buffer" })
+-- Center cursor vertically while <C-d> and <C-u>
+map('n', '<C-d>', '<C-d>zz')
+map('n', '<C-u>', '<C-u>zz')
 
--------------
--- Plugins --
--------------
+-- plugins
 map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
-
-------------
--- Visual --
-------------
-map("x", "<", "<gv") -- Stay in indent mode
-map("x", ">", ">gv") -- Stay in indent mode
 
 -----------------
 -- WINDOW MODE --
 -----------------
 map("n", "<leader>w", "<C-w>")
-map("n", "<leader>wns", "<cmd>new<CR>")
-map("n", "<leader>wnv", "<cmd>vnew<CR>")
+-- map("n", "<leader>wns", "<cmd>new<CR>")
+-- map("n", "<leader>wnv", "<cmd>vnew<CR>")
 
-for k, v in pairs(colemak_maps) do
+for k, v in pairs({
+  m = 'h', -- Left
+  n = 'j', -- Down
+  e = 'k', -- Up
+  i = 'l', -- Right
+}) do
   map("n", "<leader>" .. k, "<C-w>" .. v)
   map("n", "<leader>w" .. string.upper(k), "<C-w>" .. string.upper(v))
   map("n", "<C-w>" .. v, "<Nop>")

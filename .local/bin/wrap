@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+CONTAINER_STORAGE="$HOME/.local/containers"
+mkdir -p "$CONTAINER_STORAGE"
+
+shasum="$(docker create "$1")"
+rootfs="$CONTAINER_STORAGE/$shasum"
+
+mkdir -p "$rootfs"
+docker export "$shasum" | tar -C "$rootfs" -xf -
+docker rm "$shasum"
+
+readarray -t envs < <(docker inspect --format='{{range $k, $v := .Config.Env}} {{printf "%s\n" $v}} {{end}}' "$1")
+args=()
+for e in "${envs[@]}"; do
+  [[ -z $(echo "$e" | awk '{$1=$1};1') ]] && continue
+  args+=(--setenv "$(echo "$e" | cut -d'=' -f1 | awk '{$1=$1};1')" "$(echo "$e" | cut -d'=' -f2 | awk '{$1=$1};1')")
+done
+
+set -x
+bwrap --bind "$rootfs" / \
+  --chdir / \
+  --unshare-all \
+  --share-net \
+  --die-with-parent \
+  --clearenv \
+  --new-session \
+  "${args[@]}" \
+  bash
+set +x
