@@ -29,6 +29,6 @@ $if mode=vi
   i: forward-char
   k: backward-char
 
-  set keymap vi-insert                          
+  set keymap vi-insert
   "kk": vi-movement-mode
 $endif

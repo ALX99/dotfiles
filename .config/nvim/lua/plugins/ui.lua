@@ -147,15 +147,18 @@ return {
     cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
     build = "cd app && yarn install",
     enabled = function()
-      return not require('core.utils').is_vscodevim() or vim.fn.executable("yarn") == 1
+      return not require('core.utils').is_vscodevim()
+          or vim.fn.executable("yarn") == 1
     end
   },
 
+  -- alternative https://github.com/ecthelionvi/NeoColumn.nvim
   -- smartcolumn for automatically showing/hiding the smartcolumn
   {
     "m4xshen/smartcolumn.nvim",
     opts = {
       disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
+      colorcolumn = "100",
     },
     enabled = function()
       return not require('core.utils').is_vscodevim()

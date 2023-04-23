@@ -18,7 +18,7 @@ stty -ixon # Disable ctrl-s and ctrl-q.
 # Stuff that I want to conditionally set
 if true; then
   # Default programs
-  TERMINAL="st"
+  TERMINAL="alacritty"
   TERM="st-256color"
   EDITOR="nvim"
   VISUAL="nvim"

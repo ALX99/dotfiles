@@ -5,7 +5,7 @@ return {
     -- Treesitter
 
     local treesitter_configs = require('nvim-treesitter.configs')
-    local treesitter_parsers = require('nvim-treesitter.parsers')
+    -- local treesitter_parsers = require('nvim-treesitter.parsers')
 
     -- vim.filetype.add({
     --   extension = {
