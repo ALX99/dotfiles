@@ -12,3 +12,6 @@ treesitter
 tmp
 alacritty
 autocmd
+colemak
+TUI
+config
