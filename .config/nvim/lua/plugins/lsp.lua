@@ -4,13 +4,12 @@ return {
   config = function()
     local utils = require('core.utils')
     local lspconfig = require('lspconfig')
-    local cmp_lsp = require('cmp_nvim_lsp')
 
     -- nvim-cmp capabilities to pass to lspconfig (announce what features the editor can support)
     local capabilities = vim.tbl_deep_extend(
       'force',
       lspconfig.util.default_config.capabilities,
-      cmp_lsp.default_capabilities()
+      require('cmp_nvim_lsp').default_capabilities()
     )
 
     local function mappings(buf)
@@ -209,12 +208,9 @@ return {
           workspace = {
             -- Make the server aware of Neovim runtime files
             library = {
-              [vim.fn.expand "$VIMRUNTIME/lua"] = true,
-              [vim.fn.expand "$VIMRUNTIME/lua/vim/lsp"] = true,
               vim.api.nvim_get_runtime_file("", true),
             }
           },
-          -- Do not send telemetry data containing a randomized but unique identifier
           telemetry = { enable = false },
         },
       },

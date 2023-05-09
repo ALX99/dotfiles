@@ -1,6 +1,6 @@
 return {
   "nvim-telescope/telescope.nvim",
-  version = '0.1.x',
+  version = '^0.1.x',
   dependencies = {
     'nvim-lua/plenary.nvim',
     'nvim-telescope/telescope-ui-select.nvim',                     -- Code actions for telescope
@@ -11,40 +11,39 @@ return {
     {
       "<leader>pt",
       ":Telescope<CR>",
-      desc =
-      "Telescope"
+      desc = "Telescope"
     },
     { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
     { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
     {
-      "<leader>ff",
+      "<leader>fb",
       "<cmd>Telescope current_buffer_fuzzy_find<CR>",
-      desc =
-      "Fuzzy find"
+      desc = "Fuzzy find"
     },
     {
       "<leader>fg",
       "<cmd>Telescope live_grep<CR>",
-      desc =
-      "Grep in files"
+      desc = "Grep in files"
     },
     {
       "<leader>fA",
       "<cmd>Telescope lsp_document_symbols<CR>",
-      desc =
-      "Goto symbol"
+      desc = "Goto symbol"
     },
     {
       "<leader>fM",
       "<cmd>Telescope lsp_document_symbols symbols=method<CR>",
-      desc =
-      "Goto method"
+      desc = "Goto method"
     },
     {
       "<leader>fF",
       "<cmd>Telescope lsp_document_symbols symbols=function<CR>",
-      desc =
-      "Goto function"
+      desc = "Goto function"
+    },
+    {
+      "<leader>d",
+      "<cmd>Telescope diagnostics<CR>",
+      desc = "Diagnostics"
     },
   },
   config = function()
