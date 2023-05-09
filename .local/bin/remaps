@@ -1,7 +1,5 @@
 #!/bin/sh
 setxkbmap colemak
-# xmodmap has to be applied after setting with xkb
-xmodmap ~/dotfiles/keymaps/xmodColemakCustom
 xset r rate 200 45
 # Does not work yet
 # killall xcape 2>/dev/null ; xcape -e 'Caps_Lock=Escape'
@@ -9,3 +7,4 @@ xset r rate 200 45
 # Map the menu button to right super as well.
 xmodmap -e 'keycode 135 = Super_R'
 notify-send "Keyboard layout: Colemak-DH"
+
