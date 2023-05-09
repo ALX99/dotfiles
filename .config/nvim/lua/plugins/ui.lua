@@ -156,6 +156,7 @@ return {
   -- smartcolumn for automatically showing/hiding the smartcolumn
   {
     "m4xshen/smartcolumn.nvim",
+    event = "VeryLazy",
     opts = {
       disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
       colorcolumn = "100",

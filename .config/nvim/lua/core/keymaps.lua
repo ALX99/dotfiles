@@ -30,15 +30,15 @@ for k, v in pairs({
   -- end
 end
 
-
 -- Additional fixes (h is the new e)
 map({ "n", "x", "o" }, "gh", "ge", { desc = "Previous end of word" })
 map({ "n", "x", "o" }, "gH", "gE", { desc = "Previous end of word" })
 map({ "n", "x", "o" }, "ge", "<Nop>")
 map({ "n", "x", "o" }, "gE", "<Nop>")
-map({ "n", "x", "o" }, "vi", "<Nop>")                          -- I use 'vs' instead
 map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
-
+map({ "n", "x", "o" }, "ci", "c<Right>")
+map({ "n", "x", "o" }, "di", "d<Right>")
+map({ "n", "x", "o" }, "vi", "v<Right>")
 
 -- QoL
 map("x", "<", "<gv")    -- Stay in indent mode

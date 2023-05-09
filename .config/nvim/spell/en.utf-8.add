@@ -15,3 +15,5 @@ autocmd
 colemak
 TUI
 config
+neovim
+tmux

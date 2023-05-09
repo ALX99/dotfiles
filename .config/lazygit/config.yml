@@ -8,8 +8,8 @@ keybinding:
     prevItem-alt: '<up>' # go one line up
     nextItem-alt: '<down>' # go one line down
 
-    prevBlock: 'm' # goto the previous block / panel
-    nextBlock: 'i' # goto the next block / panel
+    prevBlock: 'm' # go to the previous block / panel
+    nextBlock: 'i' # go to the next block / panel
 
     scrollUpMain: 'E' # main panel scroll up
     scrollDownMain: 'N' # main panel scroll down
