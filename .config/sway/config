@@ -1,0 +1,156 @@
+### Variables
+
+set $mod Mod4
+set $left m
+set $down n
+set $up e
+set $right i
+set $term alacritty
+set $menu exec fuzzel -I -T $term
+
+### Output configuration
+# swaymsg -t get_outputs
+# man sway-output
+output * bg /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png fill
+# output eDP-1 {
+#   mode 1000x1080@60.008Hz
+# }
+
+### Idle configuration
+#
+# Example configuration:
+#
+# exec swayidle -w \
+#          timeout 300 'swaylock -f -c 000000' \
+#          timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
+#          before-sleep 'swaylock -f -c 000000'
+#
+# This will lock your screen after 300 seconds of inactivity, then turn off
+# your displays after another 300 seconds, and turn your screens back on when
+# resumed. It will also lock your screen before your computer goes to sleep.
+
+### Input configuration
+# swaymsg -t get_inputs
+# man sway-input
+input * {
+  xkb_layout "colemak"
+  repeat_rate 45
+  repeat_delay 200
+}
+input "1102:4620:ALP000D:00_044E:120C" {
+  dwt enabled
+  tap enabled
+  natural_scroll disabled
+  middle_emulation enabled
+  scroll_factor 0.5
+}
+
+### Key bindings
+bindsym $mod+Return exec $term
+bindsym $mod++q kill
+bindsym $mod+d exec $menu
+floating_modifier $mod normal
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+q exit
+
+# Moving around
+bindsym $mod+$left focus left
+bindsym $mod+$down focus down
+bindsym $mod+$up focus up
+bindsym $mod+$right focus right
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+bindsym $mod+Shift+$left move left
+bindsym $mod+Shift+$down move down
+bindsym $mod+Shift+$up move up
+bindsym $mod+Shift+$right move right
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# Workspaces
+# Switch to workspace
+bindsym $mod+1 workspace 一
+bindsym $mod+2 workspace 二
+bindsym $mod+3 workspace 三
+bindsym $mod+4 workspace 四
+bindsym $mod+5 workspace 五
+# Move focused container to workspace
+bindsym $mod+Shift+1 move container to workspace 一
+bindsym $mod+Shift+2 move container to workspace 二
+bindsym $mod+Shift+3 move container to workspace 三
+bindsym $mod+Shift+4 move container to workspace 四
+bindsym $mod+Shift+5 move container to workspace 五
+
+# Layout stuff:
+bindsym $mod+s splitv
+bindsym $mod+v splith
+
+# Switch the current container between different layout styles
+bindsym $mod+Shift+s layout stacking
+bindsym $mod+Shift+w layout tabbed
+bindsym $mod+Shift+t layout toggle split
+
+# Make the current focus fullscreen
+bindsym $mod+f fullscreen
+
+# Toggle the current focus between tiling and floating mode
+bindsym $mod+Shift+space floating toggle
+
+# Swap focus between the tiling area and the floating area
+bindsym $mod+space focus mode_toggle
+
+# Move focus to the parent container
+bindsym $mod+a focus parent
+
+# Scratchpad:
+    bindsym $mod+Shift+minus move scratchpad
+    bindsym $mod+minus scratchpad show
+
+# Resizing containers:
+mode "resize" {
+    bindsym $left resize shrink width 10px
+    bindsym $down resize grow height 10px
+    bindsym $up resize shrink height 10px
+    bindsym $right resize grow width 10px
+
+    bindsym Left resize shrink width 10px
+    bindsym Down resize grow height 10px
+    bindsym Up resize shrink height 10px
+    bindsym Right resize grow width 10px
+
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+#
+# Status Bar:
+#
+# Read `man 5 sway-bar` for more information about this section.
+bar {
+    position top
+
+    # When the status_command prints a new line to stdout, swaybar updates.
+    # The default just shows the current date and time.
+    status_command while date +'%Y-%m-%d %I:%M:%S %p'; do sleep 1; done
+
+    colors {
+        statusline #ffffff
+        background #323232
+        inactive_workspace #32323200 #32323200 #5c5c5c
+    }
+}
+
+### Misc
+titlebar_padding 1 1
+hide_edge_borders smart_no_gaps
+# smart_borders no_gaps
+smart_gaps on
+# gaps inner 10
+
+
+include /etc/sway/config.d/*
