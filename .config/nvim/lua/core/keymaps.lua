@@ -36,9 +36,9 @@ map({ "n", "x", "o" }, "gH", "gE", { desc = "Previous end of word" })
 map({ "n", "x", "o" }, "ge", "<Nop>")
 map({ "n", "x", "o" }, "gE", "<Nop>")
 map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
-map({ "n", "x", "o" }, "ci", "c<Right>")
-map({ "n", "x", "o" }, "di", "d<Right>")
-map({ "n", "x", "o" }, "vi", "v<Right>")
+map({ "n", "o" }, "ci", "c<Right>")
+map({ "n", "o" }, "di", "d<Right>")
+map({ "n", "o" }, "vi", "v<Right>")
 
 -- QoL
 map("x", "<", "<gv")    -- Stay in indent mode
