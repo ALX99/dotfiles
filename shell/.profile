@@ -37,6 +37,7 @@ CGO_ENABLED="0"
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 TASK_TEMP_DIR="/tmp/.task"
 CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
+RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 [ -x "$(command -v bat)" ] && MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Clean up ~/
