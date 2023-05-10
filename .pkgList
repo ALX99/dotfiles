@@ -23,7 +23,6 @@ dash
 dbeaver
 desktop-file-utils # Usually required by many things
 desmume # Nintendo DS emulator
-discord
 dmenu
 dnscrypt-proxy
 docker
@@ -44,6 +43,7 @@ ffmpeg
 firefox
 flameshot
 fontpreview-git
+fuzzel
 fzf
 git-delta
 github-cli
@@ -106,7 +106,7 @@ python-black
 python-pip
 qbittorrent
 qt6ct
-redshift # nightlight
+qt6-wayland
 ripgrep
 rust
 rust-analyzer
@@ -115,6 +115,7 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 stow
+sway
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
@@ -139,6 +140,7 @@ vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
 vivid
+wayland
 wget
 which
 whois
