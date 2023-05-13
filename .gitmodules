@@ -8,3 +8,6 @@
 [submodule "task"]
 	path = task
 	url = https://github.com/ALX99/task
+[submodule ".config/alacritty/themes"]
+	path = .config/alacritty/themes
+	url = https://github.com/alacritty/alacritty-theme
