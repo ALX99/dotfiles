@@ -21,7 +21,7 @@ blocks:
     args: [-c, printf "%.1f%%\n" "$(xbacklight)"]
 
   - command: getmem
-    icon: " "
+    icon: "󰍛 "
     interval: 10s
 
   - command: getbat
