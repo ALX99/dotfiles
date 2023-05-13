@@ -108,6 +108,7 @@ qbittorrent
 qt6ct
 qt6-wayland
 ripgrep
+river
 rust
 rust-analyzer
 shellcheck
@@ -115,7 +116,6 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 stow
-sway
 sxhkd # Universal keybindings
 sxiv # image viewer
 tcpdump
@@ -127,6 +127,7 @@ ttf-cascadia-code # programming font
 ttf-dejavu
 ttf-fira-code
 ttf-font-awesome
+ttf-inconsolata
 ttf-joypixels
 ttf-liberation
 ttf-nerd-fonts-symbols-mono
@@ -145,8 +146,8 @@ wget
 which
 whois
 wireshark-qt
+wl-clipboard
 x86_energy_perf_policy
-xclip
 xdg-utils
 xdotool
 xdo # Use with window swallowing

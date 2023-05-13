@@ -1,0 +1,47 @@
+#!/bin/bash
+set -eou pipefail
+
+readonly brightness_file="/sys/class/backlight/intel_backlight/brightness"
+readonly usage="usage ${0##*/} [OPTIONS]
+
+where:
+    -h, --help  show this help text
+    -d [DELTA]  change the current brightness by DELTA
+    -s [VALUE]  set the brightness to VALUE"
+
+# 1: value
+set_brightness() {
+  echo "$1" | sudo tee "$brightness_file" >/dev/null
+}
+
+# 1: delta
+delta_change() {
+  curr_brightness="$(cat "$brightness_file")"
+  set_brightness "$((curr_brightness + $1))"
+}
+
+main() {
+  case "$1" in
+  -h | --help)
+    echo "$usage"
+    exit 0
+    ;;
+  -d)
+    shift
+    delta_change "$1"
+    exit 0
+    ;;
+  -s)
+    shift
+    set_brightness "$1"
+    exit 0
+    ;;
+  *)
+    echo "Unknown argument $1"
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"
+
