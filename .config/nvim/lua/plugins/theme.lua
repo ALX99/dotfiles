@@ -3,6 +3,9 @@ return {
     "folke/tokyonight.nvim",
     event = "VeryLazy",
     name = "tokyonight",
+    opts = {
+      transparent = true,
+    },
     enabled = function()
       return not require('core.utils').is_vscodevim()
     end
@@ -12,6 +15,7 @@ return {
     lazy = false,
     opts = {
       dimInactive = true,
+      transparent = true,
     },
     config = function(_, opts)
       require('kanagawa').setup(opts)
@@ -47,6 +51,7 @@ return {
     opts = {
       options = {
         dim_inactive = true, -- Non focused panes set to alternative background
+        transparent = true,
       }
     },
     enabled = function()
