@@ -111,7 +111,7 @@ return {
     utils.map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
 
     -- Setup some nicer icons for diagnostics in the gutter
-    local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
+    local signs = { Error = "󰅚", Warn = "", Hint = "󰛩", Info = " " }
     for type, icon in pairs(signs) do
       local hl = "DiagnosticSign" .. type
       vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
