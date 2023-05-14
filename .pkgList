@@ -52,6 +52,7 @@ gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
 graphviz
+helix
 helm
 htop
 hyperfine
@@ -75,7 +76,6 @@ maim # sceenshot utility
 man-db
 man-pages
 megasync-bin
-minikube
 mlocate # Locate
 mpv
 mtr # Network diagnostics
@@ -97,6 +97,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
 pavucontrol
+perl-file-mimeinfo
 picom
 pkgfile # tool for searching files from packages
 postgresql-libs
@@ -148,6 +149,7 @@ whois
 wireshark-qt
 wl-clipboard
 x86_energy_perf_policy
+xarchiver
 xdg-utils
 xdotool
 xdo # Use with window swallowing

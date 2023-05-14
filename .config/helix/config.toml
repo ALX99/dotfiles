@@ -1,0 +1,51 @@
+theme = "onedark"
+
+# free keys jk
+
+[keys.normal]
+# colemak-dh
+m = "move_char_left"
+n = "move_line_down"
+e = "move_line_up"
+i = "move_char_right"
+
+
+# Fixes due to remaps above
+l = "search_next"
+L = "search_prev"
+h = "move_next_word_end"
+H = "move_next_long_word_end"
+# todo need to fix selection stuff
+s = "insert_mode"
+S = "insert_at_line_start"
+
+E = "no_op"
+N = "no_op"
+I = "no_op"
+
+# Vim like
+"{" = ["goto_prev_paragraph", "collapse_selection"]
+"}" = ["goto_next_paragraph", "collapse_selection"]
+0 = "goto_line_start"
+"$" = "goto_line_end"
+"^" = "goto_first_nonwhitespace"
+"%" = "match_brackets"
+
+
+
+# match mode (k instead of m)
+[keys.normal.k]
+k = "match_brackets"
+s = "surround_add"
+r = "surround_replace"
+d = "surround_delete"
+a = "select_textobject_around"
+i = "select_textobject_inner"
+
+# View mode
+[keys.normal.z]
+n = "scroll_down"
+e = "scroll_up"
+
+[keys.insert]
+t = { n = "normal_mode" }
