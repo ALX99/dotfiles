@@ -4,3 +4,4 @@ e back-line
 E back-line-force
 l repeat-search
 L reverse-search
+k set-mark

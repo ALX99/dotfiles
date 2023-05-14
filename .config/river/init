@@ -2,7 +2,7 @@
 
 term="alacritty"
 
-riverctl map normal Super+Shift Return spawn "$term"
+riverctl map normal Super Return spawn "$term"
 
 riverctl map normal Super Q close                             # Close window
 riverctl map normal Super+Shift Q exit                        # Exit river
@@ -14,7 +14,7 @@ riverctl map normal Super Period focus-output next            # Next output
 riverctl map normal Super Comma focus-output previous         # Previous output
 riverctl map normal Super+Shift Period send-to-output next    # Send window to next output
 riverctl map normal Super+Shift Comma send-to-output previous # Send window to previous output
-riverctl map normal Super Return zoom                         # Move window to top of stack
+riverctl map normal Super+Shift Return zoom                   # Move window to top of stack
 riverctl map normal Super Space toggle-float                  # Toggle float
 riverctl map normal Super F toggle-fullscreen                 # Toggle full screen
 riverctl map-pointer normal Super BTN_LEFT move-view          # Move window
@@ -86,7 +86,7 @@ done
 
 # Set background and border color
 riverctl background-color 0x002b36
-riverctl border-color-focused 0x93a1a1
+riverctl border-color-focused 0x4dcc8e
 riverctl border-color-unfocused 0x586e75
 
 # Set keyboard repeat rate
@@ -96,7 +96,7 @@ riverctl set-repeat 50 300
 # riverctl rule-add float -app-id 'float*' -title 'foo'
 
 # Make all views with app-id "bar" and any title use client-side decorations
-riverctl rule-add csd -app-id "bar"
+# riverctl rule-add csd -app-id "bar"
 
 # Set the default layout generator to be rivertile and start it.
 # River will send the process group of the init executable SIGTERM on exit.
