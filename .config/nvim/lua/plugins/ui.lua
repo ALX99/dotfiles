@@ -57,7 +57,7 @@ return {
   {
     "kyazdani42/nvim-tree.lua",
     keys = {
-      { "<leader>ft", "<cmd>NvimTreeFindFile<CR>", desc = "Open filetree" },
+      { "<leader>T", "<cmd>NvimTreeFindFile<CR>", desc = "Open filetree" },
     },
     config = function()
       local api = require('nvim-tree.api')
@@ -68,12 +68,11 @@ return {
         end
 
         vim.keymap.set('n', '<C-]>', api.tree.change_root_to_node, opts('CD'))
-        vim.keymap.set('n', '<C-e>', api.node.open.replace_tree_buffer, opts('Open: In Place'))
         vim.keymap.set('n', '<C-k>', api.node.show_info_popup, opts('Info'))
         vim.keymap.set('n', '<C-r>', api.fs.rename_sub, opts('Rename: Omit Filename'))
         vim.keymap.set('n', '<C-t>', api.node.open.tab, opts('Open: New Tab'))
-        -- vim.keymap.set('n', 'v', api.node.open.vertical, opts('Open: Vertical Split'))
-        vim.keymap.set('n', 's', api.node.open.horizontal, opts('Open: Horizontal Split'))
+        vim.keymap.set('n', 'ov', api.node.open.vertical, opts('Open: Vertical Split'))
+        vim.keymap.set('n', 'os', api.node.open.horizontal, opts('Open: Horizontal Split'))
         vim.keymap.set('n', '<BS>', api.node.navigate.parent_close, opts('Close Directory'))
         vim.keymap.set('n', '<CR>', api.node.open.edit, opts('Open'))
         vim.keymap.set('n', '<Tab>', api.node.open.preview, opts('Open Preview'))
@@ -92,8 +91,8 @@ return {
         vim.keymap.set('n', 'D', api.fs.trash, opts('Trash'))
         vim.keymap.set('n', 'ge', api.tree.expand_all, opts('Expand All'))
         -- vim.keymap.set('n', 'e', api.fs.rename_basename, opts('Rename: Basename'))
-        vim.keymap.set('n', ']e', api.node.navigate.diagnostics.next, opts('Next Diagnostic'))
-        vim.keymap.set('n', '[e', api.node.navigate.diagnostics.prev, opts('Prev Diagnostic'))
+        vim.keymap.set('n', ']d', api.node.navigate.diagnostics.next, opts('Next Diagnostic'))
+        vim.keymap.set('n', '[d', api.node.navigate.diagnostics.prev, opts('Prev Diagnostic'))
         vim.keymap.set('n', 'F', api.live_filter.clear, opts('Clean Filter'))
         vim.keymap.set('n', 'f', api.live_filter.start, opts('Filter'))
         vim.keymap.set('n', '?', api.tree.toggle_help, opts('Help'))
@@ -103,8 +102,8 @@ return {
         vim.keymap.set('n', 'N', api.node.navigate.sibling.last, opts('Last Sibling'))
         vim.keymap.set('n', 'E', api.node.navigate.sibling.first, opts('First Sibling'))
         vim.keymap.set('n', 'm', api.marks.toggle, opts('Toggle Bookmark'))
-        vim.keymap.set('n', 'o', api.node.open.edit, opts('Open'))
-        vim.keymap.set('n', 'O', api.node.open.no_window_picker, opts('Open: No Window Picker'))
+        vim.keymap.set('n', 'O', api.node.open.edit, opts('Open'))
+        -- vim.keymap.set('n', 'O', api.node.open.no_window_picker, opts('Open: No Window Picker'))
         vim.keymap.set('n', 'p', api.fs.paste, opts('Paste'))
         vim.keymap.set('n', 'P', api.node.navigate.parent, opts('Parent Directory'))
         vim.keymap.set('n', 'q', api.tree.close, opts('Close'))

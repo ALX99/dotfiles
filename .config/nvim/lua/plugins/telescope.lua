@@ -13,32 +13,27 @@ return {
       ":Telescope<CR>",
       desc = "Telescope"
     },
-    { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
-    { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
     {
-      "<leader>fb",
-      "<cmd>Telescope current_buffer_fuzzy_find<CR>",
+      "<leader>?",
+      ":Telescope<CR>",
+      desc = "Telescope"
+    },
+    { "<leader>f", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>F", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
+    -- {
+    --   "<leader>b",
+    --   "<cmd>Telescope current_buffer_fuzzy_find<CR>",
+    --   desc = "Fuzzy find"
+    -- },
+    {
+      "<leader>b",
+      "<cmd>Telescope buffers<CR>",
       desc = "Fuzzy find"
     },
     {
-      "<leader>fg",
+      "<leader>/",
       "<cmd>Telescope live_grep<CR>",
       desc = "Grep in files"
-    },
-    {
-      "<leader>fA",
-      "<cmd>Telescope lsp_document_symbols<CR>",
-      desc = "Goto symbol"
-    },
-    {
-      "<leader>fM",
-      "<cmd>Telescope lsp_document_symbols symbols=method<CR>",
-      desc = "Goto method"
-    },
-    {
-      "<leader>fF",
-      "<cmd>Telescope lsp_document_symbols symbols=function<CR>",
-      desc = "Goto function"
     },
     {
       "<leader>d",

@@ -24,13 +24,17 @@ return {
       -- See `:help vim.lsp.*` for documentation on any of the below functions
       map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                     -- Many LSPs do not implement this
       map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', { desc = "Go to definition" })         -- vim.lsp.buf.definition
-      map('n', 'gk', vim.lsp.buf.hover, { desc = "Hover" })
       map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-      map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
+      map('n', 'gr', '<cmd>Telescope lsp_references<CR>', { desc = "Go to reference" })           -- vim.lsp.buf.references
+      map('n', 'gs', '<cmd>Telescope lsp_document_symbols<CR>', { desc = "Goto symbol" })
+      map('n', 'gS', '<cmd>Telescope lsp_dynamic_workspace_symbols<CR>', { desc = "Goto symbol" })
+      map('n', 'gm', '<cmd>Telescope lsp_document_symbols symbols=method<CR>', { desc = "Goto method" })
+      map('n', 'gf', '<cmd>Telescope lsp_document_symbols symbols=function<CR>', { desc = "Goto function" })
+      map('n', 'gk', vim.lsp.buf.hover, { desc = "Hover" })
+      -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
       map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
       map('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
       map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
-      map('n', 'gr', '<cmd>Telescope lsp_references<CR>', { desc = "Go to reference" }) -- vim.lsp.buf.references
       map({ 'n', 'v' }, '=', function()
         vim.lsp.buf.format { async = true }
       end, { desc = "Format file" })
@@ -106,9 +110,9 @@ return {
     -- Diagnostics --
     -----------------
 
-    utils.map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
-    utils.map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
+    -- utils.map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
     utils.map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
+    utils.map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
 
     -- Setup some nicer icons for diagnostics in the gutter
     local signs = { Error = "󰅚", Warn = "", Hint = "󰛩", Info = " " }

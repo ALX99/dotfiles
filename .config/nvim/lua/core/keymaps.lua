@@ -41,13 +41,14 @@ map({ "n", "o" }, "di", "d<Right>")
 map({ "n", "o" }, "vi", "v<Right>")
 
 -- QoL
+map("n", "U", "<C-r>")  -- Redo
 map("x", "<", "<gv")    -- Stay in indent mode
 map("x", ">", ">gv")    -- Stay in indent mode
 map("i", "tn", "<Esc>") -- Esc is hard to press
-map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
-map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
-map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
-map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Prevous buffer" })
+-- map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
+-- map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
+-- map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
+-- map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Prevous buffer" })
 -- Center cursor vertically while <C-d> and <C-u>
 map('n', '<C-d>', '<C-d>zz')
 map('n', '<C-u>', '<C-u>zz')
@@ -59,8 +60,8 @@ map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
 -- WINDOW MODE --
 -----------------
 map("n", "<leader>w", "<C-w>")
--- map("n", "<leader>wns", "<cmd>new<CR>")
--- map("n", "<leader>wnv", "<cmd>vnew<CR>")
+map("n", "<leader>wns", "<cmd>new<CR>")
+map("n", "<leader>wnv", "<cmd>vnew<CR>")
 
 for k, v in pairs({
   m = 'h', -- Left
@@ -68,7 +69,8 @@ for k, v in pairs({
   e = 'k', -- Up
   i = 'l', -- Right
 }) do
-  map("n", "<leader>" .. k, "<C-w>" .. v)
+  -- Navigate to window
+  map("n", "<leader>w" .. k, "<C-w>" .. v)
   map("n", "<leader>w" .. string.upper(k), "<C-w>" .. string.upper(v))
   map("n", "<C-w>" .. v, "<Nop>")
   map("n", "<C-w>" .. string.upper(v), "<Nop>")
