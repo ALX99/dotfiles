@@ -33,7 +33,7 @@ gg = goto 1
 # Panning
 n = pan 0 -30
 e = pan 0 30
-k = pan 30 0
+m = pan 30 0
 i = pan -30 0
 
 # Zooming
