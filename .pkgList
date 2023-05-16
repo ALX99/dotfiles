@@ -96,9 +96,13 @@ overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
+pamixer # Control audio
 pavucontrol
 perl-file-mimeinfo
 picom
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
 pkgfile # tool for searching files from packages
 postgresql-libs
 pyright
@@ -116,6 +120,7 @@ shellcheck
 shellharden
 shfmt # shell format
 simple-mtpfs
+sof-firmware
 stow
 sxhkd # Universal keybindings
 sxiv # image viewer
@@ -150,6 +155,7 @@ wireshark-qt
 wl-clipboard
 x86_energy_perf_policy
 xarchiver
+xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
 xdg-utils
 xdotool
 xdo # Use with window swallowing

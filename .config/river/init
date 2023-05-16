@@ -145,4 +145,7 @@ riverctl input "$touchpad" tap-button-map left-right-middle
 riverctl input "$touchpad" scroll-method two-finger
 
 riverctl spawn "swaybg -o eDP-1 -i ~/.config/bg.jpg"
+riverctl spawn "pipewire"
+riverctl spawn "wireplumber"
+riverctl spawn "pipewire-pulse"
 
