@@ -5,6 +5,10 @@ return {
     name = "tokyonight",
     opts = {
       transparent = true,
+      styles = {
+        sidebars = "transparent",
+        floats = "transparent",
+      }
     },
     enabled = function()
       return not require('core.utils').is_vscodevim()

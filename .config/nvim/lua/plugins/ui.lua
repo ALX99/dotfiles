@@ -57,7 +57,7 @@ return {
   {
     "kyazdani42/nvim-tree.lua",
     keys = {
-      { "<leader>T", "<cmd>NvimTreeFindFile<CR>", desc = "Open filetree" },
+      { "<leader>ft", "<cmd>NvimTreeFindFile<CR>", desc = "Open filetree" },
     },
     config = function()
       local api = require('nvim-tree.api')
@@ -140,7 +140,7 @@ return {
     end
   },
 
-  -- markdown-previwe for markdown previews
+  -- markdown-preview for markdown previews
   {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
