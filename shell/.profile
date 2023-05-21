@@ -32,13 +32,19 @@ FZF_DEFAULT_COMMAND="rg --files --hidden"
 FZF_LEGACY_KEYBINDINGS="0"
 _JAVA_AWT_WM_NONREPARENTING="1"
 QT_QPA_PLATFORMTHEME=qt6ct
+QT_QPA_PLATFORM="wayland"
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 TASK_TEMP_DIR="/tmp/.task"
 CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
 RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
-ANKI_WAYLAND=1
+ANKI_WAYLAND=1       # Anki
+MOZ_ENABLE_WAYLAND=1 # Firefox
+XDG_CURRENT_DESKTOP="river"
+XDG_SESSION_TYPE="wayland"
+# systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+# dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=river
 [ -x "$(command -v bat)" ] && MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
 # Clean up ~/
@@ -64,4 +70,8 @@ HISTFILESIZE=-1                                 # Infinite history
 HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
 set +a
+
+if [ "$(tty)" = "/dev/tty1" ]; then
+  exec river
+fi
 
