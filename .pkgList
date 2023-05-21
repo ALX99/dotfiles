@@ -8,10 +8,10 @@ android-tools
 anki-bin
 arandr
 arch-install-scripts
-archiso
 bash-completion
 bat # better cat
 bc # Used by displayselect
+bemenu
 bibata-cursor-theme
 bind
 brave-bin
@@ -48,6 +48,7 @@ fzf
 git-delta
 github-cli
 gnome-keyring
+gnome-system-monitor
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
@@ -105,6 +106,7 @@ pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
 postgresql-libs
+powertop
 pyright
 python
 python-black
