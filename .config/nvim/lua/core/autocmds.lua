@@ -40,7 +40,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
   desc = "Restores the previous session",
   callback = function()
     local session = get_session_file()
-    if vim.fn.filereadable(session) ~= 0 and #vim.v.argv <= 2 then
+    if vim.fn.argc() == 0 and vim.fn.filereadable(session) ~= 0 then
       vim.cmd("silent! source " .. vim.fn.fnameescape(session))
     end
     return true -- Delete the autocmd (only needs to run once)
@@ -51,7 +51,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 vim.api.nvim_create_autocmd("VimLeavePre", {
   desc = "Saves the session",
   callback = function()
-    if vim.fn.getcwd() ~= vim.env.HOME and #vim.v.argv <= 2 then
+    if vim.fn.argc() == 0 and vim.fn.getcwd() ~= vim.env.HOME then
       vim.cmd("mks! " .. vim.fn.fnameescape(get_session_file()))
     end
   end,
