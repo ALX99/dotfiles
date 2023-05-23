@@ -4,12 +4,12 @@ set -euo pipefail
 CONTAINER_STORAGE="$HOME/.local/containers"
 mkdir -p "$CONTAINER_STORAGE"
 
-shasum="$(docker create "$1")"
-rootfs="$CONTAINER_STORAGE/$shasum"
+sha_sum="$(docker create "$1")"
+root_fs="$CONTAINER_STORAGE/$sha_sum"
 
-mkdir -p "$rootfs"
-docker export "$shasum" | tar -C "$rootfs" -xf -
-docker rm "$shasum"
+mkdir -p "$root_fs"
+docker export "$sha_sum" | tar -C "$root_fs" -xf -
+docker rm "$sha_sum"
 
 readarray -t envs < <(docker inspect --format='{{range $k, $v := .Config.Env}} {{printf "%s\n" $v}} {{end}}' "$1")
 args=()
@@ -19,7 +19,7 @@ for e in "${envs[@]}"; do
 done
 
 set -x
-bwrap --bind "$rootfs" / \
+bwrap --bind "$root_fs" / \
   --chdir / \
   --unshare-all \
   --share-net \
@@ -29,3 +29,4 @@ bwrap --bind "$rootfs" / \
   "${args[@]}" \
   bash
 set +x
+
