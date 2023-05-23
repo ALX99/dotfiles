@@ -5,9 +5,15 @@ readonly brightness_file="/sys/class/backlight/intel_backlight/brightness"
 readonly usage="usage ${0##*/} [OPTIONS]
 
 where:
-    -h, --help  show this help text
-    -d [DELTA]  change the current brightness by DELTA
-    -s [VALUE]  set the brightness to VALUE"
+    -h, --help   show this help text
+    -c, --check  show the current brightness
+    -d [DELTA]   change the current brightness by DELTA
+    -s [VALUE]   set the brightness to VALUE"
+
+# 1: delta
+get_brightness() {
+  cat "$brightness_file"
+}
 
 # 1: value
 set_brightness() {
@@ -16,7 +22,7 @@ set_brightness() {
 
 # 1: delta
 delta_change() {
-  curr_brightness="$(cat "$brightness_file")"
+  curr_brightness="$(get_brightness)"
   set_brightness "$((curr_brightness + $1))"
 }
 
@@ -24,6 +30,10 @@ main() {
   case "$1" in
   -h | --help)
     echo "$usage"
+    exit 0
+    ;;
+  -c | --check)
+    get_brightness
     exit 0
     ;;
   -d)
