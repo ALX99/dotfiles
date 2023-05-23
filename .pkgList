@@ -1,38 +1,36 @@
-adwaita-qt5
-adwaita-qt6
-alacritty
-alsa-utils
+adwaita-qt5 # theme
+adwaita-qt6 # theme
+alacritty # terminal
+alsa-utils # alsamixer and more
 android-apktool
 android-file-transfer
 android-tools
-anki-bin
-arandr
-arch-install-scripts
-bash-completion
+anki-bin # anki
+arandr # manage displays
+bash-completion # completion for bash
 bat # better cat
 bc # Used by displayselect
-bemenu
-bibata-cursor-theme
-bind
-brave-bin
-bubblewrap
-calc
-cantarell-fonts
-clang
-dash
+bemenu # dmenu clone, optionally required by xdg-desktop-portal-wlr
+bibata-cursor-theme # cursor theme
+bind # nslookup and more
+bluez # bluetooth support
+brave-bin # browser
+bubblewrap # used by wrap script
+cantarell-fonts # font
+dash # faster POSIX shell
 dbeaver
 desktop-file-utils # Usually required by many things
 desmume # Nintendo DS emulator
 dmenu
-dnscrypt-proxy
+dnscrypt-proxy # DoH
 docker
-docker-buildx
+docker-buildx # extended build capabilities with BuildKit
 docker-compose
 dosfstools # mkfs.fat
-dragon-drop
-dunst
-etcher-bin
-exfat-utils
+dragon-drop # drag and drop file
+dunst # notification daemon
+etcher-bin # work with ISOs
+exfat-utils # mkfs.exfat
 expac # requried by paccy
 fcitx5
 fcitx5-configtool
@@ -150,6 +148,7 @@ vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
 vivid
+vlc
 wayland
 wget
 which
