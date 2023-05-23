@@ -43,7 +43,7 @@ return {
   },
   {
     "projekt0n/github-nvim-theme",
-    version = "0.0.x",
+    version = "1.x.x",
     event = "VeryLazy",
     enabled = function()
       return not require('core.utils').is_vscodevim()
