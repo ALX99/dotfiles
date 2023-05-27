@@ -57,7 +57,8 @@ return {
           format = function(entry, item)
             local short_name = {
               nvim_lsp = 'LSP',
-              nvim_lua = 'nvim'
+              buffer = 'BUF',
+              luasnip = 'SNP',
             }
             local menu_name = short_name[entry.source.name] or entry.source.name
             item.menu = string.format('[%s]', menu_name)

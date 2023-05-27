@@ -19,7 +19,6 @@ stty -ixon # Disable ctrl-s and ctrl-q.
 if true; then
   # Default programs
   TERMINAL="alacritty"
-  TERM="st-256color"
   EDITOR="nvim"
   VISUAL="nvim"
   BROWSER="brave"

@@ -1,7 +1,7 @@
 return {
   {
     "folke/tokyonight.nvim",
-    event = "VeryLazy",
+    lazy = false,
     name = "tokyonight",
     opts = {
       transparent = true,
@@ -10,20 +10,24 @@ return {
         floats = "transparent",
       }
     },
+    config = function(_, opts)
+      require('tokyonight').setup(opts)
+      vim.cmd.colorscheme("tokyonight")
+    end,
     enabled = function()
       return not require('core.utils').is_vscodevim()
     end
   },
   {
     "rebelot/kanagawa.nvim",
-    lazy = false,
+    event = "VeryLazy",
     opts = {
       dimInactive = true,
       transparent = true,
     },
     config = function(_, opts)
       require('kanagawa').setup(opts)
-      vim.cmd.colorscheme("kanagawa-dragon")
+      -- vim.cmd.colorscheme("kanagawa-dragon")
     end,
     enabled = function()
       return not require('core.utils').is_vscodevim()
