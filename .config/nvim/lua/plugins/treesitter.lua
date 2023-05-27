@@ -27,18 +27,32 @@ return {
 
     treesitter_configs.setup {
       -- A list of parser names, or "all"
-      ensure_installed = { "bash", "c", "cpp", "css", "dockerfile", "go", "gomod", "gowork",
-        "html", "java", "javascript", "json", "make", "python", "rust",
-        "typescript", "yaml" },
-      -- sql, typescript, vim, c_sharp
+      ensure_installed = {
+        "bash",
+        "c",
+        "cpp",
+        "css",
+        "dockerfile",
+        "go",
+        "gomod",
+        "gowork",
+        "html",
+        "java",
+        "javascript",
+        "json",
+        "lua",
+        "luadoc",
+        "make",
+        "markdown",
+        "markdown_inline",
+        "python",
+        "rust",
+        "yaml",
+      },
 
       -- Install parsers synchronously (only applied to `ensure_installed`)
-      sync_install = true,
+      sync_install = false,
 
-      -- Automatically install missing parsers when entering buffer
-      auto_install = true,
-
-      -- List of parsers to ignore installing (for "all")
       -- ignore_install = { "javascript" },
 
       indent = {

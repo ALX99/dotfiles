@@ -10,7 +10,6 @@ return {
       vim.o.timeoutlen = 1000
       wk.register({
         mode = { "n", "v" },
-        ["<leader>f"] = { name = "+file(s)" },
         ["<leader>g"] = { name = "+git" },
         ["<leader>w"] = { name = "+windows" },
       })
