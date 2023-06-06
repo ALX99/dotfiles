@@ -17,6 +17,7 @@ bluez # bluetooth support
 brave-bin # browser
 bubblewrap # used by wrap script
 cantarell-fonts # font
+cmake
 dash # faster POSIX shell
 dbeaver
 desktop-file-utils # Usually required by many things

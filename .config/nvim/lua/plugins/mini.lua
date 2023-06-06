@@ -14,9 +14,11 @@ return {
         textobject = 'gc',
       },
     })
+    require('mini.statusline').setup({
+      use_icons = false,
+    })
 
     require('mini.pairs').setup({})
-    require('mini.statusline').setup({})
     require('mini.align').setup({
       mappings = {
         start = '<leader>pa',
@@ -27,6 +29,8 @@ return {
       mappings = {
         object_scope = 'o',
         object_scope_with_border = 'ao',
+        goto_top = '[o',
+        goto_bottom = ']o',
       },
     })
 
