@@ -1,6 +1,20 @@
 return {
   "echasnovski/mini.nvim",
+  dependencies = {
+    'nvim-tree/nvim-web-devicons'
+  },
   config = function()
+    require('mini.files').setup({
+      mappings = {
+        go_in       = 'i',
+        go_in_plus  = 'I',
+        go_out      = 'm',
+        go_out_plus = 'M',
+        show_help   = 'g?',
+      },
+    })
+    require('core.utils').map({ "n", "x", "o" }, "<leader>pf", ":lua MiniFiles.open()<CR>", { desc = "MiniFiles" })
+
     require('mini.trailspace').setup({})
     -- require('mini.tabline').setup({ show_icons = false })
     -- require('mini.cursorword').setup({})
@@ -25,6 +39,7 @@ return {
         start_with_preview = '<leader>pA'
       },
     })
+
     require('mini.indentscope').setup({
       mappings = {
         object_scope = 'o',
