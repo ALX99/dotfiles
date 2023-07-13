@@ -133,7 +133,7 @@ riverctl map normal Super+Shift 0 set-view-tags $all_tags
 
 # Configuration
 riverctl focus-follows-cursor normal
-riverctl hide-cursor timeout 5000
+riverctl hide-cursor timeout 15000
 riverctl hide-cursor when-typing disabled
 
 # Input configuration
@@ -149,4 +149,5 @@ riverctl spawn "swaybg -o eDP-1 -i ~/sync/Wallpapers/81g4h40e2c471.jpg"
 riverctl spawn "pipewire"
 riverctl spawn "wireplumber"
 riverctl spawn "pipewire-pulse"
+riverctl spawn "dunst"
 

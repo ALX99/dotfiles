@@ -17,11 +17,11 @@ bluez # bluetooth support
 brave-bin # browser
 bubblewrap # used by wrap script
 cantarell-fonts # font
+chromium
 cmake
 dash # faster POSIX shell
 dbeaver
 desktop-file-utils # Usually required by many things
-desmume # Nintendo DS emulator
 dmenu
 dnscrypt-proxy # DoH
 docker
@@ -52,6 +52,7 @@ gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
 graphviz
+gtk4
 helix
 helm
 htop
@@ -76,7 +77,6 @@ maim # sceenshot utility
 man-db
 man-pages
 megasync-bin
-microsoft-edge-stable-bin
 mlocate # Locate
 mpv
 mtr # Network diagnostics
@@ -93,7 +93,6 @@ openssl-1.1
 otf-cascadia-code
 otf-font-awesome
 otf-ipafont
-overdue
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
@@ -154,14 +153,11 @@ wayland
 wget
 which
 whois
-wireshark-qt
 wl-clipboard
 x86_energy_perf_policy
 xarchiver
 xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
 xdg-utils
-xdotool
-xdo # Use with window swallowing
 xf86-input-synaptics
 xorg-xbacklight
 xorg-xev
