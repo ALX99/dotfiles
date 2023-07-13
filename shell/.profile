@@ -71,6 +71,6 @@ HISTCONTROL=ignoreboth                          # Don't record duplicate stuff &
 set +a
 
 if [ "$(tty)" = "/dev/tty1" ]; then
-  exec river
+  exec dbus-run-session river
 fi
 

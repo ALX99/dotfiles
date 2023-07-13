@@ -18,23 +18,53 @@ return {
     end
   },
 
-  -- leap for jumping around the file
+  -- flash for jumping around the file
   {
-    "ggandor/leap.nvim",
+    "folke/flash.nvim",
     event = "VeryLazy",
+    opts = {},
     keys = {
-      { "<leader>t", "<Plug>(leap-forward-to)",  { "n", "v" }, desc = "Leap forwards" },
-      { "<leader>a", "<Plug>(leap-backward-to)", { "n", "v" }, desc = "Leap backwards" },
+      {
+        "<leader>s",
+        mode = { "n", "x", "o" },
+
+        function()
+          require("flash").jump()
+        end,
+        desc = "Flash",
+      },
+      {
+        "<leader>S",
+        mode = { "n", "x", "o" },
+        function()
+          require("flash").treesitter()
+        end,
+        desc = "Flash Treesitter",
+      },
+      {
+        "r",
+        mode = "o",
+        function()
+          require("flash").remote()
+        end,
+        desc = "Remote Flash",
+      },
+      {
+        "R",
+        mode = { "o", "x" },
+        function()
+          require("flash").treesitter_search()
+        end,
+        desc = "Flash Treesitter Search",
+      },
+      {
+        "<a-s>",
+        mode = { "c" },
+        function()
+          require("flash").toggle()
+        end,
+        desc = "Toggle Flash Search",
+      },
     },
-    config = function()
-      local leap = require('leap')
-      leap.opts.safe_labels = {
-        "t", "f", "g", "q", "w", "b", "n", "e", "h", "u", "o", "l", "u",
-        "T", "F", "G", "Q", "W", "B", "N", "E", "H", "U", "O", "L", "U" }
-      leap.opts.special_keys = {
-        next_target = { '<enter>', '.', '<A-n>' },
-        prev_target = { '<tab>', ',', '<A-e>' },
-      }
-    end
-  },
+  }
 }

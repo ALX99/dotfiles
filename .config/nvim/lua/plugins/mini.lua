@@ -13,7 +13,7 @@ return {
         show_help   = 'g?',
       },
     })
-    require('core.utils').map({ "n", "x", "o" }, "<leader>pf", ":lua MiniFiles.open()<CR>", { desc = "MiniFiles" })
+    require('core.utils').map({ "n", "x", "o" }, "<leader>ft", ":lua MiniFiles.open()<CR>", { desc = "MiniFiles" })
 
     require('mini.trailspace').setup({})
     -- require('mini.tabline').setup({ show_icons = false })
@@ -59,7 +59,7 @@ return {
     })
 
     vim.api.nvim_create_autocmd('FileType', {
-      pattern  = { "NvimTree", "FTerm", "lazy" },
+      pattern  = { 'NvimTree', 'FTerm', 'lazy' },
       callback = function()
         vim.b.miniindentscope_disable = true
       end,

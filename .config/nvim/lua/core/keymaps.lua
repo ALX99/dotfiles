@@ -60,8 +60,8 @@ map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
 -- WINDOW MODE --
 -----------------
 map("n", "<leader>w", "<C-w>")
-map("n", "<leader>wns", "<cmd>new<CR>")
-map("n", "<leader>wnv", "<cmd>vnew<CR>")
+map("n", "<leader>wcs", "<cmd>new<CR>")
+map("n", "<leader>wcv", "<cmd>vnew<CR>")
 
 for k, v in pairs({
   m = 'h', -- Left
