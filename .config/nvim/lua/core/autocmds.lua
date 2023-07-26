@@ -54,16 +54,11 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
     if vim.fn.argc() == 0 and vim.fn.getcwd() ~= vim.env.HOME then
       vim.cmd("mks! " .. vim.fn.fnameescape(get_session_file()))
     end
+    return true -- Delete the autocmd (only needs to run once)
   end,
   group = sessionGrp
 })
 
-
--- Check if we need to reload the file when it changed
-vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
-  group = vim.api.nvim_create_augroup("checktime", { clear = true }),
-  command = "checktime",
-})
 
 -- https://github.com/neovim/nvim-lspconfig/issues/115
 -- https://github.com/golang/tools/blob/master/gopls/doc/vim.md#neovim-imports
