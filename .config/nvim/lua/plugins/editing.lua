@@ -66,5 +66,14 @@ return {
         desc = "Toggle Flash Search",
       },
     },
+  },
+  {
+    "abecodes/tabout.nvim",
+    event = { "BufReadPost", "BufNewFile" },
+    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    config = true,
+    enabled = function()
+      return not require('core.utils').is_vscodevim()
+    end
   }
 }

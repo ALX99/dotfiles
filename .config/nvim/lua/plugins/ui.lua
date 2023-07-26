@@ -52,17 +52,6 @@ return {
     end
   },
 
-  -- markdown-preview for markdown previews
-  {
-    "iamcco/markdown-preview.nvim",
-    cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
-    build = "cd app && yarn install",
-    enabled = function()
-      return not require('core.utils').is_vscodevim()
-          or vim.fn.executable("yarn") == 1
-    end
-  },
-
   -- alternative https://github.com/ecthelionvi/NeoColumn.nvim
   -- smartcolumn for automatically showing/hiding the smartcolumn
   {
