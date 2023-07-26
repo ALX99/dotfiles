@@ -39,7 +39,7 @@ o.ruler            = true     -- Show the cursor position all the time (bottom b
 o.showmode         = false    -- We don't need to see things like -- INSERT -- due to the status bar plugin
 o.signcolumn       = 'yes'    -- Always show sign column (otherwise it will shift text)
 o.fillchars        = 'eob: '  -- Don't show `~` outside of buffer
-o.hlsearch         = true     -- highlight matches<Paste>
+o.hlsearch         = true     -- highlight matches
 
 
 

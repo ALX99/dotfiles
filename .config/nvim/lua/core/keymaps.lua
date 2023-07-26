@@ -29,6 +29,7 @@ for k, v in pairs({
   map({ "n", "v", "o" }, string.upper(k), string.upper(v))
   -- end
 end
+vim.cmd("sunmap s") -- otherwise "s" wont' work in select mode
 
 -- Additional fixes (h is the new e)
 map({ "n", "x", "o" }, "gh", "ge", { desc = "Previous end of word" })
@@ -89,12 +90,11 @@ map("n", "<leader>q", ":hide<CR>")
 -- map("n", "<C-Right>", ":vertical resize +2<CR>")
 
 -- Smarter delete
-local function dd()
+
+map("n", "dd", function()
   if vim.api.nvim_get_current_line():match("^%s*$") then
     return "\"_dd"
   else
     return "dd"
   end
-end
-
-map("n", "dd", dd, { noremap = true, expr = true })
+end, { noremap = true, expr = true })
