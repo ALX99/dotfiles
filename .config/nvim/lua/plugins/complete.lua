@@ -53,7 +53,6 @@ return {
           -- { name = "path" },
         }),
         formatting = {
-          fields = { 'abbr', 'menu', 'kind' },
           format = function(entry, item)
             local short_name = {
               nvim_lsp = 'LSP',
@@ -68,6 +67,15 @@ return {
         experimental = {
           ghost_text = {
             hl_group = "LspCodeLens",
+          },
+        },
+        sorting = {
+          comparators = {
+            cmp.config.compare.offset,
+            cmp.config.compare.exact,
+            cmp.config.compare.score,
+            cmp.config.compare.recently_used,
+            cmp.config.compare.kind,
           },
         },
       }
