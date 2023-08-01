@@ -19,7 +19,7 @@ g.loaded_ruby_provider    = 0
 
 o.clipboard        = 'unnamedplus' -- Copy paste between vim and everything else
 o.conceallevel     = 0             -- So that I can see `` in markdown files
-o.fileencoding     = "utf-8"       -- The encoding written to file
+o.fileencoding     = "UTF-8"       -- The encoding written to file
 
 vim.opt.updatetime = 1000          -- If this many milliseconds nothing is typed the swap file will be written to disk
 
@@ -48,7 +48,7 @@ o.ignorecase      = true   -- Ignore case in the pattern normally
 o.incsearch       = true   -- search as characters are entered
 o.title           = true   -- set terminal title to the filename
 o.showcmd         = true   -- show command in bottom bar
-o.lazyredraw      = true   -- redraw only when we need to.
+-- o.lazyredraw      = true   -- redraw only when we need to
 o.showmatch       = true   -- highlight matching [{()}]
 o.undofile        = true   -- save undo history
 o.expandtab       = true   -- Converts tabs to spaces

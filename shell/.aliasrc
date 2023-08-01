@@ -8,21 +8,22 @@ alias \
   c="clear" \
   e="\$EDITOR" \
   g="git" \
-  k="kubectl" \
   p="paccy" \
   se="sudoedit" \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   bs='source ~/.bashrc' \
   lg='lazygit' \
   ch="code . && exit" \
-  wlist="nmcli d w l" \
   bye='systemctl hibernate' \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="paccy -Syu" \
-  gf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}" --bind "enter:execute(nvim {})"' \
+  pf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  pf.='fd -t f -H | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  ef='nvim "$(pf)"' \
+  ef.='nvim "$(pf.)"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}' \
@@ -30,14 +31,16 @@ alias \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .'
 
 # Helm
-alias hls="helm ls" \
+alias \
+  hls="helm ls" \
   hdu="helm dependency update" \
   hui="helm upgrade --install" \
   hur="helm upgrade --reuse-values" \
   hua='helm uninstall $(helm ls --short)'
 
 # Kubectl
-alias krc='kubectl config current-context' \
+alias \
+  krc='kubectl config current-context' \
   krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
   kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
   ksn='kubectl config set-context --current --namespace' \
@@ -46,30 +49,9 @@ alias krc='kubectl config current-context' \
   k='kubectl'
 
 # Docker
-alias drr="docker run -it --rm" \
-  dprune="docker stop \$(docker ps -q); docker system prune -a --volumes"
-
-# Git browse
-gbrowse() {
-  git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
-    fzf --ansi --no-sort --reverse --tiebreak=index +m \
-      --bind "ctrl-m:execute: git show --color=always \$(echo {} | cut -d' ' -f2)" \
-      --preview "git show --stat --color=always \$(echo {} | cut -d' ' -f2)" \
-      --preview-window=right,60
-}
-
-# Switch directory
-sd() {
-  local t
-  t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
-}
-
-sdh() {
-  local t
-  t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
-}
+alias \
+  drr="docker run -it --rm" \
+  dprune='docker stop $(docker ps -q); docker system prune -a --volumes'
 
 # Better flags
 alias \
@@ -110,4 +92,26 @@ command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 # FZF aliases
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+
+# Git browse
+gbrowse() {
+  git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
+    fzf --ansi --no-sort --reverse --tiebreak=index +m \
+      --bind "ctrl-m:execute: git show --color=always \$(echo {} | cut -d' ' -f2)" \
+      --preview "git show --stat --color=always \$(echo {} | cut -d' ' -f2)" \
+      --preview-window=right,60
+}
+
+# Switch directory
+sd() {
+  local t
+  t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
+  [ -n "$t" ] && cd "$t" && ls
+}
+
+sdh() {
+  local t
+  t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
+  [ -n "$t" ] && cd "$t" && ls
+}
 

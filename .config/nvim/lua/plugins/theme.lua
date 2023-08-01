@@ -3,15 +3,8 @@ return {
     "folke/tokyonight.nvim",
     lazy = false,
     name = "tokyonight",
-    opts = {
-      transparent = true,
-      styles = {
-        sidebars = "transparent",
-        floats = "transparent",
-      }
-    },
     config = function(_, opts)
-      require('tokyonight').setup(opts)
+      require("tokyonight").setup(opts)
       vim.cmd.colorscheme("tokyonight-moon")
     end,
     enabled = function()
@@ -23,7 +16,6 @@ return {
     event = "VeryLazy",
     opts = {
       dimInactive = true,
-      transparent = true,
     },
     config = function(_, opts)
       require('kanagawa').setup(opts)
@@ -39,7 +31,6 @@ return {
     event = "VeryLazy",
     opts = {
       flavour = "mocha",
-      transparent_background = false,
     },
     enabled = function()
       return not require('core.utils').is_vscodevim()
@@ -58,12 +49,12 @@ return {
     event = "VeryLazy",
     opts = {
       options = {
-        dim_inactive = true, -- Non focused panes set to alternative background
-        transparent = true,
+        dim_inactive = true,
       }
     },
     enabled = function()
-      return not require('core.utils').is_vscodevim()
+      return false
+      -- return not require('core.utils').is_vscodevim()
     end
   },
 }

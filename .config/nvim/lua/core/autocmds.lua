@@ -24,6 +24,12 @@ vim.api.nvim_create_autocmd({ "InsertEnter", "WinLeave" }, {
   group = cursorGrp
 })
 
+-- Check if we need to reload the file when it changed
+vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+  group = vim.api.nvim_create_augroup('checktime', { clear = true }),
+  command = "checktime",
+})
+
 -- return to last edit position when opening files
 vim.api.nvim_create_autocmd('BufReadPost', {
   callback = function()
@@ -66,19 +72,7 @@ vim.api.nvim_create_autocmd('BufWritePre', {
   group    = vim.api.nvim_create_augroup('GoOrganizeImports', { clear = true }),
   pattern  = '*.go',
   callback = function()
-    local wait_ms = 1000
-    local params = vim.lsp.util.make_range_params()
-    params.context = { only = { "source.organizeImports" } }
-    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, wait_ms)
-    for _, res in pairs(result or {}) do
-      for _, r in pairs(res.result or {}) do
-        if r.edit then
-          vim.lsp.util.apply_workspace_edit(r.edit, "UTF-8")
-        else
-          vim.lsp.buf.execute_command(r.command)
-        end
-      end
-    end
+    vim.lsp.buf.code_action({ context = { only = { 'source.organizeImports' } }, apply = true })
   end
 })
 

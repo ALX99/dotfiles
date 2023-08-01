@@ -82,6 +82,8 @@ for mode in normal locked; do
 
   riverctl map $mode None XF86MonBrightnessUp spawn 'lightcontrol -d +50'
   riverctl map $mode None XF86MonBrightnessDown spawn 'lightcontrol -d -50'
+  riverctl map $mode Shift XF86MonBrightnessUp spawn 'lightcontrol -d +10'
+  riverctl map $mode Shift XF86MonBrightnessDown spawn 'lightcontrol -d -10'
 done
 
 # Set background and border color
@@ -93,7 +95,10 @@ riverctl border-color-unfocused 0x586e75
 riverctl set-repeat 50 300
 
 # Make all views with an app-id that starts with "float" and title "foo" start floating.
-riverctl float-filter-add app-id 'MEGAsync'
+# https://git.sr.ht/~leon_plickat/lswt
+riverctl float-filter-add app-id 'imv'
+riverctl float-filter-add app-id 'mpv'
+riverctl float-filter-add app-id 'nz.co.mega.megasync'
 riverctl float-filter-add app-id 'gnome-system-monitor'
 
 # Make all views with app-id "bar" and any title use client-side decorations
@@ -102,7 +107,6 @@ riverctl float-filter-add app-id 'gnome-system-monitor'
 # Set the default layout generator to be rivertile and start it.
 # River will send the process group of the init executable SIGTERM on exit.
 riverctl default-layout rivertile
-rivertile -view-padding 6 -outer-padding 6 &
 
 riverctl spawn rivertile
 riverctl output-layout rivertile

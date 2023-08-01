@@ -27,6 +27,7 @@ delta_change() {
 }
 
 main() {
+  [[ -z ${1:-} ]] && return
   case "$1" in
   -h | --help)
     echo "$usage"

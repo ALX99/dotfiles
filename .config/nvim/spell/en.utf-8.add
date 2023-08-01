@@ -18,3 +18,4 @@ config
 neovim
 tmux
 Anki
+dotfiles

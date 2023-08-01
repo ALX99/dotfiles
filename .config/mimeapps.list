@@ -5,6 +5,7 @@
 
 text/x-shellscript=nvim.desktop;
 text/plain=nvim.desktop;
+text/markdown=nvim.desktop;
 application/x-bittorrent=org.qbittorrent.qBittorrent.desktop;
 x-scheme-handler/magnet=org.qbittorrent.qBittorrent.desktop;
 video/x-matroska=mpv.desktop;
