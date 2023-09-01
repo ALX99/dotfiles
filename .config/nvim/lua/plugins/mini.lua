@@ -5,8 +5,6 @@ return {
       'nvim-tree/nvim-web-devicons'
     },
     config = function()
-      require('core.utils').map({ "n", "x", "o" }, "<leader>ft", ":lua MiniFiles.open()<CR>", { desc = "MiniFiles" })
-
       require('mini.trailspace').setup({})
       -- require('mini.tabline').setup({ show_icons = false })
       -- require('mini.cursorword').setup({})
@@ -57,9 +55,11 @@ return {
   },
   {
     "echasnovski/mini.files",
-    event = "VeryLazy",
     dependencies = {
       'nvim-tree/nvim-web-devicons'
+    },
+    keys = {
+      { "<leader>ft", ":lua MiniFiles.open()<CR>", mode = { "n", "x", "o" }, desc = "MiniFiles" },
     },
     opts = {
       mappings = {
