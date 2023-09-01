@@ -13,7 +13,7 @@ return {
     dependencies = {
       'nvim-lua/plenary.nvim',
     },
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -22,12 +22,16 @@ return {
   {
     "folke/flash.nvim",
     event = "VeryLazy",
-    opts = {},
+    opts = {
+      modes = {
+        search = { enabled = false },
+        char = { enabled = false },
+      }
+    },
     keys = {
       {
         "<leader>s",
         mode = { "n", "x", "o" },
-
         function()
           require("flash").jump()
         end,
@@ -72,7 +76,7 @@ return {
     event = { "BufReadPost", "BufNewFile" },
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     config = true,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   }

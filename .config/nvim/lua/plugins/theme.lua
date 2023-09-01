@@ -7,7 +7,7 @@ return {
       require("tokyonight").setup(opts)
       vim.cmd.colorscheme("tokyonight-moon")
     end,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -21,7 +21,8 @@ return {
       require('kanagawa').setup(opts)
       -- vim.cmd.colorscheme("kanagawa-dragon")
     end,
-    enabled = function()
+    enabled = false,
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -32,7 +33,7 @@ return {
     opts = {
       flavour = "mocha",
     },
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -40,7 +41,7 @@ return {
     "projekt0n/github-nvim-theme",
     version = "1.x.x",
     event = "VeryLazy",
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -52,9 +53,9 @@ return {
         dim_inactive = true,
       }
     },
-    enabled = function()
-      return false
-      -- return not require('core.utils').is_vscodevim()
+    enabled = false,
+    cond = function()
+      return not require('core.utils').is_vscodevim()
     end
   },
 }

@@ -14,7 +14,7 @@ return {
   config = function()
     vim.api.nvim_create_user_command('FTermToggle', require('FTerm').toggle, { bang = true })
   end,
-  enabled = function()
+  cond = function()
     return not require('core.utils').is_vscodevim()
   end
 }

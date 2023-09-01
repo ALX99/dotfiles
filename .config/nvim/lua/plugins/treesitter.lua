@@ -25,7 +25,6 @@ return {
         "rust",
         "yaml",
       },
-
       -- Install parsers synchronously (only applied to `ensure_installed`)
       sync_install = false,
       auto_install = false,
@@ -68,7 +67,7 @@ return {
       -- vim.opt.foldminlines = 20
       vim.opt.foldenable = false
     end,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -76,7 +75,7 @@ return {
     "nvim-treesitter/nvim-treesitter-context",
     event = { "BufReadPost", "BufNewFile" },
     config = true,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },

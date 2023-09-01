@@ -1,24 +1,4 @@
 return {
-  {
-    -- which-key for remembering keybindings
-    "folke/which-key.nvim",
-    event = "VeryLazy",
-    config = function()
-      local wk = require("which-key")
-
-      vim.o.timeout = true
-      vim.o.timeoutlen = 1000
-      wk.register({
-        mode = { "n", "v" },
-        ["<leader>g"] = { name = "+git" },
-        ["<leader>w"] = { name = "+windows" },
-      })
-    end,
-    enabled = function()
-      return not require('core.utils').is_vscodevim()
-    end
-  },
-
   -- gitsigns for git gutter
   {
     "lewis6991/gitsigns.nvim",
@@ -47,7 +27,7 @@ return {
         end
       }
     end,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -61,9 +41,9 @@ return {
       disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
       colorcolumn = "100",
     },
-    enabled = function()
-      return false
-      -- return not require('core.utils').is_vscodevim()
+    enabled = false,
+    cond = function()
+      return not require('core.utils').is_vscodevim()
     end
   },
 }
