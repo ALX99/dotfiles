@@ -234,7 +234,7 @@ return {
       lspconfig[name].setup(set)
     end
   end,
-  enabled = function()
+  cond = function()
     return not require('core.utils').is_vscodevim()
   end
 }

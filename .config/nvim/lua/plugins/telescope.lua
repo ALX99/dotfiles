@@ -103,7 +103,7 @@ return {
     telescope.load_extension("fzf")
     telescope.load_extension("ui-select")
   end,
-  enabled = function()
+  cond = function()
     return not require('core.utils').is_vscodevim()
   end
 }

@@ -6,7 +6,7 @@ return {
     config = function()
       require("luasnip.loaders.from_vscode").lazy_load()
     end,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   },
@@ -47,11 +47,12 @@ return {
           }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
         }),
         sources = cmp.config.sources({
-          { name = "nvim_lsp" },
-          { name = "luasnip" },
-          { name = "buffer" },
-          -- { name = "path" },
-        }),
+            { name = "nvim_lsp" },
+            { name = "luasnip" },
+          },
+          {
+            { name = "buffer" },
+          }),
         formatting = {
           format = function(entry, item)
             local short_name = {
@@ -86,7 +87,7 @@ return {
       cmp.setup(opts)
 
       -- Set configuration for specific filetype.
-      -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
+      -- Use buffer source for `/` and `?` (if you enable `native_menu`, this won't work anymore).
       cmp.setup.cmdline({ '/', '?' }, {
         mapping = cmp.mapping.preset.cmdline(),
         sources = {
@@ -94,7 +95,7 @@ return {
         }
       })
     end,
-    enabled = function()
+    cond = function()
       return not require('core.utils').is_vscodevim()
     end
   }
