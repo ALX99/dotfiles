@@ -33,6 +33,7 @@ return {
     opts = {
       flavour = "mocha",
     },
+    enabled = false,
     cond = function()
       return not require('core.utils').is_vscodevim()
     end
@@ -41,6 +42,7 @@ return {
     "projekt0n/github-nvim-theme",
     version = "1.x.x",
     event = "VeryLazy",
+    enabled = false,
     cond = function()
       return not require('core.utils').is_vscodevim()
     end
