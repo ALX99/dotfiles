@@ -76,6 +76,7 @@ return {
     event = { "BufReadPost", "BufNewFile" },
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     config = true,
+    enabled = false,
     cond = function()
       return not require('core.utils').is_vscodevim()
     end
