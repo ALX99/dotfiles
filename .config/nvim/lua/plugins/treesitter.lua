@@ -6,8 +6,8 @@ return {
     opts = {
       ensure_installed = {
         "bash",
-        "c",
-        "cpp",
+        -- "c",
+        -- "cpp",
         "css",
         "dockerfile",
         "go",
@@ -16,13 +16,12 @@ return {
         "javascript",
         "json",
         "lua",
-        "luadoc",
+        -- "luadoc",
         "make",
         "markdown",
         "markdown_inline",
         "vimdoc",
         "python",
-        "rust",
         "yaml",
       },
       -- Install parsers synchronously (only applied to `ensure_installed`)
