@@ -18,20 +18,20 @@
   # Recursively traverse untracked directories to display all contents
   showUntrackedFiles = all
 
-[core]
-  pager = delta
+; [core]
+;   pager = delta
 
 [diff]
   colorMoved = default
   submodule = log
 
-[interactive]
-  diffFilter = delta --color-only
+; [interactive]
+;   diffFilter = delta --color-only
 
-[delta]
-  navigate = true  # use n and N to move between diff sections
-  light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
-  line-numbers = true
+; [delta]
+;   navigate = true  # use n and N to move between diff sections
+;   light = false    # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+;   line-numbers = true
 
 [alias]
   a = add
@@ -55,6 +55,7 @@
   # branches
   bd = !source ~/dotfiles/shell/.gitalias && gbd $1
   bl = branch
+  bc = checkout -b
   bs = !source ~/dotfiles/shell/.gitalias && gbs $1
 
   # stashes
