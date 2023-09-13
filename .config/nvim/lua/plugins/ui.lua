@@ -10,6 +10,7 @@ return {
 
       -- :h gitsigns.setup
       gitsigns.setup {
+        current_line_blame = true,
         on_attach = function(_)
           local gs = package.loaded.gitsigns
           map({ 'n', 'v' }, '<leader>gs', ':Gitsigns stage_hunk<CR>', { desc = "Stage hunk" })

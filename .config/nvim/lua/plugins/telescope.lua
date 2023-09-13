@@ -93,6 +93,9 @@ return {
         lsp_references = {
           initial_mode = "normal",
         },
+        lsp_implementations = {
+          initial_mode = "normal",
+        },
         colorscheme = {
           enable_preview = true
         }
