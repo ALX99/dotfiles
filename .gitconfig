@@ -6,6 +6,9 @@
 [pull]
   rebase = merges
 
+[push]
+  autoSetupRemote = true
+
 [rebase]
   autoStash = true
 
@@ -61,6 +64,10 @@
   # stashes
   sa = stash push
   sp = stash pop
+
+  # restore
+  r = restore
+  rs = restore --staged
 
   # misc
   al = "! git config --get-regexp '^alias\\.' | cut -c7-"
