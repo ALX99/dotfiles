@@ -26,9 +26,12 @@ alias \
   ef.='nvim "$(pf.)"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
-  tmuxs=' tmux a -t ${PWD##*/} &>/dev/null || tmux new -s ${PWD##*/}' \
+  tmuxs='tmux new -A -s ${PWD##*/}' \
   pnav='cd "$(_projselect)"' \
-  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .'
+  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
+  ta='tmux a -t "$(tmux ls | cut -d":" -f1 | fzf)"' \
+  urldecode='python3 -c "import sys, urllib.parse as ul; print(ul.unquote_plus(sys.argv[1]))"' \
+  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"'
 
 # Helm
 alias \
@@ -57,8 +60,6 @@ alias \
 alias \
   grep="grep --color=auto" \
   diff="diff --color=auto" \
-  ls="ls -hN --color=auto --group-directories-first" \
-  ll="ls -lA" \
   ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
@@ -71,6 +72,16 @@ alias \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
   mpv='mpv --hwdec=auto'
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  alias \
+    ls="gls -hN --color=auto --group-directories-first" \
+    ll="gls -hNlA --color=auto"
+else
+  alias \
+    ls="ls -hN --color=auto --group-directories-first" \
+    ll="ls -hNlA --color=auto"
+fi
 
 # Navigation
 alias \
@@ -85,13 +96,14 @@ alias \
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
 
-command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
-command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
+# command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
+# command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 
 # FZF aliases
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+[ -f "/opt/homebrew/Cellar/fzf/0.42.0/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.42.0/shell/key-bindings.zsh
 
 # Git browse
 gbrowse() {
