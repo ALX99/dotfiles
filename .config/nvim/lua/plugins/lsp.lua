@@ -190,7 +190,8 @@ return {
               shadow = true,
               nilness = true,
               unusedwrite = true,
-              useany = true
+              useany = true,
+              fieldalignment = true
             },
             staticcheck = true,
           },
