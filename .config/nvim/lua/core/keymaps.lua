@@ -95,6 +95,13 @@ map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
 -- map("n", "gp", "<C-w>}")
 
 map("n", "<leader>q", ":hide<CR>")
+map("n", "<leader>C", function()
+  local file_path = vim.fn.expand('%:p')
+  local line_number = vim.fn.line('.')
+  local column_number = vim.fn.col('.')
+  local command = 'code ' .. vim.fn.getcwd() .. ' --goto ' .. file_path .. ':' .. line_number .. ':' .. column_number
+  vim.fn.system(command)
+end, { desc = "open file in vscode" })
 
 -- Resize with arrows
 -- map("n", "<C-Up>", ":resize +2<CR>")
