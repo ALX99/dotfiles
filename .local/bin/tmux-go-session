@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+projs="$(find "${PROJ_DIR:-$HOME/projects}" -mindepth 1 -maxdepth 1 -type d)"
+
+selected_dir="$(printf "%s\n%s" "$projs" "$HOME/dotfiles" | sort -rfu | fzf-tmux -p)"
+selected_name="${selected_dir##*/}"
+
+if [[ -z ${TMUX:-} ]]; then
+  tmux new-session -s "$selected_name" -c "$selected_dir"
+  exit 0
+elif ! tmux has-session -t="$selected_name" 2>/dev/null; then
+  tmux new-session -ds "$selected_name" -c "$selected_dir"
+fi
+
+if [[ -z ${TMUX:-} ]]; then
+  tmux attach-session -t "$selected_name"
+else
+  tmux switch-client -t "$selected_name"
+fi
+

@@ -27,12 +27,12 @@ alias \
   gu='xdg-open $(git config --get remote.origin.url)' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tmuxs='tmux new -A -s ${PWD##*/}' \
+  tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
   ta='tmux a -t "$(tmux ls | cut -d":" -f1 | fzf)"' \
   urldecode='python3 -c "import sys, urllib.parse as ul; print(ul.unquote_plus(sys.argv[1]))"' \
-  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
-  opentmuxsessions='gfind "${PROJ_DIR:-$HOME/projects}" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | while read d; do tmux new -d -s "${d##*/}"; done'
+  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"'
 
 # Helm
 alias \
