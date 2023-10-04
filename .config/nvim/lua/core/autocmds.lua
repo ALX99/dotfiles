@@ -91,6 +91,10 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   group = vim.api.nvim_create_augroup("autoformat", { clear = true }),
   callback = function(info)
     if vim.o.filetype == "sh" then
+      if vim.fn.executable('shfmt') ~= 1 then
+        return
+      end
+
       vim.cmd(":w") -- Can't be bothered to figure out the piping yet
       local job = vim.fn.jobstart("shfmt -i=2 -s " .. info.file, {
         stdout_buffered = true,
