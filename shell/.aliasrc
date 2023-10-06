@@ -105,6 +105,7 @@ command -v helm >/dev/null 2>&1 && . <(helm completion bash)
 # FZF aliases
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+# shellcheck disable=SC1091
 [ -f "/opt/homebrew/Cellar/fzf/0.42.0/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.42.0/shell/key-bindings.zsh
 
 # Git browse
