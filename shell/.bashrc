@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs everytime bash shell is launched
+# Runs every time bash shell is launched
 
 # If not running interactively, don't do anything
 case $- in
