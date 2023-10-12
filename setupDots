@@ -28,8 +28,6 @@ general_config() {
   sudo ln -sf $PWD/misc/sleep.conf /etc/systemd/sleep.conf.d/
   # Keymap
   sudo ln -sf $PWD/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-  # Prefer RAM over swap
-  sudo ln -sf $PWD/misc/99-swappiness.conf /etc/sysctl.d/
 }
 
 arch_config() {
