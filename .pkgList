@@ -21,8 +21,6 @@ cmake
 dash # faster POSIX shell
 dbeaver
 desktop-file-utils # Usually required by many things
-dmenu
-dnscrypt-proxy # DoH
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
@@ -39,18 +37,14 @@ fcitx5-qt
 fd # find directories and files
 ffmpeg
 firefox
-flameshot
 fontpreview-git
 fuzzel
 fzf
 git-delta
-github-cli
 gnome-keyring
-gnome-system-monitor
 gnu-netcat
 go-tools # goimports, godoc, gopls, etc
 go-yq
-graphviz
 gtk4
 helix
 helm
@@ -58,7 +52,6 @@ htop
 hyperfine
 imv
 inetutils
-iptables-nft
 iw
 jdk-openjdk
 jq # Json parser
@@ -68,10 +61,8 @@ lazydocker-bin
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
-libxft
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
-lxappearance # Used to customize GTK theme
 maim # sceenshot utility
 man-db
 man-pages
@@ -88,7 +79,6 @@ noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 openssh
-openssl-1.1
 otf-cascadia-code
 otf-font-awesome
 otf-ipafont
@@ -96,9 +86,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
 pamixer # Control audio
-pavucontrol
 perl-file-mimeinfo
-picom
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
@@ -121,10 +109,8 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 sof-firmware
-stow
 sxhkd # Universal keybindings
 sxiv # image viewer
-tcpdump
 tmux
 tokei
 traceroute
@@ -146,12 +132,10 @@ util-linux # provides SSD trimming
 vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
-vivid
-vlc
+#vivid
 wayland
 wget
 which
-whois
 wl-clipboard
 wireplumber
 x86_energy_perf_policy
@@ -159,16 +143,9 @@ xarchiver
 xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
 xdg-utils
 xf86-input-synaptics
-xorg-xbacklight
-xorg-xev
-xorg-xfontsel
-xorg-xinput
-xorg-xprop
-xorg-xsetroot
-xwallpaper
 yaml-language-server
-yarn
 yt-dlp
 zathura
 zathura-pdf-poppler
 zip
+iwd
