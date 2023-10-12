@@ -11,7 +11,6 @@ bash-completion # completion for bash
 bat # better cat
 bc # Used by displayselect
 bemenu # dmenu clone, optionally required by xdg-desktop-portal-wlr
-bibata-cursor-theme # cursor theme
 bind # nslookup and more
 bluez # bluetooth support
 brave-bin # browser
@@ -154,6 +153,7 @@ wget
 which
 whois
 wl-clipboard
+wireplumber
 x86_energy_perf_policy
 xarchiver
 xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
