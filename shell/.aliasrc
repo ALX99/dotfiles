@@ -14,7 +14,7 @@ alias \
   bs='source ~/.bashrc' \
   lg='lazygit' \
   ch="code . && exit" \
-  bye='systemctl hibernate' \
+  bye='systemctl suspend-then-hibernate' \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
