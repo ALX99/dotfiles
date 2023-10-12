@@ -26,7 +26,6 @@ ANKI_WAYLAND=1       # Anki
 MOZ_ENABLE_WAYLAND=1 # Firefox
 XDG_CURRENT_DESKTOP="river"
 XDG_SESSION_TYPE="wayland"
-[ -x "$(command -v bat)" ] && MANPAGER="sh -c 'col -bx | bat -l man -p'"
 # systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 # dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=river
 
@@ -35,7 +34,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   PATH="$PATH:/opt/homebrew/bin"
 
   SAVEHIST=99999 # total
-  HISTSIZE=999 # kept in memeory
+  HISTSIZE=999   # kept in memeory
 
   # https://zsh.sourceforge.io/Doc/Release/Options.html
   setopt APPEND_HISTORY
@@ -59,7 +58,6 @@ else
   VISUAL="nvim"
   BROWSER="brave"
   FILE="pcmanfm"
-
 
   # Clean up ~/
   # https://wiki.archlinux.org/title/XDG_Base_Directory
@@ -88,3 +86,4 @@ else
 fi
 
 set +a
+
