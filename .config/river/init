@@ -28,6 +28,7 @@ riverctl map normal Super+Shift I send-layout-cmd rivertile "main-count +1" # De
 
 # Programs
 riverctl map normal Super D spawn "fuzzel -I -T $term"
+riverctl map normal Super V spawn brave
 
 # Super+Alt+{M,N,E,I} to move views
 riverctl map normal Super+Alt M move left 100
@@ -140,14 +141,15 @@ riverctl focus-follows-cursor normal
 riverctl hide-cursor timeout 15000
 riverctl hide-cursor when-typing disabled
 
-# Input configuration
-touchpad="pointer-1102-4620-ALP000D:00_044E:120C"
+# Input configuration (riverctl list-inputs)
+touchpad="pointer-2-7-SynPS/2_Synaptics_TouchPad"
 riverctl input "$touchpad" click-method clickfinger
 riverctl input "$touchpad" disable-while-typing enabled
 riverctl input "$touchpad" middle-emulation enabled
 riverctl input "$touchpad" tap enabled
 riverctl input "$touchpad" tap-button-map left-right-middle
 riverctl input "$touchpad" scroll-method two-finger
+riverctl input "$touchpad" natural-scroll enabled
 
 riverctl spawn "swaybg -o eDP-1 -i ~/sync/Wallpapers/81g4h40e2c471.jpg"
 riverctl spawn "pipewire"
