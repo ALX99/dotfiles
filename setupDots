@@ -22,11 +22,14 @@ general_config() {
   # Return if we are running in WSL
   ~/.local/bin/iswsl && return
 
-  sudo mkdir -p /etc/systemd/sleep.conf.d/ /etc/systemd/logind.conf.d/
+  sudo mkdir -p -m 755 \
+    /etc/systemd/sleep.conf.d/ \
+    /etc/systemd/logind.conf.d/ \
+    /etc/systemd/resolved.conf.d/
 
-  # Configure sleeping stuff
-  sudo ln -sf $PWD/misc/sleep.conf /etc/systemd/sleep.conf.d/
-  sudo ln -sf $PWD/misc/logind.conf /etc/systemd/logind.conf.d/
+  # Configure sleeping stuff (check this stuff with systemd-analyze cat-config)
+  sudo ln -sf $PWD/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
+  sudo ln -sf $PWD/misc/99-logind.conf /etc/systemd/logind.conf.d/
 
   # Keymap
   sudo ln -sf $PWD/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
