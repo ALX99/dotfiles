@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -xeuo pipefail
 
 minimal_config() {
   ln -sf $PWD/.local/bin/ ~/.local/
@@ -17,7 +17,7 @@ general_config() {
   ln -sf $PWD/.gitconfig ~/
 
   # Export new path so we get access to everything in bin
-  export PATH="$PATH:$d/.local/bin"
+  export PATH="$PATH:$PWD/.local/bin"
 
   # Return if we are running in WSL
   ~/.local/bin/iswsl && return
