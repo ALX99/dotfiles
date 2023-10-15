@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+
+iface=$(iw dev | awk '/Interface/{print $2}' | fzf)
+iwctl station "$iface" scan
+iwctl station "$iface" get-networks
+echo "iwctl station $iface connect <SSID>"
+
