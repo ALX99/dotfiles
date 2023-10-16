@@ -8,7 +8,7 @@ selected_dir="$(echo "$dirs" | fzf-tmux -p || :)"
 selected_name="${selected_dir##*/}"
 
 if [[ -z ${TMUX:-} ]]; then
-  tmux new-session -s "$selected_name" -c "$selected_dir"
+  tmux new-session -As "$selected_name" -c "$selected_dir"
   exit 0
 elif ! tmux has-session -t="$selected_name" 2>/dev/null; then
   tmux new-session -ds "$selected_name" -c "$selected_dir"
