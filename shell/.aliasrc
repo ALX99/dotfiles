@@ -77,7 +77,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
   alias \
     ls="gls -hN --color=auto --group-directories-first" \
     ll="gls -hNlA --color=auto" \
-    find="gfind"
+    find="gfind" \
+    sed="gsed"
 else
   alias \
     ls="ls -hN --color=auto --group-directories-first" \
