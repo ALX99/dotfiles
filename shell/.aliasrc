@@ -100,7 +100,8 @@ alias \
 
 # command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
 # command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
-command -v helm >/dev/null 2>&1 && . <(helm completion bash)
+command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
+command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 
 # FZF aliases
 # shellcheck disable=SC1091

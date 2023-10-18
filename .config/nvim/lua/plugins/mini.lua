@@ -59,7 +59,7 @@ return {
       'nvim-tree/nvim-web-devicons'
     },
     keys = {
-      { "<leader>ft", ":lua MiniFiles.open()<CR>", mode = { "n", "x", "o" }, desc = "MiniFiles" },
+      { "<leader>ft", ":lua MiniFiles.open(vim.api.nvim_buf_get_name(0))<CR>", mode = { "n", "x", "o" }, desc = "MiniFiles" },
     },
     opts = {
       mappings = {
