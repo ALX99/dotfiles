@@ -102,7 +102,7 @@ return {
           vim.bo[args.buf].formatexpr = "v:lua.vim.lsp.formatexpr()"
         end
 
-        -- workaround for gopls not supporting semantictokensprovider
+        -- workaround for gopls not supporting semanticTokensProvider
         -- https://github.com/golang/go/issues/54531#issuecomment-1464982242
         if client.name == "gopls" then
           if not client.server_capabilities.semanticTokensProvider then
@@ -183,18 +183,32 @@ return {
         capabilities = capabilities,
         settings = {
           gopls = {
-            experimentalPostfixCompletions = true,
+            gofumpt = true,
+            staticcheck = true,
+            usePlaceholders = true,
             semanticTokens = true,
+            directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
+
+            codelenses = {
+              gc_details = false,
+              generate = true,
+              regenerate_cgo = true,
+              run_govulncheck = true,
+              test = true,
+              tidy = true,
+              upgrade_dependency = true,
+              vendor = true,
+            },
             -- https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md
             analyses = {
+              fieldalignment = true,
+              unusedvariable = true,
               unusedparams = true,
-              shadow = true,
-              nilness = true,
               unusedwrite = true,
+              nilness = true,
+              shadow = true,
               useany = true,
-              fieldalignment = true
             },
-            staticcheck = true,
           },
         },
       },
