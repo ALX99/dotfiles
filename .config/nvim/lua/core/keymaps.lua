@@ -1,6 +1,7 @@
 local map = require('core.utils').map
 
 -- Colemak-DH remaps
+-- :h map-overview
 local colemak_maps = {
   m = 'h', -- Left
   n = 'j', -- Down
@@ -11,7 +12,7 @@ local colemak_maps = {
 }
 
 for k, v in pairs(colemak_maps) do
-  map({ "n", "v", "o" }, k, v)
+  map({ "n", "x", "o" }, k, v)
 end
 
 -- Fix conflicts caused by the above mappings
@@ -25,11 +26,10 @@ for k, v in pairs({
   --   map({ "n", "v", "o" }, k, v .. "zzzv", { desc = "search next and center" })
   --   map({ "n", "v", "o" }, string.upper(k), string.upper(v) .. "zzzv", { desc = "search prev and center" })
   -- else
-  map({ "n", "v", "o" }, k, v)
-  map({ "n", "v", "o" }, string.upper(k), string.upper(v))
+  map({ "n", "x", "o" }, k, v)
+  map({ "n", "x", "o" }, string.upper(k), string.upper(v))
   -- end
 end
-vim.cmd("sunmap s") -- otherwise "s" wont' work in select mode
 
 -- Additional fixes (h is the new e)
 map({ "n", "x", "o" }, "gh", "ge", { desc = "Previous end of word" })
