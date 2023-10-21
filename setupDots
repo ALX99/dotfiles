@@ -1,8 +1,10 @@
 #!/bin/bash
+# PLEASE SOURCE THIS SCRIPT
 set -xeuo pipefail
 
-minimal_config() {
+user_config() {
   ln -sf "$PWD"/.local/bin/ ~/.local/
+  ln -sf "$PWD"/.gitconfig ~/
 
   for f in "$PWD"/.config/*; do
     ln -sf "$f" ~/.config/
@@ -13,14 +15,11 @@ minimal_config() {
   done
 }
 
-general_config() {
-  ln -sf "$PWD"/.gitconfig ~/
-
-  # Export new path so we get access to everything in bin
-  export PATH="$PATH:$PWD/.local/bin"
-
-  # Return if we are running in WSL
+system_config() {
   ~/.local/bin/iswsl && return
+
+  # Keymap
+  sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 
   sudo mkdir -p -m 755 \
     /etc/systemd/sleep.conf.d/ \
@@ -30,10 +29,8 @@ general_config() {
   # Configure sleeping stuff (check this stuff with systemd-analyze cat-config)
   sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
   sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
-  sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
 
-  # Keymap
-  sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+  sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/ # sudo
 }
 
 arch_config() {
@@ -66,14 +63,5 @@ kde() {
   kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 }
 
-main() {
-  minimal_config
-  arch_config
-  general_config
-  arch_dep
-  ! ~/.local/bin/iswsl && ssh_agent
-}
-
-minimal_config
-general_config
+user_config
 
