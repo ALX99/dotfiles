@@ -35,6 +35,11 @@ return {
           goto_top = '[o',
           goto_bottom = ']o',
         },
+        -- draw = {
+        --   delay = 100,
+        --   animation = require('mini.indentscope').gen_animation.none(),
+        -- },
+        symbol = "│"
       })
 
       -- disable trailspace on markdown files
