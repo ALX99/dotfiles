@@ -30,6 +30,7 @@ general_config() {
   # Configure sleeping stuff (check this stuff with systemd-analyze cat-config)
   sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
   sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
+  sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
 
   # Keymap
   sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
