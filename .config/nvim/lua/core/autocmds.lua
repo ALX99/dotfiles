@@ -126,3 +126,19 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     end
   end
 })
+
+
+-- Automatically update listchars to match indentation and listchars settings
+-- https://www.reddit.com/r/neovim/comments/17aponn/comment/k5f2n7t/?utm_source=share&utm_medium=web2x&context=3
+local function update_lead()
+  local lcs = vim.opt_local.listchars:get()
+  local tab = vim.fn.str2list(lcs.tab)
+  local space = vim.fn.str2list(lcs.multispace or lcs.space)
+  local lead = { tab[1] }
+  for i = 1, vim.bo.tabstop - 1 do
+    lead[#lead + 1] = space[i % #space + 1]
+  end
+  vim.opt_local.listchars:append({ leadmultispace = vim.fn.list2str(lead) })
+end
+vim.api.nvim_create_autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
+vim.api.nvim_create_autocmd("VimEnter", { callback = update_lead, once = true })

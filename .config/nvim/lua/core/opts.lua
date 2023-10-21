@@ -69,9 +69,15 @@ vim.opt.spell     = true
 vim.opt.spelllang = 'en_us,en_gb'
 
 -- Show some invisible characters
--- o.list = true
--- vim.opt.backspace = "indent,eol,start"
--- vim.opt.listchars = { space = "⋅", tab = "▸ ", trail = "·" } -- eol = "↲"
+o.list            = true
+vim.opt.listchars = {
+  tab = "⟩ ",
+  trail = "+",
+  precedes = "<",
+  extends = ">",
+  space = "·",
+  nbsp = "␣",
+}
 
 o.helpheight      = 25
 
