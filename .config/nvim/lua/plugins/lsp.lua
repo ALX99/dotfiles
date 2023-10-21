@@ -178,6 +178,7 @@ return {
       cssls = { capabilities = capabilities },
       tsserver = { capabilities = capabilities },
       robotframework_ls = { capabilities = capabilities },
+      zls = { capabilities = capabilities },
       gopls = {
         capabilities = capabilities,
         settings = {
