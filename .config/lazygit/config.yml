@@ -26,3 +26,4 @@ git:
     pager: delta --dark --paging=never
 gui:
   showFileTree: false
+  showCommandLog: false
