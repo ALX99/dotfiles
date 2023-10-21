@@ -18,6 +18,7 @@ QT_QPA_PLATFORMTHEME=qt6ct
 QT_QPA_PLATFORM="wayland"
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
+LESS='-R --use-color -Dd+r$Du+b$' # color
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 TASK_TEMP_DIR="/tmp/.task"
 CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
