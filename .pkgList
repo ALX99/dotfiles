@@ -1,5 +1,3 @@
-adwaita-qt5 # theme
-adwaita-qt6 # theme
 alacritty # terminal
 alsa-utils # alsamixer and more
 android-apktool
@@ -9,29 +7,24 @@ anki-bin # anki
 arandr # manage displays
 bash-completion # completion for bash
 bat # better cat
-bc # Used by displayselect
-bemenu # dmenu clone, optionally required by xdg-desktop-portal-wlr
 bind # nslookup and more
 bluez # bluetooth support
 brave-bin # browser
-bubblewrap # used by wrap script
 cantarell-fonts # font
 chromium
 cmake
 dash # faster POSIX shell
-dbeaver
 desktop-file-utils # Usually required by many things
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
 dosfstools # mkfs.fat
-dragon-drop # drag and drop file
 dunst # notification daemon
-etcher-bin # work with ISOs
 exfat-utils # mkfs.exfat
 expac # requried by paccy
 fcitx5
 fcitx5-configtool
+fcitx5-gtk
 fcitx5-mozc
 fcitx5-qt
 fd # find directories and files
@@ -42,28 +35,30 @@ fuzzel
 fzf
 git-delta
 gnome-keyring
+gnome-themes-extra # Includes: Adwaita, Adwaita-dark, HighContrast
+gnome-tweaks
 gnu-netcat
-go-tools # goimports, godoc, gopls, etc
+google-chrome
+gopls
+go-tools # goimports, godoc etc
 go-yq
 gtk4
 helix
-helm
 htop
 hyperfine
 imv
 inetutils
-iw
+iw # iw wifi thingy
+iwd # iw daemon
 jdk-openjdk
 jq # Json parser
 k9s
-kubectl
 lazydocker-bin
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 lua-language-server
-maim # sceenshot utility
 man-db
 man-pages
 megasync-bin
@@ -92,13 +87,11 @@ pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
 postgresql-libs
-powertop
 pyright
-python
-python-black
 python-pip
 qbittorrent
-qt6ct
+qt5-wayland
+qt6ct # qt6 configtool
 qt6-wayland
 ripgrep
 river
@@ -109,6 +102,7 @@ shellharden
 shfmt # shell format
 simple-mtpfs
 sof-firmware
+swaybg
 sxhkd # Universal keybindings
 sxiv # image viewer
 tmux
@@ -116,6 +110,7 @@ tokei
 traceroute
 tree
 ttf-cascadia-code # programming font
+ttf-croscore
 ttf-dejavu
 ttf-fira-code
 ttf-font-awesome
@@ -136,8 +131,8 @@ visual-studio-code-bin
 wayland
 wget
 which
-wl-clipboard
 wireplumber
+wl-clipboard
 x86_energy_perf_policy
 xarchiver
 xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
@@ -148,4 +143,3 @@ yt-dlp
 zathura
 zathura-pdf-poppler
 zip
-iwd
