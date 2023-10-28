@@ -177,6 +177,7 @@ return {
       html = { capabilities = capabilities },
       cssls = { capabilities = capabilities },
       tsserver = { capabilities = capabilities },
+      svelte = { capabilities = capabilities },
       robotframework_ls = { capabilities = capabilities },
       zls = { capabilities = capabilities },
       gopls = {
