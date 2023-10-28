@@ -14,6 +14,7 @@ return {
         "gomod",
         "html",
         "javascript",
+        "typescript",
         "json",
         "lua",
         -- "luadoc",
