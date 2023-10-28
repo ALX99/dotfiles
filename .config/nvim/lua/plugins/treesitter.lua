@@ -27,6 +27,8 @@ return {
       -- Install parsers synchronously (only applied to `ensure_installed`)
       sync_install = false,
       auto_install = false,
+      highlight = { enable = true },
+      indent = { enable = true },
       incremental_selection = {
         enable = true,
         keymaps = {
