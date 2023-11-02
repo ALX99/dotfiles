@@ -36,16 +36,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   PATH="$PATH:/opt/homebrew/bin"
 
   SAVEHIST=99999 # total
-  HISTSIZE=999   # kept in memeory
-
-  # https://zsh.sourceforge.io/Doc/Release/Options.html
-  setopt APPEND_HISTORY
-  setopt EXTENDED_HISTORY
-  setopt HIST_EXPIRE_DUPS_FIRST
-  setopt HIST_FIND_NO_DUPS
-  setopt HIST_IGNORE_ALL_DUPS
-  setopt HIST_REDUCE_BLANKS
-
+  HISTSIZE=9999   # kept in memeory
 else
   # XDG
   XDG_CACHE_HOME="$HOME/.cache"
