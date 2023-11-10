@@ -11,6 +11,10 @@ setopt HIST_FIND_NO_DUPS # Do not display a line previously found.
 setopt HIST_REDUCE_BLANKS # Remove superfluous blanks before recording entry.
 setopt INC_APPEND_HISTORY # Write to the history file immediately, not when the shell exits.
 
+autoload -Uz compinit
+compinit
+_comp_options+=(globdots)
+
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then
   # shellcheck disable=SC1091
@@ -19,9 +23,4 @@ else
   echo "Could not load aliases"
 fi
 
-
 eval "$(direnv hook zsh)"
-
-autoload -Uz compinit
-compinit
-_comp_options+=(globdots)
