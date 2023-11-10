@@ -32,8 +32,8 @@ XDG_SESSION_TYPE="wayland"
 # dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=river
 
 if [ "$(uname -s)" = "Darwin" ]; then
-  # Homebrew
-  PATH="$PATH:/opt/homebrew/bin"
+  # Homebrew and Rancher desktop
+  PATH="$PATH:/opt/homebrew/bin:$HOME/.rd/bin"
 
   SAVEHIST=99999 # total
   HISTSIZE=9999   # kept in memeory
