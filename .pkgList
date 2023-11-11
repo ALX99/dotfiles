@@ -30,7 +30,6 @@ fcitx5-qt
 fd # find directories and files
 ffmpeg
 firefox
-fontpreview-git
 fuzzel
 fzf
 git-delta
@@ -77,6 +76,7 @@ openssh
 otf-cascadia-code
 otf-font-awesome
 otf-ipafont
+otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
@@ -110,13 +110,8 @@ tokei
 traceroute
 tree
 ttf-cascadia-code # programming font
-ttf-croscore
-ttf-dejavu
 ttf-fira-code
 ttf-font-awesome
-ttf-inconsolata
-ttf-joypixels
-ttf-liberation
 ttf-nerd-fonts-symbols-mono
 typescript-language-server
 unclutter # remove mouse
