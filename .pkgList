@@ -1,8 +1,5 @@
 alacritty # terminal
 alsa-utils # alsamixer and more
-android-apktool
-android-file-transfer
-android-tools
 anki-bin # anki
 arandr # manage displays
 bash-completion # completion for bash
@@ -27,7 +24,6 @@ fcitx5-configtool
 fcitx5-gtk
 fcitx5-mozc
 fcitx5-qt
-fd # find directories and files
 ffmpeg
 firefox
 fuzzel
@@ -42,16 +38,12 @@ gopls
 go-tools # goimports, godoc etc
 go-yq
 gtk4
-helix
 htop
-hyperfine
 imv
-inetutils
 iw # iw wifi thingy
 iwd # iw daemon
 jdk-openjdk
 jq # Json parser
-k9s
 lazydocker-bin
 lazygit
 libnotify # library for sending desktop notifications
@@ -86,9 +78,7 @@ pipewire-alsa
 pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
-postgresql-libs
 pyright
-python-pip
 qbittorrent
 qt5-wayland
 qt6ct # qt6 configtool
@@ -107,7 +97,6 @@ sxhkd # Universal keybindings
 sxiv # image viewer
 tmux
 tokei
-traceroute
 tree
 ttf-cascadia-code # programming font
 ttf-fira-code
