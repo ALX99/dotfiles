@@ -30,7 +30,7 @@ fuzzel
 fzf
 git-delta
 gnome-keyring
-gnome-themes-extra # Includes: Adwaita, Adwaita-dark, HighContrast
+gnome-themes-extra # includes the themes Adwaita, Adwaita-dark and HighContrast
 gnome-tweaks
 gnu-netcat
 google-chrome
