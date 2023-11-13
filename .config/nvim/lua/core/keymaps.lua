@@ -118,3 +118,16 @@ map("n", "dd", function()
     return "dd"
   end
 end, { noremap = true, expr = true })
+
+-- makes * and # act on whole selection in visual mode ("very nomagic")
+-- allows to easily find weird strings like /*foo*/
+vim.cmd([[
+function! g:VSetSearch(cmdtype)
+  let temp = @s
+  norm! gv"sy
+  let @/ = '\V' . substitute(escape(@s, a:cmdtype.'\'), '\n', '\\n', 'g')
+  let @s = temp
+endfunction
+xnoremap * :<c-u>call g:VSetSearch('/')<cr>/<c-r>=@/<cr><cr>
+xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
+]])
