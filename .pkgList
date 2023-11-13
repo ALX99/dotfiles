@@ -9,7 +9,6 @@ bluez # bluetooth support
 brave-bin # browser
 cantarell-fonts # font
 chromium
-cmake
 dash # faster POSIX shell
 desktop-file-utils # Usually required by many things
 docker
