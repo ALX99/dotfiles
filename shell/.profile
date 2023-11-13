@@ -32,11 +32,11 @@ XDG_SESSION_TYPE="wayland"
 # dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=river
 
 if [ "$(uname -s)" = "Darwin" ]; then
-  # Homebrew and Rancher desktop
-  PATH="$PATH:/opt/homebrew/bin:$HOME/.rd/bin"
+  # homebrew, rancher desktop, and gem paths
+  PATH="$PATH:/opt/homebrew/bin:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
 
   SAVEHIST=99999 # total
-  HISTSIZE=9999   # kept in memeory
+  HISTSIZE=9999  # kept in memory
 else
   # XDG
   XDG_CACHE_HOME="$HOME/.cache"
