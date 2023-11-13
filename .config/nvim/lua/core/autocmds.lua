@@ -92,18 +92,6 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
   group = sessionGrp
 })
 
-
--- https://github.com/neovim/nvim-lspconfig/issues/115
--- https://github.com/golang/tools/blob/master/gopls/doc/vim.md#neovim-imports
-vim.api.nvim_create_autocmd('BufWritePre', {
-  group    = vim.api.nvim_create_augroup('GoOrganizeImports', { clear = true }),
-  pattern  = '*.go',
-  callback = function()
-    vim.lsp.buf.code_action({ context = { only = { 'source.organizeImports' } }, apply = true })
-  end
-})
-
-
 -- Make sure :filetype is on
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = vim.api.nvim_create_augroup("autoformat", { clear = true }),
