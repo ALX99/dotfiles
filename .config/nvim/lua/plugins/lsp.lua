@@ -47,21 +47,33 @@ return {
       -- end)
     end
 
+    -- Create an augroup that is used for managing our formatting autocmds.
+    -- We need one augroup per client to make sure that multiple clients
+    -- can attach to the same buffer without interfering with each other.
+    local _augroups = {}
+    local function get_augroup(client, prefix)
+      if not _augroups[client.id] then
+        local group_name = prefix .. '-' .. client.name
+        local id = vim.api.nvim_create_augroup(group_name, { clear = true })
+        _augroups[client.id] = id
+      end
+
+      return _augroups[client.id]
+    end
+
     local function highlight_references(client, buf)
       -- https://sbulav.github.io/til/til-neovim-highlight-references/
       if client.server_capabilities.documentHighlightProvider then
-        local grp = vim.api.nvim_create_augroup("lsp_document_highlight", {})
-        vim.api.nvim_clear_autocmds({ group = grp, buffer = buf })
         vim.api.nvim_create_autocmd("CursorHold", {
           desc = "Document Highlight",
           callback = function() vim.schedule(vim.lsp.buf.document_highlight) end,
-          group = grp,
+          group = get_augroup(client, 'lsp-show-references'),
           buffer = buf,
         })
         vim.api.nvim_create_autocmd("CursorMoved", {
           desc = "Clear All the References",
           callback = function() vim.schedule(vim.lsp.buf.clear_references) end,
-          group = grp,
+          group = get_augroup(client, 'lsp-show-references'),
           buffer = buf,
         })
       end
@@ -84,7 +96,7 @@ return {
             })
             vim.fn.winrestview(view)
           end,
-          group = vim.api.nvim_create_augroup("LspFormat", { clear = true }),
+          group = get_augroup(client, 'lsp-format'),
           buffer = buf,
         })
       end
