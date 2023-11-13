@@ -78,6 +78,7 @@ pipewire-alsa
 pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
+pnpm
 pyright
 qbittorrent
 qt5-wayland
@@ -95,6 +96,7 @@ sof-firmware
 swaybg
 sxhkd # Universal keybindings
 sxiv # image viewer
+tailwindcss-language-server
 tmux
 tokei
 tree
@@ -112,6 +114,9 @@ vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
 #vivid
+vscode-html-languageserver
+vscode-json-languageserver
+vscode-markdown-languageserver
 wayland
 wget
 which
