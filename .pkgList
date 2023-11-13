@@ -24,7 +24,6 @@ fcitx5-gtk
 fcitx5-mozc
 fcitx5-qt
 ffmpeg
-firefox
 fuzzel
 fzf
 git-delta
@@ -39,9 +38,8 @@ go-yq
 gtk4
 htop
 imv
-iw # iw wifi thingy
 iwd # iw daemon
-jdk-openjdk
+iw # iw wifi thingy
 jq # Json parser
 lazydocker-bin
 lazygit
