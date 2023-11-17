@@ -2,13 +2,12 @@ local map = require('core.utils').map
 
 require('core.colemak').setup()
 
-map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
-
 -- QoL
-map("n", "U", "<C-r>")  -- Redo
-map("x", "<", "<gv")    -- Stay in indent mode
-map("x", ">", ">gv")    -- Stay in indent mode
-map("i", "tn", "<Esc>") -- Esc is hard to press
+map("n", "U", "<C-r>", { desc = "Redo" })
+map("x", ">", ">gv", { desc = "Increase ident" })              -- Stay in indent mode
+map("x", "<", "<gv", { desc = "Decrease ident" })              -- Stay in indent mode
+map("i", "tn", "<Esc>", { desc = "Exit insert mode" })         -- Esc is hard to press
+map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
 
 map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
 map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
@@ -22,12 +21,13 @@ map('n', '<C-u>', '<C-u>zz')
 -- plugins
 map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
 
------------------
--- WINDOW MODE --
------------------
+-- Windows
 map("n", "<leader>w", "<C-w>")
 map("n", "<leader>wcs", "<cmd>new<CR>", { desc = "Open new split" })
 map("n", "<leader>wcv", "<cmd>vnew<CR>", { desc = "Open new vertical" })
+map("n", "<leader>ws", "<C-w>s", { desc = "Split horizontally" })
+map("n", "<leader>wv", "<C-w>v", { desc = "Split vertically" })
+map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
 
 -- Navigate to window
 map("n", "<leader>wm", "<C-w>h", { desc = "Focus left" })
@@ -36,9 +36,16 @@ map("n", "<leader>we", "<C-w>k", { desc = "Focus up" })
 map("n", "<leader>wi", "<C-w>l", { desc = "Focus right" })
 map("n", "<leader>wo", "<C-w>o", { desc = "Close all but current" })
 
-map("n", "<leader>ws", "<C-w>s", { desc = "Split horizontally" })
-map("n", "<leader>wv", "<C-w>v", { desc = "Split vertically" })
-map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
+-- Resize windows
+map("n", "<C-Up>", ":resize +2<CR>")
+map("n", "<C-Down>", ":resize -2<CR>")
+map("n", "<C-Left>", ":vertical resize -2<CR>")
+map("n", "<C-Right>", ":vertical resize +2<CR>")
+
+-- Diagnostics
+map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
+map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
+map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
 
 -- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
 -- todo read about tags
@@ -52,12 +59,6 @@ map("n", "<leader>C", function()
   local command = 'code ' .. vim.fn.getcwd() .. ' --goto ' .. file_path .. ':' .. line_number .. ':' .. column_number
   vim.fn.system(command)
 end, { desc = "open file in vscode" })
-
--- Resize with arrows
-map("n", "<C-Up>", ":resize +2<CR>")
-map("n", "<C-Down>", ":resize -2<CR>")
-map("n", "<C-Left>", ":vertical resize -2<CR>")
-map("n", "<C-Right>", ":vertical resize +2<CR>")
 
 -- Smarter delete
 map("n", "dd", function()

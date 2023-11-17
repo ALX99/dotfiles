@@ -13,6 +13,7 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+require('core.lsp_attach') -- set up LspAttach autocmd
 require('lazy').setup('plugins',
   {
     change_detection = { notify = false },
