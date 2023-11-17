@@ -1,45 +1,8 @@
 local map = require('core.utils').map
 
--- Colemak-DH remaps
--- :h map-overview
-local colemak_maps = {
-  m = 'h', -- Left
-  n = 'j', -- Down
-  e = 'k', -- Up
-  i = 'l', -- Right
-  M = 'H', -- Top of buffer
-  I = 'L', -- End of buffer
-}
+require('core.colemak').setup()
 
-for k, v in pairs(colemak_maps) do
-  map({ "n", "x", "o" }, k, v)
-end
-
--- Fix conflicts caused by the above mappings
-for k, v in pairs({
-  k = 'm', -- k is the new m
-  l = 'n', -- l is the new n
-  h = 'e', -- h is the new e
-  s = 'i', -- s is the new i
-}) do
-  -- if k == 'l' then
-  --   map({ "n", "v", "o" }, k, v .. "zzzv", { desc = "search next and center" })
-  --   map({ "n", "v", "o" }, string.upper(k), string.upper(v) .. "zzzv", { desc = "search prev and center" })
-  -- else
-  map({ "n", "x", "o" }, k, v)
-  map({ "n", "x", "o" }, string.upper(k), string.upper(v))
-  -- end
-end
-
--- Additional fixes (h is the new e)
-map({ "n", "x", "o" }, "gh", "ge", { desc = "Previous end of word" })
-map({ "n", "x", "o" }, "gH", "gE", { desc = "Previous end of word" })
-map({ "n", "x", "o" }, "ge", "<Nop>")
-map({ "n", "x", "o" }, "gE", "<Nop>")
 map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
-map({ "n", "o" }, "ci", "c<Right>")
-map({ "n", "o" }, "di", "d<Right>")
-map({ "n", "o" }, "vi", "v<Right>")
 
 -- QoL
 map("n", "U", "<C-r>")  -- Redo
@@ -77,19 +40,6 @@ map("n", "<leader>ws", "<C-w>s", { desc = "Split horizontally" })
 map("n", "<leader>wv", "<C-w>v", { desc = "Split vertically" })
 map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
 
--- for k, v in pairs({
---   m = 'h', -- Left
---   n = 'j', -- Down
---   e = 'k', -- Up
---   i = 'l', -- Right
--- }) do
---   -- Navigate to window
---   map("n", "<leader>w" .. k, "<C-w>" .. v)
---   map("n", "<leader>w" .. string.upper(k), "<C-w>" .. string.upper(v))
---   map("n", "<C-w>" .. v, "<Nop>")
---   map("n", "<C-w>" .. string.upper(v), "<Nop>")
--- end
-
 -- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
 -- todo read about tags
 -- map("n", "gp", "<C-w>}")
@@ -104,13 +54,12 @@ map("n", "<leader>C", function()
 end, { desc = "open file in vscode" })
 
 -- Resize with arrows
--- map("n", "<C-Up>", ":resize +2<CR>")
--- map("n", "<C-Down>", ":resize -2<CR>")
--- map("n", "<C-Left>", ":vertical resize -2<CR>")
--- map("n", "<C-Right>", ":vertical resize +2<CR>")
+map("n", "<C-Up>", ":resize +2<CR>")
+map("n", "<C-Down>", ":resize -2<CR>")
+map("n", "<C-Left>", ":vertical resize -2<CR>")
+map("n", "<C-Right>", ":vertical resize +2<CR>")
 
 -- Smarter delete
-
 map("n", "dd", function()
   if vim.api.nvim_get_current_line():match("^%s*$") then
     return "\"_dd"
