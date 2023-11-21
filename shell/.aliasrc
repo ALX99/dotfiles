@@ -107,7 +107,7 @@ command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
 # shellcheck disable=SC1091
-[ -f "/opt/homebrew/Cellar/fzf/0.43.0/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.43.0/shell/key-bindings.zsh
+[ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh
 
 # Git browse
 gbrowse() {
