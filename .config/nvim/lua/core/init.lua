@@ -33,4 +33,5 @@ require('lazy').setup('plugins',
   })
 require('core.keymaps')
 require('core.autocmds')
+require('core.lsp_progress')
 require('custom_plugins')
