@@ -14,7 +14,7 @@ return {
   -- completion
   {
     "hrsh7th/nvim-cmp",
-    event = "InsertEnter",
+    event = { "InsertEnter", "CmdlineEnter" },
     dependencies = {
       'hrsh7th/cmp-buffer',
       'saadparwaiz1/cmp_luasnip',
