@@ -5,7 +5,9 @@ arandr # manage displays
 bash-completion # completion for bash
 bat # better cat
 bind # nslookup and more
+blueman
 bluez # bluetooth support
+bluez-utils
 brave-bin # browser
 cantarell-fonts # font
 chromium
@@ -46,6 +48,7 @@ lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
+localsend-bin
 lua-language-server
 man-db
 man-pages
@@ -70,6 +73,7 @@ p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pacutils
 pamixer # Control audio
+pavucontrol
 perl-file-mimeinfo
 pipewire-alsa
 pipewire-jack
@@ -129,3 +133,4 @@ yt-dlp
 zathura
 zathura-pdf-poppler
 zip
+zoom
