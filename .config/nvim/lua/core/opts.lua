@@ -82,10 +82,6 @@ opt.listchars = {
 
 o.helpheight  = 25
 
--- Hide statusline by setting laststatus and cmdheight to 0.
--- o.laststatus = 0
--- o.cmdheight = 0
--- o.statusline = ""
 
 -- Diagnostics
 -- Setup some nicer icons for diagnostics in the gutter
