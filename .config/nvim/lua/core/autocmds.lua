@@ -2,21 +2,6 @@ if require('core.utils').is_vscodevim() then
   return
 end
 
-local function get_session_file()
-  local pattern = "/"
-  if vim.fn.has("win32") == 1 then
-    pattern = "[\\:]"
-  end
-
-  local dir = vim.fn.expand(vim.fn.stdpath("state") .. "/sessions")
-
-  -- Create the dir if it doesn't exists
-  if vim.fn.isdirectory(dir) == 0 then
-    vim.cmd("!mkdir -p " .. vim.fn.fnameescape(dir))
-  end
-
-  return dir .. "/" .. vim.fn.getcwd():gsub(pattern, "%%") .. ".vim"
-end
 
 -- Check if we need to reload the file when it changed
 vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
@@ -66,30 +51,6 @@ vim.api.nvim_create_autocmd('BufReadPost', {
       pcall(vim.api.nvim_win_set_cursor, 0, mark)
     end
   end,
-})
-
-local sessionGrp = vim.api.nvim_create_augroup("auto_sessions", { clear = true })
-vim.api.nvim_create_autocmd("VimEnter", {
-  desc = "Restores the previous session",
-  callback = function()
-    local session_file = get_session_file()
-    if vim.fn.argc() == 0 and vim.fn.filereadable(session_file) ~= 0 then
-      vim.cmd("silent! source " .. vim.fn.fnameescape(session_file))
-    end
-    return true -- Delete the autocmd (only needs to run once)
-  end,
-  group = sessionGrp,
-  nested = true,
-})
-vim.api.nvim_create_autocmd("VimLeavePre", {
-  desc = "Saves the session",
-  callback = function()
-    if vim.fn.argc() == 0 and vim.fn.getcwd() ~= vim.env.HOME then
-      vim.cmd("mks! " .. vim.fn.fnameescape(get_session_file()))
-    end
-    return true -- Delete the autocmd (only needs to run once)
-  end,
-  group = sessionGrp
 })
 
 -- Make sure :filetype is on
