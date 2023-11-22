@@ -27,7 +27,7 @@ return {
       return {
         snippet = {
           expand = function(args)
-            require('luasnip').lsp_expand(args.body)
+            luasnip.lsp_expand(args.body)
           end,
         },
         window = {
@@ -78,13 +78,6 @@ return {
             end
           end, { "i", "s" }),
         }),
-        sources = cmp.config.sources(
-          {
-            { name = "luasnip" }, { name = "nvim_lsp" }
-          },
-          {
-            { name = "buffer" },
-          }),
         formatting = {
           format = function(entry, item)
             local short_name = {
@@ -97,11 +90,19 @@ return {
             return item
           end,
         },
-        experimental = {
-          ghost_text = {
-            hl_group = "LspCodeLens",
+        sources = cmp.config.sources(
+          {
+            { name = "luasnip" },
+            { name = "nvim_lsp" }
           },
-        },
+          {
+            { name = "buffer" },
+          }),
+        -- experimental = {
+        --   ghost_text = {
+        --     hl_group = "LspCodeLens",
+        --   },
+        -- },
         sorting = {
           comparators = {
             cmp.config.compare.offset,
