@@ -80,5 +80,12 @@ return {
     cond = function()
       return not require('core.utils').is_vscodevim()
     end
+  },
+  {
+    "github/copilot.vim",
+    event = { "InsertEnter" },
+    config = function()
+      vim.g.copilot_assume_mapped = true
+    end
   }
 }
