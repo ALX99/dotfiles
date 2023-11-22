@@ -59,7 +59,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   callback = function(info)
     if vim.o.filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
-        return
+        return true -- delete the autocmd
       end
 
       vim.cmd(":w") -- Can't be bothered to figure out the piping yet
