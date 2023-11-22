@@ -51,7 +51,7 @@ map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
 -- todo read about tags
 -- map("n", "gp", "<C-w>}")
 
-map("n", "<leader>q", ":hide<CR>")
+map("n", "<leader>q", ":q<CR>")
 map("n", "<leader>C", function()
   local file_path = vim.fn.expand('%:p')
   local line_number = vim.fn.line('.')
