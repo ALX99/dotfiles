@@ -22,8 +22,8 @@ return {
       ":Telescope<CR>",
       desc = "Telescope"
     },
-    { "<leader>o", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
-    { "<leader>O", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
+    { "<leader>fo", "<cmd>Telescope fd find_command=rg,--files,--hidden,--iglob,!.git<CR>" },
+    { "<leader>fO", "<cmd>Telescope fd find_command=rg,--files,--iglob,!.git<CR>" },
     -- {
     --   "<leader>b",
     --   "<cmd>Telescope current_buffer_fuzzy_find<CR>",
