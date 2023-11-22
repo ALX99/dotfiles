@@ -78,6 +78,7 @@ opt.listchars = {
   extends = ">",
   space = "·",
   nbsp = "␣",
+  leadmultispace = "│ "
 }
 
 o.helpheight  = 25
