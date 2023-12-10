@@ -16,7 +16,7 @@ return {
     "hrsh7th/nvim-cmp",
     event = { "InsertEnter", "CmdlineEnter" },
     dependencies = {
-      'hrsh7th/cmp-buffer',
+      -- 'hrsh7th/cmp-buffer',
       'saadparwaiz1/cmp_luasnip',
       'L3MON4D3/LuaSnip',
     },
@@ -94,10 +94,11 @@ return {
           {
             { name = "luasnip" },
             { name = "nvim_lsp" }
-          },
-          {
-            { name = "buffer" },
-          }),
+          }
+        -- {
+        --   { name = "buffer" },
+        -- }
+        ),
         -- experimental = {
         --   ghost_text = {
         --     hl_group = "LspCodeLens",
@@ -124,12 +125,12 @@ return {
 
       -- Set configuration for specific filetype.
       -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
-      cmp.setup.cmdline({ '/', '?' }, {
-        mapping = cmp.mapping.preset.cmdline(),
-        sources = {
-          { name = 'buffer' }
-        }
-      })
+      -- cmp.setup.cmdline({ '/', '?' }, {
+      --   mapping = cmp.mapping.preset.cmdline(),
+      --   sources = {
+      --     { name = 'buffer' }
+      --   }
+      -- })
     end,
     cond = function()
       return not require('core.utils').is_vscodevim()
