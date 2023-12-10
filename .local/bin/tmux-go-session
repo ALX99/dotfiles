@@ -1,17 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-projs="$(find "${PROJ_DIR:-$HOME/projects}" -mindepth 1 -maxdepth 1 -type d)"
-dirs="$(printf "%s\n%s" "$projs" "$HOME/dotfiles" | sort -rfu)"
-selected_dir="$(echo "$dirs" | fzf-tmux -p || :)"
-[[ -z ${selected_dir:-} ]] && exit 0 # empty, time to bail
-selected_name="${selected_dir##*/}"
+declare -A projects
+
+populate_projects() {
+  local projs dir
+  projs="$(find "${PROJ_DIR:-$HOME/projects}" -mindepth 1 -maxdepth 1 -type d)"
+
+  while IFS= read -r dir; do
+    projects["${dir##*/}"]="$dir"
+  done <<<"$(printf "%s\n%s" "$projs" "$HOME/dotfiles")"
+}
+
+get_project_names() { for project in "${!projects[@]}"; do echo "$project"; done; }
+get_project_dir() { echo "${projects[$1]}"; }
+
+populate_projects
+selected_name="$(get_project_names | fzf-tmux -p || :)"
+[[ -z ${selected_name:-} ]] && exit 0 # empty, time to bail
 
 if [[ -z ${TMUX:-} ]]; then
-  tmux new-session -As "$selected_name" -c "$selected_dir"
+  tmux new-session -As "$selected_name" -c "$(get_project_dir $selected_name)"
   exit 0
 elif ! tmux has-session -t="$selected_name" 2>/dev/null; then
-  tmux new-session -ds "$selected_name" -c "$selected_dir"
+  tmux new-session -ds "$selected_name" -c "$(get_project_dir $selected_name)"
 fi
 
 if [[ -z ${TMUX:-} ]]; then
@@ -19,3 +31,4 @@ if [[ -z ${TMUX:-} ]]; then
 else
   tmux switch-client -t "$selected_name"
 fi
+
