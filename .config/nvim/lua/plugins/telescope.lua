@@ -4,10 +4,9 @@ return {
   dependencies = {
     'nvim-lua/plenary.nvim',
     'nvim-telescope/telescope-ui-select.nvim', -- Code actions for telescope
-    -- Fuzzy finder
     {
-      'nvim-telescope/telescope-fzf-native.nvim',
-      build = 'make'
+      'ALX99/telescope-zf-native.nvim',        -- zf finder for files
+      branch = 'patched'
     }
   },
   cmd = "Telescope",
@@ -98,11 +97,14 @@ return {
         colorscheme = {
           enable_preview = true
         }
+      },
+      extensions = {
+        ["zf-native"] = {}
       }
+
     }
 
     -- Load telescope plugins
-    telescope.load_extension("fzf")
     telescope.load_extension("ui-select")
   end,
   cond = function()
