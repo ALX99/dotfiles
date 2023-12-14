@@ -37,7 +37,7 @@ XDG_SESSION_TYPE="wayland"
 
 if [ "$(uname -s)" = "Darwin" ]; then
   # homebrew, rancher desktop, and gem paths
-  PATH="$PATH:/opt/homebrew/bin:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
+  PATH="/opt/homebrew/bin:$PATH:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
 
   SAVEHIST=99999 # total
   HISTSIZE=9999  # kept in memory
