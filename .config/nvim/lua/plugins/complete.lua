@@ -35,9 +35,21 @@ return {
           documentation = cmp.config.window.bordered(),
         },
         preselect = cmp.PreselectMode.None, -- Don't preselect anything from LSP (Prioritize snippets)
-        mapping = cmp.mapping.preset.insert({
-          -- ["<C-n>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
-          -- ["<C-p>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
+        mapping = {
+          ["<Down>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
+            else
+              fallback()
+            end
+          end, { 'i' }),
+          ["<Up>"] = function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item({ behavior = cmp.SelectBehavior.Select })
+            else
+              fallback()
+            end
+          end,
           ["<A-n>"] = cmp.mapping.scroll_docs(-4),
           ["<A-e>"] = cmp.mapping.scroll_docs(4),
           ["<C-Space>"] = cmp.mapping.complete(),
@@ -77,7 +89,7 @@ return {
               fallback()
             end
           end, { "i", "s" }),
-        }),
+        },
         formatting = {
           format = function(entry, item)
             local short_name = {
