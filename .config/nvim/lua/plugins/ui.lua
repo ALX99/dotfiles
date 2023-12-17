@@ -26,6 +26,13 @@ return {
           map('n', '<leader>gd', gs.diffthis, { desc = "Diff against index" })
           map('n', '<leader>gD', function() gs.diffthis("~1") end, { desc = "Diff against ~1" })
           map('n', '<leader>gx', gs.toggle_deleted, { desc = "Toggle deleted lines" })
+
+          map('n', ']c', function()
+            gs.next_hunk()
+          end, { desc = "Go to next hunk" })
+          map('n', '[c', function()
+            gs.prev_hunk()
+          end, { desc = "Go to previous hunk" })
         end
       }
     end,
