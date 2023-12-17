@@ -85,7 +85,27 @@ return {
     "github/copilot.vim",
     event = { "InsertEnter" },
     config = function()
-      vim.g.copilot_assume_mapped = true
+      -- vim.g.copilot_assume_mapped = true
+      vim.g.copilot_no_tab_map = true
+
+      local map = require('core.utils').map
+      map(
+        "i",
+        "<C-i>",
+        'copilot#Accept("<CR>")',
+        {
+          silent = true,
+          expr = true,
+          script = true,
+          replace_keycodes = false,
+          desc = "Accept copilot suggestion"
+        }
+      )
+
+      map("i", "<C-n>", "<Plug>(copilot-next)", { desc = "Next copilot suggestion" })
+      map("i", "<C-e>", "<Plug>(copilot-previous)", { desc = "Previous copilot suggestion" })
+      -- keymap("i", "<C-o>", "<Plug>(copilot-dismiss)")
+      -- keymap("i", "<C-s>", "<Plug>(copilot-suggest)")
     end
   }
 }
