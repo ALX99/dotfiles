@@ -110,6 +110,13 @@ command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 # shellcheck disable=SC1091
 [ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh
 
+flycd() {
+  tmp="$(mktemp)"
+  trap "rm -rf -- "${tmp:-?}"" EXIT INT TERM HUP
+  fly -write-pwd "$tmp"
+  pushd "$(cat "$tmp")"
+}
+
 # Git browse
 gbrowse() {
   git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
