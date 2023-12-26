@@ -5,7 +5,11 @@ stty -ixon # Disable ctrl-s and ctrl-q.
 
 set -a
 
-PATH="$PATH:$HOME/go/bin:$PATH:$HOME/.cargo/bin:$HOME/.local/bin"
+PNPM_HOME="$HOME/.local/share/pnpm"
+GO_BIN="$HOME/go/bin"
+CARGO_BIN="$HOME/.cargo/bin"
+
+PATH="$PATH:$GO_BIN:$CARGO_BIN:$PNPM_HOME:$HOME/.local/bin"
 
 EDITOR="nvim"
 
