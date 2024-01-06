@@ -1,0 +1,56 @@
+import = ["/home/dozy/.config/alacritty/themes/themes/gruvbox_material.toml"]
+
+[bell]
+animation = "EaseOut"
+duration = 0
+
+[cursor]
+thickness = 0.15
+unfocused_hollow = true
+
+[cursor.style]
+shape = "Underline"
+
+[cursor.vi_mode_style]
+shape = "Block"
+
+[font]
+size = 11
+
+[font.bold]
+style = "Bold"
+
+[font.bold_italic]
+style = "Bold Italic"
+
+[font.italic]
+style = "Italic"
+
+[font.normal]
+family = "Monaspace Krypton"
+style = "Regular"
+
+[hints]
+alphabet = "ntesiroamghdufylp"
+
+[[keyboard.bindings]]
+action = "Paste"
+key = "V"
+mode = "~Vi"
+mods = "Control"
+
+[[keyboard.bindings]]
+action = "SearchForward"
+key = "Slash"
+mode = "~Search"
+mods = "Control"
+
+[scrolling]
+history = 100000
+multiplier = 3
+
+[selection]
+save_to_clipboard = true
+
+[window]
+opacity = 0.85
