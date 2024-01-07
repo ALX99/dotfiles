@@ -154,4 +154,5 @@ riverctl input "$touchpad" natural-scroll enabled
 riverctl spawn "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
 riverctl spawn "swaybg -o eDP-1 -i ~/sync/Wallpapers/81g4h40e2c471.jpg"
 riverctl spawn "dunst"
+riverctl spawn "fcitx5"
 
