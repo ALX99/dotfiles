@@ -48,7 +48,6 @@ else
   XDG_DATA_HOME="$HOME/.local/share"
   XDG_STATE_HOME="$HOME/.local/state"
   XDG_DOWNLOAD_DIR="$HOME/Downloads"
-  XDG_RUNTIME_DIR="$(ls -d /tmp/runtime-"$USER".???* 2>/dev/null || mktemp -d /tmp/runtime-"$USER".XXX | tee)"
 
   # Default programs
   TERMINAL="alacritty"
