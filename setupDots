@@ -31,6 +31,7 @@ system_config() {
   sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
 
   sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/ # sudo
+  sudo chown 0 /etc/sudoers.d/
 }
 
 arch_config() {
