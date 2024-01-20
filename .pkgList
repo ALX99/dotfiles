@@ -53,7 +53,6 @@ lua-language-server
 man-db
 man-pages
 megasync-bin
-mlocate # Locate
 mpv
 mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
@@ -79,6 +78,7 @@ pipewire-alsa
 pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
+plocate # Locate
 pnpm
 pyright
 qbittorrent
