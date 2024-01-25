@@ -91,7 +91,7 @@ return {
       local map = require('core.utils').map
       map(
         "i",
-        "<C-i>",
+        "<A-CR>",
         'copilot#Accept("<CR>")',
         {
           silent = true,
