@@ -73,8 +73,8 @@ return {
     },
     opts = {
       mappings = {
-        go_in       = 'i',
-        go_in_plus  = 'I',
+        go_in       = 'I',
+        go_in_plus  = 'i',
         go_out      = 'm',
         go_out_plus = 'M',
         show_help   = 'g?',
