@@ -28,7 +28,7 @@ return {
       svelte = { capabilities = capabilities },
       robotframework_ls = { capabilities = capabilities },
       zls = { capabilities = capabilities },
-      esint = { capabilities = capabilities },
+      eslint = { capabilities = capabilities },
       gopls = {
         capabilities = capabilities,
         settings = {
