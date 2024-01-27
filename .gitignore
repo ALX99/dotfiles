@@ -3,6 +3,7 @@
 
 .config/mpv/watch_later/*
 .config/lazygit/state.yml
+.config/fcitx5
 
 shell/.privrc
 .config/nvim/spell/en.utf-8.add.spl
