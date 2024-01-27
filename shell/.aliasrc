@@ -112,9 +112,9 @@ command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 
 flycd() {
   tmp="$(mktemp)"
-  trap "rm -rf -- "${tmp:-?}"" EXIT INT TERM HUP
+  trap 'rm -rf -- "${tmp:-?}"' EXIT INT TERM HUP
   fly -write-pwd "$tmp"
-  pushd "$(cat "$tmp")"
+  pushd "$(cat "$tmp")" || exit
 }
 
 # Git browse
@@ -138,4 +138,3 @@ sdh() {
   t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
   [ -n "$t" ] && cd "$t" && ls
 }
-

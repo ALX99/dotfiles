@@ -20,10 +20,10 @@ selected_name="$(get_project_names | fzf-tmux -p || :)"
 [[ -z ${selected_name:-} ]] && exit 0 # empty, time to bail
 
 if [[ -z ${TMUX:-} ]]; then
-  tmux new-session -As "$selected_name" -c "$(get_project_dir $selected_name)"
+  tmux new-session -As "$selected_name" -c "$(get_project_dir "$selected_name")"
   exit 0
 elif ! tmux has-session -t="$selected_name" 2>/dev/null; then
-  tmux new-session -ds "$selected_name" -c "$(get_project_dir $selected_name)"
+  tmux new-session -ds "$selected_name" -c "$(get_project_dir "$selected_name")"
 fi
 
 if [[ -z ${TMUX:-} ]]; then
@@ -31,4 +31,3 @@ if [[ -z ${TMUX:-} ]]; then
 else
   tmux switch-client -t "$selected_name"
 fi
-
