@@ -101,6 +101,7 @@ riverctl float-filter-add app-id 'imv'
 riverctl float-filter-add app-id 'mpv'
 riverctl float-filter-add app-id 'nz.co.mega.megasync'
 riverctl float-filter-add app-id 'gnome-system-monitor'
+riverctl float-filter-add app-id 'xdg-desktop-portal-gtk' # file chooser
 
 # Make all views with app-id "bar" and any title use client-side decorations
 # riverctl rule-add csd -app-id "bar"
@@ -137,7 +138,7 @@ riverctl map normal Super 0 set-focused-tags $all_tags
 riverctl map normal Super+Shift 0 set-view-tags $all_tags
 
 # Configuration
-riverctl focus-follows-cursor normal
+riverctl focus-follows-cursor always
 riverctl hide-cursor timeout 15000
 riverctl hide-cursor when-typing disabled
 
@@ -155,4 +156,3 @@ riverctl spawn "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_
 riverctl spawn "swaybg -o eDP-1 -i ~/sync/Wallpapers/81g4h40e2c471.jpg"
 riverctl spawn "dunst"
 riverctl spawn "fcitx5"
-

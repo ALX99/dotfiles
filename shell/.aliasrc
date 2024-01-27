@@ -106,9 +106,9 @@ command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 
 # FZF aliases
 # shellcheck disable=SC1091
-[ -f "/usr/share/fzf/key-bindings.bash" ] && . /usr/share/fzf/key-bindings.bash
+[ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
 # shellcheck disable=SC1091
-[ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh" ] && . /opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.zsh
+[ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}"
 
 flycd() {
   tmp="$(mktemp)"
