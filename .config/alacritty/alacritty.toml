@@ -1,4 +1,4 @@
-import = ["/home/dozy/.config/alacritty/themes/themes/gruvbox_material.toml"]
+import = ["~/dotfiles/.config/alacritty/themes/themes/cyber_punk_neon.toml"]
 
 [bell]
 animation = "EaseOut"
@@ -38,4 +38,4 @@ history = 100000
 save_to_clipboard = true
 
 [window]
-opacity = 0.85
+opacity = 0.9
