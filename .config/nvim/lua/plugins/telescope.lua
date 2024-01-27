@@ -29,7 +29,7 @@ return {
     --   desc = "Fuzzy find"
     -- },
     {
-      "<leader>b",
+      "<leader>B",
       "<cmd>Telescope buffers<CR>",
       desc = "Fuzzy find"
     },
