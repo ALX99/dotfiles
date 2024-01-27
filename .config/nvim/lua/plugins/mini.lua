@@ -55,14 +55,14 @@ return {
 
       -- disable trailspace on markdown files
       vim.api.nvim_create_autocmd('FileType', {
-        pattern  = { 'markdown', 'lazy' },
+        pattern  = { 'markdown', 'lazy', 'chatgpt-input' },
         callback = function()
           vim.b.minitrailspace_disable = true
         end,
       })
 
       vim.api.nvim_create_autocmd('FileType', {
-        pattern  = { 'NvimTree', 'FTerm', 'lazy' },
+        pattern  = { 'NvimTree', 'FTerm', 'lazy', 'chatgpt-input' },
         callback = function()
           vim.b.miniindentscope_disable = true
         end,
