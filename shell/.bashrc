@@ -36,15 +36,3 @@ fi
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
-###########
-# For FZF #
-###########
-_fzf_compgen_path() {
-  fd --hidden --follow --exclude ".git" . "$1"
-}
-
-# Use fd to generate the list for directory completion
-_fzf_compgen_dir() {
-  fd --type d --hidden --follow -E ".git" . "$1" -E "Android"
-}
-
