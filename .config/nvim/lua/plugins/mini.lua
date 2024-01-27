@@ -6,7 +6,8 @@ return {
     },
     config = function()
       require('mini.trailspace').setup({})
-      -- require('mini.tabline').setup({ show_icons = false })
+      require('mini.statusline').setup({})
+      -- require('mini.tabline').setup({})
       -- require('mini.cursorword').setup({})
       require('mini.comment').setup({
         options = {
@@ -18,7 +19,17 @@ return {
           textobject = 'gc',
         },
       })
-      require('mini.statusline').setup()
+
+      require("mini.notify").setup({})
+      vim.notify = require('mini.notify').make_notify(
+        {
+          ERROR = { duration = 5000 },
+          WARN  = { duration = 5000 },
+          INFO  = { duration = 5000 },
+          DEBUG = { duration = 1000 },
+          TRACE = { duration = 500 },
+        }
+      )
 
       require('mini.pairs').setup({})
       require('mini.align').setup({
