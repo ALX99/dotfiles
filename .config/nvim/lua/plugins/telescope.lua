@@ -7,7 +7,8 @@ return {
     {
       'ALX99/telescope-zf-native.nvim',        -- zf finder for files
       branch = 'patched'
-    }
+    },
+    'nvim-telescope/telescope-frecency.nvim'
   },
   cmd = "Telescope",
   keys = {
@@ -21,7 +22,7 @@ return {
       ":Telescope<CR>",
       desc = "Telescope"
     },
-    { "<leader>fo", "<cmd>Telescope fd find_command=rg,--files,--hidden<CR>" },
+    { "<leader>fo", "<cmd>Telescope frecency workspace=CWD<CR>" },
     { "<leader>fO", "<cmd>Telescope fd find_command=rg,--files,<CR>" },
     -- {
     --   "<leader>b",
@@ -105,6 +106,7 @@ return {
     }
 
     -- Load telescope plugins
+    telescope.load_extension("frecency")
     telescope.load_extension("ui-select")
   end,
   cond = function()
