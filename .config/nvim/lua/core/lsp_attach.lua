@@ -54,6 +54,8 @@ end
 local function highlight_references(client, buf)
   -- https://sbulav.github.io/til/til-neovim-highlight-references/
   if client.server_capabilities.documentHighlightProvider then
+    vim.notify_once("Highlight references provided by " .. client.name, vim.log.levels.INFO)
+
     vim.api.nvim_create_autocmd("CursorHold", {
       desc = "Document Highlight",
       callback = function() vim.schedule(vim.lsp.buf.document_highlight) end,
@@ -71,6 +73,8 @@ end
 
 local function formatting(client, buf)
   if client.server_capabilities.documentFormattingProvider then
+    vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
+
     -- Auto format before saving
     vim.api.nvim_create_autocmd("BufWritePre", {
       callback = function()
@@ -116,7 +120,12 @@ end
 
 vim.api.nvim_create_autocmd('LspAttach', {
   callback = function(args)
+    local path = vim.api.nvim_buf_get_name(args.buf)
+    local filename = vim.fn.fnamemodify(path, ":t")
     local client = vim.lsp.get_client_by_id(args.data.client_id)
+
+    vim.notify("lsp_attach: " .. client.name .. " to buf " .. tostring(args.buf) .. " file " .. filename,
+      vim.log.levels.DEBUG)
 
     -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
     if client.server_capabilities.definitionProvider then
