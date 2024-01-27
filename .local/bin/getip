@@ -1,17 +1,24 @@
 #!/bin/sh
+set -u
 
-for iface in $(ip a | awk '/inet.*brd/{print $NF}'); do
-  printf "====Interface %s====\n" "$iface"
-  res="$(nmcli d show "$iface")"
+echo "==== General Info ===="
+
+gateway=$(ip route show default | awk '/default via/ {print $3}')
+dns1=$(cat /etc/resolv.conf | awk '/nameserver/ {print $2}' | sed -n '1p')
+dns2=$(cat /etc/resolv.conf | awk '/nameserver/ {print $2}' | sed -n '2p')
+
+printf "Gateway: %s\nDNS1: %s\nDNS2: %s\n" "${gateway:-NOT FOUND}" "${dns1:-NOT FOUND}" "${dns2:-NOT FOUND}"
+
+for iface in $(ip link show | awk -F: '$0 !~ "vir|^[^0-9]"{print $2;getline}'); do
   subnet="$(ip -o -f inet addr show "$iface" | awk '/scope global/ {print $4}')"
   ip="$(curl -Ss -m 1 --interface "$iface" ifconfig.me 2>/dev/null)"
-  [ "$ip" = "" ] && continue
-  printf "Gateway: %s\nPrivate IP: %s\nPublic IP: %s\n" "$(echo "$res" | grep --color=never IP4.GATEWAY | awk '{print $2}')" "$subnet" "$ip"
-  printf "DNS1: %s\nDNS2: %s\n" "$(echo "$res" | grep --color=never "DNS\[1" | awk '{print $2}')" "$(echo "$res" | grep --color=never "DNS\[2" | awk '{print $2}')"
+  [ -z "${subnet:-}" ] && [ -z "${ip:-}" ] && continue
+
+  printf "====Interface %s ====\n" "$iface"
+  printf "Private IP: %s\nPublic IP: %s\n" "${subnet:-NOT FOUND}" "${ip:-NOT FOUND}"
 
   # natpmpc
   [ "$(id -u)" -ne 0 ] && continue
   printf "\n======ARP Devices======\n"
   arp-scan --interface="$iface" --localnet
-
 done
