@@ -54,31 +54,25 @@ vim.api.nvim_create_autocmd('BufReadPost', {
 })
 
 -- Make sure :filetype is on
-vim.api.nvim_create_autocmd("BufWritePre", {
-  group = vim.api.nvim_create_augroup("autoformat", { clear = true }),
+vim.api.nvim_create_autocmd("BufWritePost", {
+  group = vim.api.nvim_create_augroup("shfmt-autofmt", { clear = true }),
   callback = function(info)
     if vim.o.filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
         return true -- delete the autocmd
       end
 
-      vim.cmd(":w") -- Can't be bothered to figure out the piping yet
-      local job = vim.fn.jobstart("shfmt -i=2 -s " .. info.file, {
-        stdout_buffered = true,
-        stderr_buffered = true,
-        on_stdout = function(_, data)
-          if data and data[1] ~= '' then
-            vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, data)
-          end
-        end,
-        on_stderr = function(_, data)
-          if data and data[1] == '' then
-            return
-          end
-          vim.notify("shfmt failed", vim.log.levels.ERROR)
-        end
-      })
-      vim.fn.jobwait({ job })
+      local output = vim.fn.systemlist("shfmt -i=2 -s " .. info.file)
+      if vim.v.shell_error ~= 0 then
+        local error_message = "shfmt failed: " .. table.concat(output, "\n")
+        vim.notify(error_message, vim.log.levels.ERROR)
+        return
+      end
+
+      if #output > 0 then
+        vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, output)
+      end
+      vim.cmd(":w")
     end
   end
 })
