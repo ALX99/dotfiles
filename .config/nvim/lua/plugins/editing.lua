@@ -108,6 +108,15 @@ return {
       map("i", "<C-e>", "<Plug>(copilot-previous)", { desc = "Previous copilot suggestion" })
       -- keymap("i", "<C-o>", "<Plug>(copilot-dismiss)")
       -- keymap("i", "<C-s>", "<Plug>(copilot-suggest)")
-    end
+    end,
+    keys = {
+      {
+        "q",
+        ":q<CR>",
+        desc = "Close Copilot",
+        ft = "copilot.lua"
+      },
+    }
+  },
   }
 }
