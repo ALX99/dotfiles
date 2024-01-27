@@ -137,3 +137,4 @@ sdh() {
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
 [ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}"
+[ -f "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}" ] && . "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}"
