@@ -104,12 +104,6 @@ command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
 command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 
-# FZF aliases
-# shellcheck disable=SC1091
-[ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
-# shellcheck disable=SC1091
-[ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}"
-
 flycd() {
   tmp="$(mktemp)"
   trap 'rm -rf -- "${tmp:-?}"' EXIT INT TERM HUP
@@ -138,3 +132,8 @@ sdh() {
   t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
   [ -n "$t" ] && cd "$t" && ls
 }
+
+# External stuff
+# shellcheck disable=SC1091
+[ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
+[ -f "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.44.1/shell/key-bindings.${SHELL##*/}"
