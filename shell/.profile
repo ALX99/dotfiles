@@ -23,6 +23,7 @@ QT_QPA_PLATFORM="wayland"
 GTK_THEME=Adwaita:dark
 DOCKER_BUILDKIT="1"
 CGO_ENABLED="0"
+# shellcheck disable=SC2016
 LESS='-R --use-color -Dd+r$Du+b$' # color
 LESSKEYIN="$HOME/dotfiles/misc/lesskey"
 TASK_TEMP_DIR="/tmp/.task"
@@ -82,4 +83,3 @@ else
 fi
 
 set +a
-

@@ -4,8 +4,8 @@ set -u
 echo "==== General Info ===="
 
 gateway=$(ip route show default | awk '/default via/ {print $3}')
-dns1=$(cat /etc/resolv.conf | awk '/nameserver/ {print $2}' | sed -n '1p')
-dns2=$(cat /etc/resolv.conf | awk '/nameserver/ {print $2}' | sed -n '2p')
+dns1=$(awk '/nameserver/ {print $2}' </etc/resolv.conf | sed -n '1p')
+dns2=$(awk '/nameserver/ {print $2}' </etc/resolv.conf | sed -n '2p')
 
 printf "Gateway: %s\nDNS1: %s\nDNS2: %s\n" "${gateway:-NOT FOUND}" "${dns1:-NOT FOUND}" "${dns2:-NOT FOUND}"
 
