@@ -5,21 +5,6 @@ return {
       'nvim-tree/nvim-web-devicons'
     },
     config = function()
-      require('mini.trailspace').setup({})
-      require('mini.statusline').setup({})
-      -- require('mini.tabline').setup({})
-      -- require('mini.cursorword').setup({})
-      require('mini.comment').setup({
-        options = {
-          ignore_blank_line = true,
-        },
-        mappings = {
-          comment = 'gc',
-          comment_line = 'gcc',
-          textobject = 'gc',
-        },
-      })
-
       require("mini.notify").setup({})
       vim.notify = require('mini.notify').make_notify(
         {
@@ -30,14 +15,7 @@ return {
           TRACE = { duration = 500 },
         }
       )
-
-      require('mini.pairs').setup({})
-      require('mini.align').setup({
-        mappings = {
-          start = '<leader>pa',
-          start_with_preview = '<leader>pA'
-        },
-      })
+      require('mini.statusline').setup({})
 
       require('mini.indentscope').setup({
         mappings = {
@@ -53,6 +31,31 @@ return {
         symbol = "│"
       })
 
+      require('mini.comment').setup({
+        options = {
+          ignore_blank_line = true,
+        },
+        mappings = {
+          comment = 'gc',
+          comment_line = 'gcc',
+          textobject = 'gc',
+        },
+      })
+
+
+      require('mini.align').setup({
+        mappings = {
+          start = '<leader>pa',
+          start_with_preview = '<leader>pA'
+        },
+      })
+
+
+      -- require('mini.tabline').setup({})
+      -- require('mini.cursorword').setup({})
+      require('mini.trailspace').setup({})
+      require('mini.pairs').setup({})
+
       -- disable trailspace on markdown files
       vim.api.nvim_create_autocmd('FileType', {
         pattern  = { 'markdown', 'lazy', 'chatgpt-input' },
@@ -62,7 +65,7 @@ return {
       })
 
       vim.api.nvim_create_autocmd('FileType', {
-        pattern  = { 'NvimTree', 'FTerm', 'lazy', 'chatgpt-input' },
+        pattern  = { 'NvimTree', 'FTerm', 'lazy', 'chatgpt-input', 'help', 'man' },
         callback = function()
           vim.b.miniindentscope_disable = true
         end,

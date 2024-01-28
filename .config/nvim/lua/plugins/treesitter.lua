@@ -3,7 +3,7 @@ return {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     event = { "BufReadPost", "BufNewFile" },
-    dependencies ={ "windwp/nvim-ts-autotag" },
+    dependencies = { "windwp/nvim-ts-autotag" },
     opts = {
       ensure_installed = {
         "bash",
@@ -43,30 +43,10 @@ return {
       },
       autotag = {
         enable = true,
-      },
+      }
     },
     config = function(_, opts)
       require('nvim-treesitter.configs').setup(opts)
-
-      -- local treesitter_parsers = require('nvim-treesitter.parsers')
-
-      -- vim.filetype.add({
-      --   extension = {
-      --     robot = 'robot',
-      --   },
-      -- })
-
-      -- DON'T COMMIT THIS ...
-      -- treesitter_parsers.get_parser_configs().robot = {
-      -- install_info = {
-      --  url = "~/projects/tree-sitter-robot",  -- local path or git repo
-      -- files = { "src/parser.c" },
-      -- optional entries:
-      -- branch = "master",                       -- default branch in case of git repo if different from master
-      -- generate_requires_npm = false,           -- if stand-alone parser without npm dependencies
-      -- requires_generate_from_grammar = false,  -- if folder contains pre-generated src/parser.c
-      -- }
-      -- }
 
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "nvim_treesitter#foldexpr()"

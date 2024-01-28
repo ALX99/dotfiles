@@ -2,7 +2,17 @@ return {
   {
     "folke/tokyonight.nvim",
     lazy = false,
+    priority = 1000,
     name = "tokyonight",
+    opts = {
+      -- dim_inactive = true,
+      transparent = "transparent",
+      -- hide_inactive_statusline = true,
+      styles = {
+        sidebars = "transparent",
+        floats = "transparent",
+      },
+    },
     config = function(_, opts)
       require("tokyonight").setup(opts)
       vim.cmd.colorscheme("tokyonight-moon")
