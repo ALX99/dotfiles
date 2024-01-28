@@ -84,9 +84,11 @@ return {
   {
     "github/copilot.vim",
     event = { "VeryLazy" },
+    init = function(_)
+      vim.g.copilot_no_tab_map = true
+    end,
     config = function()
       -- vim.g.copilot_assume_mapped = true
-      vim.g.copilot_no_tab_map = true
 
       local map = require('core.utils').map
       map(
@@ -232,7 +234,7 @@ return {
         ft = "chatgpt-input"
       },
     },
-    enabled = function()
+    cond = function()
       return vim.fn.getenv("OPENAI_API_KEY") ~= vim.NIL and vim.fn.has("linux") == 1
     end,
     dependencies = {

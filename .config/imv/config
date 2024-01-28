@@ -19,7 +19,6 @@ o = overlay
 p = exec echo $imv_current_file
 c = center
 s = scaling next
-a = zoom actual
 r = reset
 
 # Image navigation
@@ -43,6 +42,7 @@ i = pan -30 0
 <Down> = zoom -1
 <minus> = zoom -1
 z = zoom -1
+a = zoom actual
 
 # Gif playback
 <period> = next_frame
@@ -54,5 +54,5 @@ t = slideshow +1
 
 
 
-# Set wallpaper
-<Shift+B> = exec xwallpaper --zoom  "$imv_current_file"
+<Shift+W> = exec echo "${imv_width}x${imv_height}"
+<Shift+D> = exec rm "$imv_current_file"
