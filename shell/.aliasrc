@@ -133,6 +133,15 @@ sdh() {
   [ -n "$t" ] && cd "$t" && ls
 }
 
+_arg_help() { tf "${READLINE_LINE%% *}"; }
+_man_help() {
+  res="${READLINE_LINE%% *}"
+  help "$res" 2>/dev/null || man "$res"
+}
+
+bind -m vi-insert -x '"\eh": _arg_help'
+bind -m vi-insert -x '"\eH": _man_help'
+
 # External stuff
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
