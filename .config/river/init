@@ -26,6 +26,8 @@ riverctl map normal Super I send-layout-cmd rivertile "main-ratio +0.05"    # In
 riverctl map normal Super+Shift M send-layout-cmd rivertile "main-count -1" # Increase main count
 riverctl map normal Super+Shift I send-layout-cmd rivertile "main-count +1" # Decrease main count
 
+riverctl send-layout-cmd rivertile "view-padding 1"
+
 # Programs
 riverctl map normal Super D spawn "fuzzel -I -T $term"
 riverctl map normal Super V spawn brave
@@ -88,8 +90,8 @@ for mode in normal locked; do
 done
 
 # Set background and border color
-riverctl background-color 0x002b36
-riverctl border-color-focused 0x4dcc8e
+riverctl background-color 0xb5b5b5
+riverctl border-color-focused 0x0x666666
 riverctl border-color-unfocused 0x586e75
 
 # Set keyboard repeat rate
@@ -110,7 +112,7 @@ riverctl float-filter-add app-id 'xdg-desktop-portal-gtk' # file chooser
 # River will send the process group of the init executable SIGTERM on exit.
 riverctl default-layout rivertile
 
-riverctl spawn rivertile
+riverctl spawn "rivertile -outer-padding 0 -view-padding 0"
 riverctl output-layout rivertile
 
 riverctl keyboard-layout colemak
@@ -143,16 +145,19 @@ riverctl hide-cursor timeout 15000
 riverctl hide-cursor when-typing disabled
 
 # Input configuration (riverctl list-inputs)
-touchpad="pointer-2-7-SynPS/2_Synaptics_TouchPad"
+touchpad="pointer-1267-12693-ELAN0676:00_04F3:3195_Touchpad"
 riverctl input "$touchpad" click-method clickfinger
 riverctl input "$touchpad" disable-while-typing enabled
 riverctl input "$touchpad" middle-emulation enabled
 riverctl input "$touchpad" tap enabled
 riverctl input "$touchpad" tap-button-map left-right-middle
 riverctl input "$touchpad" scroll-method two-finger
-riverctl input "$touchpad" natural-scroll enabled
+# riverctl input "$touchpad" natural-scroll enabled
 
+# WAYLAND_DISPLAY XDG_CURRENT_DESKTOP needs to be set for xdg-desktop-portal-wlr to work
+# https://wiki.archlinux.org/title/XDG_Desktop_Portal
 riverctl spawn "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
-riverctl spawn "swaybg -o eDP-1 -i ~/sync/Wallpapers/81g4h40e2c471.jpg"
+
+riverctl spawn "swaybg -i ~/.config/pape/bg.png"
 riverctl spawn "dunst"
 riverctl spawn "fcitx5"
