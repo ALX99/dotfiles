@@ -1,4 +1,4 @@
-# Dotfiles
+# Dotfiles 
 
 These dotfiles are primarily uploaded for personal backup & sync purposes, 
 however you may discover useful aliases and scripts within as I tend to use the 
