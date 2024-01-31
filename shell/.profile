@@ -33,8 +33,13 @@ ANKI_WAYLAND=1       # Anki
 MOZ_ENABLE_WAYLAND=1 # Firefox
 XDG_CURRENT_DESKTOP="river"
 XDG_SESSION_TYPE="wayland"
-# systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-# dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=river
+
+# Bash stuff
+PROMPT_COMMAND='history -a'                     # Record each line as it gets issued
+HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear" # Don't record some commands
+HISTSIZE=-1                                     # Infinite history
+HISTFILESIZE=-1                                 # Infinite history
+HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
 if [ "$(uname -s)" = "Darwin" ]; then
   # homebrew, rancher desktop, and gem paths
@@ -70,13 +75,6 @@ else
   GTK_IM_MODULE="fcitx"
   QT_IM_MODULE="fcitx"
   XMODIFIERS="@im=fcitx"
-
-  # Bash stuff
-  PROMPT_COMMAND='history -a'                     # Record each line as it gets issued
-  HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear" # Don't record some commands
-  HISTSIZE=-1                                     # Infinite history
-  HISTFILESIZE=-1                                 # Infinite history
-  HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
   # Time to start
   [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
