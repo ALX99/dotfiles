@@ -3,9 +3,7 @@
 # Requires expac, fzf, iswsl
 set -eou pipefail
 
-iswsl &&
-  pkgList=${PKGLIST:-~/dotfiles/.pkgListWSL} ||
-  pkgList=${PKGLIST:-~/dotfiles/.pkgList}
+pkgList=${PKGLIST:-~/dotfiles/.pkgList}
 
 usage="usage $(basename "$0") [OPTIONS] [PACKAGE(S) NAMES]
 
@@ -206,4 +204,3 @@ main() {
 
 preview=(fzf --preview 'pacman -Qil {}')
 main "$@"
-
