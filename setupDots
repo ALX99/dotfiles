@@ -16,8 +16,6 @@ user_config() {
 }
 
 system_config() {
-  ~/.local/bin/iswsl && return
-
   # Keymap
   sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
 
@@ -36,8 +34,6 @@ system_config() {
 
 arch_config() {
   [ ! -x "$(command -v pacman)" ] && return
-
-  sudo pacman -S dash --noconfirm --needed
 
   # Pacman setup
   sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
@@ -65,4 +61,3 @@ kde() {
 }
 
 user_config
-
