@@ -1,26 +1,21 @@
 alacritty # terminal
 alsa-utils # alsamixer and more
 anki-bin # anki
-arandr # manage displays
-bash-completion # completion for bash
 bat # better cat
 bind # nslookup and more
-blueman
 bluez # bluetooth support
 bluez-utils
 brave-bin # browser
-cantarell-fonts # font
 chromium
-dash # faster POSIX shell
-desktop-file-utils # Usually required by many things
+direnv
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
-dosfstools # mkfs.fat
 dunst # notification daemon
 exfat-utils # mkfs.exfat
-expac # requried by paccy
+git
 fcitx5
+nano
 fcitx5-configtool
 fcitx5-gtk
 fcitx5-mozc
@@ -29,21 +24,18 @@ ffmpeg
 fuzzel
 fzf
 git-delta
-gnome-keyring
-gnome-themes-extra # includes the themes Adwaita, Adwaita-dark and HighContrast
-gnome-tweaks
-gnu-netcat
-google-chrome
+github-cli
 gopls
+go-task
 go-tools # goimports, godoc etc
 go-yq
+graphviz # required by golang's pprof
 gtk4
 htop
-imv
+imv # image viewer
 iwd # iw daemon
 iw # iw wifi thingy
 jq # Json parser
-lazydocker-bin
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
@@ -51,85 +43,59 @@ linux-firmware # Required for hardware video acceleration for skylake or later g
 localsend-bin
 lua-language-server
 man-db
-man-pages
-megasync-bin
+man-pages # man pages for Linux and POSIX.1
 mpv
-mtr # Network diagnostics
 ncdu # better du (find what is taking up space)
 neofetch
 neovim
-net-tools
-nmap
 noto-fonts
+npm
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 openssh
-otf-cascadia-code
 otf-font-awesome
-otf-ipafont
 otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
-pacutils
-pamixer # Control audio
-pavucontrol
-perl-file-mimeinfo
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
 pkgfile # tool for searching files from packages
 plocate # Locate
-pnpm
 pyright
-qbittorrent
 qt5-wayland
-qt6ct # qt6 configtool
 qt6-wayland
 ripgrep
 river
 rust
 rust-analyzer
 shellcheck
-shellharden
 shfmt # shell format
-simple-mtpfs
-sof-firmware
+sof-firmware # sound firmware, I remember this being important
 swaybg
-sxhkd # Universal keybindings
-sxiv # image viewer
 tailwindcss-language-server
 tmux
-tokei
 tree
 ttf-cascadia-code # programming font
 ttf-fira-code
 ttf-font-awesome
 ttf-nerd-fonts-symbols-mono
 typescript-language-server
-unclutter # remove mouse
 unrar # RAR
 unzip # ZIP
 upower
-util-linux # provides SSD trimming
-vdpauinfo # used to verify VDPAU
 ventoy-bin
 visual-studio-code-bin
-#vivid
 vscode-html-languageserver
 vscode-json-languageserver
 vscode-markdown-languageserver
-wayland
-wget
-which
-wireplumber
 wl-clipboard
 x86_energy_perf_policy
-xarchiver
-xdg-desktop-portal-wlr # Something that might be good for pipewire apparently
-xdg-utils
-xf86-input-synaptics
+xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
+xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 yaml-language-server
 yt-dlp
 zathura
 zathura-pdf-poppler
 zip
+sudo
