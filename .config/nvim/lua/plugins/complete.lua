@@ -62,14 +62,14 @@ return {
               fallback()
             end
           end,
-          ["<S-CR>"] = function(fallback)
-            if cmp.visible() then
-              -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-              cmp.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true })
-            else
-              fallback()
-            end
-          end,
+          -- ["<S-CR>"] = function(fallback)
+          --   if cmp.visible() then
+          --     -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+          --     cmp.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true })
+          --   else
+          --     fallback()
+          --   end
+          -- end,
           ["<Tab>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
               cmp.select_next_item()
