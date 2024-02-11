@@ -1,4 +1,4 @@
-import = ["~/dotfiles/.config/alacritty/themes/themes/cyber_punk_neon.toml"]
+import = ["~/dotfiles/.config/alacritty/themes/themes/snazzy.toml"]
 
 [bell]
 animation = "EaseOut"
