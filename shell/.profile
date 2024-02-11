@@ -33,6 +33,7 @@ ANKI_WAYLAND=1       # Anki
 MOZ_ENABLE_WAYLAND=1 # Firefox
 XDG_CURRENT_DESKTOP="river"
 XDG_SESSION_TYPE="wayland"
+MINIKUBE_IN_STYLE="false" # remove emoji from minikube
 
 # Bash stuff
 PROMPT_COMMAND='history -a'                     # Record each line as it gets issued
