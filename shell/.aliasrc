@@ -13,6 +13,7 @@ alias \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
   bs='source ~/.bashrc' \
   lg='lazygit' \
+  task='go-task' \
   ch="code . && exit" \
   bye='systemctl suspend-then-hibernate' \
   utop='htop -t -u $(whoami)' \
@@ -103,6 +104,7 @@ alias \
 command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
 command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
+command -v direnv >/dev/null 2>&1 && . <(direnv hook "${SHELL##*/}")
 
 flycd() {
   tmp="$(mktemp)"
