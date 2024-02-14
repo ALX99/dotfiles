@@ -40,19 +40,4 @@ return {
       return not require('core.utils').is_vscodevim()
     end
   },
-
-  -- alternative https://github.com/ecthelionvi/NeoColumn.nvim
-  -- smartcolumn for automatically showing/hiding the smartcolumn
-  {
-    "m4xshen/smartcolumn.nvim",
-    event = "VeryLazy",
-    opts = {
-      disabled_filetypes = { "help", "text", "NvimTree", "lazy" },
-      colorcolumn = "100",
-    },
-    enabled = false,
-    cond = function()
-      return not require('core.utils').is_vscodevim()
-    end
-  },
 }
