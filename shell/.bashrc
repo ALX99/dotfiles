@@ -35,4 +35,3 @@ fi
 # Private rc file
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
-
