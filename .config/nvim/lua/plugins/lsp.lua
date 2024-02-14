@@ -31,11 +31,12 @@ return {
       eslint = { capabilities = capabilities },
       gopls = {
         capabilities = capabilities,
+        cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
         settings = {
           gopls = {
             gofumpt = true,
             staticcheck = true,
-            usePlaceholders = true,
+            -- usePlaceholders = true,
             semanticTokens = true,
             directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
 
