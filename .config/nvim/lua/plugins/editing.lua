@@ -86,6 +86,9 @@ return {
     event = { "VeryLazy" },
     init = function(_)
       vim.g.copilot_no_tab_map = true
+      vim.g.copilot_filetypes = {
+        minifiles = false,
+      }
     end,
     config = function()
       -- vim.g.copilot_assume_mapped = true
