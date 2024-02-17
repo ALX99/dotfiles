@@ -159,5 +159,6 @@ riverctl input "$touchpad" scroll-method two-finger
 riverctl spawn "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
 
 riverctl spawn "swaybg -i ~/.config/pape/bg.png"
+riverctl spawn "gammastep -t 6500K:2500K -l $LAT_LON"
 riverctl spawn "dunst"
 riverctl spawn "fcitx5"
