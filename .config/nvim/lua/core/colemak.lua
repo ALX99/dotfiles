@@ -32,8 +32,10 @@ local mappings = {
   { modes = { "n", "o", "x" }, lhs = "H",      rhs = "E",     desc = "End of WORD" },
   { modes = { "n", "o", "x" }, lhs = "gh",     rhs = "ge",    desc = "Previous end of word" },
   { modes = { "n", "o", "x" }, lhs = "gH",     rhs = "gE",    desc = "Previous end of WORD" },
-  { modes = { "n", "o", "x" }, lhs = "ge",     rhs = "<nop>", desc = "<nop>" },
+  { modes = { "n", "o", "x" }, lhs = "ge",     rhs = "gk",    desc = "Go up by screen lines" },
+  { modes = { "n", "o", "x" }, lhs = "gn",     rhs = "gj",    desc = "Go down by screen lines" },
   { modes = { "n", "o", "x" }, lhs = "gE",     rhs = "<nop>", desc = "<nop>" },
+  { modes = { "n", "o", "x" }, lhs = "gN",     rhs = "<nop>", desc = "<nop>" },
 
   -- Text objects
   { modes = { "o", "v" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
