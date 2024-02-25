@@ -107,13 +107,13 @@ vim.diagnostic.config({
   },
 })
 
--- LSP
-vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
-  vim.lsp.handlers.hover,
-  { focusable = true, style = "minimal", border = "rounded" }
-)
+-- LSP border
+-- vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
+--   vim.lsp.handlers.hover,
+--   { focusable = true, style = "minimal", border = "rounded" }
+-- )
 
-vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
-  vim.lsp.handlers.signature_help,
-  { focusable = true, style = "minimal", border = "rounded" }
-)
+-- vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+--   vim.lsp.handlers.signature_help,
+--   { focusable = true, style = "minimal", border = "rounded" }
+-- )
