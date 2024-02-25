@@ -30,10 +30,10 @@ return {
             luasnip.lsp_expand(args.body)
           end,
         },
-        window = {
-          completion = cmp.config.window.bordered(),
-          documentation = cmp.config.window.bordered(),
-        },
+        -- window = {
+        --   completion = cmp.config.window.bordered(),
+        --   documentation = cmp.config.window.bordered(),
+        -- },
         preselect = cmp.PreselectMode.None, -- Don't preselect anything from LSP (Prioritize snippets)
         mapping = {
           ["<Down>"] = cmp.mapping(function(fallback)
