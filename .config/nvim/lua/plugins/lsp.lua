@@ -17,6 +17,7 @@ return {
     -----------------
     -- https://github.com/neovim/nvim-lspconfig
     local lsps = {
+      clangd = { capabilities = capabilities },
       pyright = { capabilities = capabilities },
       dockerls = { capabilities = capabilities },
       rust_analyzer = { capabilities = capabilities },
