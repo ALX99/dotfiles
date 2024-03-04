@@ -89,11 +89,6 @@
 			"body": "interface{}",
 			"description": "Snippet for empty interface"
 		},
-		"if statement": {
-			"prefix": "if",
-			"body": "if ${1:condition} {\n\t$0\n}",
-			"description": "Snippet for if statement"
-		},
 		"else branch": {
 			"prefix": "el",
 			"body": "else {\n\t$0\n}",
@@ -103,11 +98,6 @@
 			"prefix": "ie",
 			"body": "if ${1:condition} {\n\t$2\n} else {\n\t$0\n}",
 			"description": "Snippet for if else"
-		},
-		"if err != nil": {
-			"prefix": "iferr",
-			"body": "if err != nil {\n\t${1:return ${2:nil, }${3:err}}\n}",
-			"description": "Snippet for if err != nil"
 		},
 		"fmt.Println": {
 			"prefix": "fp",
