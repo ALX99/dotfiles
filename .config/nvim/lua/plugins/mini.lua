@@ -1,6 +1,7 @@
 return {
   {
     "echasnovski/mini.nvim",
+    version = '*',
     dependencies = {
       'nvim-tree/nvim-web-devicons'
     },
@@ -74,6 +75,7 @@ return {
   },
   {
     "echasnovski/mini.files",
+    version = '*',
     dependencies = {
       'nvim-tree/nvim-web-devicons'
     },
@@ -97,6 +99,7 @@ return {
   },
   {
     "echasnovski/mini.clue",
+    version = '*',
     event = "VeryLazy",
     config = function(_, _)
       local miniclue = require('mini.clue')
