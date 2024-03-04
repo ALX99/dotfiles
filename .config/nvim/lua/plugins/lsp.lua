@@ -32,7 +32,6 @@ return {
       eslint = { capabilities = capabilities },
       gopls = {
         capabilities = capabilities,
-        cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
         settings = {
           gopls = {
             gofumpt = true,
