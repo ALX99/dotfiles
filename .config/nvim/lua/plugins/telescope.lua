@@ -4,10 +4,6 @@ return {
   dependencies = {
     'nvim-lua/plenary.nvim',
     'nvim-telescope/telescope-ui-select.nvim', -- Code actions for telescope
-    {
-      'ALX99/telescope-zf-native.nvim',        -- zf finder for files
-      branch = 'patched'
-    },
     'nvim-telescope/telescope-frecency.nvim'
   },
   cmd = "Telescope",
@@ -99,10 +95,6 @@ return {
           enable_preview = true
         }
       },
-      extensions = {
-        ["zf-native"] = {}
-      }
-
     }
 
     -- Load telescope plugins
