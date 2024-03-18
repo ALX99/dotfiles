@@ -60,6 +60,14 @@ map("n", "<leader>C", function()
   vim.fn.system(command)
 end, { desc = "open file in vscode" })
 
+vim.api.nvim_create_user_command("CopyPath", function()
+  local path = vim.fn.expand("%:p")
+  local cwd = vim.fn.getcwd()
+  path = path:sub(#cwd + 2) .. ":" .. vim.fn.line(".")
+  vim.fn.setreg("+", path)
+  vim.notify('Copied "' .. path .. '" to the clipboard!')
+end, {})
+
 -- Smarter delete
 map("n", "dd", function()
   if vim.api.nvim_get_current_line():match("^%s*$") then
