@@ -251,6 +251,7 @@ return {
     -- "gh.nvim",
     dependencies = { "nvim-telescope/telescope.nvim", "nvim-lua/plenary.nvim" },
     dir = "~/dotfiles/.config/nvim/lua/gh.nvim",
+    event = "VeryLazy",
     opts = {}
     -- dev = true,
   },
