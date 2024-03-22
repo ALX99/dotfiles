@@ -18,7 +18,7 @@
   "nvim-ts-autotag": { "branch": "main", "commit": "531f48334c422222aebc888fd36e7d109cb354cd" },
   "nvim-web-devicons": { "branch": "master", "commit": "cb0c967c9723a76ccb1be0cc3a9a10e577d2f6ec" },
   "plenary.nvim": { "branch": "master", "commit": "f7adfc4b3f4f91aab6caebf42b3682945fbc35be" },
-  "telescope-frecency.nvim": { "branch": "master", "commit": "8e3e5ba645b04625acb92e912fabf6d102ae6ee4" },
+  "telescope-frecency.nvim": { "branch": "master", "commit": "dde0b71e40a25d364f3de1ae59d532f42ec82e2d" },
   "telescope-ui-select.nvim": { "branch": "master", "commit": "6e51d7da30bd139a6950adf2a47fda6df9fa06d2" },
   "telescope.nvim": { "branch": "master", "commit": "6312868392331c9c0f22725041f1ec2bef57c751" },
   "tokyonight": { "branch": "main", "commit": "c025baf23b62f044eff1f4ef561c45de636f0e32" },
