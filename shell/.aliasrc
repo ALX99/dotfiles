@@ -148,5 +148,5 @@ bind -m vi-insert -x '"\eH": _man_help'
 # shellcheck disable=SC1091
 [ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
 # shellcheck disable=SC1091
-[ -f "/opt/homebrew/Cellar/fzf/0.46.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.46.1/shell/key-bindings.${SHELL##*/}"
+[ -f "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}"
 [ -f "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}" ] && . "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}"
