@@ -77,6 +77,7 @@ else
   QT_IM_MODULE="fcitx"
   XMODIFIERS="@im=fcitx"
 
+  set +a
   # Time to start
   [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
 fi
