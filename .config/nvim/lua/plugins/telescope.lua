@@ -95,6 +95,13 @@ return {
           enable_preview = true
         }
       },
+      extensions = {
+        frecency = {
+          -- This allows frecency to autodelete files that are no longer in the frecency list
+          -- without prompting the user to confirm the deletion
+          db_safe_mode = false,
+        }
+      }
     }
 
     -- Load telescope plugins
