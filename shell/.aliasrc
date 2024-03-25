@@ -135,6 +135,13 @@ sdh() {
   [ -n "$t" ] && cd "$t" && ls
 }
 
+gzip_webcheck() {
+  set -x
+  curl "$1" --silent --write-out "%{size_download}\n" --output /dev/null
+  curl "$1" --silent -H "Accept-Encoding: gzip,deflate" --write-out "%{size_download}\n" --output /dev/null
+  set +x
+}
+
 _arg_help() { tf "${READLINE_LINE%% *}"; }
 _man_help() {
   res="${READLINE_LINE%% *}"
