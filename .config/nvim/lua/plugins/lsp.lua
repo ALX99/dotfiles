@@ -30,7 +30,9 @@ return {
       robotframework_ls = { capabilities = capabilities },
       zls = { capabilities = capabilities },
       eslint = { capabilities = capabilities },
+      gleam = { capabilities = capabilities },
       gopls = {
+        -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
         capabilities = capabilities,
         settings = {
           gopls = {
