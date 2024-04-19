@@ -72,8 +72,7 @@ else
   WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
   GTK2_RC_FILES="$XDG_CONFIG_HOME/gtk-2.0/gtkrc"
 
-  # IM
-  GTK_IM_MODULE="fcitx"
+  # IM (https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland)
   QT_IM_MODULE="fcitx"
   XMODIFIERS="@im=fcitx"
 
