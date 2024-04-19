@@ -108,6 +108,10 @@ local function formatting(client, buf)
                 or c.name == "rust_analyzer"
                 or c.name == "robotframework_ls"
                 or c.name == "html"
+                or c.name == "clangd"
+                or c.name == "tsserver"
+                or c.name == "gleam"
+                or c.name == "nim_langserver"
           end,
         })
         vim.fn.winrestview(view) -- reset view to where it was before
