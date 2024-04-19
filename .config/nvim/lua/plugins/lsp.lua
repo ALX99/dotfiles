@@ -31,6 +31,7 @@ return {
       zls = { capabilities = capabilities },
       eslint = { capabilities = capabilities },
       gleam = { capabilities = capabilities },
+      nim_langserver = {},
       gopls = {
         -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
         capabilities = capabilities,
