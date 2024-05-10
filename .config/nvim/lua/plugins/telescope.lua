@@ -1,3 +1,16 @@
+local function filenameFirst(_, path)
+	local tail = vim.fs.basename(path)
+	local parent = vim.fs.dirname(path)
+	if parent == "." then return tail end
+
+  local prefix = vim.fn.getcwd() .. "/"
+  if string.sub(parent, 1, #prefix) == prefix then
+      parent = string.sub(parent, #prefix + 1)
+  end
+
+	return string.format("%s - %s", tail, parent)
+end
+
 return {
   "nvim-telescope/telescope.nvim",
   version = '^0.1.x',
@@ -51,6 +64,7 @@ return {
 
     telescope.setup {
       defaults = {
+        path_display = filenameFirst,
         mappings = {
           n = {
             ["n"] = actions.move_selection_next,
