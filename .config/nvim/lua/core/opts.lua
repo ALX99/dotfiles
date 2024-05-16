@@ -65,7 +65,7 @@ o.smarttab         = true   -- Makes tabbing smarter will realize you have 2 vs 
 o.matchtime        = 3      -- Tenths of a second to show the matching paren, when 'showmatch' is set.
 o.so               = 8      -- Leave x spaces when scrolling
 o.background       = "dark" -- tell vim what the background color looks like
-opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal" }
+opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" }
 
 
 opt.spell     = true
