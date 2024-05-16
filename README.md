@@ -1,4 +1,4 @@
-# Dotfiles
+# dotfiles
 
 These dotfiles are primarily uploaded for personal backup & sync purposes, 
 however you may discover useful aliases and scripts within as I tend to use the 
@@ -20,25 +20,24 @@ Here's an overview of what you can find in this repository:
 - [.config/nvim](https://github.com/ALX99/dotfiles/tree/master/.config/nvim)
       - Neovim config
 
-## Current setup
+## things
 
-### Preview
+### good software
+
+- distro: [arch](https://archlinux.org/)
+- wayland compositor: [river](https://isaacfreund.com/software/river/)
+- browser: [brave](https://brave.com/)
+- editor: [neovim](https://neovim.io/)
+- terminal emulator: [alacritty](https://alacritty.org/)
+- terminal multiplexer: [tmux](https://github.com/tmux/tmux)
+- shell: [bash](https://www.gnu.org/software/bash/)
+
+### picture
 
 ![preview](./preview.png)
 
-### Software suite
+### keyboard
 
-- Window Manager: [dwm](https://dwm.suckless.org/)
-- Menu Bar: [dmenu](https://tools.suckless.org/dmenu/)
-- Browser: [Brave](https://brave.com/)
-- Editor: [Neovim](https://neovim.io/)
-- Terminal Emulator: [st](https://st.suckless.org/)
-- Terminal Multiplexer: [tmux](https://github.com/tmux/tmux)
-- Shell: [bash](https://www.gnu.org/software/bash/)
-
-### Keyboard layout
-
-I use [Colemak Mod-DH](https://colemakmods.github.io/mod-dh/) as base with an 
-additional custom snap layer in order to be able to reach commonly-used keys.
+[colemak dh](https://colemakmods.github.io/mod-dh/) is nice
 
 ![keyboard](./keyboard.png)
