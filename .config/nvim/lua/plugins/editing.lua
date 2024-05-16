@@ -164,6 +164,9 @@ return {
           stop_generating = "<C-x>",
         },
       },
+      openai_params = {
+        model = "gpt-4o",
+      },
     },
     keys = {
       {
