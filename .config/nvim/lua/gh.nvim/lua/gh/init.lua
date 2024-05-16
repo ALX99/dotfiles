@@ -39,16 +39,12 @@ function M.browse_file()
 end
 
 function M.browse_pr()
-  pickers.new(require("telescope.themes").get_dropdown {
+  pickers.new(require("telescope.themes").get_ivy {
     -- :h telescope.defaults.layout_config
-    layout_strategy = "center",
     layout_config = {
-      width = {
-        padding = 4
+      height = {
+        padding = 0.4,
       },
-      height = function(_, _, max_lines)
-        return math.min(max_lines, 1)
-      end,
     },
   }, {
     prompt_title = "Pull Requests",
@@ -60,7 +56,7 @@ function M.browse_pr()
     },
     finder = finders.new_dynamic {
       fn = function()
-        local res, code = require('plenary.job'):new({
+        local res, code = job:new({
           command = 'gh',
           args = { "pr", "list", "--json", "number,title,author" },
         }):sync()
@@ -79,16 +75,48 @@ function M.browse_pr()
       end,
     },
     sorter = conf.generic_sorter({}),
-    attach_mappings = function(prompt_bufnr, _)
+    attach_mappings = function(prompt_bufnr, map)
       actions.select_default:replace(function()
-        actions.close(prompt_bufnr)
-        local selection = action_state.get_selected_entry()
-        if not selection then
-          return
-        end
-        gh({ "browse", selection.value.number })
       end)
-      return true
+
+      map("n", "b", function(prompt_bufnr)
+        local entry = action_state.get_selected_entry()
+        if not entry then return end
+        gh({ "browse", entry.value.number })
+      end)
+
+      map("n", "c", function(prompt_bufnr)
+        local entry = action_state.get_selected_entry()
+        if not entry then return end
+
+        job:new({
+          command = 'git',
+          args = { 'stash', 'push', '--all', '--message', 'gh.lua review start' },
+        }):sync()
+
+        local bufnr = vim.api.nvim_create_buf(false, true)
+
+        vim.api.nvim_command('split')
+        vim.api.nvim_set_current_buf(bufnr)
+
+        local job_id = vim.fn.termopen("gh pr checkout " .. entry.value.number, {
+          on_exit = function(_, exit_code, _)
+            if exit_code == 0 then
+              vim.api.nvim_buf_delete(bufnr, { force = false })
+            end
+          end
+        })
+        if job_id <= 0 then
+          vim.notify("Error: Failed to start job", vim.log.levels.ERROR)
+        end
+
+        -- wait for the job to finish
+        vim.fn.jobwait({ job_id }, 10000)
+
+        vim.cmd('bufdo e!')
+      end)
+
+      return true -- return true means to keep default_mappings
     end,
   }):find()
 end
