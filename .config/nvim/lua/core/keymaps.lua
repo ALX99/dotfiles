@@ -4,8 +4,8 @@ require('core.colemak').setup()
 
 -- QoL
 map("n", "U", "<C-r>", { desc = "Redo" })
-map("x", ">", ">gv", { desc = "Increase ident" })              -- Stay in indent mode
-map("x", "<", "<gv", { desc = "Decrease ident" })              -- Stay in indent mode
+map("x", ">", ">gv", { desc = "Increase indent" })             -- Stay in indent mode
+map("x", "<", "<gv", { desc = "Decrease indent" })             -- Stay in indent mode
 map("i", "tn", "<Esc>", { desc = "Exit insert mode" })         -- Esc is hard to press
 map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
 
