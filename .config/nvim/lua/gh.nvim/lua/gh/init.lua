@@ -56,15 +56,12 @@ function M.browse_pr()
     },
     finder = finders.new_dynamic {
       fn = function()
-        local res, code = job:new({
-          command = 'gh',
-          args = { "pr", "list", "--json", "number,title,author" },
-        }):sync()
-        if code ~= 0 then
-          vim.notify("Error: " .. vim.inspect(res), vim.log.levels.ERROR)
+        local res = vim.system({ "gh", "pr", "list", "--json", "number,title,author" }, { text = true }):wait()
+        if res.code ~= 0 then
+          vim.notify("Error: " .. vim.inspect(res.stderr), vim.log.levels.ERROR)
           return {}
         end
-        return vim.fn.json_decode(res[1])
+        return vim.fn.json_decode(res.stdout)
       end,
       entry_maker = function(entry)
         return {
@@ -89,10 +86,7 @@ function M.browse_pr()
         local entry = action_state.get_selected_entry()
         if not entry then return end
 
-        job:new({
-          command = 'git',
-          args = { 'stash', 'push', '--all', '--message', 'gh.lua review start' },
-        }):sync()
+        vim.system({'git', 'stash', 'push', '--all', '--message', 'gh.lua review start' }, { text = true }):wait()
 
         local bufnr = vim.api.nvim_create_buf(false, true)
 
