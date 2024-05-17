@@ -32,25 +32,12 @@ return {
         symbol = "│"
       })
 
-      require('mini.comment').setup({
-        options = {
-          ignore_blank_line = true,
-        },
-        mappings = {
-          comment = 'gc',
-          comment_line = 'gcc',
-          textobject = 'gc',
-        },
-      })
-
-
       require('mini.align').setup({
         mappings = {
           start = '<leader>pa',
           start_with_preview = '<leader>pA'
         },
       })
-
 
       -- require('mini.tabline').setup({})
       -- require('mini.cursorword').setup({})

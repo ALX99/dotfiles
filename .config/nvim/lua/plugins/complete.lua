@@ -1,33 +1,18 @@
 return {
-  -- snippets
-  {
-    "L3MON4D3/LuaSnip",
-    event = "InsertEnter",
-    config = function()
-      require("luasnip.loaders.from_vscode").lazy_load()
-    end,
-    cond = function()
-      return not require('core.utils').is_vscodevim()
-    end
-  },
-
   -- completion
   {
     "hrsh7th/nvim-cmp",
     event = { "InsertEnter", "CmdlineEnter" },
     dependencies = {
       -- 'hrsh7th/cmp-buffer',
-      'saadparwaiz1/cmp_luasnip',
-      'L3MON4D3/LuaSnip',
     },
     opts = function(_, _)
       local cmp = require('cmp')
-      local luasnip = require("luasnip")
 
       return {
         snippet = {
           expand = function(args)
-            luasnip.lsp_expand(args.body)
+            vim.snippet.expand(args.body)
           end,
         },
         -- window = {
@@ -62,40 +47,12 @@ return {
               fallback()
             end
           end,
-          -- ["<S-CR>"] = function(fallback)
-          --   if cmp.visible() then
-          --     -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-          --     cmp.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true })
-          --   else
-          --     fallback()
-          --   end
-          -- end,
-          ["<Tab>"] = cmp.mapping(function(fallback)
-            if luasnip.expand_or_jumpable() then
-              luasnip.expand_or_jump()
-            elseif cmp.visible() then
-              cmp.select_next_item()
-            else
-              fallback()
-            end
-          end, { "i", "s" }),
-
-          ["<S-Tab>"] = cmp.mapping(function(fallback)
-            if luasnip.jumpable(-1) then
-              luasnip.jump(-1)
-            elseif cmp.visible() then
-              cmp.select_prev_item()
-            else
-              fallback()
-            end
-          end, { "i", "s" }),
         },
         formatting = {
           format = function(entry, item)
             local short_name = {
               nvim_lsp = 'LSP',
               buffer = 'BUF',
-              luasnip = 'SNP',
             }
             local menu_name = short_name[entry.source.name] or entry.source.name
             item.menu = string.format('[%s]', menu_name)
@@ -104,7 +61,6 @@ return {
         },
         sources = cmp.config.sources(
           {
-            { name = "luasnip" },
             { name = "nvim_lsp" }
           }
         -- {
@@ -134,6 +90,22 @@ return {
       local cmp = require('cmp')
 
       cmp.setup(opts)
+
+      vim.keymap.set({ 'i', 's' }, '<Tab>', function()
+         if vim.snippet.active({ direction = 1 }) then
+           return '<cmd>lua vim.snippet.jump(1)<cr>'
+         else
+           return '<Tab>'
+         end
+       end, { expr = true })
+
+      vim.keymap.set({ 'i', 's' }, '<S-Tab>', function()
+         if vim.snippet.active({ direction = -1 }) then
+           return '<cmd>lua vim.snippet.jump(-1)<cr>'
+         else
+           return '<S-Tab>'
+         end
+       end, { expr = true })
 
       -- Set configuration for specific filetype.
       -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
