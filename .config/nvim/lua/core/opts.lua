@@ -25,7 +25,7 @@ o.fileencoding   = "UTF-8"       -- The encoding written to file
 opt.updatetime   = 1000          -- If this many milliseconds nothing is typed the swap file will be written to disk
 
 -- Appearance
-o.termguicolors  = true     -- Enables 24-bit RGB color in the TUI
+-- o.termguicolors  = true  -- Enabled by default in Neovim >= 0.10 if it detects terminal supports it
 o.breakindent    = true     -- Enable break indent
 o.cursorline     = true     -- Enable highlighting of the current line
 o.cursorlineopt  = "number" -- Only highlight number
