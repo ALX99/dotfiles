@@ -12,10 +12,10 @@ docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
 dunst # notification daemon
+eslint-language-server
 exfat-utils # mkfs.exfat
-git
+fastfetch
 fcitx5
-nano
 fcitx5-configtool
 fcitx5-gtk
 fcitx5-mozc
@@ -23,6 +23,7 @@ fcitx5-qt
 ffmpeg
 fuzzel
 fzf
+git
 git-delta
 github-cli
 gopls
@@ -40,18 +41,19 @@ lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
+linux-lts
 localsend-bin
 lua-language-server
 man-db
 man-pages # man pages for Linux and POSIX.1
 mpv
+nano
 ncdu # better du (find what is taking up space)
-neofetch
 neovim
 noto-fonts
-npm
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
+npm
 openssh
 otf-font-awesome
 otf-monaspace
@@ -72,6 +74,7 @@ rust-analyzer
 shellcheck
 shfmt # shell format
 sof-firmware # sound firmware, I remember this being important
+sudo
 swaybg
 tailwindcss-language-server
 tmux
@@ -88,14 +91,12 @@ ventoy-bin
 visual-studio-code-bin
 vscode-html-languageserver
 vscode-json-languageserver
-vscode-markdown-languageserver
 wl-clipboard
 x86_energy_perf_policy
-xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
+xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 yaml-language-server
 yt-dlp
 zathura
 zathura-pdf-poppler
 zip
-sudo
