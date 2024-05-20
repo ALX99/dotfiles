@@ -188,7 +188,7 @@ main() {
     exit 0
     ;;
   -Syu)
-    yay -Syu --answerdiff All --answerclean NotInstalled
+    yay -Syu
     exit 0
     ;;
   *)
