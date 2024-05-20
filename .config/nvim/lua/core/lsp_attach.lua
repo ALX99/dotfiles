@@ -43,6 +43,10 @@ local function mappings(buf)
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })
 
+  map('n', '<leader>ch', function()
+    vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+  end, { desc = "Toggle inlay hints" })
+
   -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
   -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
   -- map('n', '<leader>wl', function()

@@ -106,11 +106,13 @@ command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 command -v direnv >/dev/null 2>&1 && . <(direnv hook "${SHELL##*/}")
 
-flycd() {
-  tmp="$(mktemp)"
-  trap 'rm -rf -- "${tmp:-?}"' EXIT INT TERM HUP
-  fly -write-pwd "$tmp"
-  pushd "$(cat "$tmp")" || exit
+sd() {
+  set -e
+  tmp_file="$(mktemp)"
+  trap 'rm -rf -- "$tmp_file"' EXIT INT TERM HUP
+  sail -write-wd "$tmp_file"
+  pushd "$(cat "$tmp_file")" >/dev/null
+  set +e
 }
 
 # Git browse
@@ -123,17 +125,17 @@ gbrowse() {
 }
 
 # Switch directory
-sd() {
-  local t
-  t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
-}
+# sd() {
+#   local t
+#   t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
+#   [ -n "$t" ] && cd "$t" && ls
+# }
 
-sdh() {
-  local t
-  t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
-  [ -n "$t" ] && cd "$t" && ls
-}
+# sdh() {
+#   local t
+#   t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
+#   [ -n "$t" ] && cd "$t" && ls
+# }
 
 gzip_webcheck() {
   set -x
