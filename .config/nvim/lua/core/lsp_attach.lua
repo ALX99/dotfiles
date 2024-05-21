@@ -15,7 +15,7 @@ local function get_augroup(client, prefix)
   return _augroups[client.id]
 end
 
-local function mappings(buf)
+local function mappings(client, buf)
   local map = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
     if opts then
@@ -28,24 +28,28 @@ local function mappings(buf)
   map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                     -- Many LSPs do not implement this
   map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', { desc = "Go to definition" })         -- vim.lsp.buf.definition
   map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-  map('n', 'go', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
   map('n', 'gr', '<cmd>Telescope lsp_references<CR>', { desc = "Go to reference" })           -- vim.lsp.buf.references
+  map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+
   map('n', 'gs', '<cmd>Telescope lsp_document_symbols<CR>', { desc = "Goto symbol" })
   map('n', 'gS', '<cmd>Telescope lsp_dynamic_workspace_symbols<CR>', { desc = "Goto symbol" })
   map('n', 'gm', '<cmd>Telescope lsp_document_symbols symbols=method<CR>', { desc = "Goto method" })
   map('n', 'gf', '<cmd>Telescope lsp_document_symbols symbols=function<CR>', { desc = "Goto function" })
+
   -- map('n', 'K', vim.lsp.buf.hover, { desc = "Hover" })
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
-  map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+  --
   map('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
   map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
   map({ 'n', 'v' }, '=', function()
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })
 
-  map('n', '<leader>ch', function()
-    vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
-  end, { desc = "Toggle inlay hints" })
+  if client and client.server_capabilities.inlayHintProvider and vim.lsp.inlay_hint then
+    map('n', '<leader>th', function()
+      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+    end, { desc = 'Toggle inlay hints' })
+  end
 
   -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
   -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
@@ -56,21 +60,29 @@ end
 
 
 local function highlight_references(client, buf)
-  -- https://sbulav.github.io/til/til-neovim-highlight-references/
-  if client.server_capabilities.documentHighlightProvider then
-    vim.notify_once("Highlight references provided by " .. client.name, vim.log.levels.INFO)
-
-    vim.api.nvim_create_autocmd("CursorHold", {
+  if client and client.server_capabilities.documentHighlightProvider then
+    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight', { clear = false })
+    vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
       desc = "Document Highlight",
-      callback = function() vim.schedule(vim.lsp.buf.document_highlight) end,
-      group = get_augroup(client, 'lsp-show-references'),
       buffer = buf,
+      group = highlight_augroup,
+      callback = vim.lsp.buf.document_highlight,
     })
-    vim.api.nvim_create_autocmd("CursorMoved", {
+
+    vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
       desc = "Clear All the References",
-      callback = function() vim.schedule(vim.lsp.buf.clear_references) end,
-      group = get_augroup(client, 'lsp-show-references'),
       buffer = buf,
+      group = highlight_augroup,
+      callback = vim.lsp.buf.clear_references,
+    })
+
+    vim.api.nvim_create_autocmd('LspDetach', {
+      desc = "Remove highlight autocmds",
+      group = vim.api.nvim_create_augroup('lsp-detach', { clear = true }),
+      callback = function(ev)
+        vim.lsp.buf.clear_references()
+        vim.api.nvim_clear_autocmds { group = 'lsp-highlight', buffer = ev.buf }
+      end,
     })
   end
 end
@@ -160,7 +172,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     end
     -- end workaround
 
-    mappings(args.buf)
+    mappings(client, args.buf)
     highlight_references(client, args.buf)
     formatting(client, args.buf)
   end,
