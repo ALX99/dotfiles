@@ -42,7 +42,7 @@ return {
       -- require('mini.tabline').setup({})
       -- require('mini.cursorword').setup({})
       require('mini.trailspace').setup({})
-      require('mini.pairs').setup({})
+      -- require('mini.pairs').setup({})
 
       -- disable trailspace on markdown files
       vim.api.nvim_create_autocmd('FileType', {
