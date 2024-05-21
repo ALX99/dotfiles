@@ -38,7 +38,7 @@ local mappings = {
   { modes = { "n", "o", "x" }, lhs = "gN",     rhs = "<nop>", desc = "<nop>" },
 
   -- Text objects
-  { modes = { "o", "v" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
+  { modes = { "o", "x" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
 
   -- Jumplist navigation
   -- { modes = { "n" },           lhs = "<C-u>",      rhs = "<C-i>",      desc = "Jumplist forward" },
