@@ -31,8 +31,8 @@ return {
               fallback()
             end
           end,
-          ["<A-n>"] = cmp.mapping.scroll_docs(-4),
-          ["<A-e>"] = cmp.mapping.scroll_docs(4),
+          -- ["<A-n>"] = cmp.mapping.scroll_docs(-4),
+          -- ["<A-e>"] = cmp.mapping.scroll_docs(4),
           ["<C-Space>"] = cmp.mapping.complete(),
           ["<Esc>"] = cmp.mapping.abort(),
           ["<CR>"] = function(fallback)
@@ -87,7 +87,7 @@ return {
 
       cmp.setup(opts)
 
-      vim.keymap.set({ 'i', 's' }, '<Tab>', function()
+      vim.keymap.set({ 'i', 's' }, '<M-s>', function()
         if vim.snippet.active({ direction = 1 }) then
           return '<cmd>lua vim.snippet.jump(1)<cr>'
         else
@@ -95,7 +95,7 @@ return {
         end
       end, { expr = true })
 
-      vim.keymap.set({ 'i', 's' }, '<S-Tab>', function()
+      vim.keymap.set({ 'i', 's' }, '<M-t>', function()
         if vim.snippet.active({ direction = -1 }) then
           return '<cmd>lua vim.snippet.jump(-1)<cr>'
         else
