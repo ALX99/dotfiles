@@ -14,8 +14,8 @@ return {
       },
     },
     config = function(_, opts)
-      require("tokyonight").setup(opts)
-      vim.cmd.colorscheme("tokyonight-moon")
+      -- require("tokyonight").setup(opts)
+      -- vim.cmd.colorscheme("tokyonight-moon")
     end,
     cond = function()
       return not require('core.utils').is_vscodevim()
@@ -43,10 +43,14 @@ return {
     opts = {
       flavour = "mocha",
     },
-    enabled = false,
+    enabled = true,
     cond = function()
       return not require('core.utils').is_vscodevim()
-    end
+    end,
+    config = function(_, opts)
+      require('catppuccin').setup(opts)
+      vim.cmd.colorscheme("catppuccin-mocha")
+    end,
   },
   {
     "projekt0n/github-nvim-theme",
