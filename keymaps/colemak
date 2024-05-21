@@ -64,5 +64,5 @@ xkb_symbols "basic" {
     // key <LSGT> { [        minus,   underscore,          endash,        emdash ] };
     key <SPCE> { [        space,        space,                            Escape ] };
 
-    include "level3(ralt_switch)"
+    // include "level3(ralt_switch)"
 };
