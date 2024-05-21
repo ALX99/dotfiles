@@ -8,6 +8,7 @@ return {
     },
     opts = function(_, _)
       local cmp = require('cmp')
+      vim.opt.completeopt = { 'menu', 'menuone', 'noselect', 'preview' }
 
       return {
         snippet = {
@@ -15,11 +16,6 @@ return {
             vim.snippet.expand(args.body)
           end,
         },
-        -- window = {
-        --   completion = cmp.config.window.bordered(),
-        --   documentation = cmp.config.window.bordered(),
-        -- },
-        preselect = cmp.PreselectMode.None, -- Don't preselect anything from LSP (Prioritize snippets)
         mapping = {
           ["<Down>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
@@ -72,18 +68,18 @@ return {
         --     hl_group = "LspCodeLens",
         --   },
         -- },
-        sorting = {
-          comparators = {
-            cmp.config.compare.offset,
-            cmp.config.compare.exact,
-            cmp.config.compare.score,
-            cmp.config.compare.recently_used,
-            cmp.config.compare.kind,
-            cmp.config.compare.sort_text,
-            cmp.config.compare.length,
-            cmp.config.compare.order,
-          },
-        },
+        -- sorting = {
+        --   comparators = {
+        --     cmp.config.compare.offset,
+        --     cmp.config.compare.exact,
+        --     cmp.config.compare.score,
+        --     cmp.config.compare.recently_used,
+        --     cmp.config.compare.kind,
+        --     cmp.config.compare.sort_text,
+        --     cmp.config.compare.length,
+        --     cmp.config.compare.order,
+        --   },
+        -- },
       }
     end,
     config = function(_, opts)
@@ -92,29 +88,20 @@ return {
       cmp.setup(opts)
 
       vim.keymap.set({ 'i', 's' }, '<Tab>', function()
-         if vim.snippet.active({ direction = 1 }) then
-           return '<cmd>lua vim.snippet.jump(1)<cr>'
-         else
-           return '<Tab>'
-         end
-       end, { expr = true })
+        if vim.snippet.active({ direction = 1 }) then
+          return '<cmd>lua vim.snippet.jump(1)<cr>'
+        else
+          return '<Tab>'
+        end
+      end, { expr = true })
 
       vim.keymap.set({ 'i', 's' }, '<S-Tab>', function()
-         if vim.snippet.active({ direction = -1 }) then
-           return '<cmd>lua vim.snippet.jump(-1)<cr>'
-         else
-           return '<S-Tab>'
-         end
-       end, { expr = true })
-
-      -- Set configuration for specific filetype.
-      -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
-      -- cmp.setup.cmdline({ '/', '?' }, {
-      --   mapping = cmp.mapping.preset.cmdline(),
-      --   sources = {
-      --     { name = 'buffer' }
-      --   }
-      -- })
+        if vim.snippet.active({ direction = -1 }) then
+          return '<cmd>lua vim.snippet.jump(-1)<cr>'
+        else
+          return '<S-Tab>'
+        end
+      end, { expr = true })
     end,
     cond = function()
       return not require('core.utils').is_vscodevim()
