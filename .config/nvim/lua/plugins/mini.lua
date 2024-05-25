@@ -16,6 +16,7 @@ return {
           TRACE = { duration = 500 },
         }
       )
+      -- require('mini.diff').setup()
       require('mini.statusline').setup({})
 
       require('mini.indentscope').setup({
