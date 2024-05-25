@@ -46,7 +46,6 @@ o.hlsearch       = true     -- highlight matches
 
 -- Editing
 o.ignorecase       = true   -- Ignore case in the pattern normally
-o.incsearch        = true   -- search as characters are entered
 o.title            = true   -- set terminal title to the filename
 o.showcmd          = true   -- show command in bottom bar
 -- o.lazyredraw      = true   -- redraw only when we need to
@@ -63,16 +62,17 @@ o.smartindent      = true   -- Make indenting smart
 o.smarttab         = true   -- Makes tabbing smarter will realize you have 2 vs 4
 
 o.matchtime        = 3      -- Tenths of a second to show the matching paren, when 'showmatch' is set.
-o.so               = 8      -- Leave x spaces when scrolling
+o.scrolloff        = 8      -- Leave x spaces when scrolling
 o.background       = "dark" -- tell vim what the background color looks like
 opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" }
 
 
 opt.spell     = true
 opt.spelllang = 'en_us,en_gb'
+o.inccommand  = "split"
 
 -- Show some invisible characters
-o.list        = true
+o.list        = false
 opt.listchars = {
   tab = "⟩ ",
   trail = "+",
