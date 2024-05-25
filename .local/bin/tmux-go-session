@@ -19,6 +19,9 @@ populate_projects
 selected_name="$(get_project_names | fzf-tmux -p || :)"
 [[ -z ${selected_name:-} ]] && exit 0 # empty, time to bail
 
+# replace dots with underscores (tmux session names can't have dots for some reason)
+selected_name="${selected_name//./_}"
+
 if [[ -z ${TMUX:-} ]]; then
   tmux new-session -As "$selected_name" -c "$(get_project_dir "$selected_name")"
   exit 0
