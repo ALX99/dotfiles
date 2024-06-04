@@ -58,6 +58,23 @@ local function mappings(client, buf)
   -- map('n', '<leader>wl', function()
   --   print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
   -- end)
+
+  -- key mapping for telescope file_ignore_pattern if it exists
+  if vim.b.ts_fip then
+    require("telescope.config").set_defaults({
+      file_ignore_patterns = vim.b.ts_fip
+    })
+    vim.b.ts_fip_set = true
+
+    map('n', '<leader>ti', function()
+      local ignore_pattern = vim.b.ts_fip_set and {} or vim.b.ts_fip
+      require("telescope.config").set_defaults({
+        file_ignore_patterns = ignore_pattern,
+      })
+      vim.b.ts_fip_set = not vim.b.ts_fip_set
+      vim.notify("Telescope FIP set to " .. vim.inspect(ignore_pattern), vim.log.levels.INFO)
+    end, { desc = 'Toggle telescope ignore patterns' })
+  end
 end
 
 
