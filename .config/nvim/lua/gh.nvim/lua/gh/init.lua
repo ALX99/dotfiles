@@ -86,7 +86,7 @@ function M.browse_pr()
         local entry = action_state.get_selected_entry()
         if not entry then return end
 
-        vim.system({'git', 'stash', 'push', '--all', '--message', 'gh.lua review start' }, { text = true }):wait()
+        vim.system({ 'git', 'stash', 'push', '--all', '--message', 'gh.lua review start' }, { text = true }):wait()
 
         local bufnr = vim.api.nvim_create_buf(false, true)
 
