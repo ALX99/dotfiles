@@ -25,16 +25,18 @@ local function mappings(client, buf)
   end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions
-  map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                     -- Many LSPs do not implement this
-  map('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', { desc = "Go to definition" })         -- vim.lsp.buf.definition
-  map('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-  map('n', 'gr', '<cmd>Telescope lsp_references<CR>', { desc = "Go to reference" })           -- vim.lsp.buf.references
+  map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                             -- Many LSPs do not implement this
+  map('n', 'gd', require('telescope.builtin').lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
+  map('n', 'gi', require('telescope.builtin').lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  map('n', 'gr', require('telescope.builtin').lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
   map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
 
-  map('n', 'gs', '<cmd>Telescope lsp_document_symbols<CR>', { desc = "Goto symbol" })
-  map('n', 'gS', '<cmd>Telescope lsp_dynamic_workspace_symbols<CR>', { desc = "Goto symbol" })
-  map('n', 'gm', '<cmd>Telescope lsp_document_symbols symbols=method<CR>', { desc = "Goto method" })
-  map('n', 'gf', '<cmd>Telescope lsp_document_symbols symbols=function<CR>', { desc = "Goto function" })
+  map('n', 'gs', require('telescope.builtin').lsp_document_symbols, { desc = "Goto symbol" })
+  map('n', 'gS', require('telescope.builtin').lsp_dynamic_workspace_symbols, { desc = "Goto symbol" })
+  map('n', 'gm', function() require('telescope.builtin').lsp_document_symbols { symbols = "method" } end,
+    { desc = "Goto method" })
+  map('n', 'gf', function() require('telescope.builtin').lsp_document_symbols { symbols = "function" } end,
+    { desc = "Goto function" })
 
   -- map('n', 'K', vim.lsp.buf.hover, { desc = "Hover" })
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
