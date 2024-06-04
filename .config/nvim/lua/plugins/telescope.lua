@@ -31,7 +31,7 @@ return {
       ":Telescope<CR>",
       desc = "Telescope"
     },
-    { "<leader>fo", "<cmd>Telescope frecency workspace=CWD<CR>" },
+    { "<leader>fo", '<cmd>Telescope frecency workspace=CWD path_display={"smart"}<CR>' },
     { "<leader>fO", "<cmd>Telescope fd find_command=rg,--files,<CR>" },
     -- {
     --   "<leader>b",
