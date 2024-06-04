@@ -1,3 +1,4 @@
+vim.g.diagnostics_visible = true
 local utils = require('core.utils')
 
 -- Create an augroup that is used for managing our formatting autocmds.
@@ -75,6 +76,17 @@ local function mappings(client, buf)
       vim.notify("Telescope FIP set to " .. vim.inspect(ignore_pattern), vim.log.levels.INFO)
     end, { desc = 'Toggle telescope ignore patterns' })
   end
+
+  --- toggle diagnostics
+  map('n', '<leader>td', function()
+    if vim.g.diagnostics_visible then
+      vim.g.diagnostics_visible = false
+      vim.diagnostic.disable()
+    else
+      vim.g.diagnostics_visible = true
+      vim.diagnostic.enable()
+    end
+  end, { desc = 'Toggle diagnostics' })
 end
 
 
