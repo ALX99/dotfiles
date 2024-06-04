@@ -75,11 +75,15 @@ end
 
 function colemak.apply()
   for _, mapping in pairs(mappings) do
+    local desc = mapping.desc
+    if desc then
+      desc = desc .. ' [COLEMAK]'
+    end
     vim.keymap.set(
       mapping.modes,
       mapping.lhs,
       mapping.rhs,
-      { desc = mapping.desc, noremap = true, silent = true }
+      { desc = desc, noremap = true, silent = true }
     )
   end
 end
