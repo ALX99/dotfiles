@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 res="$(amixer sget Master)"
 p="$(echo "$res" | awk -F"[][]" '/dB/ { print $2 }')"
 p="${p::-1}"
@@ -13,4 +13,3 @@ if echo "$res" | grep "off" >/dev/null 2>&1; then
   i='󰸈'
 fi
 printf "%s %s" "$i" "$p%"
-

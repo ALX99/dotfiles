@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 CONTAINER_STORAGE="$HOME/.local/containers"
@@ -29,4 +29,3 @@ bwrap --bind "$root_fs" / \
   "${args[@]}" \
   bash
 set +x
-
