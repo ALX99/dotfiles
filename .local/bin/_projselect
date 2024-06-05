@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -7,11 +7,11 @@ PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 if [ "$(uname -s)" = "Darwin" ]; then
   printf "$PROJ_DIR/%s\n" \
     "$(gfind "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" |
-    fzf --preview-window='up,60%' \
-    --preview "git -C $PROJ_DIR/{} log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit")"
+      fzf --preview-window='up,60%' \
+        --preview "git -C $PROJ_DIR/{} log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit")"
 else
   printf "$PROJ_DIR/%s\n" \
     "$(find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" |
-    fzf --preview-window='up,60%' \
-    --preview "git -C $PROJ_DIR/{} log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit")"
+      fzf --preview-window='up,60%' \
+        --preview "git -C $PROJ_DIR/{} log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit")"
 fi

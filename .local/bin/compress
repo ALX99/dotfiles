@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Compress directory
 
 cLevel="3"

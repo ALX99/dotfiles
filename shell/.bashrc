@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Runs every time bash shell is launched
 
 # If not running interactively, don't do anything

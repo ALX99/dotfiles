@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 [ "$UID" != "0" ] &&
   pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}') ||
