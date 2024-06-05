@@ -21,13 +21,12 @@ alias \
   mimetype="file --dereference --brief --mime-type" \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="paccy -Syu" \
-  pf='fd -t f | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
-  pf.='fd -t f -H | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  pf='rg --files | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
   ef='nvim "$(pf)"' \
   ef.='nvim "$(pf.)"' \
   gu='xdg-open $(git config --get remote.origin.url)' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
-  tmuxs='tmux new -A -s ${PWD##*/}' \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
@@ -48,9 +47,9 @@ alias \
   krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
   kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
   ksn='kubectl config set-context --current --namespace' \
-  kdcn='command kubectl delete ns "$(krn)"' \
-  kccn='command kubectl create ns "$(krn)"' \
   k='kubectl'
+# kdcn='command kubectl delete ns "$(krn)"'
+# kccn='command kubectl create ns "$(krn)"'
 
 # Docker
 alias \
@@ -74,18 +73,6 @@ alias \
   htop="htop -s PERCENT_CPU" \
   mpv='mpv --hwdec=auto'
 
-if [ "$(uname -s)" = "Darwin" ]; then
-  alias \
-    ls="gls -hN --color=auto --group-directories-first" \
-    ll="gls -hNlA --color=auto" \
-    find="gfind" \
-    sed="gsed"
-else
-  alias \
-    ls="ls -hN --color=auto --group-directories-first" \
-    ll="ls -hNlA --color=auto"
-fi
-
 # Navigation
 alias \
   ..='cd ..' \
@@ -98,6 +85,18 @@ alias \
   config='cd ~/dotfiles/.config'
 
 [ -x "$(command -v bat)" ] && alias cat="bat"
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  alias \
+    ls="gls -hN --color=auto --group-directories-first" \
+    ll="gls -hNlA --color=auto" \
+    find="gfind" \
+    sed="gsed"
+else
+  alias \
+    ls="ls -hN --color=auto --group-directories-first" \
+    ll="ls -hNlA --color=auto"
+fi
 
 # command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
 # command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
