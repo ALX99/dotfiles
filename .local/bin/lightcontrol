@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eou pipefail
 
 readonly brightness_file="/sys/class/backlight/intel_backlight/brightness"
@@ -55,4 +55,3 @@ main() {
 }
 
 main "$@"
-
