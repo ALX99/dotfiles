@@ -143,7 +143,6 @@ gzip_webcheck() {
   set +x
 }
 
-_arg_help() { tf "${READLINE_LINE%% *}"; }
 _man_help() {
   res="${READLINE_LINE%% *}"
   help "$res" 2>/dev/null || man "$res"
