@@ -1,7 +1,0 @@
-#!/bin/sh
-# huh?
-if "$@" --help >/dev/null 2>&1; then
-  "$@" --help | bat --plain --language=help
-else
-  "$@" -h | bat --plain --language=help
-fi

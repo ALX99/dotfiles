@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -euo pipefail
+
+show_help() {
+  if ! "$@" >/dev/null 2>&1; then
+    echo "failed: ${cmd[*]} --help"
+    return
+  fi
+
+  if command -v bat >/dev/null 2>&1; then
+    "$@" | bat --plain --language=help &&
+      echo "$@" &&
+      exit 0
+  else
+    "$@" &&
+      echo "$@" &&
+      exit 0
+  fi
+}
+
+#shellcheck disable=SC2206
+args=($READLINE_LINE)
+cmd=()
+
+for i in "${!args[@]}"; do
+  if [[ ! ${args[i]} =~ ^- ]]; then
+    cmd+=("${args[i]}")
+  else
+    break
+  fi
+done
+
+while [ ${#cmd[@]} -gt 0 ]; do
+  show_help "${cmd[@]}" --help
+  show_help "${cmd[@]}" -h
+  cmd=("${cmd[@]:0:${#cmd[@]}-1}")
+done
