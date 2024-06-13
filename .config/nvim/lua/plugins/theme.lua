@@ -14,8 +14,8 @@ return {
       },
     },
     config = function(_, opts)
-      -- require("tokyonight").setup(opts)
-      -- vim.cmd.colorscheme("tokyonight-moon")
+      require("tokyonight").setup(opts)
+      vim.cmd.colorscheme("tokyonight-moon")
     end,
     cond = function()
       return not require('core.utils').is_vscodevim()
@@ -43,13 +43,13 @@ return {
     opts = {
       flavour = "mocha",
     },
-    enabled = true,
+    enabled = false,
     cond = function()
       return not require('core.utils').is_vscodevim()
     end,
     config = function(_, opts)
-      require('catppuccin').setup(opts)
-      vim.cmd.colorscheme("catppuccin-mocha")
+      -- require('catppuccin').setup(opts)
+      -- vim.cmd.colorscheme("catppuccin-mocha")
     end,
   },
   {
@@ -57,6 +57,10 @@ return {
     version = "1.x.x",
     event = "VeryLazy",
     enabled = false,
+    config = function(_, opts)
+      -- require("github-theme").setup(opts)
+      -- vim.cmd.colorscheme("github_dark")
+    end,
     cond = function()
       return not require('core.utils').is_vscodevim()
     end
