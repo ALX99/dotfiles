@@ -4,11 +4,16 @@ return {
   config = function()
     local lspconfig = require('lspconfig')
 
-    -- nvim-cmp capabilities to pass to lspconfig (announce what features the editor can support)
-    local capabilities = vim.tbl_deep_extend(
-      'force',
-      lspconfig.util.default_config.capabilities,
-      require('cmp_nvim_lsp').default_capabilities()
+    -- Set up
+    local capabilities = vim.lsp.protocol.make_client_capabilities()
+    capabilities = vim.tbl_deep_extend('force', capabilities, require('cmp_nvim_lsp').default_capabilities())
+
+
+    -- configure the capabilities to be passed to all LSPs
+    lspconfig.util.default_config = vim.tbl_extend(
+      "force",
+      lspconfig.util.default_config,
+      { capabilities = capabilities }
     )
 
 
@@ -17,24 +22,24 @@ return {
     -----------------
     -- https://github.com/neovim/nvim-lspconfig
     local lsps = {
-      clangd = { capabilities = capabilities },
-      pyright = { capabilities = capabilities },
-      dockerls = { capabilities = capabilities },
-      rust_analyzer = { capabilities = capabilities },
-      jsonls = { capabilities = capabilities },
-      html = { capabilities = capabilities },
-      cssls = { capabilities = capabilities },
-      tailwindcss = { capabilities = capabilities },
-      tsserver = { capabilities = capabilities },
-      svelte = { capabilities = capabilities },
-      robotframework_ls = { capabilities = capabilities },
-      zls = { capabilities = capabilities },
-      eslint = { capabilities = capabilities },
-      gleam = { capabilities = capabilities },
+      clangd = {},
+      pyright = {},
+      dockerls = {},
+      rust_analyzer = {},
+      jsonls = {},
+      html = {},
+      cssls = {},
+      sourcekit = {},
+      tailwindcss = {},
+      tsserver = {},
+      svelte = {},
+      robotframework_ls = {},
+      zls = {},
+      eslint = {},
+      gleam = {},
       nim_langserver = {},
       gopls = {
         -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
-        capabilities = capabilities,
         settings = {
           gopls = {
             hints = {
@@ -77,7 +82,6 @@ return {
       },
       -- https://github.com/redhat-developer/yaml-language-server
       yamlls = {
-        capabilities = capabilities,
         settings = {
           yaml = {
             schemas = {
@@ -87,7 +91,6 @@ return {
         },
       },
       lua_ls = {
-        capabilities = capabilities,
         on_init = function(client)
           local path = client.workspace_folders[1].name
           if not vim.uv.fs_stat(path .. '/.luarc.json') and not vim.uv.fs_stat(path .. '/.luarc.jsonc') then
