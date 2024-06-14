@@ -101,9 +101,9 @@ vim.diagnostic.config({
   severity_sort = true, -- Errors first
   float = {
     focusable = true,
-    style = "minimal",
-    border = "rounded",
-    source = "always",
+    -- style = "minimal",
+    -- border = "rounded",
+    source = "if_many",
   },
 })
 
