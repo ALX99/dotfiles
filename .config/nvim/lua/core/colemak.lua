@@ -30,8 +30,9 @@ local mappings = {
   -- End of word
   { modes = { "n", "o", "x" }, lhs = "h",      rhs = "e",     desc = "End of word" },
   { modes = { "n", "o", "x" }, lhs = "H",      rhs = "E",     desc = "End of WORD" },
-  { modes = { "n", "o", "x" }, lhs = "gh",     rhs = "ge",    desc = "Previous end of word" },
-  { modes = { "n", "o", "x" }, lhs = "gH",     rhs = "gE",    desc = "Previous end of WORD" },
+  -- gh is taken by mini.diff
+  -- { modes = { "n", "o", "x" }, lhs = "gh",     rhs = "ge",    desc = "Previous end of word" },
+  -- { modes = { "n", "o", "x" }, lhs = "gH",     rhs = "gE",    desc = "Previous end of WORD" },
   { modes = { "n", "o", "x" }, lhs = "ge",     rhs = "gk",    desc = "Go up by screen lines" },
   { modes = { "n", "o", "x" }, lhs = "gn",     rhs = "gj",    desc = "Go down by screen lines" },
   { modes = { "n", "o", "x" }, lhs = "gE",     rhs = "<nop>", desc = "<nop>" },
