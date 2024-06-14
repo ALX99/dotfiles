@@ -16,7 +16,12 @@ return {
           TRACE = { duration = 500 },
         }
       )
-      -- require('mini.diff').setup()
+      require('mini.diff').setup({
+        view = {
+          -- style = 'sign',
+          signs = { add = '+', change = '~', delete = '-' },
+        }
+      })
       require('mini.statusline').setup({})
 
       require('mini.indentscope').setup({
