@@ -38,7 +38,7 @@ o.splitbelow     = true     -- Horizontal splits (:split) will automatically be 
 o.splitright     = true     -- Vertical splits (:vsplit) will automatically be to the right
 o.ruler          = true     -- Show the cursor position all the time (bottom bar)
 o.showmode       = false    -- We don't need to see things like -- INSERT -- due to the status bar plugin
-o.signcolumn     = 'yes'    -- Always show sign column (otherwise it will shift text)
+-- o.signcolumn     = 'yes'    -- Always show sign column (otherwise it will shift text)
 o.fillchars      = 'eob: '  -- Don't show `~` outside of buffer
 o.hlsearch       = true     -- highlight matches
 
