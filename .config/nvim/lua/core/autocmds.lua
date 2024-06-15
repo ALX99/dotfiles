@@ -28,6 +28,17 @@ vim.api.nvim_create_autocmd({ "VimResized" }, {
   end,
 })
 
+vim.api.nvim_create_autocmd({ "InsertLeave" }, {
+  desc = "set relativenumber",
+  group = vim.api.nvim_create_augroup("setrelativenumber", { clear = true }),
+  command = "set relativenumber",
+})
+vim.api.nvim_create_autocmd({ "InsertEnter" }, {
+  desc = "set number",
+  group = vim.api.nvim_create_augroup("setnumber", { clear = true }),
+  command = "set number norelativenumber",
+})
+
 
 -- show cursor line only in active window
 local cursorGrp = vim.api.nvim_create_augroup("CursorLine", { clear = true })
