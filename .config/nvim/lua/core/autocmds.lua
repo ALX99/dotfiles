@@ -2,25 +2,33 @@ if require('core.utils').is_vscodevim() then
   return
 end
 
+local autocmd = function(event, opts)
+  return vim.api.nvim_create_autocmd(event, opts)
+end
+
+local augroup = function(name, args)
+  return vim.api.nvim_create_augroup('local_' .. name, args)
+end
+
 
 -- Check if we need to reload the file when it changed
-vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
-  group = vim.api.nvim_create_augroup('checktime', { clear = true }),
+autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+  group = augroup('checktime', { clear = true }),
   command = "checktime",
 })
 
 -- Highlight on yank
-vim.api.nvim_create_autocmd('TextYankPost', {
+autocmd('TextYankPost', {
   callback = function()
     vim.highlight.on_yank()
   end,
-  group = vim.api.nvim_create_augroup('YankHighlight', { clear = true }),
+  group = augroup('YankHighlight', { clear = true }),
   pattern = '*',
 })
 
 -- resize splits if window got resized
-vim.api.nvim_create_autocmd({ "VimResized" }, {
-  group = vim.api.nvim_create_augroup('resize_splits', { clear = true }),
+autocmd({ "VimResized" }, {
+  group = augroup('resize_splits', { clear = true }),
   callback = function()
     local current_tab = vim.fn.tabpagenr()
     vim.cmd("tabdo wincmd =")
@@ -28,33 +36,33 @@ vim.api.nvim_create_autocmd({ "VimResized" }, {
   end,
 })
 
-vim.api.nvim_create_autocmd({ "InsertLeave" }, {
+autocmd({ "InsertLeave" }, {
   desc = "set relativenumber",
-  group = vim.api.nvim_create_augroup("setrelativenumber", { clear = true }),
+  group = augroup("setrelativenumber", { clear = true }),
   command = "set relativenumber",
 })
-vim.api.nvim_create_autocmd({ "InsertEnter" }, {
+autocmd({ "InsertEnter" }, {
   desc = "set number",
-  group = vim.api.nvim_create_augroup("setnumber", { clear = true }),
+  group = augroup("setnumber", { clear = true }),
   command = "set number norelativenumber",
 })
 
 
 -- show cursor line only in active window
-local cursorGrp = vim.api.nvim_create_augroup("CursorLine", { clear = true })
-vim.api.nvim_create_autocmd({ "InsertLeave", "WinEnter" }, {
+local cursorGrp = augroup("CursorLine", { clear = true })
+autocmd({ "InsertLeave", "WinEnter" }, {
   group = cursorGrp,
   pattern = "*",
   command = "set cursorline",
 })
-vim.api.nvim_create_autocmd({ "InsertEnter", "WinLeave" }, {
+autocmd({ "InsertEnter", "WinLeave" }, {
   pattern = "*",
   command = "set nocursorline",
   group = cursorGrp
 })
 
 -- return to last edit position when opening files
-vim.api.nvim_create_autocmd('BufReadPost', {
+autocmd('BufReadPost', {
   callback = function()
     local mark = vim.api.nvim_buf_get_mark(0, '"')
     local lcount = vim.api.nvim_buf_line_count(0)
@@ -65,8 +73,8 @@ vim.api.nvim_create_autocmd('BufReadPost', {
 })
 
 -- Make sure :filetype is on
-vim.api.nvim_create_autocmd("BufWritePost", {
-  group = vim.api.nvim_create_augroup("shfmt-autofmt", { clear = true }),
+autocmd("BufWritePost", {
+  group = augroup("shfmt-autofmt", { clear = true }),
   callback = function(info)
     if vim.o.filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
@@ -101,5 +109,5 @@ local function update_lead()
   end
   vim.opt_local.listchars:append({ leadmultispace = vim.fn.list2str(lead) })
 end
-vim.api.nvim_create_autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
-vim.api.nvim_create_autocmd("VimEnter", { callback = update_lead, once = true })
+autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
+autocmd("VimEnter", { callback = update_lead, once = true })
