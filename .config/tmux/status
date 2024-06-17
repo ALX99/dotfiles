@@ -1,0 +1,90 @@
+#!/bin/bash
+
+white="#[fg=white]"
+grey="#[fg=grey]"
+red="#[fg=red]"
+magenta="#[fg=colour13]"
+
+# for percentages
+p_green="#[fg=colour35]"
+p_yellow="#[fg=colour190]"
+p_red="#[fg=colour196]"
+
+rst="#[fg=default]"
+
+function get_time() {
+  echo "$grey$(date +'%H:%M')$rst"
+}
+
+function user_host_path() {
+  echo "#[fg=colour211]$(echo $USER)$white@#[fg=colour63]$(hostname)$white:$red#{pane_current_path}"
+}
+
+function get_bat() {
+  local percentage colour
+  percentage="$(cat /sys/class/power_supply/BAT0/capacity)"
+
+  if [ "$(cat /sys/class/power_supply/BAT0/status)" == "Charging" ]; then
+    colour="$p_green"
+  elif [[ $percentage -gt 50 ]]; then
+    colour="$p_green"
+  elif [[ $percentage -gt 15 ]]; then
+    colour="$p_yellow"
+  else
+    colour="$p_red"
+  fi
+
+  echo "${grey}BAT: $colour$percentage"
+}
+
+function get_cpu() {
+  local percentage colour
+  percentage="$(
+    top -bn1 | grep "Cpu(s)" |
+      sed "s/.*, *\([0-9.]*\)%* id.*/\1/" |
+      awk '{print 100 - $1""}'
+  )"
+  percentage="${percentage%%.*}" # remove everything after the decimal
+
+  if [[ $percentage -gt 85 ]]; then
+    colour="$p_red"
+  elif [[ $percentage -gt 50 ]]; then
+    colour="$p_yellow"
+  else
+    colour="$p_green"
+  fi
+
+  echo "${grey}CPU: $colour$percentage"
+}
+
+function get_mem() {
+  local percentage colour
+  percentage="$(
+    free | grep Mem | awk '{print $3/$2 * 100.0}'
+  )"
+  percentage="${percentage%%.*}" # remove everything after the decimal
+
+  if [[ $percentage -gt 85 ]]; then
+    colour="$p_red"
+  elif [[ $percentage -gt 50 ]]; then
+    colour="$p_yellow"
+  else
+    colour="$p_green"
+  fi
+
+  echo "${grey}MEM: $colour$percentage"
+}
+
+function wrap() {
+  local content="$3"
+  if [[ $1 == '[' ]]; then
+    echo "$2[$content$2]"
+  elif [[ $1 == '<' ]]; then
+    echo "$2<$content$2>"
+  else
+    echo "$content"
+  fi
+
+}
+
+echo "$(wrap "[" $grey "$(get_bat) $(get_cpu) $(get_mem)") $(get_time)"
