@@ -9,8 +9,8 @@ RUN apt update \
     && go install github.com/OJ/gobuster/v3@latest \
     && mkdir -p ~/tools/PEASS-ng \
     && cd ~/tools/PEASS-ng \
-    && curl -s https://api.github.com/repos/carlospolop/PEASS-ng/releases/latest | jq -r '.assets[] | .browser_download_url' > urls \
-    && xargs -n 1 curl -L --remote-name-all < urls \
+    && curl -Ls https://api.github.com/repos/carlospolop/PEASS-ng/releases/latest | jq -r '.assets[] | .browser_download_url' > urls \
+    && grep -v "\.exe$" urls | xargs -n 1 curl -L --remote-name-all \
     && rm urls \
     && set +x
 
