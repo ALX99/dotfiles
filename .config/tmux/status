@@ -1,9 +1,9 @@
 #!/bin/bash
 
-white="#[fg=white]"
+# white="#[fg=white]"
 grey="#[fg=grey]"
-red="#[fg=red]"
-magenta="#[fg=colour13]"
+# red="#[fg=red]"
+# magenta="#[fg=colour13]"
 
 # for percentages
 p_green="#[fg=colour35]"
@@ -14,10 +14,6 @@ rst="#[fg=default]"
 
 function get_time() {
   echo "$grey$(date +'%H:%M')$rst"
-}
-
-function user_host_path() {
-  echo "#[fg=colour211]$(echo $USER)$white@#[fg=colour63]$(hostname)$white:$red#{pane_current_path}"
 }
 
 function get_bat() {
@@ -107,4 +103,4 @@ function wrap() {
 
 }
 
-echo "$(wrap "[" $grey "$(get_bat) $(get_cpu) $(get_mem)") $(get_time)"
+echo "$(wrap "[" "$grey" "$(get_bat) $(get_cpu) $(get_mem)") $(get_time)"
