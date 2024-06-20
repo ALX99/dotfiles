@@ -18,6 +18,7 @@ user_config() {
 system_config() {
   # Keymap
   sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+  sudo ln -sf "$PWD"/keymaps/keyd.conf /etc/keyd/default.conf
 
   sudo mkdir -p -m 755 \
     /etc/systemd/sleep.conf.d/ \
