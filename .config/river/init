@@ -17,6 +17,7 @@ riverctl map normal Super+Shift Comma send-to-output previous # Send window to p
 riverctl map normal Super+Shift Return zoom                   # Move window to top of stack
 riverctl map normal Super Space toggle-float                  # Toggle float
 riverctl map normal Super F toggle-fullscreen                 # Toggle full screen
+riverctl map normal Super Print spawn grim                    # Screenshot
 riverctl map-pointer normal Super BTN_LEFT move-view          # Move window
 riverctl map-pointer normal Super BTN_RIGHT resize-view       # Resize window
 riverctl map-pointer normal Super BTN_MIDDLE toggle-float     # Toggle floating
@@ -115,7 +116,7 @@ riverctl default-layout rivertile
 riverctl spawn "rivertile -outer-padding 0 -view-padding 0"
 riverctl output-layout rivertile
 
-riverctl keyboard-layout colemak
+# riverctl keyboard-layout colemak
 
 for i in {1..9}; do
   tags=$((1 << (i - 1)))
