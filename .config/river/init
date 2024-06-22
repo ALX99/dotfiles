@@ -4,23 +4,23 @@ term="alacritty"
 
 riverctl map normal Super Return spawn "$term"
 
-riverctl map normal Super Q close                             # Close window
-riverctl map normal Super+Shift Q exit                        # Exit river
-riverctl map normal Super N focus-view next                   # Next window
-riverctl map normal Super E focus-view previous               # Previous window
-riverctl map normal Super+Shift N swap next                   # Swap to next Window
-riverctl map normal Super+Shift E swap previous               # Swap to previous Window
-riverctl map normal Super Period focus-output next            # Next output
-riverctl map normal Super Comma focus-output previous         # Previous output
-riverctl map normal Super+Shift Period send-to-output next    # Send window to next output
-riverctl map normal Super+Shift Comma send-to-output previous # Send window to previous output
-riverctl map normal Super+Shift Return zoom                   # Move window to top of stack
-riverctl map normal Super Space toggle-float                  # Toggle float
-riverctl map normal Super F toggle-fullscreen                 # Toggle full screen
-riverctl map normal Super Print spawn grim                    # Screenshot
-riverctl map-pointer normal Super BTN_LEFT move-view          # Move window
-riverctl map-pointer normal Super BTN_RIGHT resize-view       # Resize window
-riverctl map-pointer normal Super BTN_MIDDLE toggle-float     # Toggle floating
+riverctl map normal Super Q close                                         # Close window
+riverctl map normal Super+Shift Q exit                                    # Exit river
+riverctl map normal Super N focus-view next                               # Next window
+riverctl map normal Super E focus-view previous                           # Previous window
+riverctl map normal Super+Shift N swap next                               # Swap to next Window
+riverctl map normal Super+Shift E swap previous                           # Swap to previous Window
+riverctl map normal Super Period focus-output next                        # Next output
+riverctl map normal Super Comma focus-output previous                     # Previous output
+riverctl map normal Super+Shift Period send-to-output next                # Send window to next output
+riverctl map normal Super+Shift Comma send-to-output previous             # Send window to previous output
+riverctl map normal Super+Shift Return zoom                               # Move window to top of stack
+riverctl map normal Super Space toggle-float                              # Toggle float
+riverctl map normal Super F toggle-fullscreen                             # Toggle full screen
+riverctl map normal Super Print spawn 'grim -g "$(slurp -d)" - | wl-copy' # Screenshot
+riverctl map-pointer normal Super BTN_LEFT move-view                      # Move window
+riverctl map-pointer normal Super BTN_RIGHT resize-view                   # Resize window
+riverctl map-pointer normal Super BTN_MIDDLE toggle-float                 # Toggle floating
 
 riverctl map normal Super M send-layout-cmd rivertile "main-ratio -0.05"    # Decrease main ratio
 riverctl map normal Super I send-layout-cmd rivertile "main-ratio +0.05"    # Increase main ratio
