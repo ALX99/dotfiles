@@ -25,7 +25,7 @@ alias \
   pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
   ef='nvim "$(pf)"' \
   ef.='nvim "$(pf.)"' \
-  gu='xdg-open $(git config --get remote.origin.url)' \
+  gu='xdg-open "$(git config --get remote.origin.url)"' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
@@ -56,7 +56,7 @@ alias \
 # Docker
 alias \
   dshell='_x() { docker run --entrypoint /bin/bash --rm -it "$1" || docker run --entrypoint /bin/bash --rm -it "$1"; }; _x' \
-  dprune='docker stop $(docker ps -q); docker system prune -a --volumes'
+  dprune='docker system prune -a --volumes'
 
 # Better flags
 alias \
@@ -68,12 +68,13 @@ alias \
   rm="rm -v" \
   mkdir="mkdir -p" \
   free="free -h" \
-  df="df -h" \
+  df="df --human-readable --output=source,target,size,used,avail,pcent" \
   upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
-  dd="dd bs=512k" \
+  dd="dd bs=512k status=progress" \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto'
+  mpv='mpv --hwdec=auto' \
+  du='du --human-readable'
 
 # Navigation
 alias \
