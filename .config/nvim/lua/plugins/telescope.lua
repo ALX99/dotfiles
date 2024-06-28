@@ -11,6 +11,10 @@ local function filenameFirst(_, path)
   return string.format("%s - %s", tail, parent)
 end
 
+local telescope = require("telescope")
+local builtin = require('telescope.builtin')
+local themes = require('telescope.themes')
+
 return {
   "nvim-telescope/telescope.nvim",
   version = '^0.1.x',
@@ -31,8 +35,18 @@ return {
       ":Telescope<CR>",
       desc = "Telescope"
     },
-    { "<leader>fo", '<cmd>Telescope frecency workspace=CWD path_display={"smart"}<CR>' },
-    { "<leader>fO", "<cmd>Telescope fd find_command=rg,--files,<CR>" },
+    { "<leader>fo", function()
+      telescope.extensions.frecency.frecency(themes.get_dropdown({
+        previewer = false
+      }
+      ))
+    end },
+    { "<leader>fO", function()
+      telescope.extensions.frecency.frecency(themes.get_dropdown({
+        previewer = false,
+        find_command = { "rg", "--files", "--no-ignore-vcs" }
+      }))
+    end },
     -- {
     --   "<leader>b",
     --   "<cmd>Telescope current_buffer_fuzzy_find<CR>",
@@ -48,6 +62,17 @@ return {
       "<cmd>Telescope live_grep<CR>",
       desc = "Grep in files"
     },
+    { "<leader>/", function()
+      builtin.live_grep(
+        themes.get_ivy({
+          layout_config = {
+            height = {
+              padding = 0.1,
+            },
+          },
+        })
+      )
+    end },
     {
       "<leader>d",
       "<cmd>Telescope diagnostics<CR>",
@@ -65,7 +90,7 @@ return {
     telescope.setup {
       defaults = {
         path_display = {
-          "filename_first",
+          -- "filename_first",
           -- "smart",
         },
         mappings = {
