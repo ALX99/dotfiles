@@ -48,7 +48,7 @@ alias \
   krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
   kln='kubectl get -o name ns | sed "s|^.*/|  |;\|^  $(krn)$|s/ /*/"' \
   ksn='kubectl config set-context --current --namespace' \
-  ksc='_x() { set -euo pipefail; s="$(yq ".contexts.[].name" ~/.kube/config | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }; _x' \
+  ksc='_x() { set -euo pipefail; s="$(yq ".contexts.[].name" ~/.kube/config | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }; (_x)' \
   k='kubectl'
 # kdcn='command kubectl delete ns "$(krn)"'
 # kccn='command kubectl create ns "$(krn)"'
