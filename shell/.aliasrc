@@ -101,8 +101,9 @@ else
     ll="ls -hNlA --color=auto"
 fi
 
-# command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
-# command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
+[ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
+command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
+command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
 command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
