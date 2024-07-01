@@ -1,4 +1,5 @@
 set show-all-if-unmodified on
+set show-all-if-ambiguous on
 # Color files by types
 # Note that this may cause completion text blink in some terminals (e.g. xterm).
 set colored-stats On
