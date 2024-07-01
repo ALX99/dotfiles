@@ -168,7 +168,7 @@
                       "left_control",
                       "left_option"
                     ],
-                    "optional": []
+                    "optional": ["any"]
                   }
                 },
                 "to": [
@@ -188,7 +188,7 @@
                       "left_control",
                       "left_option"
                     ],
-                    "optional": []
+                    "optional": ["any"]
                   }
                 },
                 "to": [
