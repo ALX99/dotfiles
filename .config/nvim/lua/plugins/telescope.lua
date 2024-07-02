@@ -37,7 +37,8 @@ return {
     },
     { "<leader>fo", function()
       telescope.extensions.frecency.frecency(themes.get_dropdown({
-        previewer = false
+        previewer = false,
+        workspace = 'CWD'
       }
       ))
     end },
