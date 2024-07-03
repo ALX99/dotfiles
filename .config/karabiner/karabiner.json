@@ -24,7 +24,7 @@
                 "from": {
                   "key_code": "caps_lock",
                   "modifiers": {
-                    "optional": []
+                    "optional": ["any"]
                   }
                 },
                 "to": [
@@ -53,7 +53,7 @@
                 "from": {
                   "key_code": "semicolon",
                   "modifiers": {
-                    "optional": []
+                    "optional": ["any"]
                   }
                 },
                 "to": [
