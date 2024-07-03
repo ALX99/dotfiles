@@ -1036,6 +1036,40 @@
                 "type": "basic"
               }
             ]
+          },
+          {
+            "description": "Google Chrome: Open history",
+            "manipulators": [
+              {
+                "conditions": [
+                  {
+                    "bundle_identifiers": [
+                      "^com\\.google\\.Chrome$"
+                    ],
+                    "type": "frontmost_application_if"
+                  }
+                ],
+                "from": {
+                  "key_code": "h",
+                  "modifiers": {
+                    "mandatory": [
+                      "left_command",
+                      "left_shift"
+                    ],
+                    "optional": []
+                  }
+                },
+                "to": [
+                  {
+                    "key_code": "y",
+                    "modifiers": [
+                      "left_option"
+                    ]
+                  }
+                ],
+                "type": "basic"
+              }
+            ]
           }
         ]
       },
