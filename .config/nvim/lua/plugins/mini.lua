@@ -22,7 +22,9 @@ return {
           signs = { add = '+', change = '~', delete = '-' },
         }
       })
+
       require('mini.statusline').setup({})
+      require('mini.trailspace').setup({})
 
       require('mini.indentscope').setup({
         mappings = {
@@ -47,8 +49,20 @@ return {
 
       -- require('mini.tabline').setup({})
       -- require('mini.cursorword').setup({})
-      require('mini.trailspace').setup({})
       -- require('mini.pairs').setup({})
+      require('mini.hipatterns').setup({
+        highlighters = {
+          FIXME     = { pattern = 'FIXME', group = 'MiniHipatternsFixme' },
+          fixme     = { pattern = 'fixme', group = 'MiniHipatternsFixme' },
+          HACK      = { pattern = 'HACK', group = 'MiniHipatternsHack' },
+          hack      = { pattern = 'hack', group = 'MiniHipatternsHack' },
+          TODO      = { pattern = 'TODO', group = 'MiniHipatternsTodo' },
+          todo      = { pattern = 'todo', group = 'MiniHipatternsTodo' },
+          NOTE      = { pattern = 'NOTE', group = 'MiniHipatternsNote' },
+          note      = { pattern = 'note', group = 'MiniHipatternsNote' },
+          hex_color = require('mini.hipatterns').gen_highlighter.hex_color(),
+        }
+      })
 
       -- disable trailspace on markdown files
       vim.api.nvim_create_autocmd('FileType', {
