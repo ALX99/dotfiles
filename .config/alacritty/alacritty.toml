@@ -13,7 +13,7 @@ shape = "Block"
 size = 11
 
 [font.normal]
-family = "Monaspace Krypton"
+family = "Fira Code"
 style = "Regular"
 
 [hints]
