@@ -125,6 +125,21 @@ local function highlight_references(client, buf)
   end
 end
 
+local function show_diagnostics(buf)
+  vim.api.nvim_create_autocmd("CursorHold", {
+    callback = function()
+      vim.diagnostic.open_float(nil, {
+        focusable = false,
+        close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+        border = 'rounded',
+        source = 'always',
+        prefix = ' ',
+        scope = 'cursor',
+      })
+    end
+  })
+end
+
 local function formatting(client, buf)
   if client.server_capabilities.documentFormattingProvider then
     vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
@@ -212,6 +227,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 
     mappings(client, args.buf)
     highlight_references(client, args.buf)
+    show_diagnostics(args.buf)
     formatting(client, args.buf)
   end,
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
