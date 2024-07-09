@@ -100,11 +100,11 @@ riverctl set-repeat 50 300
 
 # Make all views with an app-id that starts with "float" and title "foo" start floating.
 # https://git.sr.ht/~leon_plickat/lswt
-riverctl float-filter-add app-id 'imv'
-riverctl float-filter-add app-id 'mpv'
-riverctl float-filter-add app-id 'nz.co.mega.megasync'
-riverctl float-filter-add app-id 'gnome-system-monitor'
-riverctl float-filter-add app-id 'xdg-desktop-portal-gtk' # file chooser
+riverctl rule-add -app-id 'imv' float
+riverctl rule-add -app-id 'mpv' float
+riverctl rule-add -app-id 'nz.co.mega.megasync' float
+riverctl rule-add -app-id 'gnome-system-monitor' float
+riverctl rule-add -app-id 'xdg-desktop-portal-gtk' float # file chooser
 
 # Make all views with app-id "bar" and any title use client-side decorations
 # riverctl rule-add csd -app-id "bar"
