@@ -185,7 +185,7 @@ local function formatting(client, buf)
         })
         vim.fn.winrestview(view) -- reset view to where it was before
       end,
-      group = get_augroup(client, 'lsp-format'),
+      group = get_augroup(client, 'lsp-format' .. buf),
       buffer = buf,
     })
   end
