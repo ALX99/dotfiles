@@ -3,7 +3,6 @@ return {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     event = { "BufReadPost", "BufNewFile" },
-    dependencies = { "windwp/nvim-ts-autotag" },
     opts = {
       ensure_installed = {
         "bash",
@@ -41,9 +40,6 @@ return {
           node_decremental = "<bs>",
         },
       },
-      autotag = {
-        enable = true,
-      }
     },
     config = function(_, opts)
       require('nvim-treesitter.configs').setup(opts)

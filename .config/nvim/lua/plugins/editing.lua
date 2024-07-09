@@ -261,4 +261,9 @@ return {
     cmd = { "GHBrowse", "GHPRs" },
     -- dev = true,
   },
+  {
+    "windwp/nvim-ts-autotag",
+    opts = {},
+    event = { "InsertEnter" },
+  }
 }
