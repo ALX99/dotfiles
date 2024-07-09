@@ -153,7 +153,9 @@ riverctl input "$touchpad" middle-emulation enabled
 riverctl input "$touchpad" tap enabled
 riverctl input "$touchpad" tap-button-map left-right-middle
 riverctl input "$touchpad" scroll-method two-finger
-# riverctl input "$touchpad" natural-scroll enabled
+
+riverctl input "pointer-1390-316-ELECOM_OpticalMouse" accel-profile none
+riverctl input "pointer-1390-316-ELECOM_OpticalMouse" pointer-accel -0.3
 
 # WAYLAND_DISPLAY XDG_CURRENT_DESKTOP needs to be set for xdg-desktop-portal-wlr to work
 # https://wiki.archlinux.org/title/XDG_Desktop_Portal
