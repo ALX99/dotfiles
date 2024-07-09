@@ -38,6 +38,7 @@ return {
       eslint = {},
       gleam = {},
       nim_langserver = {},
+      terraformls = {},
       gopls = {
         -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
         settings = {
