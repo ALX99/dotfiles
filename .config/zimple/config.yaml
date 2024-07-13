@@ -1,5 +1,6 @@
 settings:
   separator: " / "
+  write_to_stdout: true
 blocks:
   - command: getconn
     interval: 60s
@@ -18,11 +19,21 @@ blocks:
   - command: sh
     icon: " "
     update_signals: [50]
-    args: [-c, printf "%.1f%%\n" "$(xbacklight)"]
+    args: [-c, "lightcontrol -c"]
 
-  - command: getmem
-    icon: "󰍛 "
+  - command: sh
+    icon: " "
     interval: 10s
+    args:
+      - -c
+      - top -bn1 | awk '/Cpu\(s\)/ {printf "%.2f%%\n", 100 - $8}'
+
+  - command: sh
+    icon: " "
+    interval: 10s
+    args:
+      - -c
+      - free --bytes | awk '/Mem/ {printf "%.2f%\n", $3/$2 * 100.0}'
 
   - command: getbat
     enabled: "[[ -d /sys/class/power_supply/BAT0 ]]"
