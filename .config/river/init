@@ -74,9 +74,9 @@ for mode in normal locked; do
   riverctl map $mode None XF86Eject spawn 'eject -T'
 
   # Control pulse audio volume with pamixer (https://github.com/cdemoulins/pamixer)
-  riverctl map $mode None XF86AudioRaiseVolume spawn 'amixer -q sset Master 5%+'
-  riverctl map $mode None XF86AudioLowerVolume spawn 'amixer -q sset Master 5%-'
-  riverctl map $mode None XF86AudioMute spawn 'pamixer --toggle-mute'
+  riverctl map $mode None XF86AudioRaiseVolume spawn 'amixer -q sset Master 5%+ && pkill -51 zimple'
+  riverctl map $mode None XF86AudioLowerVolume spawn 'amixer -q sset Master 5%- && pkill -51 zimple'
+  riverctl map $mode None XF86AudioMute spawn 'pamixer --toggle-mute && pkill -51 zimple'
 
   # Control MPRIS aware media players with playerctl (https://github.com/altdesktop/playerctl)
   # riverctl map $mode None XF86AudioMedia spawn 'playerctl play-pause'
@@ -84,16 +84,17 @@ for mode in normal locked; do
   # riverctl map $mode None XF86AudioPrev spawn 'playerctl previous'
   # riverctl map $mode None XF86AudioNext spawn 'playerctl next'
 
-  riverctl map $mode None XF86MonBrightnessUp spawn 'lightcontrol -d +500'
-  riverctl map $mode None XF86MonBrightnessDown spawn 'lightcontrol -d -500'
-  riverctl map $mode Shift XF86MonBrightnessUp spawn 'lightcontrol -d +100'
-  riverctl map $mode Shift XF86MonBrightnessDown spawn 'lightcontrol -d -100'
+  riverctl map $mode None XF86MonBrightnessUp spawn 'lightcontrol -d +500 && pkill -50 zimple'
+  riverctl map $mode None XF86MonBrightnessDown spawn 'lightcontrol -d -500 && pkill -50 zimple'
+  riverctl map $mode Shift XF86MonBrightnessUp spawn 'lightcontrol -d +100 && pkill -50 zimple'
+  riverctl map $mode Shift XF86MonBrightnessDown spawn 'lightcontrol -d -100 && pkill -50 zimple'
 done
 
 # Set background and border color
 riverctl background-color 0xb5b5b5
-riverctl border-color-focused 0x0x666666
-riverctl border-color-unfocused 0x586e75
+riverctl border-color-focused 0xcfcfcf
+riverctl border-color-unfocused 0x5c5c5c
+riverctl border-width 3
 
 # Set keyboard repeat rate
 riverctl set-repeat 50 300
@@ -102,6 +103,7 @@ riverctl set-repeat 50 300
 # https://git.sr.ht/~leon_plickat/lswt
 riverctl rule-add -app-id 'imv' float
 riverctl rule-add -app-id 'mpv' float
+riverctl rule-add -app-id 'Emulator' float
 riverctl rule-add -app-id 'nz.co.mega.megasync' float
 riverctl rule-add -app-id 'gnome-system-monitor' float
 riverctl rule-add -app-id 'xdg-desktop-portal-gtk' float # file chooser
@@ -114,7 +116,6 @@ riverctl rule-add -app-id 'xdg-desktop-portal-gtk' float # file chooser
 riverctl default-layout rivertile
 
 riverctl spawn "rivertile -outer-padding 0 -view-padding 0"
-riverctl output-layout rivertile
 
 # riverctl keyboard-layout colemak
 
@@ -165,3 +166,4 @@ riverctl spawn "swaybg -i ~/.config/pape/bg.png"
 riverctl spawn "gammastep -t 6500K:2500K -l $LAT_LON"
 riverctl spawn "dunst"
 riverctl spawn "fcitx5"
+riverctl spawn 'export PATH="$PATH:$HOME/.local/bin/statusbar"; zimple | creek -fb 0xffafcc -fn "Noto Sans Mono Medium:s:size=12"'

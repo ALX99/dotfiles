@@ -2,6 +2,7 @@
 set -eou pipefail
 
 readonly brightness_file="/sys/class/backlight/intel_backlight/brightness"
+readonly max_brightness_file="/sys/class/backlight/intel_backlight/max_brightness"
 readonly usage="usage ${0##*/} [OPTIONS]
 
 where:
@@ -34,7 +35,8 @@ main() {
     exit 0
     ;;
   -c | --check)
-    get_brightness
+    curr_value="$(get_brightness)"
+    cat "$max_brightness_file" | awk -v curr="$curr_value" '{printf "%.1f%%\n", curr / $1 * 100}'
     exit 0
     ;;
   -d)

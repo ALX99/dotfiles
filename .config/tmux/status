@@ -48,11 +48,7 @@ function get_bat() {
 function get_cpu() {
   local percentage colour
   if [ "$(uname)" == "Linux" ]; then
-    percentage="$(
-      top -bn1 | grep "Cpu(s)" |
-        sed "s/.*, *\([0-9.]*\)%* id.*/\1/" |
-        awk '{print 100 - $1""}'
-    )"
+    percentage="$(top -bn1 | awk '/Cpu\(s\)/ {printf "%.2f%%\n", 100 - $8}')"
   elif [ "$(uname)" == "Darwin" ]; then
     percentage="$(top -l 1 | grep "CPU usage" | awk '{print $3}' | cut -d% -f1)"
   fi
