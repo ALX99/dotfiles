@@ -1,18 +1,10 @@
 #!/bin/sh
 set -eu
 
-if [ "$(nmcli r w)" != "enabled" ]; then
-  echo "No WiFi"
-  exit
-fi
-
 f=/proc/net/wireless
-if [ "$(cat $f | wc -l)" -le 2 ]; then
+if [ "$(wc -l <$f)" -le 2 ]; then
   echo "No WiFi"
   exit
 fi
 
-info="$(tail -n 1 $f)"
-iface="$(echo "$info" | cut -d':' -f1)"
-ssid="$(iw "$iface" link | grep SSID | cut -d":" -f2)"
-echo "$ssid"
+iwctl station wlan0 show | grep "^\s*Connected network" | awk '{print $3}'

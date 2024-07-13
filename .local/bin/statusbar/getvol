@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-res="$(amixer sget Master)"
-p="$(echo "$res" | awk -F"[][]" '/dB/ { print $2 }')"
+
+p="$(amixer get Master | awk -F'[][]' '/Left:/ { print $2 }')"
 p="${p::-1}"
-if [ "$p" -gt 66 ]; then
+
+if [ "$p" -gt 33 ]; then
   i=''
 elif [ "$p" -gt 66 ]; then
   i='􏚨'
