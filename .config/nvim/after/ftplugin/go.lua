@@ -1,1 +1,1 @@
-vim.b.ts_fip = { "%_test.go" }
+vim.b.ts_fip = { "%_test%.go", "%_mock%.go" }
