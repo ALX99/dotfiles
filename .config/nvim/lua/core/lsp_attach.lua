@@ -48,13 +48,11 @@ local function mappings(client, buf)
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })
 
-  map('n', '<leader>th', function()
-    if client and client.server_capabilities.inlayHintProvider and vim.lsp.inlay_hint then
+  if client and client.server_capabilities.inlayHintProvider then
+    map('n', '<leader>th', function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
-    else
-      vim.notify("Inlay hints not supported by " .. client.name, vim.log.levels.INFO)
-    end
-  end, { desc = 'Toggle inlay hints' })
+    end, { desc = 'Toggle inlay hints' })
+  end
 
   -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
   -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
