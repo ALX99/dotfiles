@@ -50,7 +50,7 @@ local function mappings(client, buf)
 
   if client and client.server_capabilities.inlayHintProvider then
     map('n', '<leader>th', function()
-      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
     end, { desc = 'Toggle inlay hints' })
   end
 
