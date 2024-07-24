@@ -10,7 +10,4 @@ elif [ "$p" -gt 66 ]; then
 else
   i=''
 fi
-if echo "$res" | grep "off" >/dev/null 2>&1; then
-  i='󰸈'
-fi
 printf "%s %s" "$i" "$p%"
