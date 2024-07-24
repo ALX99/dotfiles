@@ -36,7 +36,7 @@ main() {
     ;;
   -c | --check)
     curr_value="$(get_brightness)"
-    cat "$max_brightness_file" | awk -v curr="$curr_value" '{printf "%.1f%%\n", curr / $1 * 100}'
+    awk -v curr="$curr_value" '{printf "%.1f%%\n", curr / $1 * 100}' <"$max_brightness_file"
     exit 0
     ;;
   -d)

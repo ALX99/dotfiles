@@ -43,6 +43,7 @@ alias \
   hua='helm uninstall $(helm ls --short)'
 
 # Kubectl
+# shellcheck disable=SC2154
 alias \
   krc='kubectl config current-context' \
   krn='kubectl config get-contexts --no-headers "$(krc)" | awk "{print \$5}" | sed "s/^$/default/"' \
@@ -101,7 +102,6 @@ else
     ll="ls -hNlA --color=auto"
 fi
 
-[ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
 command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
 command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
@@ -159,6 +159,7 @@ bind -m vi-insert -x '"\eH": _man_help'
 # shellcheck disable=SC1091
 [ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
 [ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
-# shellcheck disable=SC1091
 [ -f "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}"
 [ -f "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}" ] && . "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}"
+# shellcheck disable=SC1091
+[ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
