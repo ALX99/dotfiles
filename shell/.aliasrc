@@ -159,7 +159,9 @@ bind -m vi-insert -x '"\eH": _man_help'
 # shellcheck disable=SC1091
 [ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
 [ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
-[ -f "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}" ] && . "/opt/homebrew/Cellar/fzf/0.48.1/shell/key-bindings.${SHELL##*/}"
 [ -f "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}" ] && . "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}"
 # shellcheck disable=SC1091
 [ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
+local fzf_dir
+fzf_dir="$(echo /opt/homebrew/Cellar/fzf/* | tail -n 1)"
+[ -f "$fzf_dir/shell/key-bindings.${SHELL##*/}" ] && . "$fzf_dir/shell/key-bindings.${SHELL##*/}"
