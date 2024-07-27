@@ -68,7 +68,7 @@ opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" 
 -- Folding
 opt.foldlevel      = 99
 opt.fillchars      = { fold = " " }
-vim.o.foldtext     = ''
+-- vim.o.foldtext     = ''
 vim.opt.foldtext   = require("modules.foldtext")
 
 opt.spell          = true

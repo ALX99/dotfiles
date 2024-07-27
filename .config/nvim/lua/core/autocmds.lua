@@ -2,9 +2,7 @@ if require('core.utils').is_vscodevim() then
   return
 end
 
-local autocmd = function(event, opts)
-  return vim.api.nvim_create_autocmd(event, opts)
-end
+local autocmd = vim.api.nvim_create_autocmd
 
 local augroup = function(name, args)
   return vim.api.nvim_create_augroup('local_' .. name, args)
@@ -93,6 +91,24 @@ autocmd("BufWritePost", {
       end
       vim.cmd(":w")
     end
+  end
+})
+
+autocmd("BufReadPost", {
+  desc = "Collapse error handling with one line inside",
+  group = augroup("go-fold", { clear = true }),
+  pattern = "*.go",
+  callback = function(info)
+    vim.schedule(function()
+      local view = vim.fn.winsaveview() -- save view
+      vim.cmd([[
+      normal! zR |
+      :silent exec 'g/\s*if err != nil {\n.*\n\s*}\n/normal! za' |
+      :silent exec 'g/\s*if.*; err != nil {\n.*\n\s*}\n/normal! za' |
+      :nohl
+      ]])
+      vim.fn.winrestview(view) -- reset view to where it was before
+    end)
   end
 })
 
