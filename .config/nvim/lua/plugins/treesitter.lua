@@ -46,8 +46,6 @@ return {
 
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
-      -- vim.opt.foldminlines = 20
-      vim.opt.foldenable = false
     end,
     cond = function()
       return not require('core.utils').is_vscodevim()
