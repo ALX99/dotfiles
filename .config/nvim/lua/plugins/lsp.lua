@@ -56,7 +56,7 @@ return {
               },
               gofumpt = true,
               staticcheck = true,
-              usePlaceholders = true,
+              usePlaceholders = false,
               semanticTokens = true,
               directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
 
