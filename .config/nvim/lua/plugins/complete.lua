@@ -31,14 +31,21 @@ return {
               fallback()
             end
           end,
+          ["<Right>"] = function(fallback)
+            if cmp.visible() then
+              -- select means to select the first entry if nothing is selected
+              cmp.confirm({ select = true })
+            else
+              fallback()
+            end
+          end,
           -- ["<A-n>"] = cmp.mapping.scroll_docs(-4),
           -- ["<A-e>"] = cmp.mapping.scroll_docs(4),
-          ["<C-Space>"] = cmp.mapping.complete(),
           ["<Esc>"] = cmp.mapping.abort(),
           ["<CR>"] = function(fallback)
-            if cmp.visible() then
-              -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-              cmp.confirm({ select = true })
+            if cmp.visible() and cmp.get_selected_entry() then
+              -- select means to select the first entry if nothing is selected
+              cmp.confirm({ select = false })
             else
               fallback()
             end
@@ -87,7 +94,7 @@ return {
 
       cmp.setup(opts)
 
-      vim.keymap.set({ 'i', 's' }, '<M-s>', function()
+      vim.keymap.set({ 'i', 's' }, '<M-.>', function()
         if vim.snippet.active({ direction = 1 }) then
           return '<cmd>lua vim.snippet.jump(1)<cr>'
         else
@@ -95,7 +102,7 @@ return {
         end
       end, { expr = true })
 
-      vim.keymap.set({ 'i', 's' }, '<M-t>', function()
+      vim.keymap.set({ 'i', 's' }, '<M-,>', function()
         if vim.snippet.active({ direction = -1 }) then
           return '<cmd>lua vim.snippet.jump(-1)<cr>'
         else
