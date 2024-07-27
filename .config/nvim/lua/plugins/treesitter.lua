@@ -5,7 +5,7 @@ return {
     event = { "BufReadPost", "BufNewFile" },
     opts = {
       ensure_installed = {
-        "bash",
+        -- "bash",
         -- "c",
         -- "cpp",
         "css",
