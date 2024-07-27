@@ -66,10 +66,10 @@ o.background       = "dark" -- tell vim what the background color looks like
 opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" }
 
 -- Folding
-opt.foldenable     = true
 opt.foldlevel      = 99
 opt.fillchars      = { fold = " " }
 vim.o.foldtext     = ''
+vim.opt.foldtext   = require("modules.foldtext")
 
 opt.spell          = true
 opt.spelllang      = 'en_us,en_gb'
