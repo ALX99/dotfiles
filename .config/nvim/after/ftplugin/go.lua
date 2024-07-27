@@ -75,3 +75,7 @@ vim.api.nvim_create_user_command('Tests', function()
   end,
   { desc = "Run the tests in the buffer" }
 )
+
+-- vim.cmd([[:g/\s*if err != nil {\n\s*return.*\n\s*}\n/normal! nza]])
+vim.cmd([[:exe 'g/\s*if err != nil {\n.*\n\s*}\n/normal! jza']])
+vim.cmd([[:exe 'g/\s*; err != nil {\n.*\n\s*}\n/normal! jza']])
