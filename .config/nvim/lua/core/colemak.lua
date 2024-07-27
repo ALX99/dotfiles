@@ -38,8 +38,8 @@ local mappings = {
   { modes = { "n", "o", "x" }, lhs = "gE",     rhs = "<nop>", desc = "<nop>" },
   { modes = { "n", "o", "x" }, lhs = "gN",     rhs = "<nop>", desc = "<nop>" },
 
-  -- Text objects
-  { modes = { "o", "x" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
+  -- Text objects (NOTE: 's' is mapped by mini.ai currently)
+  -- { modes = { "o", "x" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
 
   -- Jumplist navigation
   -- { modes = { "n" },           lhs = "<C-u>",      rhs = "<C-i>",      desc = "Jumplist forward" },
