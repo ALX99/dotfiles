@@ -90,11 +90,12 @@ return {
       }
     end,
     config = function(_, opts)
+      local map = require('core.utils').map
       local cmp = require('cmp')
 
       cmp.setup(opts)
 
-      vim.keymap.set({ 'i', 's' }, '<M-.>', function()
+      map({ 'i', 's' }, '<M-.>', function()
         if vim.snippet.active({ direction = 1 }) then
           return '<cmd>lua vim.snippet.jump(1)<cr>'
         else
@@ -102,7 +103,7 @@ return {
         end
       end, { expr = true })
 
-      vim.keymap.set({ 'i', 's' }, '<M-,>', function()
+      map({ 'i', 's' }, '<M-,>', function()
         if vim.snippet.active({ direction = -1 }) then
           return '<cmd>lua vim.snippet.jump(-1)<cr>'
         else
