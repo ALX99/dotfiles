@@ -1,4 +1,5 @@
-local map = require('core.utils').map
+local utils = require('core.utils')
+local map = utils.map
 
 require('core.colemak').setup()
 
@@ -68,12 +69,7 @@ vim.api.nvim_create_user_command("CopyPath", function()
 end, {})
 
 -- Copy text to clipboard using codeblock format ```{ft}{content}```
-vim.api.nvim_create_user_command('CopyCodeBlock', function(opts)
-  local lines = vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, true)
-  local content = table.concat(lines, '\n')
-  local result = string.format('```%s\n%s\n```', vim.bo.filetype, content)
-  vim.fn.setreg('+', result)
-end, { range = true })
+vim.api.nvim_create_user_command('CopyCodeBlock', utils.copy_code_block, { range = true })
 
 
 -- Smarter delete
@@ -98,52 +94,7 @@ xnoremap * :<c-u>call g:VSetSearch('/')<cr>/<c-r>=@/<cr><cr>
 xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
 ]])
 
-vim.api.nvim_create_user_command('CopyGitHubPermalink', function()
-  local function get_git_branch()
-    local branch = vim.fn.system('git rev-parse --abbrev-ref HEAD')
-    return vim.fn.trim(branch)
-  end
+vim.api.nvim_create_user_command('CopyGitHubPermalink', utils.copy_github_permalink,
+  { desc = "Copy GitHub permalink to clipboard", range = true })
 
-  local function get_repo_url()
-    local repo_url = vim.fn.system('git config --get remote.origin.url')
-    repo_url = repo_url:gsub("git@github.com:", "https://github.com/")
-    repo_url = repo_url:gsub("%.git", "")
-    return vim.fn.trim(repo_url)
-  end
-
-  local function get_commit_hash(branch)
-    local commit_hash = vim.fn.system('git rev-parse ' .. branch)
-    return vim.fn.trim(commit_hash)
-  end
-
-  local function check_commit_exists_on_github(commit)
-    local result = vim.fn.system('git ls-remote origin ' .. commit)
-    return result ~= ""
-  end
-
-  local function get_latest_commit_hash_on_github(branch)
-    local result = vim.fn.system('git ls-remote origin ' .. branch .. ' | tail -n 1')
-    local commit_hash = vim.split(result, '\t')[1]
-    return vim.fn.trim(commit_hash)
-  end
-
-  local file_path = vim.fn.expand('%:.')
-  local line_number = vim.fn.line('.')
-  local end_line = vim.fn.line("'>")
-  local branch = get_git_branch()
-  local repo_url = get_repo_url()
-  local commit_hash = get_commit_hash(branch)
-
-
-  if not check_commit_exists_on_github(commit_hash) then
-    commit_hash = get_latest_commit_hash_on_github(branch)
-  end
-
-  local permalink = repo_url .. "/blob/" .. commit_hash .. "/" .. file_path .. "#L" .. line_number
-  if end_line ~= 0 then
-    permalink = permalink .. "-L" .. end_line
-  end
-
-  vim.fn.setreg("+", permalink)
-  print("Copied GitHub permalink to clipboard: " .. permalink)
-end, { desc = "Copy GitHub permalink to clipboard", range = true })
+map({ "n", "x" }, "<leader>Gp", utils.copy_github_permalink, { expr = true })
