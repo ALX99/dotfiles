@@ -7,6 +7,23 @@ return {
     },
     config = function()
       require("mini.notify").setup({})
+      require("mini.ai").setup({
+        mappings = {
+          -- Main textobject prefixes
+          around = 'a',
+          inside = 's',
+
+          -- Next/last textobjects
+          around_next = 'an',
+          inside_next = 'sn',
+          around_last = 'al',
+          inside_last = 'sl',
+
+          -- Move cursor to corresponding edge of `a` textobject
+          goto_left = 'g[',
+          goto_right = 'g]',
+        },
+      })
       vim.notify = require('mini.notify').make_notify(
         {
           ERROR = { duration = 5000 },
