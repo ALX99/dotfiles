@@ -96,13 +96,16 @@ function HighlightedFoldtext()
     return vim.fn.foldtext()
   end
 
-  local line = get_line(0, vim.v.foldstart + 1)
-  if not line then
+  local next_line = get_line(0, vim.v.foldstart + 1)
+  if not next_line then
     return vim.fn.foldtext()
   end
 
-  -- If we are only folding one line and the line is not empty, show the line
-  if vim.v.foldend - vim.v.foldstart == 2 and line:match("^%s*$") == nil then
+  -- If only folding one line
+  if vim.v.foldend - vim.v.foldstart == 1 then
+    table.insert(result, { " ", "" })
+    -- If we are folding two lines and the next is not empty, show the line
+  elseif vim.v.foldend - vim.v.foldstart == 2 and next_line:match("^%s*$") == nil then
     local result2 = parse_line(vim.v.foldstart + 1)
     if result2 then
       table.insert(result, { " ", "" })
