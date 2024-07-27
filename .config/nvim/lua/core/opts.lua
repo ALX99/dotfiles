@@ -39,7 +39,6 @@ o.splitright     = true     -- Vertical splits (:vsplit) will automatically be t
 o.ruler          = true     -- Show the cursor position all the time (bottom bar)
 o.showmode       = false    -- We don't need to see things like -- INSERT -- due to the status bar plugin
 o.signcolumn     = 'yes'    -- Always show sign column (otherwise it will shift text)
-o.fillchars      = 'eob: '  -- Don't show `~` outside of buffer
 o.hlsearch       = true     -- highlight matches
 
 
@@ -66,14 +65,19 @@ o.scrolloff        = 8      -- Leave x spaces when scrolling
 o.background       = "dark" -- tell vim what the background color looks like
 opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" }
 
+-- Folding
+opt.foldenable     = true
+opt.foldlevel      = 99
+opt.fillchars      = { fold = " " }
+vim.o.foldtext     = ''
 
-opt.spell     = true
-opt.spelllang = 'en_us,en_gb'
-o.inccommand  = "split"
+opt.spell          = true
+opt.spelllang      = 'en_us,en_gb'
+o.inccommand       = "split"
 
 -- Show some invisible characters
-o.list        = false
-opt.listchars = {
+o.list             = false
+opt.listchars      = {
   tab = "⟩ ",
   trail = "+",
   precedes = "<",
@@ -83,7 +87,7 @@ opt.listchars = {
   leadmultispace = "│ "
 }
 
-o.helpheight  = 25
+o.helpheight       = 25
 
 
 -- Diagnostics
