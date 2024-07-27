@@ -55,4 +55,4 @@ t = slideshow +1
 
 
 <Shift+W> = exec echo "${imv_width}x${imv_height}"
-<Shift+D> = exec rm "$imv_current_file"
+<Shift+D> = exec rm "$imv_current_file" && echo "removed $imv_current_file"
