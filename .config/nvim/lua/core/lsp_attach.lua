@@ -1,6 +1,18 @@
 vim.g.diagnostics_visible = true
 local utils = require('core.utils')
 
+local auto_fmt_clients = {
+  "lua_ls",
+  "gopls",
+  "rust_analyzer",
+  "robotframework_ls",
+  "html",
+  "clangd",
+  "tsserver",
+  "gleam",
+  "nim_langserver",
+}
+
 -- Create an augroup that is used for managing our formatting autocmds.
 -- We need one augroup per client to make sure that multiple clients
 -- can attach to the same buffer without interfering with each other.
@@ -9,7 +21,7 @@ local _augroups = {}
 local function get_augroup(client, prefix)
   if not _augroups[client.id] then
     local group_name = prefix .. '-' .. client.name
-    local id = vim.api.nvim_create_augroup(group_name, { clear = true })
+    local id = vim.api.nvim_create_augroup(group_name, {})
     _augroups[client.id] = id
   end
 
@@ -19,40 +31,38 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function mappings(client, buf)
-  local map = function(mode, lhs, rhs, opts)
+  local bmap = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
-    if opts then
-      options = vim.tbl_extend("force", options, opts)
-    end
-    utils.map(mode, lhs, rhs, opts)
+    if opts then options = vim.tbl_extend("force", options, opts) end
+    utils.map(mode, lhs, rhs, options)
   end
 
-  -- See `:help vim.lsp.*` for documentation on any of the below functions
-  map('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                             -- Many LSPs do not implement this
-  map('n', 'gd', require('telescope.builtin').lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
-  map('n', 'gi', require('telescope.builtin').lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-  map('n', 'gr', require('telescope.builtin').lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
-  map('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+  -- See `:help vim.lsp.*` for documentation on any of the below functions ()
+  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                             -- Many LSPs do not implement this
+  bmap('n', 'gd', require('telescope.builtin').lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
+  bmap('n', 'gi', require('telescope.builtin').lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'gr', require('telescope.builtin').lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
 
-  map('n', 'gs', require('telescope.builtin').lsp_document_symbols, { desc = "Goto symbol" })
-  map('n', 'gS', require('telescope.builtin').lsp_dynamic_workspace_symbols, { desc = "Goto symbol" })
-  map('n', 'gm', function() require('telescope.builtin').lsp_document_symbols { symbols = "method" } end,
+  bmap('n', 'gs', require('telescope.builtin').lsp_document_symbols, { desc = "Goto symbol" })
+  bmap('n', 'gS', require('telescope.builtin').lsp_dynamic_workspace_symbols, { desc = "Goto symbol" })
+  bmap('n', 'gm', function() require('telescope.builtin').lsp_document_symbols { symbols = "method" } end,
     { desc = "Goto method" })
-  map('n', 'gf', function() require('telescope.builtin').lsp_document_symbols { symbols = "function" } end,
+  bmap('n', 'gf', function() require('telescope.builtin').lsp_document_symbols { symbols = "function" } end,
     { desc = "Goto function" })
 
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
-  map('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
+  bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
 
   --
-  map('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
-  map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
-  map({ 'n', 'v' }, '=', function()
+  bmap('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
+  bmap({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
+  bmap({ 'n', 'v' }, '=', function()
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })
 
-  if client and client.server_capabilities.inlayHintProvider then
-    map('n', '<leader>th', function()
+  if client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+    bmap('n', '<leader>th', function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
     end, { desc = 'Toggle inlay hints' })
   end
@@ -75,7 +85,7 @@ local function mappings(client, buf)
       })
     end
 
-    map('n', '<leader>ti', function()
+    bmap('n', '<leader>ti', function()
       local ignore_pattern = vim.g.ts_fip_set and {} or vim.b.ts_fip
       require("telescope.config").set_defaults({
         file_ignore_patterns = ignore_pattern,
@@ -86,7 +96,7 @@ local function mappings(client, buf)
   end
 
   --- toggle diagnostics
-  map('n', '<leader>td', function()
+  bmap('n', '<leader>td', function()
     if vim.g.diagnostics_visible then
       vim.g.diagnostics_visible = false
       vim.diagnostic.enable(false)
@@ -101,8 +111,9 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function highlight_references(client, buf)
-  if client and client.server_capabilities.documentHighlightProvider then
-    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight', { clear = false })
+  if client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+    -- only needs one augroup
+    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), {})
     vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
       desc = "Document Highlight",
       buffer = buf,
@@ -110,26 +121,33 @@ local function highlight_references(client, buf)
       callback = vim.lsp.buf.document_highlight,
     })
 
-    vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
+    vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufLeave' }, {
       desc = "Clear All the References",
       buffer = buf,
       group = highlight_augroup,
       callback = vim.lsp.buf.clear_references,
     })
 
+
     vim.api.nvim_create_autocmd('LspDetach', {
       desc = "Remove highlight autocmds",
-      group = vim.api.nvim_create_augroup('lsp-detach', { clear = true }),
+      group = vim.api.nvim_create_augroup('lsp-detach-' .. tostring(buf), { clear = true }),
       callback = function(ev)
         vim.lsp.buf.clear_references()
-        vim.api.nvim_clear_autocmds { group = 'lsp-highlight', buffer = ev.buf }
+        vim.api.nvim_clear_autocmds { group = highlight_augroup, buffer = ev.buf }
+        return true -- delete itself
       end,
     })
   end
 end
 
-local function show_diagnostics(buf)
+---@param client vim.lsp.Client
+---@param buf number
+local function show_diagnostics(client, buf)
   vim.api.nvim_create_autocmd("CursorHold", {
+    -- only needs one augroup
+    group = vim.api.nvim_create_augroup('lsp-diag-hold', {}),
+    buffer = buf,
     callback = function()
       vim.diagnostic.open_float(nil, {
         focusable = false,
@@ -146,7 +164,7 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function formatting(client, buf)
-  if client.server_capabilities.documentFormattingProvider then
+  if client.supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
     vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
 
     -- Auto format before saving
@@ -175,19 +193,7 @@ local function formatting(client, buf)
           end
         end
 
-        vim.lsp.buf.format({
-          filter = function(c)
-            return c.name == "lua_ls"
-                or c.name == "gopls"
-                or c.name == "rust_analyzer"
-                or c.name == "robotframework_ls"
-                or c.name == "html"
-                or c.name == "clangd"
-                or c.name == "tsserver"
-                or c.name == "gleam"
-                or c.name == "nim_langserver"
-          end,
-        })
+        vim.lsp.buf.format({ timeout_ms = 2000 })
         vim.fn.winrestview(view) -- reset view to where it was before
       end,
       group = get_augroup(client, 'lsp-format' .. buf),
@@ -223,22 +229,27 @@ vim.api.nvim_create_autocmd('LspAttach', {
     if client.name == "gopls" then
       if not client.server_capabilities.semanticTokensProvider then
         local semantic = client.config.capabilities.textDocument.semanticTokens
-        client.server_capabilities.semanticTokensProvider = {
-          full = true,
-          legend = {
-            tokenTypes = semantic.tokenTypes,
-            tokenModifiers = semantic.tokenModifiers,
-          },
-          range = true,
-        }
+        if semantic then
+          client.server_capabilities.semanticTokensProvider = {
+            full = true,
+            legend = {
+              tokenTypes = semantic.tokenTypes,
+              tokenModifiers = semantic.tokenModifiers,
+            },
+            range = true,
+          }
+        end
       end
     end
     -- end workaround
 
     mappings(client, args.buf)
     highlight_references(client, args.buf)
-    show_diagnostics(args.buf)
-    formatting(client, args.buf)
+    show_diagnostics(client, args.buf)
+
+    if vim.tbl_contains(auto_fmt_clients, client.name) then
+      formatting(client, args.buf)
+    end
   end,
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
 })
