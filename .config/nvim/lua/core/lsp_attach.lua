@@ -16,6 +16,8 @@ local function get_augroup(client, prefix)
   return _augroups[client.id]
 end
 
+---@param client vim.lsp.Client
+---@param buf number
 local function mappings(client, buf)
   local map = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
@@ -39,8 +41,9 @@ local function mappings(client, buf)
   map('n', 'gf', function() require('telescope.builtin').lsp_document_symbols { symbols = "function" } end,
     { desc = "Goto function" })
 
-  -- map('n', 'K', vim.lsp.buf.hover, { desc = "Hover" })
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
+  map('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
+
   --
   map('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
   map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
@@ -86,7 +89,7 @@ local function mappings(client, buf)
   map('n', '<leader>td', function()
     if vim.g.diagnostics_visible then
       vim.g.diagnostics_visible = false
-      vim.diagnostic.disable()
+      vim.diagnostic.enable(false)
     else
       vim.g.diagnostics_visible = true
       vim.diagnostic.enable()
@@ -95,6 +98,8 @@ local function mappings(client, buf)
 end
 
 
+---@param client vim.lsp.Client
+---@param buf number
 local function highlight_references(client, buf)
   if client and client.server_capabilities.documentHighlightProvider then
     local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight', { clear = false })
@@ -138,6 +143,8 @@ local function show_diagnostics(buf)
   })
 end
 
+---@param client vim.lsp.Client
+---@param buf number
 local function formatting(client, buf)
   if client.server_capabilities.documentFormattingProvider then
     vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
@@ -194,6 +201,11 @@ vim.api.nvim_create_autocmd('LspAttach', {
     local path = vim.api.nvim_buf_get_name(args.buf)
     local filename = vim.fn.fnamemodify(path, ":t")
     local client = vim.lsp.get_client_by_id(args.data.client_id)
+
+    if not client then
+      vim.notify("????????", vim.log.levels.WARN)
+      return
+    end
 
     vim.notify("lsp_attach: " .. client.name .. " to buf " .. tostring(args.buf) .. " file " .. filename,
       vim.log.levels.DEBUG)
