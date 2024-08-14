@@ -12,6 +12,7 @@ docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
 dunst # notification daemon
+easyeffects
 eslint-language-server
 exfat-utils # mkfs.exfat
 fastfetch
