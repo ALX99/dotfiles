@@ -38,5 +38,5 @@ history = 100000
 save_to_clipboard = true
 
 [window]
-opacity = 0.95
+# opacity = 0.95
 option_as_alt = "Both" # macOS only
