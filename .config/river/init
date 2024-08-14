@@ -168,3 +168,4 @@ riverctl spawn "gammastep -t 6500K:2500K -l $LAT_LON"
 riverctl spawn "dunst"
 riverctl spawn "fcitx5"
 riverctl spawn 'export PATH="$PATH:$HOME/.local/bin/statusbar"; zimple | creek -fb 0xffafcc -fn "Noto Sans Mono Medium:s:size=12"'
+riverctl spawn 'easyeffects --gapplication-service -l dynamic'
