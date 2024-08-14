@@ -6,6 +6,7 @@ return {
       'nvim-tree/nvim-web-devicons'
     },
     config = function()
+      require("mini.misc").setup_restore_cursor()
       require("mini.notify").setup({})
       require("mini.ai").setup({
         mappings = {
