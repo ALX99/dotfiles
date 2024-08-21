@@ -95,32 +95,46 @@ autocmd("BufWritePost", {
   end
 })
 
-autocmd("BufReadPost", {
-  desc = "Collapse error handling with one line inside",
-  group = augroup("go-fold", { clear = true }),
-  pattern = "*.go",
-  callback = function(info)
-    vim.schedule(function()
-      local view = vim.fn.winsaveview() -- save view
-      --[[
-      1. Collapse "if err != nil" error handling with one line inside
-      2. Collapse all "if ...; err != nil" error handling with one line inside
-      3. Collapse "case" statements with one line inside
-      4. Collapse "default" statement with one line inside
-      5. Remove search highlight
-      ]] --
-      vim.cmd([[
-      normal! zR |
-      :silent exec 'g/\s*if err != nil {\n.*\n\s*}/normal! za' |
-      :silent exec 'g/\s*if.*; err != nil {\n.*\n\s*}/normal! za' |
-      :silent exec 'g/\s*case.*\n.*\n\s*\(case\|default\)/normal! za' |
-      :silent exec 'g/\s*default.*\n.*\n\s*}/normal! za' |
-      :nohl
-      ]])
-      vim.fn.winrestview(view) -- reset view to where it was before
-    end)
-  end
-})
+-- autocmd("BufReadPost", {
+--   desc = "Collapse error handling with one line inside",
+--   group = augroup("go-fold", { clear = true }),
+--   pattern = "*.go",
+--   callback = function(info)
+--     vim.schedule(function()
+--       local function folds_exist(bufnr)
+--         local lines = vim.api.nvim_buf_line_count(bufnr)
+--         for i = 1, lines do
+--           if vim.fn.foldlevel(i) > 0 then
+--             return true
+--           end
+--         end
+--         return false
+--       end
+--
+--       if not folds_exist(info.buf) then
+--         return
+--       end
+--
+--       local view = vim.fn.winsaveview() -- save view
+--       --[[
+--       1. Collapse "if err != nil" error handling with one line inside
+--       2. Collapse all "if ...; err != nil" error handling with one line inside
+--       3. Collapse "case" statements with one line inside
+--       4. Collapse "default" statement with one line inside
+--       5. Remove search highlight
+--       ]] --
+--       vim.cmd([[
+--       normal! zR |
+--       :silent exec 'g/\s*if err != nil {\n.*\n\s*}/normal! za' |
+--       :silent exec 'g/\s*if.*; err != nil {\n.*\n\s*}/normal! za' |
+--       :silent exec 'g/\s*case.*\n.*\n\s*\(case\|default\)/normal! za' |
+--       :silent exec 'g/\s*default.*\n.*\n\s*}/normal! za' |
+--       :nohl
+--       ]])
+--       vim.fn.winrestview(view) -- reset view to where it was before
+--     end)
+--   end
+-- })
 
 
 -- Automatically update listchars to match indentation and listchars settings
