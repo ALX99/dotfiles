@@ -75,3 +75,29 @@ vim.api.nvim_create_user_command('Tests', function()
   end,
   { desc = "Run the tests in the buffer" }
 )
+
+-- https://github.com/golang/tools/blob/e5e8aa847293f750c1b3b46832d8074bcb874739/gopls/internal/cmd/execute.go#L38-L46
+-- https://pkg.go.dev/golang.org/x/tools/gopls/internal/protocol/command#Interface
+vim.api.nvim_create_user_command('GoDoc', function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    vim.schedule(function()
+      vim.lsp.buf.execute_command({
+        command = 'gopls.doc',
+        arguments = {
+          {
+            URI = vim.uri_from_bufnr(bufnr),
+            start = {
+              line = vim.api.nvim_win_get_cursor(0)[1],
+              character = vim.api.nvim_win_get_cursor(0)[2],
+            },
+            end_ = {
+              line = vim.api.nvim_win_get_cursor(0)[1],
+              character = vim.api.nvim_win_get_cursor(0)[2],
+            },
+          }
+        },
+      })
+    end)
+  end,
+  { desc = "Browse the Go documentation" }
+)
