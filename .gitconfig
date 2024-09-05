@@ -84,3 +84,9 @@
 [url "ssh://git@github.com/"]
   pushInsteadOf = https://github.com/
 
+[difftool]
+    prompt = false
+[diff]
+    tool = nvimdiff
+[difftool "nvimdiff"]
+    cmd = "nvim -d \"$LOCAL\" \"$REMOTE\""
