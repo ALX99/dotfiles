@@ -60,7 +60,8 @@ alias \
 # Docker
 alias \
   dshell='_x() { docker run --entrypoint /bin/bash --rm -it "$1" || docker run --entrypoint /bin/sh --rm -it "$1"; }; _x' \
-  dprune='docker system prune -a --volumes'
+  dprune='docker system prune -a --volumes' \
+  drr='docker run --rm'
 
 # Better flags
 alias \
