@@ -41,6 +41,7 @@ local function mappings(client, buf)
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                             -- Many LSPs do not implement this
   bmap('n', 'gd', require('telescope.builtin').lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
   bmap('n', 'gi', require('telescope.builtin').lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  -- { show_line = false }
   bmap('n', 'gr', require('telescope.builtin').lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
   bmap('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
 
