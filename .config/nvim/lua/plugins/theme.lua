@@ -79,4 +79,12 @@ return {
       return not require('core.utils').is_vscodevim()
     end
   },
+  {
+    'MeanderingProgrammer/render-markdown.nvim',
+    version = "*",
+    opts = {
+      file_types = { "markdown", "Avante" },
+    },
+    ft = { "markdown", "Avante" },
+  },
 }
