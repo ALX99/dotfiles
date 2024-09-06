@@ -26,7 +26,12 @@ return {
       modes = {
         search = { enabled = false },
         char = { enabled = false },
-      }
+      },
+      label = {
+        rainbow = {
+          enabled = true,
+        },
+      },
     },
     keys = {
       {
