@@ -8,7 +8,7 @@ local auto_fmt_clients = {
   "robotframework_ls",
   "html",
   "clangd",
-  "tsserver",
+  "ts_ls",
   "gleam",
   "nim_langserver",
 }
