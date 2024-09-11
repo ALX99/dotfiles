@@ -12,13 +12,13 @@ return {
         mappings = {
           -- Main textobject prefixes
           around = 'a',
-          inside = 's',
+          inside = 'i',
 
           -- Next/last textobjects
           around_next = 'an',
-          inside_next = 'sn',
+          inside_next = 'in',
           around_last = 'al',
-          inside_last = 'sl',
+          inside_last = 'il',
 
           -- Move cursor to corresponding edge of `a` textobject
           goto_left = 'g[',
