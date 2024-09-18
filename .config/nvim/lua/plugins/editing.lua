@@ -23,16 +23,23 @@ return {
     "folke/flash.nvim",
     event = "VeryLazy",
     opts = {
+      labels = "arstgmneiofpludh",
       modes = {
-        search = { enabled = false },
-        char = { enabled = false },
-      },
-      label = {
-        rainbow = {
-          enabled = true,
-        },
+        char = { enabled = true },
       },
     },
+    config = function(cfg)
+      vim.api.nvim_set_hl(0, 'FlashLabel', { fg = '#eb6aa3', bg = '#000000', bold = true })
+      require("flash").setup(cfg)
+      -- FlashBackdrop     Comment      backdrop
+      -- FlashMatch        Search       search matches
+      -- FlashCurrent      IncSearch    current match
+      -- FlashLabel        Substitute   jump label
+      -- FlashPrompt       MsgArea      prompt
+      -- FlashPromptIcon   Special      prompt icon
+      -- FlashCursor       Cursor       cursor
+    end,
+
     keys = {
       {
         "s",
@@ -129,133 +136,44 @@ return {
     }
   },
   {
-    "jackMort/ChatGPT.nvim",
+    "yetone/avante.nvim",
+    event = "VeryLazy",
+    lazy = false,
+    version = false, -- set this if you want to always pull the latest change
     opts = {
-      api_key_cmd = nil,
-      edit_with_instructions = {
-        keymaps = {
-          close = "<C-c>",
-          accept = "<C-y>",
-          toggle_diff = "<C-d>",
-          toggle_settings = "<C-s>",
-          toggle_help = "<C-h>",
-          cycle_windows = "<Tab>",
-          use_output_as_input = "<C-a>",
-        },
-      },
-      chat = {
-        keymaps = {
-          close = "<C-c>",
-          yank_last = "<C-y>",
-          yank_last_code = "<C-k>",
-          scroll_up = "<C-u>",
-          scroll_down = "<C-d>",
-          new_session = "<C-n>",
-          cycle_windows = "<Tab>",
-          cycle_modes = "<C-f>",
-          next_message = "<C-j>",
-          prev_message = "<C-k>",
-          select_session = "<Space>",
-          rename_session = "r",
-          delete_session = "d",
-          draft_message = "<C-r>",
-          edit_message = "E",
-          delete_message = "d",
-          toggle_settings = "<C-o>",
-          toggle_sessions = "<C-p>",
-          toggle_help = "<C-h>",
-          toggle_message_role = "<C-r>",
-          toggle_system_role_open = "<C-s>",
-          stop_generating = "<C-x>",
-        },
-      },
-      openai_params = {
-        model = "gpt-4o",
-      },
-    },
-    keys = {
-      {
-        "<leader>ac",
-        ":ChatGPT<CR>",
-        desc = "ChatGPT open",
-      },
-      {
-        "<leader>aC",
-        ":ChatGPTCompleteCode<CR>",
-        desc = "ChatGPT complete code",
-      },
-      {
-        "<leader>ae",
-        ":ChatGPTEditWithInstructions<CR>",
-        mode = "v",
-        desc = "ChatGPT edit with instructions",
-      },
-      {
-        "<leader>aC",
-        ":ChatGPTRun complete_code<CR>",
-        mode = "v",
-        desc = "ChatGPT complete code",
-      },
-      {
-        "<leader>aa",
-        ":ChatGPTRun code_readability_analysis<CR>",
-        mode = "v",
-        desc = "ChatGPT code readability analysis",
-      },
-      {
-        "<leader>aE",
-        ":ChatGPTRun explain_code<CR>",
-        mode = "v",
-        desc = "ChatGPT explain code",
-      },
-      {
-        "<leader>ao",
-        ":ChatGPTRun optimize_code<CR>",
-        mode = "v",
-        desc = "ChatGPT explain code",
-      },
-      {
-        "<leader>af",
-        ":ChatGPTRun fix_bugs<CR>",
-        mode = "v",
-        desc = "ChatGPT fix bugs",
-      },
-      {
-        "<leader>as",
-        ":ChatGPTRun summarize<CR>",
-        mode = "v",
-        desc = "ChatGPT summarize",
-      },
-      {
-        "<leader>at",
-        ":ChatGPTRun add_tests<CR>",
-        mode = "v",
-        desc = "ChatGPT add tests",
-      },
-      {
-        "<leader>ad",
-        ":ChatGPTRun docstring<CR>",
-        mode = "v",
-        desc = "ChatGPT add docstring",
-      },
-      {
-        "q",
-        ":q<CR>",
-        desc = "Close ChatGPT",
-        ft = "chatgpt-input"
-      },
+      provider = "openai",
     },
     cond = function()
       return vim.fn.getenv("OPENAI_API_KEY") ~= vim.NIL and vim.fn.has("linux") == 1
     end,
+    -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
+    build = "make",
+    -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
     dependencies = {
-      "MunifTanjim/nui.nvim",
+      "stevearc/dressing.nvim",
       "nvim-lua/plenary.nvim",
-      {
-        "folke/trouble.nvim",
-        version = "*",
-      },
-      "nvim-telescope/telescope.nvim"
+      "MunifTanjim/nui.nvim",
+      --- The below dependencies are optional,
+      "nvim-tree/nvim-web-devicons", -- or echasnovski/mini.icons
+      "zbirenbaum/copilot.lua",      -- for providers='copilot'
+      "MeanderingProgrammer/render-markdown.nvim",
+      -- {
+      --   -- support for image pasting
+      --   "HakonHarnes/img-clip.nvim",
+      --   event = "VeryLazy",
+      --   opts = {
+      --     -- recommended settings
+      --     default = {
+      --       embed_image_as_base64 = false,
+      --       prompt_for_file_name = false,
+      --       drag_and_drop = {
+      --         insert_mode = true,
+      --       },
+      --       -- required for Windows users
+      --       use_absolute_path = true,
+      --     },
+      --   },
+      -- },
     },
   },
   {
