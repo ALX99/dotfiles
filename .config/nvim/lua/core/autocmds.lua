@@ -95,47 +95,47 @@ autocmd("BufWritePost", {
   end
 })
 
-autocmd("BufReadPost", {
-  desc = "Collapse error handling with one line inside",
-  group = augroup("go-fold", { clear = true }),
-  pattern = "*.go",
-  callback = function(info)
-    vim.schedule(function()
-      local function folds_exist(bufnr)
-        for i = 1, vim.api.nvim_buf_line_count(bufnr) do
-          if vim.fn.foldlevel(i) > 0 then return true end
-        end
-        return false
-      end
-
-      if not folds_exist(info.buf) then return end
-
-      --[[
-      1. Collapse "if err != nil" error handling with one line inside
-      2. Collapse all "if ...; err != nil" error handling with one line inside
-      3. Remove search highlight
-      ]] --
-
-      --[[
-      Commented out because folds are only created on select statements and not switch
-      3. Collapse "case" statements with one line inside
-      4. Collapse "default" statement with one line inside
-      :silent exec 'g/\s*case.*\n.*\n\s*\(case\|default\)/normal! za' |
-      :silent exec 'g/\s*default.*\n.*\n\s*}/normal! za' |
-      --]]
-
-      vim.opt_local.foldtext = require("modules.foldtext")
-      local view = vim.fn.winsaveview()
-      vim.cmd([[
-        normal! zR |
-        silent! g/\s*if err != nil {\n.*\n\s*}/normal! za |
-        silent! g/\s*if.*; err != nil {\n.*\n\s*}/normal! za |
-        nohl
-      ]])
-      vim.fn.winrestview(view)
-    end)
-  end
-})
+-- autocmd("BufReadPost", {
+--   desc = "Collapse error handling with one line inside",
+--   group = augroup("go-fold", { clear = true }),
+--   pattern = "*.go",
+--   callback = function(info)
+--     vim.schedule(function()
+--       local function folds_exist(bufnr)
+--         for i = 1, vim.api.nvim_buf_line_count(bufnr) do
+--           if vim.fn.foldlevel(i) > 0 then return true end
+--         end
+--         return false
+--       end
+--
+--       if not folds_exist(info.buf) then return end
+--
+--       --[[
+--       1. Collapse "if err != nil" error handling with one line inside
+--       2. Collapse all "if ...; err != nil" error handling with one line inside
+--       3. Remove search highlight
+--       ]] --
+--
+--       --[[
+--       Commented out because folds are only created on select statements and not switch
+--       3. Collapse "case" statements with one line inside
+--       4. Collapse "default" statement with one line inside
+--       :silent exec 'g/\s*case.*\n.*\n\s*\(case\|default\)/normal! za' |
+--       :silent exec 'g/\s*default.*\n.*\n\s*}/normal! za' |
+--       --]]
+--
+--       vim.opt_local.foldtext = require("modules.foldtext")
+--       local view = vim.fn.winsaveview()
+--       vim.cmd([[
+--         normal! zR |
+--         silent! g/\s*if err != nil {\n.*\n\s*}/normal! za |
+--         silent! g/\s*if.*; err != nil {\n.*\n\s*}/normal! za |
+--         nohl
+--       ]])
+--       vim.fn.winrestview(view)
+--     end)
+--   end
+-- })
 
 -- Automatically update listchars to match indentation and listchars settings
 -- https://www.reddit.com/r/neovim/comments/17aponn/comment/k5f2n7t/?utm_source=share&utm_medium=web2x&context=3
