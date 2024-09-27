@@ -1,23 +1,10 @@
-local function filenameFirst(_, path)
-  local tail = vim.fs.basename(path)
-  local parent = vim.fs.dirname(path)
-  if parent == "." then return tail end
-
-  local prefix = vim.fn.getcwd() .. "/"
-  if string.sub(parent, 1, #prefix) == prefix then
-    parent = string.sub(parent, #prefix + 1)
-  end
-
-  return string.format("%s - %s", tail, parent)
-end
-
 local telescope = require("telescope")
 local builtin = require('telescope.builtin')
 local themes = require('telescope.themes')
 
 return {
   "nvim-telescope/telescope.nvim",
-  version = '^0.1.x',
+  -- version = '^0.1.x',
   dependencies = {
     'nvim-lua/plenary.nvim',
     'nvim-telescope/telescope-ui-select.nvim', -- Code actions for telescope
@@ -91,8 +78,8 @@ return {
     telescope.setup {
       defaults = {
         path_display = {
-          -- "filename_first",
-          -- "smart",
+          "filename_first",
+          -- "shorten",
         },
         mappings = {
           n = {
