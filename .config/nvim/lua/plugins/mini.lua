@@ -3,7 +3,9 @@ return {
     "echasnovski/mini.nvim",
     version = '*',
     config = function()
-      require("mini.misc").setup_restore_cursor()
+      local misc = require('mini.misc')
+      misc.setup_restore_cursor()
+      misc.setup_termbg_sync()
       require("mini.notify").setup({})
       require("mini.icons").setup({})
       require("mini.ai").setup({
