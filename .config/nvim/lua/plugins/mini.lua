@@ -2,12 +2,10 @@ return {
   {
     "echasnovski/mini.nvim",
     version = '*',
-    dependencies = {
-      'nvim-tree/nvim-web-devicons'
-    },
     config = function()
       require("mini.misc").setup_restore_cursor()
       require("mini.notify").setup({})
+      require("mini.icons").setup({})
       require("mini.ai").setup({
         mappings = {
           -- Main textobject prefixes
@@ -102,7 +100,7 @@ return {
     "echasnovski/mini.files",
     version = '*',
     dependencies = {
-      'nvim-tree/nvim-web-devicons'
+      'echasnovski/mini.nvim'
     },
     keys = {
       {
@@ -114,11 +112,10 @@ return {
     },
     opts = {
       mappings = {
-        go_in       = 'I',
-        go_in_plus  = 'i',
-        go_out      = 'm',
-        go_out_plus = 'M',
-        show_help   = 'g?',
+        go_in       = '<Right>',
+        go_in_plus  = '<nop>',
+        go_out      = '<Left>',
+        go_out_plus = '<nop>',
       },
     }
   },
