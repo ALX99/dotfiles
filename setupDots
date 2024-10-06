@@ -10,6 +10,10 @@ user_config() {
     ln -sf "$f" ~/.config/
   done
 
+  for f in "$PWD"/.ssh/*; do
+    ln -s "$f" ~/.ssh/
+  done
+
   for f in "$PWD"/shell/.[!.]*; do
     ln -sf "$f" ~
   done
