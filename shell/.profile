@@ -61,6 +61,8 @@ else
   VISUAL="nvim"
   BROWSER="brave"
   FILE="pcmanfm"
+  SSH_ASKPASS_REQUIRE="prefer"
+  SSH_ASKPASS="/usr/lib/ssh/ssh-askpass"
 
   # Clean up ~/
   # https://wiki.archlinux.org/title/XDG_Base_Directory
