@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -eo pipefail
+
+[[ -z $domain ]] && echo "Usage: domain=example.com [sni=example.com] dumpcert" && exit 1
+if [[ -z $sni ]]; then
+  set -x
+  echo | openssl s_client -showcerts -noservername -connect "$domain" 2>/dev/null | openssl x509 -inform pem -noout -text
+else
+  set -x
+  echo | openssl s_client -showcerts -servername "$sni" -connect "$domain" 2>/dev/null | openssl x509 -inform pem -noout -text
+fi
