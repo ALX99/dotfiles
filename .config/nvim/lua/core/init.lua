@@ -20,6 +20,9 @@ vim.opt.rtp:prepend(lazypath)
 require('core.lsp_attach') -- set up LspAttach autocmd
 require('lazy').setup('plugins',
   {
+    rocks = {
+      enabled = false,
+    },
     change_detection = { notify = false },
     performance = {
       rtp = {
