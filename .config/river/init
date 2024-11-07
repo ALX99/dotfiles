@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016
 
-term="alacritty"
+term="kitty"
 
 riverctl map normal Super Return spawn "$term"
 
