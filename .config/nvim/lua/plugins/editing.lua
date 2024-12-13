@@ -25,10 +25,10 @@ return {
     opts = {
       labels = "arstgmneiofpludh",
       modes = {
-        char = { enabled = true },
+        char = { enabled = false },
       },
     },
-    config = function(cfg)
+    config = function(_, cfg)
       vim.api.nvim_set_hl(0, 'FlashLabel', { fg = '#eb6aa3', bg = '#000000', bold = true })
       require("flash").setup(cfg)
       -- FlashBackdrop     Comment      backdrop
@@ -39,7 +39,6 @@ return {
       -- FlashPromptIcon   Special      prompt icon
       -- FlashCursor       Cursor       cursor
     end,
-
     keys = {
       {
         "s",
