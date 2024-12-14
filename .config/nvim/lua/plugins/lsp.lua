@@ -84,7 +84,6 @@ return {
               },
               -- https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md
               analyses = {
-                fieldalignment = true,
                 unusedvariable = true,
                 unusedparams = true,
                 unusedwrite = true,
