@@ -107,12 +107,19 @@ else
     ll="ls -hNlA --color=auto"
 fi
 
+# Tmux destroys $PROMPT_COMMAND, idk why...
+if [ -n "$TMUX" ]; then
+  PROMPT_COMMAND='history -a' # Record each line as it gets issued
+  # Auto-activate venv
+  PROMPT_COMMAND="$PROMPT_COMMAND; [[ -r venv/bin/activate ]] && . venv/bin/activate"
+fi
+
 command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
 command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
 command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
 command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
-command -v direnv >/dev/null 2>&1 && . <(direnv hook "${SHELL##*/}")
+command -v direnv >/dev/null 2>&1 && PROMPT_COMMAND="$PROMPT_COMMAND; . <(direnv export ${SHELL##*/})"
 
 sd() {
   set -e

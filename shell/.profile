@@ -36,7 +36,9 @@ XDG_SESSION_TYPE="wayland"
 MINIKUBE_IN_STYLE="false" # remove emoji from minikube
 
 # Bash stuff
-PROMPT_COMMAND='history -a'                     # Record each line as it gets issued
+PROMPT_COMMAND='history -a' # Record each line as it gets issued
+# Auto-activate venv
+PROMPT_COMMAND="$PROMPT_COMMAND; [[ -r venv/bin/activate ]] && . venv/bin/activate"
 HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear" # Don't record some commands
 HISTSIZE=-1                                     # Infinite history
 HISTFILESIZE=-1                                 # Infinite history
