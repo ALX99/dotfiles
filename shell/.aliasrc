@@ -34,7 +34,8 @@ alias \
   urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
-  unset_aws_profile='unset AWS_PROFILE'
+  unset_aws_profile='unset AWS_PROFILE' \
+  kamal='docker run -it --rm -v "${PWD}:/workdir" -v "${SSH_AUTH_SOCK}:/ssh-agent" -v /var/run/docker.sock:/var/run/docker.sock -e "SSH_AUTH_SOCK=/ssh-agent" --env-file <(env | grep KAMAL) ghcr.io/basecamp/kamal:latest'
 
 # Helm
 alias \
