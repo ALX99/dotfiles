@@ -1,68 +1,106 @@
 #!/usr/bin/env bash
-# PLEASE SOURCE THIS SCRIPT
-set -xeuo pipefail
+set -euo pipefail
+
+# Color variables
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+run_command() {
+  echo -e "${YELLOW}Running:${NC} $*"
+  "$@"
+}
 
 user_config() {
-  ln -sf "$PWD"/.local/bin/ ~/.local/
-  ln -sf "$PWD"/.gitconfig ~/
+  run_command ln -sf "$PWD"/.local/bin/ ~/.local/
+  run_command ln -sf "$PWD"/.gitconfig ~/
 
   for f in "$PWD"/.config/*; do
-    ln -sf "$f" ~/.config/
+    run_command ln -sf "$f" ~/.config/
   done
 
   for f in "$PWD"/.ssh/*; do
-    ln -s "$f" ~/.ssh/
+    run_command ln -sf "$f" ~/.ssh/
   done
 
   for f in "$PWD"/shell/.[!.]*; do
-    ln -sf "$f" ~
+    run_command ln -sf "$f" ~
   done
 }
 
 system_config() {
-  # Keymap
-  sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-  sudo ln -sf "$PWD"/keymaps/keyd.conf /etc/keyd/default.conf
+  run_command sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+  run_command sudo ln -sf "$PWD"/keymaps/keyd.conf /etc/keyd/default.conf
 
-  sudo mkdir -p -m 755 \
+  run_command sudo mkdir -p -m 755 \
     /etc/systemd/sleep.conf.d/ \
     /etc/systemd/logind.conf.d/ \
     /etc/systemd/resolved.conf.d/
 
-  # Configure sleeping stuff (check this stuff with systemd-analyze cat-config)
-  sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
-  sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
-
-  sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/ # sudo
-  sudo chown 0 /etc/sudoers.d/
+  run_command sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
+  run_command sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
+  run_command sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
+  run_command sudo chown 0 /etc/sudoers.d/
 }
 
 arch_config() {
   [ ! -x "$(command -v pacman)" ] && return
 
-  # Pacman setup
-  sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
-  # sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
+  run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
+  # run_command sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
-  sudo ln -sf "$PWD"/hooks /etc/pacman.d/
-
-  # Since dash is faster than bash
-  sudo ln -sfT dash /usr/bin/sh
+  run_command sudo ln -sf "$PWD"/hooks /etc/pacman.d/
+  run_command sudo ln -sfT dash /usr/bin/sh
 }
 
-# Cache keys
 ssh_agent() {
-  mkdir ~/.ssh/
-  echo "AddKeysToAgent yes" >>~/.ssh/config
-  ln -sf "$(pwd)"/misc/.pam_environment ~/
-  systemctl --user enable ssh-agent
-  systemctl --user start ssh-agent
+  run_command ln -sf "$(pwd)"/misc/.pam_environment ~/
+  run_command systemctl --user enable ssh-agent
+  run_command systemctl --user start ssh-agent
 }
 
-# Get rid of the stupid KDE wallet thing
 kde() {
-  kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
-  kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
+  run_command kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'Enabled' 'false'
+  run_command kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 }
 
-user_config
+complete_message() {
+  echo -e "${GREEN}$1 completed.${NC}"
+}
+
+main_menu() {
+  echo -e "${YELLOW}Select an option:${NC}"
+  options=("User Configuration" "System Configuration" "Arch Configuration" "SSH Agent Setup" "Disable KDE Wallet" "Quit")
+  select _ in "${options[@]}"; do
+    case $REPLY in
+    1)
+      user_config
+      complete_message "${options[0]}"
+      ;;
+    2)
+      system_config
+      complete_message "${options[1]}"
+      ;;
+    3)
+      arch_config
+      complete_message "${options[2]}"
+      ;;
+    4)
+      ssh_agent
+      complete_message "${options[3]}"
+      ;;
+    5)
+      kde
+      complete_message "${options[4]}"
+      ;;
+    6) break ;;
+    *)
+      echo -e "${RED}Invalid option${NC}"
+      break
+      ;;
+    esac
+  done
+}
+
+main_menu
