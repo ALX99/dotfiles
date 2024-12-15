@@ -169,3 +169,6 @@ bind -m vi-insert -x '"\eH": _man_help'
 [ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
 fzf_dir="$(echo /opt/homebrew/Cellar/fzf/* | tail -n 1)"
 [ -f "$fzf_dir/shell/key-bindings.${SHELL##*/}" ] && . "$fzf_dir/shell/key-bindings.${SHELL##*/}"
+# Keychain for setting up ssh-agent
+command -v keychain >/dev/null 2>&1 && eval "$(keychain --eval --quiet --noask)"
+[ -r "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" 2>/dev/null
