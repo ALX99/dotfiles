@@ -1,20 +1,22 @@
-alacritty # terminal
 alsa-utils # alsamixer and more
 anki-bin # anki
+bash-completion # completion
 bat # better cat
 bind # nslookup and more
 bluez # bluetooth support
 bluez-utils
 brave-bin # browser
 chromium
+czkawka-gui-bin # find duplicate files
 direnv
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
 dunst # notification daemon
-easyeffects
+easyeffects # better audio
 eslint-language-server
 exfat-utils # mkfs.exfat
+expac # pacman db
 fastfetch
 fcitx5
 fcitx5-configtool
@@ -24,20 +26,28 @@ fcitx5-qt
 ffmpeg
 fuzzel
 fzf
+gammastep # adjust screen color temp
 git
 git-delta
 github-cli
+gnome-keyring # provides functionality for storing secrets I think
+gnome-sound-recorder # sound recorder
+golangci-lint-bin # linting for Go
 gopls
 go-task
 go-tools # goimports, godoc etc
 go-yq
 graphviz # required by golang's pprof
+grim # screenshot tool
 gtk4
 htop
 imv # image viewer
 iwd # iw daemon
 iw # iw wifi thingy
 jq # Json parser
+keychain # manage SSH agent
+keyd # keyboard deamon
+kitty # terminal
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
@@ -45,21 +55,25 @@ linux-firmware # Required for hardware video acceleration for skylake or later g
 linux-lts
 localsend-bin
 lua-language-server
+lxqt-openssh-askpass # askpass tool
 man-db
 man-pages # man pages for Linux and POSIX.1
+megasync-bin
 mpv
 nano
 ncdu # better du (find what is taking up space)
 neovim
+nix
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
-npm
+obsidian
 openssh
 otf-font-awesome
 otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
+pavucontrol # Volume control
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
@@ -70,6 +84,7 @@ qt5-wayland
 qt6-wayland
 ripgrep
 river
+river-creek # status bar
 rust
 rust-analyzer
 shellcheck
@@ -78,6 +93,7 @@ sof-firmware # sound firmware, I remember this being important
 sudo
 swaybg
 tailwindcss-language-server
+terraform
 tmux
 tree
 ttf-cascadia-code # programming font
@@ -88,17 +104,18 @@ typescript-language-server
 unrar # RAR
 unzip # ZIP
 upower
-ventoy-bin
+valkey
+ventoy-bin # manage ISOs on USBs
+veracrypt
 visual-studio-code-bin
 vscode-html-languageserver
 vscode-json-languageserver
 wl-clipboard
-x86_energy_perf_policy
 x11-ssh-askpass
 xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 yaml-language-server
 yt-dlp
-zathura
-zathura-pdf-poppler
+zathura # document viewer
+zathura-pdf-poppler # pdf support
 zip
