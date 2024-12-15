@@ -55,7 +55,6 @@ arch_config() {
 }
 
 ssh_agent() {
-  run_command ln -sf "$(pwd)"/misc/.pam_environment ~/
   run_command systemctl --user enable ssh-agent
   run_command systemctl --user start ssh-agent
 }
