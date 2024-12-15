@@ -1,0 +1,113 @@
+#!/bin/bash
+
+set -euo pipefail
+
+export LAST_TESTS_FILE="/tmp/grun_last_tests"
+export LAST_FAILED_TEST_FILE="/tmp/grun_last_failed_test"
+export GO_TEST_FLAGS_FILE="/tmp/go_test_flags"
+
+export GREY='\e[90m'
+export WHITE='\e[97m'
+export RESET='\e[0m'
+export RED='\e[91m'
+export GREEN='\e[92m'
+
+export GO_TEST_FLAGS=()
+
+set_go_test_flags() {
+  if [[ $* == *"--"* ]]; then
+    for i in "$@"; do
+      if [[ $i == "--" ]]; then
+        shift
+        break
+      fi
+      shift
+    done
+    GO_TEST_FLAGS=("$@")
+    printf "%s\n" "${GO_TEST_FLAGS[@]}" | grep '\S' >"$GO_TEST_FLAGS_FILE"
+  else
+   touch "$GO_TEST_FLAGS_FILE"
+  fi
+}
+
+run_tests() {
+  set -euo pipefail
+  declare -A pkg_tests
+  tests=("$@")
+  mapfile -t GO_TEST_FLAGS <"$GO_TEST_FLAGS_FILE"
+
+  # Group tests by package
+  for test in "${tests[@]}"; do
+    pkg=$(echo "$test" | cut -d" " -f1)
+    t=$(echo "$test" | cut -d" " -f2)
+    pkg_tests["$pkg"]+="$t|"
+  done
+
+  for pkg in "${!pkg_tests[@]}"; do
+    test_pattern="${pkg_tests[$pkg]}"
+    test_pattern="${test_pattern%|}" # Remove trailing '|'
+
+    echo -e "Running tests ${WHITE}${test_pattern}${RESET} from ${GREY}$pkg${RESET}"
+    if command -v gotestsum &>/dev/null; then
+      if ! gotestsum --format dots-v2 --packages "$pkg" -- -run "$test_pattern" "${GO_TEST_FLAGS[@]}"; then
+        echo -e "${RED}Test execution failed. Stopping further tests.${RESET}"
+        echo "$pkg $test_pattern" >"$LAST_FAILED_TEST_FILE"
+        exit 1
+      fi
+    else
+      if ! go test "${GO_TEST_FLAGS[@]}" -run "$test_pattern" "$pkg" | grep -v "no tests to run"; then
+        echo -e "${RED}Test execution failed. Stopping further tests.${RESET}"
+        echo "$pkg $test_pattern" >"$LAST_FAILED_TEST_FILE"
+        exit 1
+      fi
+    fi
+  done
+  rm -f "$LAST_FAILED_TEST_FILE"
+}
+
+export -f run_tests
+
+handle_subcommand() {
+  local subcommand="$1"
+  # Stupid hack to shift the arguments if subcommand empty
+  # but the go flags are present
+  if [[ $1 != "--" ]]; then
+    shift
+  fi
+  case "$subcommand" in
+  rerun)
+    if [[ ! -r $LAST_TESTS_FILE ]]; then
+      echo "No previous tests found or file is not readable."
+      exit 1
+    fi
+    mapfile -t tests <"$LAST_TESTS_FILE"
+    ;;
+  retry)
+    if [[ ! -r $LAST_FAILED_TEST_FILE ]]; then
+      echo -e "${GREEN}No previous failed test cases.${RESET}"
+      exit 0
+    fi
+    test=$(<"$LAST_FAILED_TEST_FILE")
+    echo "$test" >"$LAST_TESTS_FILE"
+    tests=("$test")
+    ;;
+  *)
+
+  set_go_test_flags "$@"
+    go test -list \.+ -json ./... |
+      jq -re 'select(.Action == "output" and (.Output | startswith("T"))) | .Package + " " + .Output' |
+      sed '/^$/d' | fzf-tmux --multi --preview \
+      "echo -e '${WHITE}{2}${RESET}  ${GREY}{1}${RESET}'" --preview-window=down:3:wrap --delimiter=" " --ansi --with-nth=2 --bind 'ctrl-a:toggle-all' |
+      tee "$LAST_TESTS_FILE" | xargs -d '\n' bash -c 'run_tests "$@"' _
+    return
+    ;;
+  esac
+  set_go_test_flags "$@"
+  run_tests "${tests[@]}"
+}
+
+if [[ $# -gt 0 ]]; then
+  handle_subcommand "$@"
+else
+  handle_subcommand "default"
+fi
