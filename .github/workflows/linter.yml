@@ -1,17 +1,17 @@
 name: Linter
 
 on:
-  - workflow_dispatch
-  - push
+  workflow_dispatch:
+  push:
+  pull_request:
 
 jobs:
-  lint:
+  shellcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: shellcheck
+        uses: reviewdog/action-shellcheck@v1
         with:
-          submodules: true
-      - name: Install task
-        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
-      - name: Lint shell
-        run: ./bin/task -v c:lint:shell
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          check_all_files_with_shebangs: true
