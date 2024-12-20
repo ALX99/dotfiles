@@ -10,7 +10,7 @@ end
 
 
 -- Check if we need to reload the file when it changed
-autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+autocmd({ "FocusGained", "TermClose", "TermLeave", "CursorHold" }, {
   group = augroup('checktime', { clear = true }),
   command = "checktime",
 })
