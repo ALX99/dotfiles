@@ -20,7 +20,6 @@ FZF_LEGACY_KEYBINDINGS="0"
 _JAVA_AWT_WM_NONREPARENTING="1"
 QT_QPA_PLATFORMTHEME=qt6ct
 QT_QPA_PLATFORM="wayland"
-GTK_THEME=Adwaita:dark
 DOCKER_BUILDKIT="1"
 # CGO_ENABLED="0"
 # shellcheck disable=SC2016
@@ -82,7 +81,8 @@ else
 
   set +a
   # Time to start
-  [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
+  # [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
+  # [ "$(tty)" = "/dev/tty1" ] && niri-session
 fi
 
 set +a

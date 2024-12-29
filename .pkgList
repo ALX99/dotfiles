@@ -63,6 +63,7 @@ mpv
 nano
 ncdu # better du (find what is taking up space)
 neovim
+niri
 nix
 noto-fonts
 noto-fonts-cjk
@@ -74,6 +75,7 @@ otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pavucontrol # Volume control
+pcmanfm-gtk3
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
@@ -93,7 +95,6 @@ sof-firmware # sound firmware, I remember this being important
 sudo
 swaybg
 tailwindcss-language-server
-terraform
 tmux
 tree
 ttf-cascadia-code # programming font
