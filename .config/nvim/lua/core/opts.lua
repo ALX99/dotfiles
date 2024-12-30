@@ -44,25 +44,25 @@ o.hlsearch       = true  -- highlight matches
 
 
 -- Editing
-o.ignorecase       = true   -- Ignore case in the pattern normally
-o.title            = true   -- set terminal title to the filename
-o.showcmd          = true   -- show command in bottom bar
+o.ignorecase       = true -- Ignore case in the pattern normally
+o.title            = true -- set terminal title to the filename
+o.showcmd          = true -- show command in bottom bar
 -- o.lazyredraw      = true   -- redraw only when we need to
-o.showmatch        = true   -- highlight matching [{()}]
-o.undofile         = true   -- save undo history
-o.expandtab        = true   -- Converts tabs to spaces
-o.shiftwidth       = 2      -- Number of spaces to use for each step of (auto)indent
-o.tabstop          = 2      -- Number of spaces that a <Tab> in the file counts for
-o.softtabstop      = 2      -- Number of spaces that a <Tab> counts for while performing editing operations, like inserting a <Tab> or using <BS>
-o.autoindent       = true   -- Auto indent
-o.infercase        = true   -- Infer letter cases for a richer built-in keyword completion
-o.smartcase        = true   -- Don't ignore case when searching if pattern has upper case
-o.smartindent      = true   -- Make indenting smart
-o.smarttab         = true   -- Makes tabbing smarter will realize you have 2 vs 4
+o.showmatch        = true -- highlight matching [{()}]
+o.undofile         = true -- save undo history
+o.expandtab        = true -- Converts tabs to spaces
+o.shiftwidth       = 2    -- Number of spaces to use for each step of (auto)indent
+o.tabstop          = 2    -- Number of spaces that a <Tab> in the file counts for
+o.softtabstop      = 2    -- Number of spaces that a <Tab> counts for while performing editing operations, like inserting a <Tab> or using <BS>
+o.autoindent       = true -- Auto indent
+o.infercase        = true -- Infer letter cases for a richer built-in keyword completion
+o.smartcase        = true -- Don't ignore case when searching if pattern has upper case
+o.smartindent      = true -- Make indenting smart
+o.smarttab         = true -- Makes tabbing smarter will realize you have 2 vs 4
 
-o.matchtime        = 3      -- Tenths of a second to show the matching paren, when 'showmatch' is set.
-o.scrolloff        = 8      -- Leave x spaces when scrolling
-o.background       = "dark" -- tell vim what the background color looks like
+o.matchtime        = 3    -- Tenths of a second to show the matching paren, when 'showmatch' is set.
+o.scrolloff        = 8    -- Leave x spaces when scrolling
+-- o.background       = "light" -- tell vim what the background color looks like
 opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" }
 
 -- Folding
