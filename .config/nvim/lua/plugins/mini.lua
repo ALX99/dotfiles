@@ -5,7 +5,9 @@ return {
     config = function()
       local misc = require('mini.misc')
       misc.setup_restore_cursor()
-      misc.setup_termbg_sync()
+      -- This breaks when kitty is used and auto updates to the light or dark theme
+      -- for some reason
+      -- misc.setup_termbg_sync()
       require("mini.notify").setup({})
       require("mini.icons").setup({})
       require("mini.ai").setup({
