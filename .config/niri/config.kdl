@@ -209,12 +209,13 @@ layout {
 // https://wiki.archlinux.org/title/XDG_Desktop_Portal
 spawn-at-startup "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
 
-spawn-at-startup "swaybg -i ~/.config/pape/bg.png"
-spawn-at-startup "gammastep -t 6500K:2500K -l $LAT_LON"
-spawn-at-startup "dunst"
+spawn-at-startup "sh" "-c" "swaybg -o eDP-1 -i \"$HOME\"/papes/wallhaven-1.png"
+spawn-at-startup "sh" "-c" "swaybg -o DP-3 -i \"$HOME\"/papes/wallhaven-2.png"
+//spawn-at-startup "gammastep" "-t 6500K:2500K -l $LAT_LON"
+//spawn-at-startup "dunst"
 spawn-at-startup "fcitx5"
-spawn-at-startup "easyeffects --gapplication-service -l dynamic"
-spawn-at-startup "gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'"
+spawn-at-startup "easyeffects" "--gapplication-service" "-l" "dynamic"
+spawn-at-startup "gsettings" "set" "org.gnome.desktop.interface" "color-scheme" "prefer-light"
 
 
 // Uncomment this line to ask the clients to omit their client-side decorations if possible.
