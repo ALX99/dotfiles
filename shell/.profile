@@ -82,7 +82,7 @@ else
   set +a
   # Time to start
   # [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
-  # [ "$(tty)" = "/dev/tty1" ] && niri-session
+  [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session niri --session
 fi
 
 set +a
