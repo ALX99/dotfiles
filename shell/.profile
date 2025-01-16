@@ -80,6 +80,9 @@ else
   GTK_IM_MODULE="fcitx"
   XMODIFIERS="@im=fcitx"
 
+  # Askpass
+  SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"
+
   set +a
   # Time to start
   # [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river

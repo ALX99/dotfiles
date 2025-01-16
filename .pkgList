@@ -112,7 +112,6 @@ visual-studio-code-bin
 vscode-html-languageserver
 vscode-json-languageserver
 wl-clipboard
-x11-ssh-askpass
 xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 yaml-language-server
