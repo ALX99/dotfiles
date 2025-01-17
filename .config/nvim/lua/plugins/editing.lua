@@ -138,48 +138,6 @@ return {
     }
   },
   {
-    "yetone/avante.nvim",
-    enabled = false,
-    event = "VeryLazy",
-    lazy = false,
-    version = false, -- set this if you want to always pull the latest change
-    opts = {
-      provider = "openai",
-    },
-    cond = function()
-      return vim.fn.getenv("OPENAI_API_KEY") ~= vim.NIL and vim.fn.has("linux") == 1
-    end,
-    -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
-    build = "make",
-    -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
-    dependencies = {
-      "stevearc/dressing.nvim",
-      "nvim-lua/plenary.nvim",
-      "MunifTanjim/nui.nvim",
-      --- The below dependencies are optional,
-      "echasnovski/mini.nvim",  -- icons
-      "zbirenbaum/copilot.lua", -- for providers='copilot'
-      "MeanderingProgrammer/render-markdown.nvim",
-      -- {
-      --   -- support for image pasting
-      --   "HakonHarnes/img-clip.nvim",
-      --   event = "VeryLazy",
-      --   opts = {
-      --     -- recommended settings
-      --     default = {
-      --       embed_image_as_base64 = false,
-      --       prompt_for_file_name = false,
-      --       drag_and_drop = {
-      --         insert_mode = true,
-      --       },
-      --       -- required for Windows users
-      --       use_absolute_path = true,
-      --     },
-      --   },
-      -- },
-    },
-  },
-  {
     -- "gh.nvim",
     dependencies = { "nvim-telescope/telescope.nvim", "nvim-lua/plenary.nvim" },
     dir = "~/dotfiles/.config/nvim/lua/gh.nvim",
