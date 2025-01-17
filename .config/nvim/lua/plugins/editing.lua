@@ -14,7 +14,7 @@ return {
       'nvim-lua/plenary.nvim',
     },
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
 
@@ -87,9 +87,9 @@ return {
     event = { "BufReadPost", "BufNewFile" },
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     config = true,
-    enabled = false,
+    enabled = true,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {
@@ -100,6 +100,9 @@ return {
       vim.g.copilot_filetypes = {
         minifiles = false,
       }
+    end,
+    cond = function()
+      return not vim.g.vscode
     end,
     config = function()
       -- vim.g.copilot_assume_mapped = true
@@ -186,6 +189,9 @@ return {
   },
   {
     "windwp/nvim-ts-autotag",
+    cond = function()
+      return not vim.g.vscode
+    end,
     opts = {},
     event = { "InsertEnter" },
   }

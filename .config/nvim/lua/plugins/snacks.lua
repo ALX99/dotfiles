@@ -11,6 +11,9 @@ return {
       -- bug when referencing something bigger
       -- to something smaller on the same line
       -- words = {  }
-    }
+    },
+    cond = function()
+      return not vim.g.vscode
+    end
   },
 }

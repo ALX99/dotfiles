@@ -28,7 +28,7 @@ return {
       -- Install parsers synchronously (only applied to `ensure_installed`)
       sync_install = false,
       auto_install = false,
-      highlight = { enable = true },
+      highlight = { enable = not vim.g.vscode },
       indent = { enable = true },
       incremental_selection = {
         enable = true,
@@ -47,9 +47,6 @@ return {
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
     end,
-    cond = function()
-      return not require('core.utils').is_vscodevim()
-    end
   },
   {
     "nvim-treesitter/nvim-treesitter-context",
@@ -57,7 +54,7 @@ return {
     config = true,
     enabled = false,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
 }
