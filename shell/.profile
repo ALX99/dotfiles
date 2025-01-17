@@ -77,8 +77,7 @@ else
 
   # IM (https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland)
   QT_IM_MODULE="fcitx"
-  GTK_IM_MODULE="fcitx"
-  XMODIFIERS="@im=fcitx"
+  QT_IM_MODULES="wayland;fcitx;ibus"
 
   # Askpass
   SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"

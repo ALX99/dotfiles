@@ -302,9 +302,9 @@ binds {
     Mod+Return { spawn "kitty"; }
     Mod+D { spawn "fuzzel"; }
     Super+Alt+L { spawn "swaylock"; }
-    Mod+Shift+C { spawn "code" "--enable-features=UseOzonePlatform" "--ozone-platform=wayland" ; }
-    Mod+Shift+B { spawn "brave" "--enable-features=UseOzonePlatform" "--ozone-platform=wayland"; }
 
+    Mod+Shift+C { spawn "code" "--enable-features=UseOzonePlatform" "--ozone-platform=wayland"; }
+    Mod+Shift+B { spawn "brave" "--enable-features=UseOzonePlatform" "--ozone-platform=wayland" "--enable-wayland-ime" "--wayland-text-input-version=3"; }
     Mod+Shift+A {spawn "anki"; }
 
     // You can also use a shell. Do this if you need pipes, multiple commands, etc.
