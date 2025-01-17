@@ -19,7 +19,7 @@ return {
       vim.cmd.colorscheme("tokyonight-moon")
     end,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {
@@ -34,7 +34,7 @@ return {
     end,
     enabled = false,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {
@@ -46,7 +46,7 @@ return {
     },
     enabled = false,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end,
     config = function(_, opts)
       -- require('catppuccin').setup(opts)
@@ -63,7 +63,7 @@ return {
       -- vim.cmd.colorscheme("github_dark")
     end,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {
@@ -76,7 +76,7 @@ return {
     },
     enabled = false,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {

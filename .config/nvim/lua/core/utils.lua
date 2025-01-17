@@ -49,14 +49,6 @@ function M.map(mode, lhs, rhs, opts)
   vim.keymap.set(mode, lhs, rhs, options)
 end
 
-function M.is_vscodevim()
-  if vim.g.vscode then
-    return true
-  else
-    return false
-  end
-end
-
 function M.is_linux()
   return vim.uv.os_uname().sysname == "Linux"
 end

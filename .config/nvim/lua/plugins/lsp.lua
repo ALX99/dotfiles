@@ -145,7 +145,7 @@ return {
       end
     end,
     cond = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end
   },
   {
@@ -159,7 +159,7 @@ return {
       },
     },
     cond         = function()
-      return not require('core.utils').is_vscodevim()
+      return not vim.g.vscode
     end,
     enabled      = require('core.utils').is_linux
   },
