@@ -8,8 +8,50 @@ return {
       -- This breaks when kitty is used and auto updates to the light or dark theme
       -- for some reason
       -- misc.setup_termbg_sync()
-      require("mini.notify").setup({})
-      require("mini.icons").setup({})
+
+      local indentscope_symbol = "│"
+      local indentscope_animation = nil
+      if vim.g.vscode then
+        indentscope_symbol = ""
+        indentscope_animation = require('mini.indentscope').gen_animation.none()
+      else
+        require("mini.notify").setup({})
+        require("mini.icons").setup({})
+        require('mini.statusline').setup({})
+
+        require('mini.diff').setup({
+          view = {
+            -- style = 'sign',
+            signs = { add = '+', change = '~', delete = '-' },
+          }
+        })
+
+        vim.notify = require('mini.notify').make_notify(
+          {
+            ERROR = { duration = 5000 },
+            WARN  = { duration = 5000 },
+            INFO  = { duration = 5000 },
+            DEBUG = { duration = 1000 },
+            TRACE = { duration = 500 },
+          }
+        )
+      end
+
+      require('mini.indentscope').setup({
+        mappings = {
+          object_scope = 'o',
+          object_scope_with_border = 'ao',
+          goto_top = '[o',
+          goto_bottom = ']o',
+        },
+        draw = {
+          -- delay = 100,
+          animation = indentscope_animation,
+        },
+        symbol = indentscope_symbol
+      })
+
+
       require("mini.ai").setup({
         mappings = {
           -- Main textobject prefixes
@@ -27,38 +69,9 @@ return {
           goto_right = 'g]',
         },
       })
-      vim.notify = require('mini.notify').make_notify(
-        {
-          ERROR = { duration = 5000 },
-          WARN  = { duration = 5000 },
-          INFO  = { duration = 5000 },
-          DEBUG = { duration = 1000 },
-          TRACE = { duration = 500 },
-        }
-      )
-      require('mini.diff').setup({
-        view = {
-          -- style = 'sign',
-          signs = { add = '+', change = '~', delete = '-' },
-        }
-      })
 
-      require('mini.statusline').setup({})
       require('mini.trailspace').setup({})
 
-      require('mini.indentscope').setup({
-        mappings = {
-          object_scope = 'o',
-          object_scope_with_border = 'ao',
-          goto_top = '[o',
-          goto_bottom = ']o',
-        },
-        -- draw = {
-        --   delay = 100,
-        --   animation = require('mini.indentscope').gen_animation.none(),
-        -- },
-        symbol = "│"
-      })
 
       require('mini.align').setup({
         mappings = {
@@ -131,6 +144,9 @@ return {
           require('snacks').rename.on_rename_file(event.data.from, event.data.to)
         end,
       })
+    end,
+    cond = function()
+      return not vim.g.vscode
     end
   },
   {
@@ -181,6 +197,9 @@ return {
           miniclue.gen_clues.z(),
         },
       })
+    end,
+    cond = function()
+      return not vim.g.vscode
     end
   },
 }

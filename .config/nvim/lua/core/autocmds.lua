@@ -1,4 +1,4 @@
-if require('core.utils').is_vscodevim() then
+if vim.g.vscode then
   return
 end
 

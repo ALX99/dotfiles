@@ -71,13 +71,15 @@ opt.fillchars      = { fold = " " }
 vim.o.foldtext     = ''
 -- vim.opt.foldtext   = require("modules.foldtext")
 
-opt.spell          = true
-opt.spelllang      = 'en_us,en_gb'
-o.inccommand       = "split"
+if not vim.g.vscode then
+  opt.spell = true
+end
+opt.spelllang = 'en_us,en_gb'
+o.inccommand  = "split"
 
 -- Show some invisible characters
-o.list             = false
-opt.listchars      = {
+o.list        = false
+opt.listchars = {
   tab = "⟩ ",
   trail = "+",
   precedes = "<",
@@ -87,7 +89,7 @@ opt.listchars      = {
   leadmultispace = "│ "
 }
 
-o.helpheight       = 25
+o.helpheight  = 25
 
 
 -- Diagnostics
