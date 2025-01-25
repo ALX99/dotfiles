@@ -98,4 +98,3 @@ vim.api.nvim_create_user_command('CopyGitHubPermalink', utils.copy_github_permal
   { desc = "Copy GitHub permalink to clipboard", range = true })
 
 map({ "n", "x" }, "<leader>Gp", utils.copy_github_permalink, { expr = true })
-map("n", "<leader>ti", "<cmd>ToggleTelescopeIgnore<cr>", { desc = "Toggle Telescope ignore patterns" })

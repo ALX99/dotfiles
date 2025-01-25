@@ -38,19 +38,15 @@ local function mappings(client, buf)
   end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                             -- Many LSPs do not implement this
-  bmap('n', 'gd', require('telescope.builtin').lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
-  bmap('n', 'gi', require('telescope.builtin').lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                         -- Many LSPs do not implement this
+  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
+  bmap('n', 'gi', require('snacks').picker.lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
   -- { show_line = false }
-  bmap('n', 'gr', require('telescope.builtin').lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
-  bmap('n', 'gt', vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+  bmap('n', 'gr', require('snacks').picker.lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'gt', require('snacks').picker.lsp_type_definitions, { desc = "Go to type definition" })
 
-  bmap('n', 'gs', require('telescope.builtin').lsp_document_symbols, { desc = "Goto symbol" })
-  bmap('n', 'gS', require('telescope.builtin').lsp_dynamic_workspace_symbols, { desc = "Goto symbol" })
-  bmap('n', 'gm', function() require('telescope.builtin').lsp_document_symbols { symbols = "method" } end,
-    { desc = "Goto method" })
-  bmap('n', 'gf', function() require('telescope.builtin').lsp_document_symbols { symbols = "function" } end,
-    { desc = "Goto function" })
+  bmap('n', 'gs', require('snacks').picker.lsp_symbols, { desc = "Goto symbols" })
+  bmap('n', 'gS', require('snacks').picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
