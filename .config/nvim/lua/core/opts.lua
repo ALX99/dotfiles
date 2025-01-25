@@ -145,3 +145,8 @@ vim.ui.open = (function(overridden)
     overridden(path)
   end
 end)(vim.ui.open)
+
+if vim.g.vscode then
+  local vscode = require('vscode')
+  vim.notify = vscode.notify
+end
