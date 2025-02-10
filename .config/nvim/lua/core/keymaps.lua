@@ -23,43 +23,45 @@ map('n', '<C-u>', '<C-u>zz')
 map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
 
 -- Windows
-map("n", "<leader>w", "<C-w>")
-map("n", "<leader>wcs", "<cmd>new<CR>", { desc = "Open new split" })
-map("n", "<leader>wcv", "<cmd>vnew<CR>", { desc = "Open new vertical" })
-map("n", "<leader>ws", "<C-w>s", { desc = "Split horizontally" })
-map("n", "<leader>wv", "<C-w>v", { desc = "Split vertically" })
-map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
+if not vim.g.vscode then
+  map("n", "<leader>w", "<C-w>")
+  map("n", "<leader>wcs", "<cmd>new<CR>", { desc = "Open new split" })
+  map("n", "<leader>wcv", "<cmd>vnew<CR>", { desc = "Open new vertical" })
+  map("n", "<leader>ws", "<C-w>s", { desc = "Split horizontally" })
+  map("n", "<leader>wv", "<C-w>v", { desc = "Split vertically" })
+  map("n", "<leader>w=", "<C-w>=", { desc = "Make window same dimens" })
 
--- Navigate to window
-map("n", "<leader>wm", "<C-w>h", { desc = "Focus left" })
-map("n", "<leader>wn", "<C-w>j", { desc = "Focus down" })
-map("n", "<leader>we", "<C-w>k", { desc = "Focus up" })
-map("n", "<leader>wi", "<C-w>l", { desc = "Focus right" })
-map("n", "<leader>wo", "<C-w>o", { desc = "Close all but current" })
+  -- Navigate to window
+  map("n", "<leader>wm", "<C-w>h", { desc = "Focus left" })
+  map("n", "<leader>wn", "<C-w>j", { desc = "Focus down" })
+  map("n", "<leader>we", "<C-w>k", { desc = "Focus up" })
+  map("n", "<leader>wi", "<C-w>l", { desc = "Focus right" })
+  map("n", "<leader>wo", "<C-w>o", { desc = "Close all but current" })
 
--- Resize windows
-map("n", "<C-Up>", ":resize +2<CR>")
-map("n", "<C-Down>", ":resize -2<CR>")
-map("n", "<C-Left>", ":vertical resize -2<CR>")
-map("n", "<C-Right>", ":vertical resize +2<CR>")
+  -- Resize windows
+  map("n", "<C-Up>", ":resize +2<CR>")
+  map("n", "<C-Down>", ":resize -2<CR>")
+  map("n", "<C-Left>", ":vertical resize -2<CR>")
+  map("n", "<C-Right>", ":vertical resize +2<CR>")
 
--- Diagnostics
-map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
-map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
-map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
+  -- Diagnostics
+  map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
+  map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
+  map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
 
--- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
--- todo read about tags
--- map("n", "gp", "<C-w>}")
+  -- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
+  -- todo read about tags
+  -- map("n", "gp", "<C-w>}")
 
-map("n", "<leader>q", ":q<CR>")
-map("n", "<leader>C", function()
-  local file_path = vim.fn.expand('%:p')
-  local line_number = vim.fn.line('.')
-  local column_number = vim.fn.col('.')
-  local command = 'code ' .. vim.fn.getcwd() .. ' --goto ' .. file_path .. ':' .. line_number .. ':' .. column_number
-  vim.fn.system(command)
-end, { desc = "open file in vscode" })
+  map("n", "<leader>q", ":q<CR>")
+  map("n", "<leader>C", function()
+    local file_path = vim.fn.expand('%:p')
+    local line_number = vim.fn.line('.')
+    local column_number = vim.fn.col('.')
+    local command = 'code ' .. vim.fn.getcwd() .. ' --goto ' .. file_path .. ':' .. line_number .. ':' .. column_number
+    vim.fn.system(command)
+  end, { desc = "open file in vscode" })
+end
 
 vim.api.nvim_create_user_command("CopyPath", function()
   local path = vim.fn.expand("%:p")
