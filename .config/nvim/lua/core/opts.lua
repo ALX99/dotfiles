@@ -8,7 +8,6 @@ local opt = vim.opt
 
 g.mapleader = " "
 
-
 -- use :h <command> for help info
 o.shell                   = 'bash'
 

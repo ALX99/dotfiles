@@ -152,5 +152,14 @@ return {
     end,
     opts = {},
     event = { "InsertEnter" },
-  }
+  },
+  {
+    dir = "~/dotfiles/.config/nvim/lua/custom_plugins/vscode",
+    config = function()
+      require("custom_plugins.vscode").setup()
+    end,
+    cond = function()
+      return vim.g.vscode
+    end,
+  },
 }
