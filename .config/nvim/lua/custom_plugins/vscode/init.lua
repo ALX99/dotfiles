@@ -14,6 +14,10 @@ function M.setup()
     vscode.action("workbench.action.closeActiveEditor")
   end, { desc = "Close Active Editor" })
 
+  map("n", "<leader>!", function()
+    vscode.action("workbench.action.reloadWindow")
+  end, { desc = "Reload Window" })
+
   map("n", "zta", function()
     vscode.notify("Close Active Editor")
   end, { desc = "Close Active Editor" })
