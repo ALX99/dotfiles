@@ -9,10 +9,10 @@ function M.setup()
     vscode.action("editor.action.showHover")
   end, { desc = "Show Hover" })
 
-  -- Close active editor
+  -- Close editor group
   map("n", "<leader>q", function()
-    vscode.action("workbench.action.closeActiveEditor")
-  end, { desc = "Close Active Editor" })
+    vscode.action("workbench.action.closeEditorsInGroup")
+  end, { desc = "Close Editor Group" })
 
   map("n", "<leader>!", function()
     vscode.action("workbench.action.reloadWindow")
@@ -139,6 +139,11 @@ function M.setup()
   map({ "n", "x" }, "=", function()
     vscode.action("editor.action.formatDocument")
   end, { desc = "Format file" })
+
+  -- Focus File Explorer
+  map("n", "<leader>ft", function()
+    vscode.action("workbench.view.explorer")
+  end, { desc = "Focus File Explorer" })
 end
 
 return M
