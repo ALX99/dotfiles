@@ -42,6 +42,25 @@
                         ]
                     },
                     {
+                        "manipulators": [
+                            {
+                                "description": "Tab to command+control+option.",
+                                "from": {
+                                    "key_code": "tab",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "left_option",
+                                        "modifiers": ["left_command", "left_control"]
+                                    }
+                                ],
+                                "to_if_alone": [{ "key_code": "tab" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "Symbol layer",
                         "manipulators": [
                             {
@@ -530,7 +549,7 @@
                                     }
                                 ],
                                 "from": {
-                                    "key_code": "n",
+                                    "key_code": "e",
                                     "modifiers": {
                                         "mandatory": ["left_command"],
                                         "optional": []
@@ -559,7 +578,7 @@
                                     }
                                 ],
                                 "from": {
-                                    "key_code": "e",
+                                    "key_code": "n",
                                     "modifiers": {
                                         "mandatory": ["left_command"],
                                         "optional": []
