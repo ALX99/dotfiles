@@ -90,3 +90,4 @@ else
 fi
 
 set +a
+if [ -f ~/.bashrc ]; then . ~/.bashrc; fi
