@@ -147,6 +147,7 @@ return {
   },
   {
     "windwp/nvim-ts-autotag",
+    enabled = false,
     cond = function()
       return not vim.g.vscode
     end,
