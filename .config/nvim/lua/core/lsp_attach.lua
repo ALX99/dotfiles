@@ -40,9 +40,9 @@ local function mappings(client, buf)
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                         -- Many LSPs do not implement this
   bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
-  bmap('n', 'gi', require('snacks').picker.lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'gri', require('snacks').picker.lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
   -- { show_line = false }
-  bmap('n', 'gr', require('snacks').picker.lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'grr', require('snacks').picker.lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
   bmap('n', 'gt', require('snacks').picker.lsp_type_definitions, { desc = "Go to type definition" })
 
   bmap('n', 'gs', require('snacks').picker.lsp_symbols, { desc = "Goto symbols" })
@@ -52,8 +52,6 @@ local function mappings(client, buf)
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
 
   --
-  bmap('n', '<leader>rn', vim.lsp.buf.rename, { desc = "Rename" })
-  bmap({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action, { desc = "Code action" })
   bmap({ 'n', 'v' }, '=', function()
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })

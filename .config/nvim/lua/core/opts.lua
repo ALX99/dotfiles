@@ -100,7 +100,8 @@ o.helpheight  = 25
 -- end
 
 vim.diagnostic.config({
-  virtual_text = true,
+  virtual_lines = { current_line = true },
+  -- virtual_text = { current_line = true },
   underline = true,
   update_in_insert = false,
   severity_sort = true, -- Errors first
@@ -115,11 +116,6 @@ vim.diagnostic.config({
 -- LSP border
 -- vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
 --   vim.lsp.handlers.hover,
---   { focusable = true, style = "minimal", border = "rounded" }
--- )
-
--- vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
---   vim.lsp.handlers.signature_help,
 --   { focusable = true, style = "minimal", border = "rounded" }
 -- )
 
