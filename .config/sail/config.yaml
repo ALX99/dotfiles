@@ -1,4 +1,5 @@
 settings:
+  alt_screen: true
   keymap:
     left: m
     right: i
