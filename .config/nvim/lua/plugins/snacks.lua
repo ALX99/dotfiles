@@ -3,7 +3,7 @@ return {
     "folke/snacks.nvim",
     version = '*',
     priority = 1000, -- according to :checkhealth
-    lazy = false, -- according to :checkhealth
+    lazy = false,    -- according to :checkhealth
     opts = {
       bigfile = {},
       input = {},
@@ -12,10 +12,6 @@ return {
           file = {
             filename_first = true, -- display filename before the file path
           },
-        },
-        matcher = {
-          cwd_bonus = true, -- give bonus for matching files in the cwd
-          frecency = false, -- frecency bonus
         },
       },
       -- scroll = {},
@@ -123,6 +119,13 @@ return {
           Snacks.picker.qflist({})
         end,
         desc = "Quickfix List"
+      },
+      {
+        "<leader>fs",
+        function()
+          Snacks.picker.smart({})
+        end,
+        desc = "Smart Picker"
       },
       {
         "<leader>oS",
