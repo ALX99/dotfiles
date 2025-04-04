@@ -1,12 +1,12 @@
 -- vim is a global object that that can be manipulated
-local g = vim.g
-local o = vim.o
-local opt = vim.opt
+local g                   = vim.g
+local o                   = vim.o
+local opt                 = vim.opt
 
 -- :options
 -- :Telescope vim_options
 
-g.mapleader = " "
+g.mapleader               = " "
 
 -- use :h <command> for help info
 o.shell                   = 'bash'
@@ -100,8 +100,8 @@ o.helpheight  = 25
 -- end
 
 vim.diagnostic.config({
-  virtual_lines = { current_line = true },
-  -- virtual_text = { current_line = true },
+  virtual_text = { current_line = true, severity = { min = "INFO", max = "WARN" } },
+  virtual_lines = { current_line = true, severity = { min = "ERROR" } },
   underline = true,
   update_in_insert = false,
   severity_sort = true, -- Errors first
