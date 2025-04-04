@@ -38,8 +38,8 @@ local function mappings(client, buf)
   end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                         -- Many LSPs do not implement this
-  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" })         -- vim.lsp.buf.definition
+  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                          -- Many LSPs do not implement this
+  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" })          -- vim.lsp.buf.definition
   bmap('n', 'gri', require('snacks').picker.lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
   -- { show_line = false }
   bmap('n', 'grr', require('snacks').picker.lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
@@ -56,7 +56,7 @@ local function mappings(client, buf)
     vim.lsp.buf.format { async = true }
   end, { desc = "Format file" })
 
-  if client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+  if client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
     bmap('n', '<leader>th', function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
     end, { desc = 'Toggle inlay hints' })
@@ -84,7 +84,7 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function highlight_references(client, buf)
-  if client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+  if client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
     -- only needs one augroup
     local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), {})
     vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
@@ -137,7 +137,7 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function formatting(client, buf)
-  if client.supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
+  if client:supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
     vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
 
     -- Auto format before saving
