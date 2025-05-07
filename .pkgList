@@ -1,3 +1,4 @@
+7zip
 alsa-utils # alsamixer and more
 anki-bin # anki
 bash-completion # completion
@@ -99,6 +100,7 @@ typescript-language-server
 unrar # RAR
 unzip # ZIP
 upower
+usbutils # lsusb
 valkey
 ventoy-bin # manage ISOs on USBs
 veracrypt
