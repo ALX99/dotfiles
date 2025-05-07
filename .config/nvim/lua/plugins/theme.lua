@@ -16,7 +16,7 @@ return {
     },
     config = function(_, opts)
       require("tokyonight").setup(opts)
-      vim.cmd.colorscheme("tokyonight-moon")
+      -- vim.cmd.colorscheme("tokyonight-moon")
     end,
     cond = function()
       return not vim.g.vscode
@@ -40,17 +40,17 @@ return {
   {
     "catppuccin/nvim",
     name = "catppuccin",
-    event = "VeryLazy",
+    version = '*',
     opts = {
       flavour = "mocha",
     },
-    enabled = false,
+    -- enabled = false,
     cond = function()
       return not vim.g.vscode
     end,
     config = function(_, opts)
-      -- require('catppuccin').setup(opts)
-      -- vim.cmd.colorscheme("catppuccin-mocha")
+      require('catppuccin').setup(opts)
+      vim.cmd.colorscheme("catppuccin-mocha")
     end,
   },
   {
