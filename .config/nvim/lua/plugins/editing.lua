@@ -94,6 +94,7 @@ return {
   },
   {
     "github/copilot.vim",
+    enabled = false,
     event = { "VeryLazy" },
     init = function(_)
       vim.g.copilot_no_tab_map = true
@@ -134,6 +135,21 @@ return {
         ":q<CR>",
         desc = "Close Copilot",
         ft = "copilot.lua"
+      },
+    }
+  },
+  {
+    "zbirenbaum/copilot.lua",
+    event = "VeryLazy",
+    opts = {
+      panel = {
+        enabled = false,
+      },
+      suggestion = {
+        auto_trigger = true,
+        keymap = {
+          accept = "<A-CR>",
+        },
       },
     }
   },
