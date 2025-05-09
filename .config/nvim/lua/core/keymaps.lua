@@ -9,6 +9,8 @@ map("x", ">", ">gv", { desc = "Increase indent" })             -- Stay in indent
 map("x", "<", "<gv", { desc = "Decrease indent" })             -- Stay in indent mode
 map("i", "tn", "<Esc>", { desc = "Exit insert mode" })         -- Esc is hard to press
 map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
+map("i", "<M-BS>", "<C-W>", { desc = "Delete word backwards" }) -- For macOS
+
 
 map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
 map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
