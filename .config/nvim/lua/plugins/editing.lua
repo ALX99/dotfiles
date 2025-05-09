@@ -141,6 +141,9 @@ return {
   {
     "zbirenbaum/copilot.lua",
     event = "VeryLazy",
+    cond = function()
+      return not vim.g.vscode
+    end,
     opts = {
       panel = {
         enabled = false,
