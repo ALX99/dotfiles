@@ -119,8 +119,10 @@ return {
   {
     'saghen/blink.cmp',
     dependencies = { 'rafamadriz/friendly-snippets' },
-
     version = '1.*',
+    cond = function()
+      return not vim.g.vscode
+    end,
 
     ---@module 'blink.cmp'
     ---@type blink.cmp.Config
