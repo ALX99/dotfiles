@@ -4,6 +4,7 @@ return {
     version = '*',
     priority = 1000, -- according to :checkhealth
     lazy = false,    -- according to :checkhealth
+
     opts = {
       bigfile = {},
       input = {},

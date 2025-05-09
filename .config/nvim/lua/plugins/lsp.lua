@@ -2,21 +2,13 @@ return {
   {
     "neovim/nvim-lspconfig",
     version = "*",
-    dependencies = { "hrsh7th/cmp-nvim-lsp" },
+    -- dependencies = { "hrsh7th/cmp-nvim-lsp" },
+    dependencies = { 'saghen/blink.cmp' },
     config = function()
       local lspconfig = require('lspconfig')
 
-      -- Set up
       local capabilities = vim.lsp.protocol.make_client_capabilities()
-      capabilities = vim.tbl_deep_extend('force', capabilities, require('cmp_nvim_lsp').default_capabilities())
-
-
-      -- configure the capabilities to be passed to all LSPs
-      lspconfig.util.default_config = vim.tbl_extend(
-        "force",
-        lspconfig.util.default_config,
-        { capabilities = capabilities }
-      )
+      capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
 
       -- use vim.notify for LSP messages
       local severity = { "error", "warn", "info", "info" } -- map hint and info to info
@@ -141,6 +133,8 @@ return {
       }
 
       for name, set in pairs(lsps) do
+        set.capabilities = capabilities
+
         lspconfig[name].setup(set)
       end
     end,
