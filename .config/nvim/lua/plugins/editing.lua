@@ -94,7 +94,6 @@ return {
   },
   {
     "github/copilot.vim",
-    enabled = false,
     event = { "VeryLazy" },
     init = function(_)
       vim.g.copilot_no_tab_map = true
@@ -144,6 +143,7 @@ return {
     cond = function()
       return not vim.g.vscode
     end,
+    enabled = false,
     opts = {
       panel = {
         enabled = false,
