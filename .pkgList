@@ -78,6 +78,7 @@ pipewire-alsa
 pipewire-pulse # replacement for pulseaudio and pulseaudio-bluetooth (bluetooth audio support). pipewire replaces both jack and pulseaudio
 pkgfile # tool for searching files from packages
 plocate # Locate
+power-profiles-daemon # configure CPU frequency scaling
 pyright
 ripgrep
 river
