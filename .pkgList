@@ -93,6 +93,7 @@ swaybg
 tailwindcss-language-server
 tmux
 tree
+tree-sitter-cli
 ttf-cascadia-code # programming font
 ttf-fira-code
 ttf-font-awesome
