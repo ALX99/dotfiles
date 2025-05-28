@@ -2,12 +2,17 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
-    event = { "BufReadPost", "BufNewFile" },
-    opts = {
-      ensure_installed = {
-        -- "bash",
+    lazy = false,
+    branch = 'main',
+    config = function(_, opts)
+      require('nvim-treesitter').setup(opts)
+      vim.opt.foldmethod = "expr"
+      vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+
+      local ensureInstalled = {
         -- "c",
         -- "cpp",
+        "bash",
         "css",
         "dockerfile",
         "go",
@@ -24,28 +29,47 @@ return {
         "vimdoc",
         "python",
         "yaml",
-      },
-      -- Install parsers synchronously (only applied to `ensure_installed`)
-      sync_install = false,
-      auto_install = false,
-      highlight = { enable = not vim.g.vscode },
-      indent = { enable = true },
-      incremental_selection = {
-        enable = true,
-        keymaps = {
-          init_selection = "<C-space>",
-          -- Below are only mapped in insert mode
-          node_incremental = "<C-space>",
-          scope_incremental = false,
-          node_decremental = "<bs>",
-        },
-      },
-    },
-    config = function(_, opts)
-      require('nvim-treesitter.configs').setup(opts)
+        "regex", -- for Snacks.picker
+        "gitcommit"
+      }
+      local alreadyInstalled = require("nvim-treesitter.config").installed_parsers()
+      local parsersToInstall = vim.iter(ensureInstalled)
+          :filter(function(parser) return not vim.tbl_contains(alreadyInstalled, parser) end)
+          :totable()
+      require("nvim-treesitter").install(parsersToInstall)
 
-      vim.opt.foldmethod = "expr"
-      vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+      -- Start treesitter highlighting if not in vscode
+      if not vim.g.vscode then
+        vim.api.nvim_create_autocmd('FileType', {
+          pattern = {
+            "c",
+            "cpp",
+            "bash",
+            "css",
+            "dockerfile",
+            "go",
+            "gomod",
+            "html",
+            "javascript",
+            "javascriptreact",
+            "typescript",
+            "typescriptreact",
+            "json",
+            "lua",
+            "make",
+            "markdown",
+            "help", -- for vimdoc
+            "python",
+            "yaml",
+            'gitcommit',
+            'go',
+            'html',
+          },
+          callback = function()
+            vim.treesitter.start()
+          end,
+        })
+      end
     end,
   },
   {
