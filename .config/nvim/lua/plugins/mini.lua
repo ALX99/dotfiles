@@ -39,7 +39,7 @@ return {
 
       require('mini.indentscope').setup({
         mappings = {
-          object_scope = 'o',
+          object_scope = 'o', -- breaks vo mapping
           object_scope_with_border = 'ao',
           goto_top = '[o',
           goto_bottom = ']o',
