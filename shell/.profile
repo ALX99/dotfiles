@@ -31,8 +31,8 @@ CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
 RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 ANKI_WAYLAND=1       # Anki
 MOZ_ENABLE_WAYLAND=1 # Firefox
-XDG_CURRENT_DESKTOP="river"
-XDG_SESSION_TYPE="wayland"
+# XDG_CURRENT_DESKTOP="river"
+# XDG_SESSION_TYPE="wayland"
 MINIKUBE_IN_STYLE="false" # remove emoji from minikube
 
 # Bash stuff
@@ -86,7 +86,8 @@ else
   set +a
   # Time to start
   # [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session river
-  [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session niri --session >/tmp/niri.log 2>&1
+  # [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session niri --session >/tmp/niri.log 2>&1
+  [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session hyprland >/tmp/hyprland.log 2>&1
 fi
 
 set +a
