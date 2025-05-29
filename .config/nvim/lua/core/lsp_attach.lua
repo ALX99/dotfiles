@@ -126,7 +126,7 @@ local function show_diagnostics(client, buf)
         focusable = false,
         close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
         border = 'rounded',
-        source = 'always',
+        source = 'if_many',
         prefix = ' ',
         scope = 'cursor',
       })
@@ -219,6 +219,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     mappings(client, args.buf)
     highlight_references(client, args.buf)
     show_diagnostics(client, args.buf)
+
 
     if vim.tbl_contains(auto_fmt_clients, client.name) then
       formatting(client, args.buf)
