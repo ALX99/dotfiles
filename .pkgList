@@ -28,6 +28,7 @@ fcitx5-qt
 fuzzel # app launcher
 fzf
 gammastep # adjust screen color temp
+gemini-cli
 git
 git-delta
 github-cli
@@ -40,6 +41,7 @@ go-yq
 graphviz # required by golang's pprof
 grim # screenshot tool
 htop
+hyprland
 imv # image viewer
 iwd # Daemon to manage network connections (make sure to configure it with systemd-networkd, systemd-resolved)
 iw # iw wifi thingy
@@ -52,6 +54,7 @@ libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 linux-lts
+localsend-bin
 lua-language-server
 lxqt-openssh-askpass # askpass tool
 man-db
