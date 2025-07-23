@@ -47,33 +47,14 @@ return {
       -- Start treesitter highlighting if not in vscode
       if not vim.g.vscode then
         vim.api.nvim_create_autocmd('FileType', {
-          pattern = {
-            "c",
-            "cpp",
-            "bash",
-            "css",
-            "dockerfile",
-            "go",
-            "gomod",
-            "html",
-            "javascript",
-            "javascriptreact",
-            "typescript",
-            "typescriptreact",
-            "json",
-            "lua",
-            "make",
-            "markdown",
-            "help", -- for vimdoc
-            "python",
-            "yaml",
-            'gitcommit',
-            'go',
-            'html',
-          },
-          callback = function()
-            vim.treesitter.start()
-          end,
+          callback = function(args)
+            local filetype = args.match
+            local lang = vim.treesitter.language.get_lang(filetype)
+            if lang ~= nil and vim.treesitter.language.add(lang) then
+              vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+              vim.treesitter.start()
+            end
+          end
         })
       end
     end,
