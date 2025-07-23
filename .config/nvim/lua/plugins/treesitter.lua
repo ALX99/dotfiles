@@ -5,11 +5,13 @@ return {
     lazy = false,
     branch = 'main',
     config = function(_, opts)
-      require('nvim-treesitter').setup(opts)
+      local treesitter = require('nvim-treesitter')
+      treesitter.setup(opts)
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 
-      local ensureInstalled = {
+
+      local ensure_installed = {
         -- "c",
         -- "cpp",
         "bash",
@@ -32,11 +34,15 @@ return {
         "regex", -- for Snacks.picker
         "gitcommit"
       }
-      local alreadyInstalled = require("nvim-treesitter.config").installed_parsers()
-      local parsersToInstall = vim.iter(ensureInstalled)
-          :filter(function(parser) return not vim.tbl_contains(alreadyInstalled, parser) end)
+
+      local already_installed = treesitter.get_installed('parsers')
+      local parsers_to_install = vim.iter(ensure_installed)
+          :filter(function(parser) return not vim.tbl_contains(already_installed, parser) end)
           :totable()
-      require("nvim-treesitter").install(parsersToInstall)
+      if #parsers_to_install > 0 then
+        treesitter.install(parsers_to_install)
+      end
+
 
       -- Start treesitter highlighting if not in vscode
       if not vim.g.vscode then
