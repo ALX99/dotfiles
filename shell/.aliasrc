@@ -138,6 +138,10 @@ gbrowse() {
       --preview "git show --stat --color=always \$(echo {} | cut -d' ' -f2)" \
       --preview-window=right,60
 }
+# launch in background
+launch() {
+  "$@" > /dev/null 2>&1 & disown
+}
 
 # Switch directory
 # sd() {
