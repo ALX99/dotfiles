@@ -64,13 +64,14 @@ nano
 ncdu # better du (find what is taking up space)
 neovim
 niri
-nix
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
 obsidian
 openssh
+otf-departure-mono
 otf-font-awesome
+otf-geist-mono-nerd
 otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
@@ -97,10 +98,14 @@ tailwindcss-language-server
 tmux
 tree
 tree-sitter-cli
+ttf-0xproto-nerd
 ttf-cascadia-code # programming font
 ttf-fira-code
 ttf-font-awesome
 ttf-nerd-fonts-symbols-mono
+ttf-profont-nerd
+ttf-terminus-nerd
+ttf-victor-mono-nerd
 typescript-language-server
 unrar # RAR
 unzip # ZIP
