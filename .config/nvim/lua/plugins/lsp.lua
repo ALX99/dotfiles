@@ -30,10 +30,10 @@ return {
       -----------------
       -- LSP Servers --
       -----------------
-      -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
+      -- https://github.com/neovim/nvim-lspconfig/blob/master/doc/configs.md
 
-      -- LSPs with default configurations
-      local default_lsps = {
+      -- LSPs
+      local enabled_lsps = {
         "clangd",
         "pyright",
         "dockerls",
@@ -51,103 +51,15 @@ return {
         "nim_langserver",
         "terraformls",
         "erlangls",
+        "eslint",
+        "gopls",
+        "yamlls",
+        "lua_ls",
       }
 
-      for _, name in ipairs(default_lsps) do
+      for _, name in ipairs(enabled_lsps) do
         vim.lsp.enable(name)
       end
-
-      -- LSPs with custom configurations
-      vim.lsp.config('eslint', {
-        cmd = { "vscode-eslint-languageserver", "--stdio" }
-      })
-      vim.lsp.enable('eslint')
-
-      vim.lsp.config('gopls', {
-        -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
-        settings = {
-          gopls = {
-            hints = {
-              assignVariableTypes = true,
-              compositeLiteralFields = true,
-              compositeLiteralTypes = true,
-              constantValues = true,
-              functionTypeParameters = true,
-              parameterNames = true,
-              rangeVariableTypes = true
-            },
-            gofumpt = true,
-            staticcheck = true,
-            usePlaceholders = false,
-            semanticTokens = true,
-            directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
-            codelenses = {
-              gc_details = true,
-              generate = true,
-              regenerate_cgo = true,
-              run_govulncheck = true,
-              test = true,
-              tidy = true,
-              upgrade_dependency = true,
-              vendor = true,
-            },
-            -- https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md
-            analyses = {
-              staticcheck = true,
-              shadow = true,
-            },
-          },
-        },
-      })
-      vim.lsp.enable('gopls')
-
-      -- https://github.com/redhat-developer/yaml-language-server
-      vim.lsp.config('yamlls', {
-        settings = {
-          yaml = {
-            schemas = {
-              ["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
-              ["/home/dozy/projects/ika/config/schema.json"] = "ika.yaml",
-              -- ["/home/dozy/projects/ika/config/schema.json"] = "ika.example.yaml",
-            },
-            format = {
-              enable = true,
-              bracketSpacing = true
-            },
-            schemaStore = {
-              enable = true
-            }
-          },
-        },
-      })
-      vim.lsp.enable('yamlls')
-
-      vim.lsp.config('lua_ls', {
-        on_init = function(client)
-          local path = client.workspace_folders[1].name
-          if vim.uv.fs_stat(path .. '/.luarc.json') or vim.uv.fs_stat(path .. '/.luarc.jsonc') then
-            return
-          end
-          client.config.settings.Lua = vim.tbl_deep_extend('force', client.config.settings.Lua, {
-            workspace = {
-              checkThirdParty = false,
-              library = {
-                vim.env.VIMRUNTIME
-              }
-              -- This pulls in a lot or more files
-              -- library = vim.api.nvim_get_runtime_file("", true)
-            }
-          })
-        end,
-        settings = {
-          Lua = {
-            runtime = {
-              version = 'LuaJIT'
-            },
-          }
-        }
-      })
-      vim.lsp.enable('lua_ls')
     end,
     cond = function()
       return not vim.g.vscode
