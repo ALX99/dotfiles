@@ -1,0 +1,12 @@
+background = #282c34
+font-family = DepartureMono Nerd Font
+font-size = 6
+
+copy-on-select = clipboard
+macos-option-as-alt = true
+window-inherit-font-size = true
+cursor-color = #79ed96
+mouse-hide-while-typing = true
+
+background-opacity = 0.7
+background-blur = true
