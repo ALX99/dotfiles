@@ -7,8 +7,8 @@ return {
     name = "tokyonight",
     opts = {
       dim_inactive = true,
-      transparent = "transparent",
       hide_inactive_statusline = true,
+      transparent = true,
       styles = {
         sidebars = "transparent",
         floats = "transparent",
@@ -43,6 +43,7 @@ return {
     version = '*',
     opts = {
       flavour = "mocha",
+      transparent_background = true,
     },
     -- enabled = false,
     cond = function()
