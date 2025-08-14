@@ -8,5 +8,5 @@ window-inherit-font-size = true
 cursor-color = #79ed96
 mouse-hide-while-typing = true
 
-background-opacity = 0.7
+background-opacity = 0.85
 background-blur = true
