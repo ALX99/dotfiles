@@ -40,16 +40,16 @@ PROMPT_COMMAND='history -a' # Record each line as it gets issued
 # Auto-activate venv
 PROMPT_COMMAND="$PROMPT_COMMAND; [[ -r venv/bin/activate ]] && . venv/bin/activate"
 HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear" # Don't record some commands
-HISTSIZE=-1                                     # Infinite history
-HISTFILESIZE=-1                                 # Infinite history
+HISTSIZE=                                       # Infinite history
+HISTFILESIZE=                                   # Infinite history
+SAVEHIST=                                       # unlimited for zsh?
 HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
 if [ "$(uname -s)" = "Darwin" ]; then
   # homebrew, rancher desktop, and gem paths
   PATH="/opt/homebrew/bin:$PATH:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
-
-  SAVEHIST=99999 # total
-  HISTSIZE=9999  # kept in memory
+  # Claude, don't use builtin ripgrep
+  USE_BUILTIN_RIPGREP=0
 else
   # XDG
   XDG_CACHE_HOME="$HOME/.cache"
