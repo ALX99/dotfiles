@@ -67,7 +67,7 @@ opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" 
 -- Folding
 opt.foldlevel      = 99
 opt.fillchars      = { fold = " " }
-vim.o.foldtext     = ''
+o.foldtext         = ''
 -- vim.opt.foldtext   = require("modules.foldtext")
 
 if not vim.g.vscode then
@@ -89,6 +89,18 @@ opt.listchars = {
 }
 
 o.helpheight  = 25
+
+-- https://github.com/nvzone/typr
+-- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
+-- https://github.com/MagicDuck/grug-far.nvim
+-- https://github.com/sindrets/diffview.nvim
+-- https://www.reddit.com/r/neovim/comments/1muy3i1/dartnvim_a_minimalist_tabline_focused_on_pinning/
+-- https://www.reddit.com/r/neovim/comments/1myfvla/does_anyone_know_a_good_diff_view_library/
+if vim.fn.has('nvim-0.12') == 1 then
+  o.diffopt = 'internal,filler,closeoff,inline:word,linematch:40'
+elseif vim.fn.has('nvim-0.11') == 1 then
+  o.diffopt = 'internal,filler,closeoff,linematch:40'
+end
 
 
 -- Diagnostics

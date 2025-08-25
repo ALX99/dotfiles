@@ -1,6 +1,6 @@
 background = #282c34
-font-family = DepartureMono Nerd Font
-font-size = 6
+font-family = Departure Mono
+font-size = 13
 
 copy-on-select = clipboard
 macos-option-as-alt = true
@@ -10,3 +10,5 @@ mouse-hide-while-typing = true
 
 background-opacity = 0.85
 background-blur = true
+
+# https://base46.vercel.app/theme?name=radium&lang=rust&terminal=ghostty
