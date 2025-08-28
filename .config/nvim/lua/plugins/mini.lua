@@ -1,6 +1,6 @@
 return {
   {
-    "echasnovski/mini.nvim",
+    "nvim-mini/mini.nvim",
     version = '*',
     config = function()
       local misc = require('mini.misc')
@@ -114,10 +114,10 @@ return {
     end,
   },
   {
-    "echasnovski/mini.files",
+    "nvim-mini/mini.files",
     version = '*',
     dependencies = {
-      'echasnovski/mini.nvim'
+      'nvim-mini/mini.nvim'
     },
     keys = {
       {
@@ -150,7 +150,7 @@ return {
     end
   },
   {
-    "echasnovski/mini.clue",
+    "nvim-mini/mini.clue",
     version = '*',
     event = "VeryLazy",
     config = function(_, _)
