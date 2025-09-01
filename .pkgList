@@ -120,6 +120,7 @@ vscode-json-languageserver
 webp-pixbuf-loader # makes it possible for swaybg to use webp images
 wl-clipboard
 xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
+xdg-desktop-portal-hyprland # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 xdg-desktop-portal-wlr # https://wiki.archlinux.org/title/XDG_Desktop_Portal
 xdg-utils # used by many other programs https://wiki.archlinux.org/title/Xdg-utils
 yaml-language-server
