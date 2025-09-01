@@ -29,6 +29,7 @@ fuzzel # app launcher
 fzf
 gammastep # adjust screen color temp
 gemini-cli
+ghostty
 git
 git-delta
 github-cli
@@ -48,7 +49,6 @@ iw # iw wifi thingy
 jq # Json parser
 keychain # manage SSH agent
 keyd # keyboard deamon
-kitty # terminal
 lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
