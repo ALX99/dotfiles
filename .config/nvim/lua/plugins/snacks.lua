@@ -38,6 +38,13 @@ return {
         desc = "Find Hidden and Ignored Files"
       },
       {
+        "<leader>fs",
+        function()
+          Snacks.picker.smart({})
+        end,
+        desc = "Smart Picker"
+      },
+      {
         "<leader>ob",
         function()
           Snacks.picker.buffers({})
@@ -120,13 +127,6 @@ return {
           Snacks.picker.qflist({})
         end,
         desc = "Quickfix List"
-      },
-      {
-        "<leader>fs",
-        function()
-          Snacks.picker.smart({})
-        end,
-        desc = "Smart Picker"
       },
       {
         "<leader>oS",
