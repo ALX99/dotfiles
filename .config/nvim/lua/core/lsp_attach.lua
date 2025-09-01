@@ -5,12 +5,9 @@ local auto_fmt_clients = {
   "lua_ls",
   "gopls",
   "rust_analyzer",
-  "robotframework_ls",
   "html",
-  "clangd",
   "ts_ls",
-  "gleam",
-  "nim_langserver",
+  -- "nim_langserver",
 }
 
 -- Create an augroup that is used for managing our formatting autocmds.
