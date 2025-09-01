@@ -76,7 +76,7 @@ otf-monaspace
 p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pavucontrol # Volume control
-pcmanfm-gtk3
+pcmanfm
 perl-image-exiftool # extract exif data from images
 pipewire-alsa
 pipewire-pulse # replacement for pulseaudio and pulseaudio-bluetooth (bluetooth audio support). pipewire replaces both jack and pulseaudio
