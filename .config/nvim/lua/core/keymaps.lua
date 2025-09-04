@@ -102,6 +102,10 @@ xnoremap * :<c-u>call g:VSetSearch('/')<cr>/<c-r>=@/<cr><cr>
 xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
 ]])
 
+-- Search inside visual selection
+-- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
+map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
+
 vim.api.nvim_create_user_command('CopyGitHubPermalink', utils.copy_github_permalink,
   { desc = "Copy GitHub permalink to clipboard", range = true })
 
