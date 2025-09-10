@@ -185,7 +185,6 @@ return {
   {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
-    config = true,
     cond = function()
       return vim.fn.has("mac") == 1
     end,
@@ -208,5 +207,6 @@ return {
       { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
       { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
     },
+    opts = {},
   }
 }
