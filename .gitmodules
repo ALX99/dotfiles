@@ -11,3 +11,6 @@
 [submodule ".config/alacritty/themes"]
 	path = .config/alacritty/themes
 	url = https://github.com/alacritty/alacritty-theme
+[submodule "ghostty-shaders"]
+	path = ghostty-shaders
+	url = https://github.com/hackr-sh/ghostty-shaders
