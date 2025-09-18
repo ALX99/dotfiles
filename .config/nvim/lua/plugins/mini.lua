@@ -7,7 +7,7 @@ return {
       misc.setup_restore_cursor()
       -- This breaks when kitty is used and auto updates to the light or dark theme
       -- for some reason
-      misc.setup_termbg_sync()
+      -- misc.setup_termbg_sync()
 
       local indentscope_symbol = "│"
       local indentscope_animation = nil
