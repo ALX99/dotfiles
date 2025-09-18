@@ -47,17 +47,17 @@ autocmd({ "InsertEnter" }, {
 
 
 -- show cursor line only in active window
-local cursorGrp = augroup("CursorLine", { clear = true })
-autocmd({ "InsertLeave", "WinEnter" }, {
-  group = cursorGrp,
-  pattern = "*",
-  command = "set cursorline",
-})
-autocmd({ "InsertEnter", "WinLeave" }, {
-  pattern = "*",
-  command = "set nocursorline",
-  group = cursorGrp
-})
+-- local cursorGrp = augroup("CursorLine", { clear = true })
+-- autocmd({ "InsertLeave", "WinEnter" }, {
+--   group = cursorGrp,
+--   pattern = "*",
+--   command = "set cursorline",
+-- })
+-- autocmd({ "InsertEnter", "WinLeave" }, {
+--   pattern = "*",
+--   command = "set nocursorline",
+--   group = cursorGrp
+-- })
 
 -- return to last edit position when opening files
 -- this is handled by require("mini.misc").setup_restore_cursor() now

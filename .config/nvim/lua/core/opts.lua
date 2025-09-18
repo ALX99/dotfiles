@@ -26,7 +26,7 @@ opt.updatetime   = 1000          -- If this many milliseconds nothing is typed t
 -- Appearance
 -- o.termguicolors  = true  -- Enabled by default in Neovim >= 0.10 if it detects terminal supports it
 o.breakindent    = true  -- Enable break indent
-o.cursorline     = true  -- Enable highlighting of the current line
+-- o.cursorline     = true  -- Enable highlighting of the current line
 o.cursorlineopt  = "both"
 o.linebreak      = false -- Don't wrap words
 o.wrap           = false -- Display long lines as just one line
