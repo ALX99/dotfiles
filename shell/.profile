@@ -51,6 +51,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   PATH="/opt/homebrew/bin:$PATH:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
   # Claude, don't use builtin ripgrep
   USE_BUILTIN_RIPGREP=0
+  CGO_LDFLAGS="-w" # remove warnings
 else
   # XDG
   XDG_CACHE_HOME="$HOME/.cache"
