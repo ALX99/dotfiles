@@ -31,6 +31,7 @@ CARGO_REGISTRIES_CRATES_IO_PROTOCOL="sparse"
 RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 ANKI_WAYLAND=1       # Anki
 MOZ_ENABLE_WAYLAND=1 # Firefox
+GH_PAGER="delta"
 # XDG_CURRENT_DESKTOP="river"
 # XDG_SESSION_TYPE="wayland"
 MINIKUBE_IN_STYLE="false" # remove emoji from minikube
