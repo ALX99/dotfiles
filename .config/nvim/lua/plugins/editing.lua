@@ -93,70 +93,6 @@ return {
     end
   },
   {
-    "github/copilot.vim",
-    event = { "VeryLazy" },
-    init = function(_)
-      vim.g.copilot_no_tab_map = true
-      vim.g.copilot_filetypes = {
-        minifiles = false,
-      }
-    end,
-    cond = function()
-      return not vim.g.vscode
-    end,
-    config = function()
-      -- vim.g.copilot_assume_mapped = true
-
-      local map = require('core.utils').map
-      map(
-        "i",
-        "<A-CR>",
-
-        'copilot#Accept("<CR>")',
-        {
-          silent = true,
-          expr = true,
-          script = true,
-          replace_keycodes = false,
-          desc = "Accept copilot suggestion"
-        }
-      )
-
-      map({ "i", "n" }, "<A-p>", '<Esc>:Copilot panel<CR>', { desc = "Open copilot panel" })
-      map("i", "<C-n>", "<Plug>(copilot-next)", { desc = "Next copilot suggestion" })
-      map("i", "<C-e>", "<Plug>(copilot-previous)", { desc = "Previous copilot suggestion" })
-      -- keymap("i", "<C-o>", "<Plug>(copilot-dismiss)")
-      -- keymap("i", "<C-s>", "<Plug>(copilot-suggest)")
-    end,
-    keys = {
-      {
-        "q",
-        ":q<CR>",
-        desc = "Close Copilot",
-        ft = "copilot.lua"
-      },
-    }
-  },
-  {
-    "zbirenbaum/copilot.lua",
-    event = "VeryLazy",
-    cond = function()
-      return not vim.g.vscode
-    end,
-    enabled = false,
-    opts = {
-      panel = {
-        enabled = false,
-      },
-      suggestion = {
-        auto_trigger = true,
-        keymap = {
-          accept = "<A-CR>",
-        },
-      },
-    }
-  },
-  {
     -- "gh.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     dir = "~/dotfiles/.config/nvim/lua/gh.nvim",
@@ -182,31 +118,4 @@ return {
       return vim.g.vscode
     end,
   },
-  {
-    "coder/claudecode.nvim",
-    dependencies = { "folke/snacks.nvim" },
-    cond = function()
-      return vim.fn.has("mac") == 1
-    end,
-    keys = {
-      { "<leader>a", nil, desc = "AI/Claude Code" },
-      { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
-      { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
-      { "<leader>ar", "<cmd>ClaudeCode --resume<cr>", desc = "Resume Claude" },
-      { "<leader>aC", "<cmd>ClaudeCode --continue<cr>", desc = "Continue Claude" },
-      { "<leader>am", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
-      { "<leader>ab", "<cmd>ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
-      { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
-      {
-        "<leader>as",
-        "<cmd>ClaudeCodeTreeAdd<cr>",
-        desc = "Add file",
-        ft = { "NvimTree", "neo-tree", "oil", "minifiles" },
-      },
-      -- Diff management
-      { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
-      { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
-    },
-    opts = {},
-  }
 }
