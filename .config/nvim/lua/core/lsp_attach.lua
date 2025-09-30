@@ -137,16 +137,27 @@ local function formatting(client, buf)
   if client:supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
     vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
 
-    -- Auto format before saving
+    local format_augroup = vim.api.nvim_create_augroup('lsp-format-' .. client.name .. '-' .. buf, {})
+
     vim.api.nvim_create_autocmd("BufWritePre", {
       callback = function()
-        local view = vim.fn.winsaveview() -- save view
-
-        vim.lsp.buf.format({ timeout_ms = 2000 })
-        vim.fn.winrestview(view) -- reset view to where it was before
+        local view = vim.fn.winsaveview()
+        vim.lsp.buf.format({ async = false, timeout_ms = 2000 })
+        vim.fn.winrestview(view)
       end,
-      group = get_augroup(client, 'lsp-format' .. buf),
+      group = format_augroup,
       buffer = buf,
+    })
+
+    vim.api.nvim_create_autocmd('LspDetach', {
+      buffer = buf,
+      group = vim.api.nvim_create_augroup('lsp-format-detach-' .. client.name .. '-' .. buf, { clear = true }),
+      callback = function(ev)
+        if ev.data.client_id == client.id then
+          vim.api.nvim_clear_autocmds { group = format_augroup, buffer = buf }
+        end
+        return true
+      end,
     })
   end
 end
@@ -163,7 +174,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     end
 
     vim.notify("lsp_attach: " .. client.name .. " to buf " .. tostring(args.buf) .. " file " .. filename,
-      vim.log.levels.DEBUG)
+      vim.log.levels.INFO)
 
     -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
     if client.server_capabilities.definitionProvider then
