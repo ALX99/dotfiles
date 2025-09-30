@@ -55,6 +55,7 @@ return {
         "gopls",
         "yamlls",
         "lua_ls",
+        "copilot",
       }
 
       for _, name in ipairs(enabled_lsps) do
