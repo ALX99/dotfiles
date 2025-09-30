@@ -59,7 +59,7 @@ if not vim.g.vscode then
   -- todo read about tags
   -- map("n", "gp", "<C-w>}")
 
-  map("n", "<leader>q", ":q<CR>")
+  map("n", "<leader>q", ":q<CR>", { silent = true })
   map("n", "<leader>C", function()
     local file_path = vim.fn.expand('%:p')
     local line_number = vim.fn.line('.')
