@@ -20,3 +20,5 @@ background-blur = true
 #custom-shader = ~/dotfiles/ghostty-shaders/retro-terminal.glsl
 #custom-shader = ~/dotfiles/ghostty-shaders/starfield-colors.glsl
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
+
+keybind = shift+enter=text:\x1b\r
