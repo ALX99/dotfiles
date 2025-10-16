@@ -84,7 +84,7 @@ return {
       cli = {
         mux = {
           backend = "tmux",
-          enabled = true,
+          enabled = false,
         },
       },
     },
@@ -127,7 +127,12 @@ return {
       {
         "<leader>ap",
         function()
-          require("sidekick.cli").select_prompt()
+          require("sidekick.cli").prompt(function(msg)
+            if msg then
+              require("sidekick.cli").send({ msg = msg, render = false })
+              vim.fn.system('tmux display-popup -T "claude" -w 95% -h 95% -E ~/dotfiles/.config/tmux/session-popup claude')
+            end
+          end)
         end,
         desc = "Sidekick Ask Prompt",
         mode = { "n", "v" },
