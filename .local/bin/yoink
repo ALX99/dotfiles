@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import re
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
+
+def parse_github_url(url):
+    """Extract owner, repo, ref, and path from GitHub URL."""
+    pattern = r'github\.com/([^/]+)/([^/]+)/tree/([^/]+)(/.*)?'
+    match = re.search(pattern, url)
+
+    if not match:
+        print(f"Error: Invalid GitHub URL format", file=sys.stderr)
+        print(f"Expected: https://github.com/owner/repo/tree/branch/path", file=sys.stderr)
+        sys.exit(1)
+
+    owner = match.group(1)
+    repo = match.group(2)
+    ref = match.group(3)
+    path = match.group(4).lstrip('/') if match.group(4) else ''
+
+    return owner, repo, ref, path
+
+def fetch_contents(owner, repo, path, ref):
+    """Fetch directory contents from GitHub API."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={urllib.parse.quote(ref)}"
+
+    try:
+        with urllib.request.urlopen(url) as response:
+            data = response.read().decode('utf-8')
+            return json.loads(data)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f"Error: Path not found in repository", file=sys.stderr)
+        else:
+            print(f"Error: GitHub API returned status {e.code}", file=sys.stderr)
+            print(f"Message: {e.read().decode('utf-8')}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def download_directory(owner, repo, remote_path, local_path, ref):
+    """Recursively download directory contents."""
+    contents = fetch_contents(owner, repo, remote_path, ref)
+
+    if not isinstance(contents, list):
+        print(f"Error: Path is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    for item in contents:
+        item_local_path = os.path.join(local_path, item['name'])
+
+        if item['type'] == 'file':
+            print(f"Downloading: {item['path']}")
+            try:
+                with urllib.request.urlopen(item['download_url']) as file_response:
+                    os.makedirs(os.path.dirname(item_local_path), exist_ok=True)
+                    with open(item_local_path, 'wb') as f:
+                        f.write(file_response.read())
+            except Exception as e:
+                print(f"Warning: Failed to download {item['path']}: {e}", file=sys.stderr)
+                continue
+
+        elif item['type'] == 'dir':
+            os.makedirs(item_local_path, exist_ok=True)
+            download_directory(owner, repo, item['path'], item_local_path, ref)
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: yoink <github-url> <local-directory>", file=sys.stderr)
+        print("Example: yoink https://github.com/owner/repo/tree/main/path ./local-dir", file=sys.stderr)
+        sys.exit(1)
+
+    github_url = sys.argv[1]
+    local_dir = sys.argv[2]
+
+    if os.path.exists(local_dir):
+        print(f"Error: Directory '{local_dir}' already exists", file=sys.stderr)
+        sys.exit(1)
+
+    owner, repo, ref, remote_path = parse_github_url(github_url)
+
+    print(f"Fetching {owner}/{repo}:{ref}/{remote_path}")
+
+    os.makedirs(local_dir, exist_ok=True)
+
+    try:
+        download_directory(owner, repo, remote_path, local_dir, ref)
+        print(f"\nSuccessfully downloaded to {local_dir}")
+    except Exception as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
