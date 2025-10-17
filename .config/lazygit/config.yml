@@ -27,3 +27,4 @@ git:
 gui:
   showFileTree: false
   showCommandLog: false
+  mouseEvents: false
