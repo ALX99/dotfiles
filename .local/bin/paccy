@@ -162,8 +162,8 @@ main() {
     exit $?
     ;;
   -it | --install-tracked)
-    get_tracked >/tmp/tracked
-    pacman -Qq >/tmp/all
+    get_tracked | sort >/tmp/tracked
+    pacman -Qq | sort >/tmp/all
     diff=$(comm -23 /tmp/tracked /tmp/all)
 
     for pkg in $(echo "$diff" | fzf -m --preview 'yay -Si {1}'); do
