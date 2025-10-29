@@ -45,6 +45,10 @@ local function mappings(client, buf)
   bmap('n', 'gs', require('snacks').picker.lsp_symbols, { desc = "Goto symbols" })
   bmap('n', 'gS', require('snacks').picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
+
+  bmap('n', 'gai', require('snacks').picker.lsp_incoming_calls, { desc = "C[a]lls Incoming" })
+  bmap('n', 'gao', require('snacks').picker.lsp_outgoing_calls, { desc = "C[a]lls Outgoing" })
+
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
 
