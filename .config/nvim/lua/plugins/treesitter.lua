@@ -32,7 +32,8 @@ return {
         "python",
         "yaml",
         "regex", -- for Snacks.picker
-        "gitcommit"
+        "gitcommit",
+        "tsx"
       }
 
       local already_installed = treesitter.get_installed('parsers')
