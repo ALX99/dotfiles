@@ -81,12 +81,11 @@ return {
     end
   },
   {
-    'MeanderingProgrammer/render-markdown.nvim',
+    'OXY2DEV/markview.nvim',
     version = "*",
     opts = {
-      file_types = { "markdown", "Avante" },
     },
-    ft = { "markdown", "Avante" },
+    ft = { "markdown", "Avante", "yaml" },
     cond = function()
       return not vim.g.vscode
     end,
