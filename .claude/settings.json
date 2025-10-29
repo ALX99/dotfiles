@@ -1,0 +1,55 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(make:*)",
+      "Bash(npm:*)",
+      "Bash(go:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(pwd:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(diff:*)",
+      "Bash(node:*)",
+      "Bash(jq:*)",
+      "Bash(yq:*)",
+      "Bash(kustomize:*)",
+      "Bash(kubectl:*)",
+      "Read(/**)",
+      "Edit(/**)",
+      "mcp__gopls",
+      "mcp__context7",
+      "mcp__playwright",
+      "mcp__chrome-devtools"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path | select(endswith(\".go\")) | select(endswith(\"gen.go\") | not)' | xargs -r gofmt -s -r 'interface{} -> any' -w"
+          }
+        ]
+      }
+    ]
+  },
+  "alwaysThinkingEnabled": true
+}
