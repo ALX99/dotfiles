@@ -5,8 +5,6 @@ return {
     -- dependencies = { "hrsh7th/cmp-nvim-lsp" },
     dependencies = { 'saghen/blink.cmp' },
     config = function()
-      local lspconfig = require('lspconfig')
-
       local capabilities = vim.lsp.protocol.make_client_capabilities()
       capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
 
