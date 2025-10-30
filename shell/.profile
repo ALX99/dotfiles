@@ -82,6 +82,9 @@ else
   QT_IM_MODULE="fcitx"
   QT_IM_MODULES="wayland;fcitx;ibus"
 
+  # npm (for npm install -g)
+  npm_config_prefix="$HOME/.local"
+
   # Askpass
   SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"
 
