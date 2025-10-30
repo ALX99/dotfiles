@@ -13,7 +13,8 @@ run_command() {
 }
 
 user_config() {
-  run_command ln -sf "$PWD"/.local/bin/ ~/.local/
+  run_command mkdir -p ~/.local/bin
+  run_command ln -sf "$PWD"/.local/bin/* ~/.local/
   run_command ln -sf "$PWD"/.gitconfig ~/
 
   for f in "$PWD"/.config/*; do
