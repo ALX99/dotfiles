@@ -54,7 +54,6 @@ libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
 linux-lts
-localsend-bin
 lua-language-server
 lxqt-openssh-askpass # askpass tool
 man-db
