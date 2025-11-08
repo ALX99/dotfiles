@@ -13,6 +13,7 @@ run_command() {
 }
 
 user_config() {
+  run_command sudo usermod -aG wheel $USER
   run_command mkdir -p ~/.local/bin
   run_command ln -sf "$PWD"/.local/bin/* ~/.local/bin/
   run_command ln -sf "$PWD"/.gitconfig ~/
@@ -65,13 +66,25 @@ kde() {
   run_command kwriteconfig5 --file kwalletrc --group 'Wallet' --key 'First Use' 'false'
 }
 
+udev_config() {
+  echo -e "${YELLOW}Setting up udev rules...${NC}"
+  if [ -f "$PWD/misc/99-power.rules.in" ]; then
+    run_command sudo sh -c "sed -e 's|__USER__|'$USER'|g' -e 's|__HOME__|'$HOME'|g' '$PWD/misc/99-power.rules.in' > /etc/udev/rules.d/99-power.rules"
+    run_command sudo udevadm control --reload-rules
+    run_command sudo udevadm trigger
+    echo -e "${GREEN}Udev rules set up.${NC}"
+  else
+    echo -e "${RED}Udev rules template not found.${NC}"
+  fi
+}
+
 complete_message() {
   echo -e "${GREEN}$1 completed.${NC}"
 }
 
 main_menu() {
   echo -e "${YELLOW}Select an option:${NC}"
-  options=("User Configuration" "System Configuration" "Arch Configuration" "SSH Agent Setup" "Disable KDE Wallet" "Quit")
+  options=("User Configuration" "System Configuration" "Arch Configuration" "SSH Agent Setup" "Disable KDE Wallet" "Setup Udev Rules" "Quit")
   select _ in "${options[@]}"; do
     case $REPLY in
     1)
@@ -94,7 +107,11 @@ main_menu() {
       kde
       complete_message "${options[4]}"
       ;;
-    6) break ;;
+    6)
+      udev_config
+      complete_message "${options[5]}"
+      ;;
+    7) break ;;
     *)
       echo -e "${RED}Invalid option${NC}"
       break
