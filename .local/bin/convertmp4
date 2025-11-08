@@ -1,0 +1,168 @@
+#!/bin/bash
+
+# Check if input file is provided
+if [ $# -eq 0 ]; then
+  echo "Usage: $0 <input.mkv> [output.mp4]"
+  exit 1
+fi
+
+INPUT="$1"
+OUTPUT="${2:-${INPUT%.mkv}.mp4}"
+
+# Check if input file exists
+if [ ! -f "$INPUT" ]; then
+  echo "Error: Input file '$INPUT' not found"
+  exit 1
+fi
+
+# Check if ffmpeg is installed
+if ! command -v ffmpeg &>/dev/null; then
+  echo "Error: ffmpeg is not installed"
+  exit 1
+fi
+
+# Check if fzf is installed
+if ! command -v fzf &>/dev/null; then
+  echo "Error: fzf is not installed"
+  exit 1
+fi
+
+echo "Analyzing audio tracks in '$INPUT'..."
+
+# Get audio track information
+AUDIO_INFO=$(ffmpeg -i "$INPUT" 2>&1 | grep "Stream.*Audio")
+
+if [ -z "$AUDIO_INFO" ]; then
+  echo "Error: No audio tracks found in the input file"
+  exit 1
+fi
+
+# Parse audio tracks and create selection list with metadata
+TRACK_LIST=""
+TRACK_NUM=1
+while IFS= read -r line; do
+  # Extract stream number (e.g., 0:1, 0:2)
+  STREAM=$(echo "$line" | grep -oP 'Stream #\K[0-9]+:[0-9]+')
+  # Extract codec and other info
+  INFO=$(echo "$line" | sed 's/.*Audio: //')
+
+  # Extract language if available
+  LANG=$(echo "$line" | grep -oP '\(([a-z]{3})\)' | tr -d '()')
+  if [ -z "$LANG" ]; then
+    LANG="unknown"
+  fi
+
+  # Extract title metadata if available
+  TITLE=$(echo "$line" | grep -oP ': ([^,]+)' | head -1 | sed 's/: //')
+
+  # Build display string
+  DISPLAY="Track $TRACK_NUM [$STREAM] - Lang: $LANG - $INFO"
+  if [ -n "$TITLE" ] && [ "$TITLE" != "$INFO" ]; then
+    DISPLAY="$DISPLAY | Title: $TITLE"
+  fi
+
+  TRACK_LIST="${TRACK_LIST}${STREAM}|${DISPLAY}\n"
+  TRACK_NUM=$((TRACK_NUM + 1))
+done <<<"$AUDIO_INFO"
+
+# Let user select audio track with fzf
+echo -e "$TRACK_LIST" | fzf --prompt="Select audio track: " --height=40% --reverse --delimiter="|" --with-nth=2 >/tmp/selected_track
+
+if [ ! -s /tmp/selected_track ]; then
+  echo "No track selected. Exiting."
+  rm -f /tmp/selected_track
+  exit 1
+fi
+
+# Extract selected stream ID and get just the stream index
+SELECTED=$(cat /tmp/selected_track | cut -d'|' -f1)
+STREAM_INDEX=$(echo "$SELECTED" | cut -d':' -f2)
+rm -f /tmp/selected_track
+
+# Ask about subtitle extraction
+echo ""
+read -p "Do you want to extract a subtitle track? (y/n): " EXTRACT_SUB
+
+SUBTITLE_STREAM=""
+if [[ $EXTRACT_SUB =~ ^[Yy]$ ]]; then
+  # Get subtitle track information
+  SUB_INFO=$(ffmpeg -i "$INPUT" 2>&1 | grep "Stream.*Subtitle")
+
+  if [ -z "$SUB_INFO" ]; then
+    echo "No subtitle tracks found in the input file"
+  else
+    # Parse subtitle tracks and create selection list with metadata
+    SUB_LIST=""
+    SUB_NUM=1
+    while IFS= read -r line; do
+      # Extract stream number
+      STREAM=$(echo "$line" | grep -oP 'Stream #\K[0-9]+:[0-9]+')
+      # Extract codec and language info
+      INFO=$(echo "$line" | sed 's/.*Subtitle: //')
+
+      # Extract language if available
+      LANG=$(echo "$line" | grep -oP '\(([a-z]{3})\)' | tr -d '()')
+      if [ -z "$LANG" ]; then
+        LANG="unknown"
+      fi
+
+      # Extract title metadata if available
+      TITLE=$(echo "$line" | grep -oP ': ([^,]+)' | head -1 | sed 's/: //')
+
+      # Build display string
+      DISPLAY="Track $SUB_NUM [$STREAM] - Lang: $LANG - $INFO"
+      if [ -n "$TITLE" ] && [ "$TITLE" != "$INFO" ]; then
+        DISPLAY="$DISPLAY | Title: $TITLE"
+      fi
+
+      SUB_LIST="${SUB_LIST}${STREAM}|${DISPLAY}\n"
+      SUB_NUM=$((SUB_NUM + 1))
+    done <<<"$SUB_INFO"
+
+    # Let user select subtitle track with fzf
+    echo -e "$SUB_LIST" | fzf --prompt="Select subtitle track: " --height=40% --reverse --delimiter="|" --with-nth=2 >/tmp/selected_sub
+
+    if [ -s /tmp/selected_sub ]; then
+      SUBTITLE_STREAM=$(cat /tmp/selected_sub | cut -d'|' -f1)
+      echo "Selected subtitle track: $SUBTITLE_STREAM"
+    fi
+    rm -f /tmp/selected_sub
+  fi
+fi
+
+echo ""
+echo "Converting '$INPUT' to '$OUTPUT'..."
+echo "Selected audio track: $SELECTED"
+echo "Removing all subtitles from video"
+
+# Convert with selected audio track and no subtitles
+ffmpeg -threads 0 -i "$INPUT" \
+  -map 0:v:0 \
+  -map "$SELECTED" \
+  -c:v copy \
+  -c:a aac \
+  -b:a 192k \
+  -sn \
+  -threads 0 \
+  "$OUTPUT"
+
+if [ $? -eq 0 ]; then
+  echo "Conversion completed successfully: $OUTPUT"
+
+  # Extract subtitle if selected
+  if [ -n "$SUBTITLE_STREAM" ]; then
+    SRT_OUTPUT="${INPUT%.mkv}.srt"
+    echo ""
+    echo "Extracting subtitle to '$SRT_OUTPUT'..."
+    ffmpeg -i "$INPUT" -map "$SUBTITLE_STREAM" "$SRT_OUTPUT"
+
+    if [ $? -eq 0 ]; then
+      echo "Subtitle extracted successfully: $SRT_OUTPUT"
+    else
+      echo "Warning: Subtitle extraction failed"
+    fi
+  fi
+else
+  echo "Error: Conversion failed"
+  exit 1
+fi
