@@ -61,6 +61,8 @@ return {
       map({ "i", "n" }, "<A-p>", '<Esc>:Copilot panel<CR>', { desc = "Open copilot panel" })
       map("i", "<C-n>", "<Plug>(copilot-next)", { desc = "Next copilot suggestion" })
       map("i", "<C-e>", "<Plug>(copilot-previous)", { desc = "Previous copilot suggestion" })
+      map("i", "<A-o>", "<Plug>(copilot-accept-line)", { desc = "Accept copilot line" })
+      map("i", "<A-i>", "<Plug>(copilot-accept-word)", { desc = "Accept copilot word" })
       -- keymap("i", "<C-o>", "<Plug>(copilot-dismiss)")
       -- keymap("i", "<C-s>", "<Plug>(copilot-suggest)")
     end,
