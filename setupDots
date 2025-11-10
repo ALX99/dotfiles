@@ -26,6 +26,11 @@ user_config() {
     run_command ln -sf "$f" ~/.ssh/
   done
 
+  run_command mkdir -p ~/.claude
+  for f in "$PWD"/.claude/*; do
+    run_command ln -sf "$f" ~/.claude/
+  done
+
   for f in "$PWD"/shell/.[!.]*; do
     run_command ln -sf "$f" ~
   done
@@ -41,9 +46,13 @@ system_config() {
     /etc/systemd/resolved.conf.d/
 
   run_command sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
-  run_command sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
+
+  # sudoers
   run_command sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
   run_command sudo chown root:root /etc/sudoers.d/99-sudoers
+
+  # logind
+  run_command sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
 }
 
 arch_config() {
