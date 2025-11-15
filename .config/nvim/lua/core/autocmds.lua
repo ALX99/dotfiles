@@ -64,12 +64,12 @@ autocmd({ "InsertEnter" }, {
 autocmd("BufWritePost", {
   group = augroup("shfmt-autofmt", { clear = true }),
   callback = function(info)
-    if vim.o.filetype == "sh" then
+    if vim.bo[info.buf].filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
         return true -- delete the autocmd
       end
 
-      local output = vim.fn.systemlist("shfmt -i=2 -s " .. info.file)
+      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s", info.file })
       if vim.v.shell_error ~= 0 then
         local error_message = "shfmt failed: " .. table.concat(output, "\n")
         vim.notify(error_message, vim.log.levels.ERROR)

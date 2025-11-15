@@ -5,7 +5,7 @@ local M = {
 function M.setup()
   -- Create the dir if it doesn't exists
   if vim.fn.isdirectory(M.dir) == 0 then
-    vim.cmd("!mkdir -p " .. vim.fn.fnameescape(M.dir))
+    vim.fn.mkdir(M.dir, "p")
   end
 
   local session_group = vim.api.nvim_create_augroup("auto_sessions", { clear = true })
