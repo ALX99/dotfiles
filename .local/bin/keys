@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+import argparse
+import csv
+import os
+from pathlib import Path
+import sys
+from typing import Iterable, List
+
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+KEYS_DIR = CONFIG_HOME / "keys"
+
+def list_programs() -> List[str]:
+    if not KEYS_DIR.is_dir():
+        raise FileNotFoundError(f"No key directory found at {KEYS_DIR}")
+    programs = sorted(p.stem for p in KEYS_DIR.glob("*.csv"))
+    if not programs:
+        raise FileNotFoundError(f"No keybinding files found in {KEYS_DIR}")
+    return programs
+
+def load_rows(program: str) -> List[List[str]]:
+    file_path = KEYS_DIR / f"{program}.csv"
+    if not file_path.is_file():
+        raise FileNotFoundError(file_path)
+
+    rows: List[List[str]] = []
+    with file_path.open(newline="", encoding="utf-8") as csvfile:
+        for raw_line in csvfile:
+            stripped = raw_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            rows.append([cell.strip() for cell in next(csv.reader([raw_line]))])
+    if not rows:
+        raise ValueError(f"No keybindings found in {file_path}")
+    return rows
+
+def format_table(rows: List[List[str]]) -> str:
+    max_cols = max(len(row) for row in rows)
+    padded = [row + [""] * (max_cols - len(row)) for row in rows]
+    widths = [max(len(row[i]) for row in padded) for i in range(max_cols)]
+
+    def hline() -> str:
+        return "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+
+    def fmt_row(row: List[str]) -> str:
+        cells = [f" {row[i].ljust(widths[i])} " for i in range(max_cols)]
+        return "|" + "|".join(cells) + "|"
+
+    lines = [hline(), fmt_row(padded[0])]
+    if len(padded) > 1:
+        lines.append(hline())
+        lines.extend(fmt_row(row) for row in padded[1:])
+    lines.append(hline())
+    return "\n".join(lines)
+
+def parse_args(argv: Iterable[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="keys",
+        description="Display keybindings stored in CSV files",
+        usage="keys <program>|--list|--help",
+        add_help=True,
+    )
+    parser.add_argument("program", nargs="?", help="Program name to display")
+    parser.add_argument("-l", "--list", action="store_true", help="List available programs")
+    return parser.parse_args(argv)
+
+def main(argv: Iterable[str]) -> int:
+    args = parse_args(argv)
+
+    if args.list:
+        try:
+            for program in list_programs():
+                print(program)
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        return 0
+
+    if not args.program:
+        print("Usage: keys <program>|--list|--help", file=sys.stderr)
+        return 1
+
+    try:
+        rows = load_rows(args.program)
+    except FileNotFoundError:
+        print(f"No keybindings defined for '{args.program}'.", file=sys.stderr)
+        try:
+            programs = list_programs()
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+        else:
+            print("Available programs:", file=sys.stderr)
+            for program in programs:
+                print(f"  {program}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
+    print(f"Key bindings for '{args.program}':\n")
+    print(format_table(rows))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,12 @@
+Shortcut,Action,Notes
+Alt+t,New Tab,
+Alt+x,Close Tab,
+Alt+X,Restore Last Closed Tab,
+Alt+m,Go Back,
+Alt+i,Go Forward,
+Alt+r,Reload Page,
+Alt+R,Reload Page (Skip Cache),
+Alt+s,Focus Search,
+Alt+1,Switch to Workspace 1,
+Alt+2,Switch to Workspace 2,
+Alt+3,Switch to Workspace 3,
