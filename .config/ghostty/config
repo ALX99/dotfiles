@@ -21,6 +21,9 @@ background-blur = true
 #custom-shader = ~/dotfiles/ghostty-shaders/starfield-colors.glsl
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 
+#keybind = ctrl+c=copy_to_clipboard
+#keybind = ctrl+v=paste_from_clipboard
+
 # for claude code shift+enter
 keybind = shift+enter=text:\x1b\r
 confirm-close-surface = false
