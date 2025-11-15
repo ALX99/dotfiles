@@ -14,6 +14,11 @@ return {
             filename_first = true, -- display filename before the file path
           },
         },
+        win = {
+          preview = {
+            minimal = true,
+          },
+        },
       },
       -- scroll = {},
       statuscolumn = {},
