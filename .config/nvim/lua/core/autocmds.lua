@@ -59,17 +59,6 @@ autocmd({ "InsertEnter" }, {
 --   group = cursorGrp
 -- })
 
--- return to last edit position when opening files
--- this is handled by require("mini.misc").setup_restore_cursor() now
--- autocmd('BufReadPost', {
---   callback = function()
---     local mark = vim.api.nvim_buf_get_mark(0, '"')
---     local lcount = vim.api.nvim_buf_line_count(0)
---     if mark[1] > 0 and mark[1] <= lcount then
---       pcall(vim.api.nvim_win_set_cursor, 0, mark)
---     end
---   end,
--- })
 
 -- Make sure :filetype is on
 autocmd("BufWritePost", {
@@ -96,62 +85,21 @@ autocmd("BufWritePost", {
 })
 
 autocmd("BufWritePre", {
-    pattern = "*.go",
-    callback = function()
-        local params = vim.lsp.util.make_range_params()
-        params.context = { only = { "source.organizeImports" } }
-        local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 1000)
-        for _, res in pairs(result or {}) do
-            for _, action in pairs(res.result or {}) do
-                if action.edit then
-                    vim.lsp.util.apply_workspace_edit(action.edit, "utf-8")
-                end
-            end
+  pattern = "*.go",
+  callback = function()
+    local params = vim.lsp.util.make_range_params()
+    params.context = { only = { "source.organizeImports" } }
+    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 1000)
+    for _, res in pairs(result or {}) do
+      for _, action in pairs(res.result or {}) do
+        if action.edit then
+          vim.lsp.util.apply_workspace_edit(action.edit, "utf-8")
         end
-    end,
+      end
+    end
+  end,
 })
 
--- autocmd("BufReadPost", {
---   desc = "Collapse error handling with one line inside",
---   group = augroup("go-fold", { clear = true }),
---   pattern = "*.go",
---   callback = function(info)
---     vim.schedule(function()
---       local function folds_exist(bufnr)
---         for i = 1, vim.api.nvim_buf_line_count(bufnr) do
---           if vim.fn.foldlevel(i) > 0 then return true end
---         end
---         return false
---       end
---
---       if not folds_exist(info.buf) then return end
---
---       --[[
---       1. Collapse "if err != nil" error handling with one line inside
---       2. Collapse all "if ...; err != nil" error handling with one line inside
---       3. Remove search highlight
---       ]] --
---
---       --[[
---       Commented out because folds are only created on select statements and not switch
---       3. Collapse "case" statements with one line inside
---       4. Collapse "default" statement with one line inside
---       :silent exec 'g/\s*case.*\n.*\n\s*\(case\|default\)/normal! za' |
---       :silent exec 'g/\s*default.*\n.*\n\s*}/normal! za' |
---       --]]
---
---       vim.opt_local.foldtext = require("modules.foldtext")
---       local view = vim.fn.winsaveview()
---       vim.cmd([[
---         normal! zR |
---         silent! g/\s*if err != nil {\n.*\n\s*}/normal! za |
---         silent! g/\s*if.*; err != nil {\n.*\n\s*}/normal! za |
---         nohl
---       ]])
---       vim.fn.winrestview(view)
---     end)
---   end
--- })
 
 -- Automatically update listchars to match indentation and listchars settings
 -- https://www.reddit.com/r/neovim/comments/17aponn/comment/k5f2n7t/?utm_source=share&utm_medium=web2x&context=3
