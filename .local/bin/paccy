@@ -47,7 +47,7 @@ log_pkg() {
 
 # Read packages to either install or remove
 read_pkgs() {
-  while [[ -n $1 ]] && [[ ${1:0:1} != - ]]; do
+  while [[ $# -gt 0 ]] && [[ ${1:0:1} != - ]]; do
     pkgs+="$1 "
     shift
   done
@@ -57,9 +57,26 @@ read_pkgs() {
 # Remove a tracked package
 # 1: package(s) to be untracked
 remove_tracked() {
+  local pkg tmp name keep
+  declare -A removed_pkg
+  tmp=$(mktemp)
+  while IFS= read -r line; do
+    name=${line%%[[:space:]]*}
+    keep=1
+    for pkg in "$@"; do
+      if [[ $name == "$pkg" ]]; then
+        keep=
+        removed_pkg["$pkg"]=1
+        break
+      fi
+    done
+    [[ -n $keep ]] && printf '%s\n' "$line" >>"$tmp"
+  done <"$pkgList"
+  mv "$tmp" "$pkgList"
   for pkg in "$@"; do
-    sed -i "/$pkg/d" "$pkgList"
-    echo "Removed '$pkg' from log"
+    if [[ -n ${removed_pkg["$pkg"]+x} ]]; then
+      echo "Removed '$pkg' from log"
+    fi
   done
 }
 
@@ -74,7 +91,10 @@ install_pkgs() {
 }
 # Installs all the packages listed under the packagelist
 install() {
-  yay -S --needed "$(get_tracked)"
+  local tracked
+  mapfile -t tracked < <(get_tracked)
+  [ "${#tracked[@]}" -eq 0 ] && return
+  yay -S --needed "${tracked[@]}"
 }
 # Get tracked packages under the variable 'tracked'
 get_tracked() {
@@ -87,14 +107,18 @@ get_untracked() {
     <(get_tracked) || true
 }
 main() {
-  case "$1" in
+  case "${1-}" in
   -h | --help)
     echo "$usage"
     exit 0
     ;;
   -S)
     shift
-    read -rp "Comment to add for these package(s): " comment
+    if [[ -t 0 ]]; then
+      read -rp "Comment to add for these package(s): " comment
+    else
+      comment=
+    fi
 
     read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
     yay -S "${pkgs[@]}"
@@ -142,9 +166,9 @@ main() {
     exit 0
     ;;
   -rt | --remove-tracked)
-    for pkg in $("${preview[@]}" -m < <(get_tracked)); do
+    while IFS= read -r pkg; do
       pkgs+=("$pkg")
-    done
+    done < <("${preview[@]}" -m < <(get_tracked))
     [ ${#pkgs[@]} -eq 0 ] && exit
 
     yay -Rns "${pkgs[@]}" &&
@@ -153,9 +177,9 @@ main() {
     exit 0
     ;;
   -ru | --remove-untracked)
-    for pkg in $("${preview[@]}" -m < <(get_untracked)); do
+    while IFS= read -r pkg; do
       pkgs+=("$pkg")
-    done
+    done < <("${preview[@]}" -m < <(get_untracked))
     [ ${#pkgs[@]} -eq 0 ] && exit
 
     sudo pacman -Rns "${pkgs[@]}"
@@ -166,9 +190,9 @@ main() {
     pacman -Qq | sort >/tmp/all
     diff=$(comm -23 /tmp/tracked /tmp/all)
 
-    for pkg in $(echo "$diff" | fzf -m --preview 'yay -Si {1}'); do
+    while IFS= read -r pkg; do
       pkgs+=("$pkg")
-    done
+    done < <(echo "$diff" | fzf -m --preview 'yay -Si {1}')
     [ ${#pkgs[@]} -eq 0 ] && exit
 
     yay -S "${pkgs[@]}"
@@ -176,9 +200,9 @@ main() {
     ;;
   -s)
     shift
-    for pkg in $(yay -Slq | fzf -m --preview 'yay -Si {1}'); do
+    while IFS= read -r pkg; do
       pkgs+=("$pkg")
-    done
+    done < <(yay -Slq | fzf -m --preview 'yay -Si {1}')
     yay -S "${pkgs[@]}"
     install_pkgs "${pkgs[@]}"
     exit 0
