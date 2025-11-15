@@ -5,11 +5,13 @@ bash-completion # completion
 bat # better cat
 bind # nslookup and more
 blueman # graphical interface for bluetooth
+bluetui
 bluez # bluetooth support
 bluez-utils # utils for interacting with bluetooth
 brave-bin # browser
 czkawka-gui-bin # find duplicate files
-direnv
+btop
+copyparty
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
@@ -44,6 +46,7 @@ grim # screenshot tool
 htop
 hyprland
 imv # image viewer
+intel-media-sdk
 iwd # Daemon to manage network connections (make sure to configure it with systemd-networkd, systemd-resolved)
 iw # iw wifi thingy
 jq # Json parser
@@ -53,7 +56,6 @@ lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
-linux-lts
 lua-language-server
 lxqt-openssh-askpass # askpass tool
 man-db
@@ -62,17 +64,15 @@ mpv
 nano
 ncdu # better du (find what is taking up space)
 neovim
-niri
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji # Google emojis
+npm
 obsidian
 openssh
-otf-departure-mono
 otf-font-awesome
 otf-geist-mono-nerd
 otf-monaspace
-p7zip # 7z extentions
 pacman-contrib # checkupdates, pactree and stuff
 pavucontrol # Volume control
 pcmanfm
@@ -85,7 +85,6 @@ power-profiles-daemon # configure CPU frequency scaling
 pyright
 ripgrep
 river
-river-creek # status bar
 rust
 rust-analyzer
 shellcheck
@@ -93,6 +92,7 @@ shfmt # shell format
 sof-firmware # Sound firmware, usually required for laptop audio
 sudo
 swaybg
+systemd-resolvconf
 tailwindcss-language-server
 tmux
 tree
@@ -100,7 +100,7 @@ tree-sitter-cli
 ttf-0xproto-nerd
 ttf-cascadia-code # programming font
 ttf-fira-code
-ttf-font-awesome
+ttf-jetbrains-mono-nerd
 ttf-nerd-fonts-symbols-mono
 ttf-profont-nerd
 ttf-terminus-nerd
@@ -116,6 +116,8 @@ veracrypt
 visual-studio-code-bin
 vscode-html-languageserver
 vscode-json-languageserver
+vulkan-intel
+waybar
 webp-pixbuf-loader # makes it possible for swaybg to use webp images
 wl-clipboard
 xdg-desktop-portal-gtk # https://wiki.archlinux.org/title/XDG_Desktop_Portal
