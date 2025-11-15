@@ -64,8 +64,8 @@ if not vim.g.vscode then
     local file_path = vim.fn.expand('%:p')
     local line_number = vim.fn.line('.')
     local column_number = vim.fn.col('.')
-    local command = 'code ' .. vim.fn.getcwd() .. ' --goto ' .. file_path .. ':' .. line_number .. ':' .. column_number
-    vim.fn.system(command)
+    local goto_arg = string.format("%s:%d:%d", file_path, line_number, column_number)
+    vim.fn.system({ 'code', vim.fn.getcwd(), '--goto', goto_arg })
   end, { desc = "open file in vscode" })
 end
 
@@ -109,4 +109,5 @@ map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
 vim.api.nvim_create_user_command('CopyGitHubPermalink', utils.copy_github_permalink,
   { desc = "Copy GitHub permalink to clipboard", range = true })
 
-map({ "n", "x" }, "<leader>Gp", utils.copy_github_permalink, { expr = true })
+map("n", "<leader>Gp", "<cmd>CopyGitHubPermalink<cr>", { desc = "Copy GitHub permalink" })
+map("x", "<leader>Gp", ":<C-u>CopyGitHubPermalink<cr>", { desc = "Copy GitHub permalink" })
