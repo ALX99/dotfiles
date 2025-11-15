@@ -2,7 +2,6 @@ return {
   {
     "neovim/nvim-lspconfig",
     version = "*",
-    -- dependencies = { "hrsh7th/cmp-nvim-lsp" },
     dependencies = { 'saghen/blink.cmp' },
     config = function()
       local capabilities = vim.lsp.protocol.make_client_capabilities()
