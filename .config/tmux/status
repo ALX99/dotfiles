@@ -1,102 +1,59 @@
 #!/bin/bash
+set -euo pipefail
 
-# white="#[fg=white]"
-grey="#[fg=grey]"
-# red="#[fg=red]"
-# magenta="#[fg=colour13]"
+grey="#[fg=colour244]"
+accent="#[fg=colour250]"
+warn="#[fg=colour178]"
+crit="#[fg=colour196]"
+reset="#[fg=default]"
 
-# for percentages
-p_green="#[fg=colour35]"
-p_yellow="#[fg=colour190]"
-p_red="#[fg=colour196]"
-
-rst="#[fg=default]"
-
-function get_time() {
-  echo "$grey$(date +'%H:%M')$rst"
+get_time() {
+  printf "%s%s%s" "$accent" "$(date +'%H:%M')" "$reset"
 }
 
-function get_bat() {
-  local percentage colour
-  if [ "$(uname)" == "Linux" ]; then
-    percentage="$(cat /sys/class/power_supply/BAT0/capacity)"
-    if [ "$(cat /sys/class/power_supply/BAT0/status)" == "Charging" ]; then
-      colour="$p_green"
-    elif [[ $percentage -gt 50 ]]; then
-      colour="$p_green"
-    elif [[ $percentage -gt 15 ]]; then
-      colour="$p_yellow"
+get_bat() {
+  local percentage status colour=""
+  case "$(uname)" in
+  Linux)
+    if [[ -r /sys/class/power_supply/BAT0/capacity ]]; then
+      percentage="$(cat /sys/class/power_supply/BAT0/capacity)"
+      status="$(cat /sys/class/power_supply/BAT0/status 2>/dev/null || true)"
     else
-      colour="$p_red"
+      return
     fi
-  elif [ "$(uname)" == "Darwin" ]; then
-    percentage="$(pmset -g batt | grep -o '[0-9]\{1,3\}%')"
-    if pmset -g batt | grep -q 'charging'; then
-      colour="$p_green"
-    elif [[ $percentage -gt 50 ]]; then
-      colour="$p_green"
-    elif [[ $percentage -gt 15 ]]; then
-      colour="$p_yellow"
-    else
-      colour="$p_red"
-    fi
-  fi
+    ;;
+  Darwin)
+    percentage="$(pmset -g batt | grep -o '[0-9]\{1,3\}%')" || return
+    status="$(pmset -g batt | grep -qi 'charging' && echo 'Charging' || true)"
+    ;;
+  *)
+    return
+    ;;
+  esac
 
-  echo "${grey}BAT: $colour$percentage"
-}
-
-function get_cpu() {
-  local percentage colour
-  if [ "$(uname)" == "Linux" ]; then
-    percentage="$(top -bn1 | awk '/Cpu\(s\)/ {printf "%.2f%%\n", 100 - $8}')"
-  elif [ "$(uname)" == "Darwin" ]; then
-    percentage="$(top -l 1 | grep "CPU usage" | awk '{print $3}' | cut -d% -f1)"
-  fi
-  percentage="${percentage%%.*}" # remove everything after the decimal
-
-  if [[ $percentage -gt 85 ]]; then
-    colour="$p_red"
-  elif [[ $percentage -gt 50 ]]; then
-    colour="$p_yellow"
+  if [[ $percentage -le 15 ]]; then
+    colour="$crit"
+  elif [[ $percentage -le 40 ]]; then
+    colour="$warn"
   else
-    colour="$p_green"
+    colour="$accent"
   fi
 
-  echo "${grey}CPU: $colour$percentage"
-}
-
-function get_mem() {
-  local percentage colour
-  if [ "$(uname)" == "Linux" ]; then
-    percentage="$(
-      free | grep Mem | awk '{print $3/$2 * 100.0}'
-    )"
-  elif [ "$(uname)" == "Darwin" ]; then
-    percentage="$(top -l 1 | grep PhysMem | awk '{print $2/$6 * 100.0}')"
-  fi
-  percentage="${percentage%%.*}" # remove everything after the decimal
-
-  if [[ $percentage -gt 85 ]]; then
-    colour="$p_red"
-  elif [[ $percentage -gt 50 ]]; then
-    colour="$p_yellow"
+  if [[ $status == "Charging" ]]; then
+    printf "%sbat %s%s%%%s" "$grey" "$accent" "$percentage" "$reset"
   else
-    colour="$p_green"
+    printf "%sbat %s%s%%%s" "$grey" "$colour" "$percentage" "$reset"
   fi
-
-  echo "${grey}MEM: $colour$percentage"
 }
 
-function wrap() {
-  local content="$3"
-  if [[ $1 == '[' ]]; then
-    echo "$2[$content$2]"
-  elif [[ $1 == '<' ]]; then
-    echo "$2<$content$2>"
-  else
-    echo "$content"
-  fi
+sections=()
+bat="$(get_bat || true)"
+if [[ -n ${bat:-} ]]; then
+  sections+=("$bat")
+fi
+sections+=("$(get_time)")
 
-}
-
-echo "$(wrap "[" "$grey" "$(get_bat) $(get_cpu) $(get_mem)") $(get_time)"
+printf "%s" "$(
+  IFS=' · '
+  echo "${sections[*]}"
+)"
