@@ -10,21 +10,6 @@ local auto_fmt_clients = {
   -- "nim_langserver",
 }
 
--- Create an augroup that is used for managing our formatting autocmds.
--- We need one augroup per client to make sure that multiple clients
--- can attach to the same buffer without interfering with each other.
-local _augroups = {}
-
-local function get_augroup(client, prefix)
-  if not _augroups[client.id] then
-    local group_name = prefix .. '-' .. client.name
-    local id = vim.api.nvim_create_augroup(group_name, {})
-    _augroups[client.id] = id
-  end
-
-  return _augroups[client.id]
-end
-
 ---@param client vim.lsp.Client
 ---@param buf number
 local function mappings(client, buf)
@@ -135,37 +120,6 @@ local function show_diagnostics(client, buf)
   })
 end
 
----@param client vim.lsp.Client
----@param buf number
-local function formatting(client, buf)
-  if client:supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
-    vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
-
-    local format_augroup = vim.api.nvim_create_augroup('lsp-format-' .. client.name .. '-' .. buf, {})
-
-    vim.api.nvim_create_autocmd("BufWritePre", {
-      callback = function()
-        local view = vim.fn.winsaveview()
-        vim.lsp.buf.format({ async = false, timeout_ms = 2000 })
-        vim.fn.winrestview(view)
-      end,
-      group = format_augroup,
-      buffer = buf,
-    })
-
-    vim.api.nvim_create_autocmd('LspDetach', {
-      buffer = buf,
-      group = vim.api.nvim_create_augroup('lsp-format-detach-' .. client.name .. '-' .. buf, { clear = true }),
-      callback = function(ev)
-        if ev.data.client_id == client.id then
-          vim.api.nvim_clear_autocmds { group = format_augroup, buffer = buf }
-        end
-        return true
-      end,
-    })
-  end
-end
-
 vim.api.nvim_create_autocmd('LspAttach', {
   callback = function(args)
     local path = vim.api.nvim_buf_get_name(args.buf)
@@ -210,11 +164,35 @@ vim.api.nvim_create_autocmd('LspAttach', {
     mappings(client, args.buf)
     highlight_references(client, args.buf)
     show_diagnostics(client, args.buf)
-
-
-    if vim.tbl_contains(auto_fmt_clients, client.name) then
-      formatting(client, args.buf)
-    end
   end,
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+})
+
+-- Auto-format on save for specific LSP clients
+-- Note, this does not support multiple LSP clients formatting the same buffer.
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('lsp.setupautofmt', {}),
+  callback = function(args)
+    local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
+
+    if not vim.tbl_contains(auto_fmt_clients, client.name) then
+      return
+    end
+
+    vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
+
+
+    -- Auto-format ("lint") on save.
+    -- Usually not needed if server supports "textDocument/willSaveWaitUntil".
+    if not client:supports_method('textDocument/willSaveWaitUntil')
+        and client:supports_method('textDocument/formatting') then
+      vim.api.nvim_create_autocmd('BufWritePre', {
+        group = vim.api.nvim_create_augroup('lsp.autofmt', { clear = false }),
+        buffer = args.buf,
+        callback = function()
+          vim.lsp.buf.format({ bufnr = args.buf, id = client.id, timeout_ms = 1000 })
+        end,
+      })
+    end
+  end,
 })
