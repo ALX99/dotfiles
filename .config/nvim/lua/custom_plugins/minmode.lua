@@ -18,7 +18,7 @@ function M.toggle()
     vim.o.statusline = M.statusline
   else
     M.minmode = true
-    vim.o.winbar = "%<%f %y %h%m%r%=%-14.(%l,%c%V%) %P"
+    -- vim.o.winbar = "%<%f %y %h%m%r%=%-14.(%l,%c%V%) %P"
 
     -- Hide statusline by setting laststatus and cmdheight to 0.
     vim.o.laststatus = 0
@@ -38,6 +38,10 @@ function M.setup()
     M.toggle,
     { desc = "Toggle minimal mode" }
   )
+
+  if not M.minmode then
+    M.toggle()
+  end
 end
 
 return M
