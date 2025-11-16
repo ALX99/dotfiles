@@ -21,7 +21,9 @@ return {
         },
       },
       -- scroll = {},
-      statuscolumn = {},
+      statuscolumn = {
+        enabled = false,
+      },
       -- todo enable when it does not have a
       -- bug when referencing something bigger
       -- to something smaller on the same line

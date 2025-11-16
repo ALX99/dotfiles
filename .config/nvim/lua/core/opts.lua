@@ -28,17 +28,17 @@ opt.updatetime   = 1000          -- If this many milliseconds nothing is typed t
 o.breakindent    = true -- Enable break indent
 -- o.cursorline     = true  -- Enable highlighting of the current line
 o.cursorlineopt  = "both"
-o.linebreak      = false -- Don't wrap words
-o.wrap           = false -- Display long lines as just one line
-o.number         = true  -- Show line numbers
-o.relativenumber = false -- Relative line numbers
+o.linebreak      = false  -- Don't wrap words
+o.wrap           = false  -- Display long lines as just one line
+o.number         = true   -- Show line numbers
+o.relativenumber = false  -- Relative line numbers
 o.numberwidth    = 2
-o.splitbelow     = true  -- Horizontal splits (:split) will automatically be below
-o.splitright     = true  -- Vertical splits (:vsplit) will automatically be to the right
-o.ruler          = true  -- Show the cursor position all the time (bottom bar)
+o.splitbelow     = true   -- Horizontal splits (:split) will automatically be below
+o.splitright     = true   -- Vertical splits (:vsplit) will automatically be to the right
+o.ruler          = true   -- Show the cursor position all the time (bottom bar)
 -- o.showmode       = true     -- We don't need to see things like -- INSERT -- due to the status bar plugin
-o.signcolumn     = 'yes' -- Always show sign column (otherwise it will shift text)
-o.hlsearch       = true  -- highlight matches
+o.signcolumn     = 'auto' -- Always show sign column (otherwise it will shift text)
+o.hlsearch       = true   -- highlight matches
 
 
 
@@ -66,17 +66,17 @@ opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal", "help" 
 
 -- Folding
 opt.foldlevel      = 99
-opt.fillchars      = { fold = " " }
+opt.fillchars      = { fold = " ", eob = "~" }
 o.foldtext         = ''
 
 if not vim.g.vscode then
-  opt.spell = true
+  opt.spell = false
 end
 opt.spelllang = 'en_us,en_gb'
 o.inccommand  = "split"
 
 -- Show some invisible characters
-o.list        = false
+o.list        = true
 opt.listchars = {
   tab = "⟩ ",
   trail = "+",
@@ -84,7 +84,7 @@ opt.listchars = {
   extends = ">",
   space = "·",
   nbsp = "␣",
-  leadmultispace = "│ "
+  leadmultispace = "│ ",
 }
 
 o.helpheight  = 25

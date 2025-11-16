@@ -34,18 +34,6 @@ autocmd({ "VimResized" }, {
   end,
 })
 
-autocmd({ "InsertLeave" }, {
-  desc = "set relativenumber",
-  group = augroup("setrelativenumber", { clear = true }),
-  command = "set relativenumber",
-})
-autocmd({ "InsertEnter" }, {
-  desc = "set number",
-  group = augroup("setnumber", { clear = true }),
-  command = "set number norelativenumber",
-})
-
-
 -- show cursor line only in active window
 -- local cursorGrp = augroup("CursorLine", { clear = true })
 -- autocmd({ "InsertLeave", "WinEnter" }, {
