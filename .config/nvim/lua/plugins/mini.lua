@@ -27,9 +27,9 @@ return {
               local lsp           = MiniStatusline.section_lsp({ trunc_width = 75 })
 
               -- Copilot/AI status section
-              local copilot = ''
-              local copilot_hl = 'MiniStatuslineDevinfo'
-              local status = require("sidekick.status").get()
+              local copilot       = ''
+              local copilot_hl    = 'MiniStatuslineDevinfo'
+              local status        = require("sidekick.status").get()
               if status then
                 local icon = ''
                 if status.busy then
@@ -44,15 +44,15 @@ return {
                 end
               end
 
-              local filename      = MiniStatusline.section_filename({ trunc_width = 140 })
-              local fileinfo      = MiniStatusline.section_fileinfo({ trunc_width = 120 })
-              local location      = MiniStatusline.section_location({ trunc_width = 75 })
-              local search        = MiniStatusline.section_searchcount({ trunc_width = 75 })
+              local filename = MiniStatusline.section_filename({ trunc_width = 140 })
+              local fileinfo = MiniStatusline.section_fileinfo({ trunc_width = 120 })
+              local location = MiniStatusline.section_location({ trunc_width = 75 })
+              local search   = MiniStatusline.section_searchcount({ trunc_width = 75 })
 
               return MiniStatusline.combine_groups({
-                { hl = mode_hl,                  strings = { mode } },
-                { hl = copilot_hl,               strings = { copilot } },
-                { hl = 'MiniStatuslineDevinfo',  strings = { lsp } },
+                { hl = mode_hl,                 strings = { mode } },
+                { hl = copilot_hl,              strings = { copilot } },
+                { hl = 'MiniStatuslineDevinfo', strings = { lsp } },
                 '%<',
                 { hl = 'MiniStatuslineFilename', strings = { filename } },
                 '%=',
@@ -72,7 +72,7 @@ return {
 
         vim.notify = require('mini.notify').make_notify(
           {
-            ERROR = { duration = 5000 },
+            ERROR = { duration = 10000 },
             WARN  = { duration = 5000 },
             INFO  = { duration = 5000 },
             DEBUG = { duration = 1000 },
