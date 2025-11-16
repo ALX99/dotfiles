@@ -7,7 +7,7 @@ path="$(tmux display -p '#{pane_current_path}')"
 session_type="${cmd:-shell}"
 session="$(tmux display -p "_${session_type}_#S")"
 
-if ! tmux has -t "$session" 2>/dev/null; then
+if ! tmux has -t "=$session" 2>/dev/null; then
   parent_session="$(tmux display -p '#{session_id}')"
 
   if [ -z "$cmd" ]; then
@@ -21,4 +21,4 @@ if ! tmux has -t "$session" 2>/dev/null; then
   session="$session_id"
 fi
 
-exec tmux attach -t "$session" -c "$path" >/dev/null
+exec tmux attach -t "=$session" -c "$path" >/dev/null
