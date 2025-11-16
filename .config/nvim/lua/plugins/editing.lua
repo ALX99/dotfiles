@@ -118,4 +118,8 @@ return {
       return vim.g.vscode
     end,
   },
+  {
+    "f-person/git-blame.nvim",
+    opts = {},
+  },
 }
