@@ -31,7 +31,6 @@ return {
 
       -- LSPs
       local enabled_lsps = {
-        "clangd",
         "pyright",
         "dockerls",
         "rust_analyzer",
@@ -41,13 +40,10 @@ return {
         "sourcekit",
         "tailwindcss",
         "ts_ls",
-        "svelte",
-        "robotframework_ls",
         "zls",
         "gleam",
         "nim_langserver",
         "terraformls",
-        "erlangls",
         "eslint",
         "gopls",
         "yamlls",
