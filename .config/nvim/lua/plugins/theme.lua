@@ -26,13 +26,13 @@ return {
     "rebelot/kanagawa.nvim",
     event = "VeryLazy",
     opts = {
-      dimInactive = true,
+      -- dimInactive = true,
+      -- transparent = true,
     },
     config = function(_, opts)
       require('kanagawa').setup(opts)
-      -- vim.cmd.colorscheme("kanagawa-dragon")
+      vim.cmd.colorscheme("kanagawa")
     end,
-    enabled = false,
     cond = function()
       return not vim.g.vscode
     end
@@ -51,7 +51,7 @@ return {
     end,
     config = function(_, opts)
       require('catppuccin').setup(opts)
-      vim.cmd.colorscheme("catppuccin-mocha")
+      -- vim.cmd.colorscheme("catppuccin-mocha")
     end,
   },
   {
