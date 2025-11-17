@@ -76,7 +76,7 @@ opt.spelllang = 'en_us,en_gb'
 o.inccommand  = "split"
 
 -- Show some invisible characters
-o.list        = true
+o.list        = false
 opt.listchars = {
   tab = "⟩ ",
   trail = "+",
