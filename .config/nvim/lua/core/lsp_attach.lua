@@ -104,8 +104,7 @@ end
 ---@param buf number
 local function show_diagnostics(client, buf)
   vim.api.nvim_create_autocmd("CursorHold", {
-    -- only needs one augroup
-    group = vim.api.nvim_create_augroup('lsp-diag-hold', {}),
+    group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true }),
     buffer = buf,
     callback = function()
       vim.diagnostic.open_float(nil, {
