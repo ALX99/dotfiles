@@ -48,8 +48,8 @@ autocmd({ "VimResized" }, {
 -- })
 
 
--- Make sure :filetype is on
-autocmd("BufWritePost", {
+-- Format shell scripts on save without re-triggering write
+autocmd("BufWritePre", {
   group = augroup("shfmt-autofmt", { clear = true }),
   callback = function(info)
     if vim.bo[info.buf].filetype == "sh" then
@@ -57,7 +57,8 @@ autocmd("BufWritePost", {
         return true -- delete the autocmd
       end
 
-      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s", info.file })
+      local filepath = vim.api.nvim_buf_get_name(info.buf)
+      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s", filepath })
       if vim.v.shell_error ~= 0 then
         local error_message = "shfmt failed: " .. table.concat(output, "\n")
         vim.notify(error_message, vim.log.levels.ERROR)
@@ -67,7 +68,6 @@ autocmd("BufWritePost", {
       if #output > 0 then
         vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, output)
       end
-      vim.cmd(":w")
     end
   end
 })
