@@ -2,7 +2,7 @@ return {
   {
     "folke/tokyonight.nvim",
     version = '*',
-    lazy = false,
+    lazy = true,
     priority = 1000,
     name = "tokyonight",
     opts = {
@@ -18,6 +18,7 @@ return {
       require("tokyonight").setup(opts)
       -- vim.cmd.colorscheme("tokyonight-moon")
     end,
+    enabled = false,
     cond = function()
       return not vim.g.vscode
     end
@@ -49,6 +50,7 @@ return {
     cond = function()
       return not vim.g.vscode
     end,
+    enabled = false,
     config = function(_, opts)
       require('catppuccin').setup(opts)
       -- vim.cmd.colorscheme("catppuccin-mocha")
