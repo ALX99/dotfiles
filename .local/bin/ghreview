@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: $(basename "$0") <pr-number>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+[[ $1 =~ ^[0-9]+$ ]] || usage
+
+pr="$1"
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z $repo_root ]]; then
+  echo "ghreview must be run inside a git repository." >&2
+  exit 1
+fi
+
+worktree_dir="$repo_root/review-$pr"
+branch="review-$pr"
+
+if [[ -d $worktree_dir ]]; then
+  echo "Worktree path already exists: $worktree_dir" >&2
+  exit 1
+fi
+
+branch_preexisting=0
+if git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+  branch_preexisting=1
+fi
+
+cleanup() {
+  cd "$repo_root"
+  git worktree remove --force "$worktree_dir" 2>/dev/null || true
+  if [[ $branch_preexisting -eq 0 ]]; then
+    git branch -D "$branch" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
+git -C "$repo_root" worktree add --detach "$worktree_dir"
+
+cd "$worktree_dir"
+gh pr checkout "$pr" --branch "$branch"
+
+code --new-window --wait "$worktree_dir"
