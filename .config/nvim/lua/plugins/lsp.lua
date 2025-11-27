@@ -13,15 +13,17 @@ return {
       })
 
       -- use vim.notify for LSP messages
-      local severity = { "error", "warn", "info", "info" } -- map hint and info to info
-      vim.lsp.handlers["window/showMessage"] = function(_, method, params, _)
-        local client = vim.lsp.get_client_by_id(params.client_id)
+      vim.lsp.handlers["window/showMessage"] = function(err, result, ctx)
+        local client = ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
         local msg = "[LSP]"
         if client then
           msg = msg .. " [" .. client.name .. "] "
         end
-        msg = msg .. method.message
-        vim.notify(msg, severity[params.type])
+        -- 'result' contains the parameters for showMessage (type, message)
+        if result and result.message then
+          msg = msg .. result.message
+          vim.notify(msg, vim.log.levels.INFO)
+        end
       end
 
       -----------------
