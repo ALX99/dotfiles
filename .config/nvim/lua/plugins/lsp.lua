@@ -2,7 +2,7 @@ return {
   {
     "neovim/nvim-lspconfig",
     version = "*",
-    dependencies = { 'saghen/blink.cmp' },
+    dependencies = { 'saghen/blink.cmp', 'b0o/schemastore.nvim' },
     config = function()
       local capabilities = vim.lsp.protocol.make_client_capabilities()
       capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
