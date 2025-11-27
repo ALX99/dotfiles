@@ -4,12 +4,8 @@ return {
     build = ":TSUpdate",
     lazy = false,
     branch = 'main',
-    config = function(_, opts)
+    config = function(_, _)
       local treesitter = require('nvim-treesitter')
-      treesitter.setup(opts)
-      vim.opt.foldmethod = "expr"
-      vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
-
 
       local ensure_installed = {
         -- "c",
@@ -52,8 +48,13 @@ return {
             local filetype = args.match
             local lang = vim.treesitter.language.get_lang(filetype)
             if lang ~= nil and vim.treesitter.language.add(lang) then
-              vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+              -- syntax highlighting, provided by Neovim
               vim.treesitter.start()
+              -- folds, provided by Neovim
+              vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+              vim.wo.foldmethod = "expr"
+              -- indentation, provided by nvim-treesitter
+              vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
             end
           end
         })
