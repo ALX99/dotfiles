@@ -67,7 +67,6 @@ opt.sessionoptions = { "curdir", "folds", "help", "winsize", "terminal" }
 -- Folding
 opt.foldlevel      = 99
 opt.fillchars      = { fold = " ", eob = "~" }
-o.foldtext         = ''
 
 if not vim.g.vscode then
   opt.spell = false
