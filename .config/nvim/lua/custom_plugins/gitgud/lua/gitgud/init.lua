@@ -29,8 +29,7 @@ function M.toggle()
   )
 end
 
----@param opts? {start_line?: number, end_line?: number}
-function M.copy_github_permalink(opts)
+local function get_github_url(opts)
   opts = opts or {}
 
   local file_path = vim.fn.expand("%:.")
@@ -66,14 +65,41 @@ function M.copy_github_permalink(opts)
 
   local url = vim.fn.system(cmd)
   url = vim.fn.trim(url)
+  
+  return url, vim.v.shell_error
+end
 
-  if vim.v.shell_error ~= 0 then
+---@param opts? {start_line?: number, end_line?: number}
+function M.copy_github_permalink(opts)
+  local url, err = get_github_url(opts)
+
+  if err ~= 0 then
     vim.notify("gitgud: " .. url, vim.log.levels.ERROR)
     return
   end
 
   vim.fn.setreg("+", url)
   vim.notify("Copied GitHub permalink: " .. url, vim.log.levels.INFO)
+end
+
+---@param opts? {start_line?: number, end_line?: number}
+function M.open_github_file(opts)
+  local url, err = get_github_url(opts)
+
+  if err ~= 0 then
+    vim.notify("gitgud: " .. url, vim.log.levels.ERROR)
+    return
+  end
+
+  vim.notify("Opening: " .. url, vim.log.levels.INFO)
+  if vim.ui.open then
+    vim.ui.open(url)
+  else
+    local os_name = vim.loop.os_uname().sysname
+    local opener = "xdg-open"
+    if os_name == "Darwin" then opener = "open" end
+    vim.fn.jobstart({opener, url}, {detach = true})
+  end
 end
 
 return M

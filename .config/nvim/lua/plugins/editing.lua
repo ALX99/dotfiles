@@ -130,6 +130,28 @@ return {
         mode = "x",
         desc = "Copy GitHub permalink (range)",
       },
+      {
+        "<leader>Go",
+        function()
+          require("gitgud").open_github_file()
+        end,
+        mode = "n",
+        desc = "Open GitHub file",
+      },
+      {
+        "<leader>Go",
+        function()
+          local start_line = vim.fn.line("v")
+          local end_line = vim.fn.line(".")
+          if end_line < start_line then
+            start_line, end_line = end_line, start_line
+          end
+          require("gitgud").open_github_file({ start_line = start_line, end_line = end_line })
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+        end,
+        mode = "x",
+        desc = "Open GitHub file (range)",
+      },
     },
   },
   {
