@@ -49,6 +49,8 @@ return {
         },
       },
 
+      signature = { enabled = true },
+
       sources = {
         default = { 'lsp', 'path', 'snippets', 'buffer' },
 
