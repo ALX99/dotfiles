@@ -93,14 +93,6 @@ return {
     end
   },
   {
-    -- "gh.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    dir = "~/dotfiles/.config/nvim/lua/gh.nvim",
-    opts = {},
-    cmd = { "GHBrowse", "GHPRs" },
-    -- dev = true,
-  },
-  {
     dir = vim.fn.stdpath("config") .. "/lua/custom_plugins/gitgud",
     name = "gitgud",
     dev = true,
