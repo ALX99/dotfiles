@@ -25,10 +25,10 @@ Here's an overview of what you can find in this repository:
 ### good software
 
 - distro: [arch](https://archlinux.org/)
-- wayland compositor: [river](https://isaacfreund.com/software/river/)
+- wayland compositor: [hyprland](https://hypr.land/)
 - browser: [brave](https://brave.com/)
 - editor: [neovim](https://neovim.io/)
-- terminal emulator: [alacritty](https://alacritty.org/)
+- terminal emulator: [ghostty](https://ghostty.org/)
 - terminal multiplexer: [tmux](https://github.com/tmux/tmux)
 - shell: [bash](https://www.gnu.org/software/bash/)
 
