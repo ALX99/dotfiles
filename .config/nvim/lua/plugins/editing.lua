@@ -101,6 +101,14 @@ return {
     -- dev = true,
   },
   {
+    dir = vim.fn.stdpath("config") .. "/lua/custom_plugins/gitgud",
+    name = "gitgud",
+    dev = true,
+    opts = {
+      greeting = "Hello from gitgud",
+    },
+  },
+  {
     "windwp/nvim-ts-autotag",
     enabled = false,
     cond = function()
