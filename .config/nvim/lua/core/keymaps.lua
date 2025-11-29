@@ -105,17 +105,3 @@ xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
 -- Search inside visual selection
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
-
-map("n", "<leader>Gl", function()
-  require("gitgud").copy_github_permalink()
-end, { desc = "Copy GitHub permalink" })
-
-map("x", "<leader>Gl", function()
-  local start_line = vim.fn.line("v")
-  local end_line = vim.fn.line(".")
-  if end_line < start_line then
-    start_line, end_line = end_line, start_line
-  end
-  require("gitgud").copy_github_permalink({ start_line = start_line, end_line = end_line })
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
-end, { desc = "Copy GitHub permalink (range)" })
