@@ -87,7 +87,7 @@ return {
     event = { "BufReadPost", "BufNewFile" },
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     config = true,
-    enabled = false,
+    -- enabled = false,
     cond = function()
       return not vim.g.vscode
     end
