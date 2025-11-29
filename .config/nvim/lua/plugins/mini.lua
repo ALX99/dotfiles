@@ -70,6 +70,8 @@ return {
           }
         })
 
+        require('mini.bracketed').setup({})
+
         vim.notify = require('mini.notify').make_notify(
           {
             ERROR = { duration = 10000 },
