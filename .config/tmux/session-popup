@@ -13,7 +13,7 @@ if ! tmux has -t "=$session" 2>/dev/null; then
   if [ -z "$cmd" ]; then
     session_id="$(tmux new-session -c "$path" -dP -s "$session" -F '#{session_id}' -e TMUX_PARENT_SESSION="$parent_session")"
   else
-    session_id="$(tmux new-session -c "$path" -dP -s "$session" -F '#{session_id}' -e TMUX_PARENT_SESSION="$parent_session" $cmd)"
+    session_id="$(tmux new-session -c "$path" -dP -s "$session" -F '#{session_id}' -e TMUX_PARENT_SESSION="$parent_session" -- "$cmd")"
   fi
 
   tmux set-option -s -t "$session_id" key-table popup

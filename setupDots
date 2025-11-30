@@ -13,7 +13,7 @@ run_command() {
 }
 
 user_config() {
-  run_command sudo usermod -aG wheel $USER
+  run_command sudo usermod -aG wheel "$USER"
   run_command mkdir -p ~/.local/bin
   run_command ln -sf "$PWD"/.local/bin/* ~/.local/bin/
   run_command ln -sf "$PWD"/.gitconfig ~/
