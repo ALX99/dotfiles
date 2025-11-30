@@ -6,12 +6,14 @@ echo "$(date): Power source changed to $1" >>"$LOG_FILE"
 
 case "$1" in
 ac)
-  sudo powerprofilesctl set performance >>"$LOG_FILE" 2>&1
-  echo "status: $?" >>"$LOG_FILE"
+  sudo powerprofilesctl set performance 2>&1 | tee -a "$LOG_FILE" >/dev/null
+  status=${PIPESTATUS[0]}
+  echo "status: $status" >>"$LOG_FILE"
   ;;
 battery)
-  sudo powerprofilesctl set power-saver >>"$LOG_FILE" 2>&1
-  echo "status: $?" >>"$LOG_FILE"
+  sudo powerprofilesctl set power-saver 2>&1 | tee -a "$LOG_FILE" >/dev/null
+  status=${PIPESTATUS[0]}
+  echo "status: $status" >>"$LOG_FILE"
   ;;
 *)
   echo "$(date): Invalid argument: $1" >>"$LOG_FILE"

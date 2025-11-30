@@ -44,7 +44,7 @@ while IFS= read -r line; do
   # Extract stream number (e.g., 0:1, 0:2)
   STREAM=$(echo "$line" | grep -oP 'Stream #\K[0-9]+:[0-9]+')
   # Extract codec and other info
-  INFO=$(echo "$line" | sed 's/.*Audio: //')
+  INFO=${line#*Audio: }
 
   # Extract language if available
   LANG=$(echo "$line" | grep -oP '\(([a-z]{3})\)' | tr -d '()')
@@ -75,13 +75,12 @@ if [ ! -s /tmp/selected_track ]; then
 fi
 
 # Extract selected stream ID and get just the stream index
-SELECTED=$(cat /tmp/selected_track | cut -d'|' -f1)
-STREAM_INDEX=$(echo "$SELECTED" | cut -d':' -f2)
+SELECTED=$(cut -d'|' -f1 /tmp/selected_track)
 rm -f /tmp/selected_track
 
 # Ask about subtitle extraction
 echo ""
-read -p "Do you want to extract a subtitle track? (y/n): " EXTRACT_SUB
+read -r -p "Do you want to extract a subtitle track? (y/n): " EXTRACT_SUB
 
 SUBTITLE_STREAM=""
 if [[ $EXTRACT_SUB =~ ^[Yy]$ ]]; then
@@ -98,7 +97,7 @@ if [[ $EXTRACT_SUB =~ ^[Yy]$ ]]; then
       # Extract stream number
       STREAM=$(echo "$line" | grep -oP 'Stream #\K[0-9]+:[0-9]+')
       # Extract codec and language info
-      INFO=$(echo "$line" | sed 's/.*Subtitle: //')
+      INFO=${line#*Subtitle: }
 
       # Extract language if available
       LANG=$(echo "$line" | grep -oP '\(([a-z]{3})\)' | tr -d '()')
@@ -123,7 +122,7 @@ if [[ $EXTRACT_SUB =~ ^[Yy]$ ]]; then
     echo -e "$SUB_LIST" | fzf --prompt="Select subtitle track: " --height=40% --reverse --delimiter="|" --with-nth=2 >/tmp/selected_sub
 
     if [ -s /tmp/selected_sub ]; then
-      SUBTITLE_STREAM=$(cat /tmp/selected_sub | cut -d'|' -f1)
+      SUBTITLE_STREAM=$(cut -d'|' -f1 /tmp/selected_sub)
       echo "Selected subtitle track: $SUBTITLE_STREAM"
     fi
     rm -f /tmp/selected_sub
@@ -136,7 +135,7 @@ echo "Selected audio track: $SELECTED"
 echo "Removing all subtitles from video"
 
 # Convert with selected audio track and no subtitles
-ffmpeg -threads 0 -i "$INPUT" \
+if ffmpeg -threads 0 -i "$INPUT" \
   -map 0:v:0 \
   -map "$SELECTED" \
   -c:v copy \
@@ -144,9 +143,7 @@ ffmpeg -threads 0 -i "$INPUT" \
   -b:a 192k \
   -sn \
   -threads 0 \
-  "$OUTPUT"
-
-if [ $? -eq 0 ]; then
+  "$OUTPUT"; then
   echo "Conversion completed successfully: $OUTPUT"
 
   # Extract subtitle if selected
@@ -154,9 +151,7 @@ if [ $? -eq 0 ]; then
     SRT_OUTPUT="${INPUT%.mkv}.srt"
     echo ""
     echo "Extracting subtitle to '$SRT_OUTPUT'..."
-    ffmpeg -i "$INPUT" -map "$SUBTITLE_STREAM" "$SRT_OUTPUT"
-
-    if [ $? -eq 0 ]; then
+    if ffmpeg -i "$INPUT" -map "$SUBTITLE_STREAM" "$SRT_OUTPUT"; then
       echo "Subtitle extracted successfully: $SRT_OUTPUT"
     else
       echo "Warning: Subtitle extraction failed"

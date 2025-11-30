@@ -4,7 +4,7 @@
   pid=$(ps -f -u $UID | sed 1d | fzf -m | awk '{print $2}') ||
   pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
 
-if [ "x$pid" != "x" ]; then
+if [ -n "$pid" ]; then
   # Send SIGTERM
   echo "$pid" | xargs kill -"${1:-15}"
 
