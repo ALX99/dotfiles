@@ -1,4 +1,5 @@
 #!/bin/zsh
+# shellcheck shell=bash
 
 # https://zsh.sourceforge.io/Doc/Release/Options.html
 setopt APPEND_HISTORY

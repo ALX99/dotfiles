@@ -11,8 +11,6 @@ alias \
   p="paccy" \
   se="sudoedit" \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  bs='source ~/.bashrc' \
-  lg='lazygit' \
   task='go-task' \
   ch="code . && exit" \
   bye='systemctl suspend-then-hibernate' \
@@ -25,7 +23,6 @@ alias \
   pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
   ef='nvim "$(pf)"' \
   ef.='nvim "$(pf.)"' \
-  gu='xdg-open "$(git config --get remote.origin.url)"' \
   cheat='_x() { curl cht.sh/"$1"; }; _x' \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
@@ -34,8 +31,7 @@ alias \
   urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
-  unset_aws_profile='unset AWS_PROFILE' \
-  kamal='docker run -it --rm -v "${PWD}:/workdir" -v "${SSH_AUTH_SOCK}:/ssh-agent" -v /var/run/docker.sock:/var/run/docker.sock -e "SSH_AUTH_SOCK=/ssh-agent" --env-file <(env | grep KAMAL) ghcr.io/basecamp/kamal:latest'
+  unset_aws_profile='unset AWS_PROFILE'
 
 # Helm
 alias \
@@ -126,7 +122,7 @@ sd() {
   tmp_file="$(mktemp)"
   trap 'rm -rf -- "$tmp_file"' EXIT INT TERM HUP
   sail -write-wd "$tmp_file"
-  pushd "$(cat "$tmp_file")" >/dev/null
+  pushd "$(\cat "$tmp_file")" >/dev/null
   set +e
 }
 
@@ -140,27 +136,8 @@ gbrowse() {
 }
 # launch in background
 launch() {
-  "$@" > /dev/null 2>&1 & disown
-}
-
-# Switch directory
-# sd() {
-#   local t
-#   t="$({ fd . --type directory -I 2>/dev/null || find . -type d -not -path '*/.*' 2>/dev/null; } | fzf-tmux -p)"
-#   [ -n "$t" ] && cd "$t" && ls
-# }
-
-# sdh() {
-#   local t
-#   t="$({ fd . --type directory -HIE '.git' 2>/dev/null || find . -type d -not -path '*/\.git/*' 2>/dev/null; } | fzf-tmux -p)"
-#   [ -n "$t" ] && cd "$t" && ls
-# }
-
-gzip_webcheck() {
-  set -x
-  curl "$1" --silent --write-out "%{size_download}\n" --output /dev/null
-  curl "$1" --silent -H "Accept-Encoding: gzip,deflate" --write-out "%{size_download}\n" --output /dev/null
-  set +x
+  "$@" >/dev/null 2>&1 &
+  disown
 }
 
 _man_help() {
@@ -168,6 +145,33 @@ _man_help() {
   help "$res" 2>/dev/null || man "$res"
 }
 
+_fzf_file_insert() {
+  local preview_cmd picker file
+  command -v fd >/dev/null 2>&1 || { printf "fd is required for Alt+f file picker\n" >&2; return; }
+
+  preview_cmd="cat {}"
+  if command -v bat >/dev/null 2>&1; then
+    preview_cmd="bat --color=always --style=numbers --line-range :200 {}"
+  fi
+
+  if command -v fzf-tmux >/dev/null 2>&1 && [ -n "$TMUX" ]; then
+    picker=(fzf-tmux -p 60%,80%)
+  else
+    picker=(fzf --height=40% --layout=reverse --border)
+  fi
+
+  file="$(
+    fd --type f --hidden --follow --exclude .git --color=never --strip-cwd-prefix 2>/dev/null |
+      "${picker[@]}" --prompt 'files > ' --preview "$preview_cmd" --preview-window=right,60%
+  )" || return
+
+  [[ -z "$file" ]] && return
+  READLINE_LINE="${READLINE_LINE:0:READLINE_POINT}${file}${READLINE_LINE:READLINE_POINT}"
+  READLINE_POINT=$((READLINE_POINT + ${#file}))
+}
+
+bind -x '"\eF": _fzf_file_insert'
+bind -m vi-insert -x '"\eF": _fzf_file_insert'
 bind -m vi-insert -x '"\eh": _arg_help'
 bind -m vi-insert -x '"\eH": _man_help'
 
