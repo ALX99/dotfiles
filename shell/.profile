@@ -96,4 +96,5 @@ else
 fi
 
 set +a
+# shellcheck source=/dev/null
 if [ -f ~/.bashrc ]; then . ~/.bashrc; fi
