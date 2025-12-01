@@ -13,6 +13,11 @@ local auto_fmt_clients = {
 ---@param client vim.lsp.Client
 ---@param buf number
 local function mappings(client, buf)
+  local ok, Snacks = pcall(require, "snacks")
+  if not ok then
+    vim.notify("snacks.nvim not available for LSP mappings", vim.log.levels.WARN)
+    return
+  end
   local bmap = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
     if opts then options = vim.tbl_extend("force", options, opts) end
@@ -28,18 +33,36 @@ local function mappings(client, buf)
     end
   end
 
-  -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                 -- Many LSPs do not implement this
-  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
-  bmap('n', 'gri', default_no_go_tests(require('snacks').picker.lsp_implementations),
-    { desc = "Go to implementation" })                                                     -- vim.lsp.buf.implementation
-  -- { show_line = false }
-  bmap('n', 'grr', default_no_go_tests(require('snacks').picker.lsp_references),
-    { desc = "Go to reference" }) -- vim.lsp.buf.references
-  bmap('n', 'gt', require('snacks').picker.lsp_type_definitions, { desc = "Go to type definition" })
+  -- trim leading indentation for list/snippet text so the mini preview beside filenames is tidy
+  local function trim_ws(item)
+    if item.line then
+      item.line = item.line:gsub("^%s+", "")
+    end
+    if item.text then
+      local fname, rest = item.text:match("^(%S+)%s+(.+)$")
+      if fname and rest then
+        rest = rest:gsub("^%s+", "")
+        item.text = fname .. " " .. rest
+      else
+        item.text = item.text:gsub("^%s+", "")
+      end
+    end
+    return item
+  end
 
-  bmap('n', 'gs', require('snacks').picker.lsp_symbols, { desc = "Goto symbols" })
-  bmap('n', 'gS', require('snacks').picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
+  -- See `:help vim.lsp.*` for documentation on any of the below functions ()
+  bmap('n', 'gri', default_no_go_tests(function(opts)
+    Snacks.picker.lsp_implementations(vim.tbl_extend("force", opts, { transform = trim_ws }))
+  end), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'grr', default_no_go_tests(function(opts)
+    Snacks.picker.lsp_references(vim.tbl_extend("force", opts, { transform = trim_ws }))
+  end), { desc = "Go to reference" })                                           -- vim.lsp.buf.references
+
+  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })      -- Many LSPs do not implement this
+  bmap('n', 'gd', Snacks.picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
+  bmap('n', 'gt', Snacks.picker.lsp_type_definitions, { desc = "Go to type definition" })
+  bmap('n', 'gs', Snacks.picker.lsp_symbols, { desc = "Goto symbols" })
+  bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
 
   bmap('n', 'gai', default_no_go_tests(require('snacks').picker.lsp_incoming_calls),
