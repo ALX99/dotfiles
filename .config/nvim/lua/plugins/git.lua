@@ -61,6 +61,10 @@ return {
   {
     "esmuellert/vscode-diff.nvim",
     dependencies = { "MunifTanjim/nui.nvim" },
+    cmd = "CodeDiff",
+    keys = {
+      { "<leader>Gs", "<cmd>CodeDiff<cr>", desc = "Show git status" },
+    },
     cond = function()
       return not vim.g.vscode
     end,
