@@ -1,36 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-declare -A projects
+PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 
-populate_projects() {
-  local projs dir
-  projs="$(find "${PROJ_DIR:-$HOME/projects}" -mindepth 1 -maxdepth 1 -type d)"
-
+list_projects() {
+  local dir
   while IFS= read -r dir; do
-    projects["${dir##*/}"]="$dir"
-  done <<<"$(printf "%s\n%s" "$projs" "$HOME/dotfiles")"
+    printf "%s\t%s\n" "${dir##*/}" "$dir"
+  done <<<"$(find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d; printf "%s\n" "$HOME/dotfiles")"
 }
 
-get_project_names() { for project in "${!projects[@]}"; do echo "$project"; done; }
-get_project_dir() { echo "${projects[$1]}"; }
+selected_entry="$(
+  list_projects |
+    fzf-tmux -p 80%,90% --prompt 'tmux session > ' --with-nth=1 --delimiter '\t' \
+      --preview 'dir={2}; if git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else printf "Not a git repo: %s\n" "$dir"; fi' \
+      --preview-window=right,60% \
+      || :
+)"
 
-populate_projects
-selected_name="$(get_project_names | fzf-tmux -p || :)"
-[[ -z ${selected_name:-} ]] && exit 0 # empty, time to bail
+[[ -z ${selected_entry:-} ]] && exit 0
 
-# replace dots with underscores (tmux session names can't have dots for some reason)
-selected_name="${selected_name//./_}"
+selected_name="${selected_entry%%$'\t'*}"
+selected_dir="${selected_entry#*$'\t'}"
+session_name="${selected_name//./_}" # tmux dislikes dots
 
 if [[ -z ${TMUX:-} ]]; then
-  tmux new-session -As "$selected_name" -c "$(get_project_dir "$selected_name")"
+  tmux new-session -As "$session_name" -c "$selected_dir"
   exit 0
-elif ! tmux has-session -t="$selected_name" 2>/dev/null; then
-  tmux new-session -ds "$selected_name" -c "$(get_project_dir "$selected_name")"
+elif ! tmux has-session -t="$session_name" 2>/dev/null; then
+  tmux new-session -ds "$session_name" -c "$selected_dir"
 fi
 
 if [[ -z ${TMUX:-} ]]; then
-  tmux attach-session -t "$selected_name"
+  tmux attach-session -t "$session_name"
 else
-  tmux switch-client -t "$selected_name"
+  tmux switch-client -t "$session_name"
 fi
