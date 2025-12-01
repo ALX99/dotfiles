@@ -18,21 +18,34 @@ local function mappings(client, buf)
     if opts then options = vim.tbl_extend("force", options, opts) end
     utils.map(mode, lhs, rhs, options)
   end
+  -- helper to open Snacks pickers with a default pattern that excludes Go test files
+  local function default_no_go_tests(picker_fn)
+    return function()
+      picker_fn({
+        focus = "list",
+        pattern = "!_test.go",
+      })
+    end
+  end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                          -- Many LSPs do not implement this
-  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" })          -- vim.lsp.buf.definition
-  bmap('n', 'gri', require('snacks').picker.lsp_implementations, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })                 -- Many LSPs do not implement this
+  bmap('n', 'gd', require('snacks').picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
+  bmap('n', 'gri', default_no_go_tests(require('snacks').picker.lsp_implementations),
+    { desc = "Go to implementation" })                                                     -- vim.lsp.buf.implementation
   -- { show_line = false }
-  bmap('n', 'grr', require('snacks').picker.lsp_references, { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'grr', default_no_go_tests(require('snacks').picker.lsp_references),
+    { desc = "Go to reference" }) -- vim.lsp.buf.references
   bmap('n', 'gt', require('snacks').picker.lsp_type_definitions, { desc = "Go to type definition" })
 
   bmap('n', 'gs', require('snacks').picker.lsp_symbols, { desc = "Goto symbols" })
   bmap('n', 'gS', require('snacks').picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
 
-  bmap('n', 'gai', require('snacks').picker.lsp_incoming_calls, { desc = "C[a]lls Incoming" })
-  bmap('n', 'gao', require('snacks').picker.lsp_outgoing_calls, { desc = "C[a]lls Outgoing" })
+  bmap('n', 'gai', default_no_go_tests(require('snacks').picker.lsp_incoming_calls),
+    { desc = "C[a]lls Incoming" })
+  bmap('n', 'gao', default_no_go_tests(require('snacks').picker.lsp_outgoing_calls),
+    { desc = "C[a]lls Outgoing" })
 
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
