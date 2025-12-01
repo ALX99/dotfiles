@@ -9,6 +9,11 @@ return {
       bigfile = {},
       input = {},
       picker = {
+        sources = {
+          -- keep smart/recent results scoped to the current root
+          smart = { filter = { cwd = true } },
+          recent = { filter = { cwd = true } },
+        },
         formatters = {
           file = {
             filename_first = true, -- display filename before the file path
@@ -33,7 +38,7 @@ return {
       {
         "<leader>fo",
         function()
-          Snacks.picker.files({})
+          Snacks.picker.smart({})
         end,
         desc = "Find Files"
       },
