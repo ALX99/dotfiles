@@ -34,7 +34,8 @@ MOZ_ENABLE_WAYLAND=1 # Firefox
 GH_PAGER="delta"
 # XDG_CURRENT_DESKTOP="river"
 # XDG_SESSION_TYPE="wayland"
-MINIKUBE_IN_STYLE="false" # remove emoji from minikube
+MINIKUBE_IN_STYLE="false"      # remove emoji from minikube
+NPM_CONFIG_IGNORE_SCRIPTS=true # disable npm postinstall scripts globally
 
 # Bash stuff
 PROMPT_COMMAND='history -a' # Record each line as it gets issued
@@ -77,6 +78,7 @@ else
   XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority"
   WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
   GTK2_RC_FILES="$XDG_CONFIG_HOME/gtk-2.0/gtkrc"
+  NPM_CONFIG_USERCONFIG="$HOME/.config/npm/npmrc"
 
   # IM (https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland)
   QT_IM_MODULE="fcitx"
