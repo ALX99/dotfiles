@@ -21,11 +21,6 @@ user_config() {
     run_command ln -sf "$f" ~/.config/
   done
 
-  for f in "$PWD"/.ssh/*; do
-    run_command ln -sf "$f" ~/.ssh/
-  done
-
-  run_command mkdir -p ~/.claude
   run_command stow -d "$PWD" -t ~ -R home
 
   run_command systemctl --user daemon-reload
@@ -42,14 +37,14 @@ system_config() {
     /etc/systemd/logind.conf.d/ \
     /etc/systemd/resolved.conf.d/
 
-  run_command sudo ln -sf "$PWD"/misc/99-sleep.conf /etc/systemd/sleep.conf.d/
+  run_command sudo ln -sf "$PWD"/misc/systemd-config/99-sleep.conf /etc/systemd/sleep.conf.d/
 
   # sudoers
   run_command sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
   run_command sudo chown root:root /etc/sudoers.d/99-sudoers
 
   # logind
-  run_command sudo ln -sf "$PWD"/misc/99-logind.conf /etc/systemd/logind.conf.d/
+  run_command sudo ln -sf "$PWD"/misc/systemd-config/99-logind.conf /etc/systemd/logind.conf.d/
 }
 
 arch_config() {
@@ -58,7 +53,7 @@ arch_config() {
   run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
   # run_command sudo sed -i '/VerbosePkgLists/s/^#//g' /etc/pacman.conf
 
-  run_command sudo ln -sf "$PWD"/hooks /etc/pacman.d/
+  run_command sudo ln -sf "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
 }
 
