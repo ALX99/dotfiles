@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-file="$(mktemp)".sh
+file="$(mktemp -t tmux-history.XXXXXX).log"
+cleanup() { rm -f "$file"; }
+trap cleanup EXIT
+
 tmux capture-pane -pS - >"$file"
-tmux new-window -n history "$EDITOR $file"
+tmux new-window -n history "nvim +$ '+normal! zb' '$file'; rm -f '$file'"
+
+# keep the file for the tmux window; rely on the command above to clean up
+trap - EXIT
