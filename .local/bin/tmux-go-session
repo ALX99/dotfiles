@@ -7,15 +7,18 @@ list_projects() {
   local dir
   while IFS= read -r dir; do
     printf "%s\t%s\n" "${dir##*/}" "$dir"
-  done <<<"$(find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d; printf "%s\n" "$HOME/dotfiles")"
+  done <<<"$(
+    find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d
+    printf "%s\n" "$HOME/dotfiles"
+  )"
 }
 
 selected_entry="$(
   list_projects |
     fzf-tmux -p 80%,90% --prompt 'tmux session > ' --with-nth=1 --delimiter '\t' \
       --preview 'dir={2}; if git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else printf "Not a git repo: %s\n" "$dir"; fi' \
-      --preview-window=right,60% \
-      || :
+      --preview-window=right,60% ||
+    :
 )"
 
 [[ -z ${selected_entry:-} ]] && exit 0
