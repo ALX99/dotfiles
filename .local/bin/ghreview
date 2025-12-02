@@ -2,15 +2,14 @@
 
 set -euo pipefail
 
-usage() {
-  echo "Usage: $(basename "$0") <pr-number>" >&2
-  exit 1
-}
-
-[[ $# -eq 1 ]] || usage
-[[ $1 =~ ^[0-9]+$ ]] || usage
-
-pr="$1"
+if [[ $# -eq 1 ]]; then
+  pr="$1"
+else
+  pr=$(gh pr list --json number,title,author,createdAt \
+    --template '{{range .}}{{.number}}	{{.author.login}}	{{.title}}{{"\n"}}{{end}}' |
+    fzf --prompt="Select PR: " | cut -f1)
+  [[ -n $pr ]] || exit 0
+fi
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z $repo_root ]]; then
