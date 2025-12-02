@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # https://github.com/wick3dr0se/matrix/blob/main/matrix
 
+set -eu
+
 init_term() {
   printf '\e[?1049h\e[2J\e[?25l'
-  shopt -s checkwinsize || return 1
-  (
-    :
-    :
-  )
+
+  # Bash < 4 lacks dynamic $LINES/$COLUMNS updates, so we fallback to `stty`
+  ((BASH_VERSINFO[0] < 4)) && read -r LINES COLUMNS < <(stty size) && return
+  # Bash 4+ supports dynamic sizing via `shopt -s checkwinsize`,
+  # but it forces a size check after every command — inefficient for tight loops.
+  # Instead, we directly query the terminal size from the bottom-right:
+  IFS='[;' read -p $'\e[999;999H\e[6n' -rd R -s _ LINES COLUMNS
 }
 
 deinit_term() {
@@ -15,47 +19,42 @@ deinit_term() {
   stty echo
 }
 
-print_to() {
-  printf '\e[%d;%dH\e[%d;38;2;%sm%s\e[m' "$2" "$3" "${5:-2}" "$4" "$1"
-}
+print_to() { printf '\e[%d;%dH\e[%d;38;2;%sm%s\e[m' "$2" "$3" "${5:-2}" "$4" "$1"; }
 
 rain() {
-  ((dropStart = SRANDOM % LINES / 9))
-  ((dropCol = SRANDOM % COLUMNS + 1))
-  ((dropLen = SRANDOM % (LINES / 2) + 2))
-  ((dropSpeed = SRANDOM % 9 + 1))
-  ((dropColDim = SRANDOM % 4))
-  color="${COLORS[SRANDOM % ${#COLORS}]}"
+  ((dropStart = RANDOM % LINES / 9))
+  ((dropCol = RANDOM % COLUMNS + 1))
+  ((dropLen = RANDOM % (LINES / 2) + 2))
+  ((dropSpeed = RANDOM % 9 + 1))
+  ((dropColDim = RANDOM % 4))
+  color=${colors[RANDOM % ${#colors[@]}]}
 
   for ((i = dropStart; i <= LINES + dropLen; i++)); do
-    symbol="${1:SRANDOM%${#1}:1}"
-    ((dropColDim)) || print_to "$symbol" "$i" "$dropCol" "$color" 1
-    ((i > dropStart)) && print_to "$symbol" "$((i - 1))" "$dropCol" "$color"
-    ((i > dropLen)) && printf '\e[%d;%dH\e[m ' "$((i - dropLen))" "$dropCol"
+    symbol=${1:RANDOM%${#1}:1}
+    ((dropColDim)) || print_to "$symbol" $i $dropCol "$color" 1
+    ((i > dropStart)) && print_to "$symbol" $((i - 1)) $dropCol "$color"
+    ((i > dropLen)) && printf '\e[%d;%dH\e[m ' $((i - dropLen)) $dropCol
 
-    sleep "0.$dropSpeed"
+    sleep 0.$dropSpeed
   done
 }
 
+trap init_term WINCH
+trap 'kill 0; exit' INT
 trap deinit_term EXIT
-trap 'wait; exit' INT
-trap 'init_term' WINCH
 
-SYMBOLS='0123456789!@#$%^&*()-_=+[]{}|;:,.<>?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+export LC_ALL=C
 
-COLORS=('102;255;102' '255;176;0' '169;169;169')
+# Using non-ASCII characters (like katakana, emojis, or custom symbols) requires
+# everyone running the script to have a compatible font installed. To keep things
+# portable and simple, this script uses a set of ASCII characters (defined below)
+# so it doesn't require any special font installation on the user's system.
+symbols='0123456789!@#$%^&*()-_=+[]{}|;:,.<>?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+colors=('102;255;102' '255;176;0' '169;169;169')
 
-matrix() {
-  init_term || {
-    printf 'Failed initializing terminal\n'
-    return 1
-  }
-  stty -echo
-
-  for (( ; ; )); do
-    rain "$SYMBOLS" &
-    sleep 0.1
-  done
-}
-
-matrix
+init_term
+stty -echo
+for (( ; ; )); do
+  rain "$symbols" &
+  sleep 0.1
+done
