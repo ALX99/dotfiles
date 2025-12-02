@@ -1,8 +1,0 @@
-version: 3
-
-includes:
-  common:
-    taskfile: ./task/Taskfile.yml
-    aliases:
-      - c
-
