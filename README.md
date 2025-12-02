@@ -7,11 +7,11 @@ shell extensively.
 
 Here's an overview of what you can find in this repository:
 
-- [.profile](https://github.com/ALX99/dotfiles/blob/master/shell/.profile)
+- [.profile](https://github.com/ALX99/dotfiles/blob/master/home/.profile)
       - Generic profile
-- [.bashrc](https://github.com/ALX99/dotfiles/blob/master/shell/.bashrc)
+- [.bashrc](https://github.com/ALX99/dotfiles/blob/master/home/.bashrc)
       - Bashrc
-- [.aliasrc](https://github.com/ALX99/dotfiles/blob/master/shell/.aliasrc)
+- [.aliasrc](https://github.com/ALX99/dotfiles/blob/master/home/.aliasrc)
       - Aliases
 - [bin/](https://github.com/ALX99/dotfiles/tree/master/.local/bin)
       - Shell scripts

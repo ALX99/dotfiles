@@ -16,7 +16,6 @@ user_config() {
   run_command sudo usermod -aG wheel "$USER"
   run_command mkdir -p ~/.local/bin
   run_command ln -sf "$PWD"/.local/bin/* ~/.local/bin/
-  run_command ln -sf "$PWD"/.gitconfig ~/
 
   for f in "$PWD"/.config/*; do
     run_command ln -sf "$f" ~/.config/
@@ -27,13 +26,11 @@ user_config() {
   done
 
   run_command mkdir -p ~/.claude
-  for f in "$PWD"/home/.claude/*; do
-    run_command ln -sf "$f" ~/.claude/
-  done
+  run_command stow -d "$PWD" -t ~ -R home
 
-  for f in "$PWD"/shell/.[!.]*; do
-    run_command ln -sf "$f" ~
-  done
+  run_command systemctl --user daemon-reload
+  run_command systemctl --user enable --now sleep-handler-pre.service
+  run_command systemctl --user enable --now sleep-handler-post.service
 }
 
 system_config() {
