@@ -16,7 +16,7 @@ list_projects() {
 selected_entry="$(
   list_projects |
     fzf-tmux -p 80%,90% --prompt 'tmux session > ' --with-nth=1 --delimiter '\t' \
-      --preview 'dir={2}; if git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else printf "Not a git repo: %s\n" "$dir"; fi' \
+      --preview 'dir={2}; readme=$(find "$dir" -maxdepth 1 -type f \( -iname "readme" -o -iname "readme.*" \) | head -n1); if [[ -n "$readme" ]]; then if command -v bat >/dev/null 2>&1; then bat --style=plain --color=always --paging=never "$readme"; else cat "$readme"; fi; elif git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else ls --color=always -al "$dir"; fi' \
       --preview-window=right,60% ||
     :
 )"
