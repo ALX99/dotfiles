@@ -27,7 +27,7 @@ user_config() {
   done
 
   run_command mkdir -p ~/.claude
-  for f in "$PWD"/.claude/*; do
+  for f in "$PWD"/home/.claude/*; do
     run_command ln -sf "$f" ~/.claude/
   done
 
