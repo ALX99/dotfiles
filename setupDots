@@ -29,8 +29,8 @@ user_config() {
 }
 
 system_config() {
-  run_command sudo ln -sf "$PWD"/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-  run_command sudo ln -sf "$PWD"/keymaps/keyd.conf /etc/keyd/default.conf
+  run_command sudo ln -sf "$PWD"/misc/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+  run_command sudo ln -sf "$PWD"/misc/keymaps/keyd.conf /etc/keyd/default.conf
 
   run_command sudo mkdir -p -m 755 \
     /etc/systemd/sleep.conf.d/ \
