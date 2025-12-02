@@ -57,8 +57,9 @@ autocmd("BufWritePre", {
         return true -- delete the autocmd
       end
 
-      local filepath = vim.api.nvim_buf_get_name(info.buf)
-      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s", filepath })
+      local lines = vim.api.nvim_buf_get_lines(info.buf, 0, -1, true)
+      local input = table.concat(lines, "\n")
+      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
       if vim.v.shell_error ~= 0 then
         local error_message = "shfmt failed: " .. table.concat(output, "\n")
         vim.notify(error_message, vim.log.levels.ERROR)
