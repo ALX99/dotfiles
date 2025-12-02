@@ -14,14 +14,13 @@ run_command() {
 
 user_config() {
   run_command sudo usermod -aG wheel "$USER"
-  run_command mkdir -p ~/.local/bin
-  run_command ln -sf "$PWD"/.local/bin/* ~/.local/bin/
 
-  for f in "$PWD"/.config/*; do
-    run_command ln -sf "$f" ~/.config/
-  done
+  run_command mkdir -p ~/.config
+  run_command mkdir -p ~/.local
 
-  run_command stow -d "$PWD" -t ~ -R home
+  run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
+  run_command stow --dir "$PWD" --target ~/.config --restow .config
+  run_command stow --dir "$PWD" --target ~ --restow home
 
   run_command systemctl --user daemon-reload
   run_command systemctl --user enable --now sleep-handler-pre.service
