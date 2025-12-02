@@ -12,6 +12,7 @@ brave-bin # browser
 czkawka-gui-bin # find duplicate files
 btop
 copyparty
+dash
 docker
 docker-buildx # extended build capabilities with BuildKit
 docker-compose
