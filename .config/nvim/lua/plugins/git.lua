@@ -53,8 +53,28 @@ return {
   },
   {
     "FabijanZulj/blame.nvim",
-    opts = {},
-    keys= {
+    opts = {
+      -- Run :CodeDiff on the real file buffer without closing the blame view.
+      commit_detail_view = function(commit_hash, _, file_path)
+        if vim.fn.filereadable(file_path) == 0 then
+          vim.notify("File is not readable on disk: " .. file_path, vim.log.levels.ERROR)
+          return
+        end
+
+        local parent = commit_hash .. "^"
+        local buf = vim.fn.bufadd(file_path)
+        vim.fn.bufload(buf)
+
+        local ok, err = pcall(vim.api.nvim_buf_call, buf, function()
+          vim.cmd(("CodeDiff file %s %s"):format(parent, commit_hash))
+        end)
+
+        if not ok then
+          vim.notify("CodeDiff failed: " .. tostring(err), vim.log.levels.ERROR)
+        end
+      end,
+    },
+    keys = {
       {
         "<leader>Gb",
         ":BlameToggle<CR>",
