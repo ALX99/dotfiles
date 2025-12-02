@@ -54,6 +54,14 @@ return {
   {
     "FabijanZulj/blame.nvim",
     opts = {},
+    keys= {
+      {
+        "<leader>Gb",
+        ":BlameToggle<CR>",
+        mode = "n",
+        desc = "Toggle Git blame",
+      },
+    },
     cond = function()
       return not vim.g.vscode
     end,
