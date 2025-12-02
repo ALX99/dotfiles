@@ -13,12 +13,12 @@ background-blur = true
 
 # https://base46.vercel.app/theme?name=radium&lang=rust&terminal=ghostty
 
-#custom-shader = ~/dotfiles/ghostty-shaders/bloom.glsl
-#custom-shader = ~/dotfiles/ghostty-shaders/dither.glsl
-#custom-shader = ~/dotfiles/ghostty-shaders/matrix-hallway.glsl
-#custom-shader = ~/dotfiles/ghostty-shaders/mnoise.glsl
-#custom-shader = ~/dotfiles/ghostty-shaders/retro-terminal.glsl
-#custom-shader = ~/dotfiles/ghostty-shaders/starfield-colors.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/bloom.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/dither.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/matrix-hallway.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/mnoise.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/retro-terminal.glsl
+#custom-shader = ~/dotfiles/misc/ghostty-shaders/starfield-colors.glsl
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 
 #keybind = ctrl+c=copy_to_clipboard

@@ -6,5 +6,5 @@
 	path = .config/mpv/scripts/subs2srs
 	url = https://github.com/Ajatt-Tools/mpvacious
 [submodule "ghostty-shaders"]
-	path = ghostty-shaders
+	path = misc/ghostty-shaders
 	url = https://github.com/hackr-sh/ghostty-shaders
