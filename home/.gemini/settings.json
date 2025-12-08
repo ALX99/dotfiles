@@ -1,0 +1,10 @@
+{
+  "general": {
+    "disableAutoUpdate": true
+  },
+  "security": {
+    "auth": {
+      "selectedType": "oauth-personal"
+    }
+  }
+}
