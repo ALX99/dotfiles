@@ -23,52 +23,50 @@ local function mappings(client, buf)
     if opts then options = vim.tbl_extend("force", options, opts) end
     utils.map(mode, lhs, rhs, options)
   end
-  -- helper to open Snacks pickers with a default pattern that excludes Go test files
-  local function default_no_go_tests(picker_fn)
-    return function()
-      picker_fn({
-        focus = "list",
-        pattern = "!_test.go",
-      })
-    end
-  end
 
-  -- trim leading indentation for list/snippet text so the mini preview beside filenames is tidy
-  local function trim_ws(item)
-    if item.line then
-      item.line = item.line:gsub("^%s+", "")
+  local default_picker_opts = {
+    layout = {
+      layout = {
+        backdrop = false,
+        width = 0.5,
+        min_width = 80,
+        height = 0.8,
+        min_height = 30,
+        box = "vertical",
+        border = true,
+        title = "{title} {live} {flags}",
+        title_pos = "center",
+        { win = "input",   height = 1,          border = "bottom" },
+        { win = "list",    border = "none" },
+        { win = "preview", title = "{preview}", height = 0.4,     border = "top" },
+      },
+    },
+    focus = "list", -- Focus the list view
+    pattern = "!_test.go",
+  }
+
+  -- helper to create Snacks picker functions with default options
+  local function lsp_picker(picker_fn, override_opts)
+    return function()
+      -- Merge default options with any overrides
+      local final_opts = vim.tbl_extend("force", default_picker_opts, override_opts or {})
+      picker_fn(final_opts)
     end
-    if item.text then
-      local fname, rest = item.text:match("^(%S+)%s+(.+)$")
-      if fname and rest then
-        rest = rest:gsub("^%s+", "")
-        item.text = fname .. " " .. rest
-      else
-        item.text = item.text:gsub("^%s+", "")
-      end
-    end
-    return item
   end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gri', default_no_go_tests(function(opts)
-    Snacks.picker.lsp_implementations(vim.tbl_extend("force", opts, { transform = trim_ws }))
-  end), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-  bmap('n', 'grr', default_no_go_tests(function(opts)
-    Snacks.picker.lsp_references(vim.tbl_extend("force", opts, { transform = trim_ws }))
-  end), { desc = "Go to reference" })                                           -- vim.lsp.buf.references
+  bmap('n', 'gri', lsp_picker(Snacks.picker.lsp_implementations), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'grr', lsp_picker(Snacks.picker.lsp_references), { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })      -- Many LSPs do not implement this
   bmap('n', 'gd', Snacks.picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
   bmap('n', 'gt', Snacks.picker.lsp_type_definitions, { desc = "Go to type definition" })
   bmap('n', 'gs', Snacks.picker.lsp_symbols, { desc = "Goto symbols" })
-  bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
 
-  bmap('n', 'gai', default_no_go_tests(require('snacks').picker.lsp_incoming_calls),
-    { desc = "C[a]lls Incoming" })
-  bmap('n', 'gao', default_no_go_tests(require('snacks').picker.lsp_outgoing_calls),
-    { desc = "C[a]lls Outgoing" })
+  bmap('n', 'gai', lsp_picker(Snacks.picker.lsp_incoming_calls), { desc = "C[a]lls Incoming" })
+  bmap('n', 'gao', lsp_picker(Snacks.picker.lsp_outgoing_calls), { desc = "C[a]lls Outgoing" })
 
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
