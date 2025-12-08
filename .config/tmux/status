@@ -23,7 +23,7 @@ get_bat() {
     fi
     ;;
   Darwin)
-    percentage="$(pmset -g batt | grep -o '[0-9]\{1,3\}')" || return
+    percentage="$(pmset -g batt | grep -Eo "\d+%" | cut -d% -f1)"
     status="$(pmset -g batt | grep -qi 'charging' && echo 'Charging' || true)"
     ;;
   *)
