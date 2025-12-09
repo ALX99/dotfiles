@@ -1,13 +1,30 @@
 {
-  "includeCoAuthoredBy": false,
+  "cleanupPeriodDays": 365,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
+      "Skill",
+      "WebSearch",
+      "WebFetch",
+      "Read(~/go/**)",
+      "Read(//var/folders/**)",
+      "Read(~/projects/**)",
+      "Read(~/dotfiles/**)",
+      "Edit(~/projects/**)",
+      "Write(~/projects/**)",
+      "Bash(mktemp:*)",
       "Bash(cd:*)",
+      "Bash(pushd:*)",
       "Bash(git:*)",
       "Bash(ls:*)",
+      "Bash(tree:*)",
       "Bash(cat:*)",
       "Bash(make:*)",
       "Bash(npm:*)",
+      "Bash(pnpm:*)",
       "Bash(go:*)",
       "Bash(golangci-lint:*)",
       "Bash(docker:*)",
@@ -29,14 +46,19 @@
       "Bash(yq:*)",
       "Bash(kustomize:*)",
       "Bash(kubectl:*)",
-      "Read(~/projects/**)",
-      "Edit(~/projects/**)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr create:*)",
       "mcp__gopls",
       "mcp__context7",
       "mcp__playwright",
       "mcp__chrome-devtools"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "/var/folders/"
+    ]
   },
   "hooks": {
     "PostToolUse": [
@@ -50,6 +72,10 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "feature-dev@claude-code-plugins": true,
+    "example-skills@anthropic-agent-skills": true
   },
   "alwaysThinkingEnabled": true
 }

@@ -3,13 +3,14 @@
 ## GENERAL
 
 - Keep it concise, clear, and to the point
-- If I ask for something that could be better done another way, suggest it. Always consider alternatives
+- Always consider alternatives, best practices and, ways to improve
+- Before saying something is wrong, use `WebSearch` and `WebFetch` to verify
 - Use the Golang expert skill AS SOON as you understand you are working with Golang code
 
 ## CODE
 
 - Do not add code comments for trivial things
-- I want simple and KISS code, no over engineered bullshit
+- I want simple and KISS code, no over-engineered bullshit
 
 ### GOLANG
 
