@@ -90,7 +90,6 @@
 @define-color pulseaudio-muted-color @red;
 @define-color backlight-color @yellow;
 @define-color disk-color @cyan;
-@define-color uptime-color @green;
 @define-color updates-color @orange;
 @define-color quote-color @green;
 @define-color idle-inhibitor-color @foreground;
@@ -115,7 +114,7 @@ window#waybar {
 /* Common module styling with border-bottom */
 #mode, #mpd, #custom-weather, #custom-playerctl, #clock, #cpu,
 #memory, #temperature, #battery, #network, #pulseaudio,
-#backlight, #disk, #custom-uptime, #custom-updates, #custom-quote,
+#backlight, #disk, #custom-updates, #custom-quote,
 #idle_inhibitor, #tray {
     padding: 0 10px;
     margin: 0 2px;
@@ -257,11 +256,6 @@ window#waybar {
 #disk {
     color: @disk-color;
     border-bottom-color: @disk-color;
-}
-
-#custom-uptime {
-    color: @uptime-color;
-    border-bottom-color: @uptime-color;
 }
 
 #custom-updates {
