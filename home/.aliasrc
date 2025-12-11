@@ -116,6 +116,7 @@ command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
 command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
 command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
 command -v direnv >/dev/null 2>&1 && PROMPT_COMMAND="$PROMPT_COMMAND; . <(direnv export ${SHELL##*/})"
+command -v orb >/dev/null 2>&1 && . <(orb completion "${SHELL##*/}")
 
 sd() {
   set -e
