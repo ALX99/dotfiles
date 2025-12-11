@@ -27,7 +27,7 @@ custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 # for claude code shift+enter
 keybind = shift+enter=text:\x1b\r
 
-# passthrough for tmux
+# passthrough for tmux/shell
 keybind = cmd+a=text:\x1ba
 keybind = cmd+f=text:\x1bf
 keybind = cmd+m=text:\x1bm
@@ -37,5 +37,6 @@ keybind = cmd+i=text:\x1bi
 keybind = cmd+g=text:\x1bg
 keybind = cmd+t=text:\x1bt
 keybind = cmd+l=text:\x1bl
+keybind = cmd+h=text:\x1bh
 
 confirm-close-surface = false
