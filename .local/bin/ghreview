@@ -3,45 +3,44 @@
 set -euo pipefail
 
 if [[ $# -eq 1 ]]; then
-  pr="$1"
+  pr_url="$1"
+  if [[ $pr_url =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+    repo_full="${BASH_REMATCH[1]}"
+    pr="${BASH_REMATCH[2]}"
+  else
+    echo "Invalid PR URL or format: $pr_url" >&2
+    exit 1
+  fi
 else
-  pr=$(gh pr list --json number,title,author,createdAt \
-    --template '{{range .}}{{.number}}	{{.author.login}}	{{.title}}{{"\n"}}{{end}}' |
-    fzf --prompt="Select PR: " | cut -f1)
-  [[ -n $pr ]] || exit 0
+  pr_selection=$(gh search prs --review-requested=@me --json number,title,repository,author,updatedAt \
+    --template '{{range .}}{{.repository.nameWithOwner}}{{"\t"}}{{.number}}{{"\t"}}{{.author.login}}{{"\t"}}{{.title}}{{"\n"}}{{end}}' |
+    fzf --prompt="Select PR to review: " --delimiter='\t' --with-nth=1,2,4)
+  [[ -n $pr_selection ]] || exit 0
+
+  repo_full=$(echo "$pr_selection" | cut -f1)
+  pr=$(echo "$pr_selection" | cut -f2)
 fi
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [[ -z $repo_root ]]; then
-  echo "ghreview must be run inside a git repository." >&2
-  exit 1
-fi
-
-worktree_dir="$repo_root/review-$pr"
-branch="review-$pr"
-
-if [[ -d $worktree_dir ]]; then
-  echo "Worktree path already exists: $worktree_dir" >&2
-  exit 1
-fi
-
-branch_preexisting=0
-if git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
-  branch_preexisting=1
-fi
+review_dir=$(mktemp -d -t "ghreview-$pr-XXXXXX")
 
 cleanup() {
-  cd "$repo_root"
-  git worktree remove --force "$worktree_dir" 2>/dev/null || true
-  if [[ $branch_preexisting -eq 0 ]]; then
-    git branch -D "$branch" 2>/dev/null || true
-  fi
+  rm -rf "$review_dir"
 }
 trap cleanup EXIT INT TERM
 
-git -C "$repo_root" worktree add --detach "$worktree_dir"
+echo "Fetching PR #$pr from $repo_full (shallow clone)..."
 
-cd "$worktree_dir"
-gh pr checkout "$pr" --branch "$branch"
+# Get repo URL and base branch
+repo_url=$(gh repo view "$repo_full" --json url --jq .url)
+base_branch=$(gh pr view "$pr" --repo "$repo_full" --json baseRefName --jq .baseRefName)
 
-code --new-window --wait "$worktree_dir"
+# Initialize repo and fetch only the PR + base branch
+cd "$review_dir"
+git init --quiet
+git remote add origin "$repo_url"
+git fetch --depth=1 origin "pull/$pr/head:pr-$pr" "$base_branch" 2>&1 | grep -v "^From"
+git checkout --quiet "pr-$pr"
+
+echo "✓ Checked out PR #$pr (base: $base_branch)"
+
+code --new-window --wait "$review_dir"
