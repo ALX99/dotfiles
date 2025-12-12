@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
 
-stty -ixon # Disable ctrl-s and ctrl-q.
-
 set -a
 
 PNPM_HOME="$HOME/.local/share/pnpm"
