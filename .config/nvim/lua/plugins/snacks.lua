@@ -24,6 +24,14 @@ return {
             minimal = true,
           },
         },
+        sources = {
+          files = {
+            exclude = { "**/vendor/**" },
+          },
+          grep = {
+            exclude = { "**/vendor/**" },
+          },
+        },
       },
       -- scroll = {},
       statuscolumn = {
