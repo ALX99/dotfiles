@@ -17,10 +17,10 @@ function M.setup()
       if vim.fn.argc() == 0 and vim.fn.filereadable(session_file) ~= 0 then
         vim.cmd("silent! source " .. vim.fn.fnameescape(session_file))
       end
-      return true -- Delete the autocmd (only needs to run once)
     end,
     group = session_group,
     nested = true,
+    once = true,
   })
 
   vim.api.nvim_create_autocmd("VimLeavePre", {
@@ -29,9 +29,9 @@ function M.setup()
       if vim.fn.argc() == 0 and vim.fn.getcwd() ~= vim.env.HOME then
         vim.cmd("mks! " .. vim.fn.fnameescape(M.get_session_file()))
       end
-      return true -- Delete the autocmd (only needs to run once)
     end,
-    group = session_group
+    group = session_group,
+    once = true,
   })
 end
 
