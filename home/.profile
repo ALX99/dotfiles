@@ -46,6 +46,8 @@ HISTFILESIZE=                                   # Infinite history
 SAVEHIST=                                       # unlimited for zsh?
 HISTCONTROL=ignoreboth                          # Don't record duplicate stuff & stuff that starts with space in history
 
+XDG_CONFIG_HOME="$HOME/.config"
+
 if [ "$(uname -s)" = "Darwin" ]; then
   # homebrew, rancher desktop, and gem paths
   PATH="/opt/homebrew/bin:$PATH:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
@@ -55,7 +57,6 @@ if [ "$(uname -s)" = "Darwin" ]; then
 else
   # XDG
   XDG_CACHE_HOME="$HOME/.cache"
-  XDG_CONFIG_HOME="$HOME/.config"
   XDG_DATA_HOME="$HOME/.local/share"
   XDG_STATE_HOME="$HOME/.local/state"
   XDG_DOWNLOAD_DIR="$HOME/Downloads"
