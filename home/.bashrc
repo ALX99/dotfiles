@@ -24,6 +24,8 @@ export PS1='\[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\03
 # cmdhist save multiple-line commands in the same history entry
 shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist
 
+stty -ixon # Disable ctrl-s and ctrl-q.
+
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then
   # shellcheck disable=SC1091
