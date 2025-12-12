@@ -92,4 +92,34 @@ main_menu() {
   done
 }
 
-main_menu
+run_option() {
+  local option="${1:-}"
+  case "$option" in
+  1)
+    user_config
+    complete_message "User Configuration"
+    ;;
+  2)
+    linux_system_config
+    complete_message "Linux (Arch) System Configuration"
+    ;;
+  3)
+    mac_system_config
+    complete_message "Mac System Configuration"
+    ;;
+  4 | q | quit)
+    return 0
+    ;;
+  *)
+    echo -e "${RED}Invalid option: ${option}${NC}"
+    echo "Usage: $0 [1|2|3|4]"
+    return 2
+    ;;
+  esac
+}
+
+if [[ "${1:-}" != "" ]]; then
+  run_option "$1"
+else
+  main_menu
+fi
