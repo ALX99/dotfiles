@@ -4,12 +4,15 @@ set -euo pipefail
 PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 
 list_projects() {
-  local dir
+  local dir path
+  local IFS=:
   while IFS= read -r dir; do
     printf "%s\t%s\n" "${dir##*/}" "$dir"
   done <<<"$(
-    find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d
-    printf "%s\n" "$HOME/dotfiles"
+    for path in $PROJ_DIR; do
+      [ -d "$path" ] && find "$path" -mindepth 1 -maxdepth 1 -type d
+    done
+    echo "$HOME/dotfiles"
   )"
 }
 
