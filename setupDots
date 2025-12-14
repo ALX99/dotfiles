@@ -16,12 +16,34 @@ complete_message() {
   echo -e "${GREEN}$1 completed.${NC}"
 }
 
+remove_broken_symlinks() {
+  local target_dir="$1"
+  echo -e "${YELLOW}Checking for broken symlinks in ${target_dir}${NC}"
+
+  # Find and remove only broken symlinks that point to the dotfiles directory
+  while IFS= read -r -d '' link; do
+    if [[ ! -e $link ]]; then
+      local link_target
+      link_target=$(readlink "$link")
+      if [[ $link_target == *"dotfiles"* ]]; then
+        echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $link_target"
+        rm -f "$link"
+      fi
+    fi
+  done < <(find "$target_dir" -type l -print0 2>/dev/null)
+}
+
 user_config() {
   run_command mkdir -p ~/.config
   run_command mkdir -p ~/.local
 
+  remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
+
+  remove_broken_symlinks ~/.claude
   run_command stow --dir "$PWD" --target ~ --restow --no-folding home
+
+  remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
 
   if [[ "$(uname)" == "Linux" ]]; then
@@ -118,7 +140,7 @@ run_option() {
   esac
 }
 
-if [[ "${1:-}" != "" ]]; then
+if [[ ${1:-} != "" ]]; then
   run_option "$1"
 else
   main_menu
