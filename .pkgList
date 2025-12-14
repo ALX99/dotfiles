@@ -9,9 +9,9 @@ bluetui
 bluez # bluetooth support
 bluez-utils # utils for interacting with bluetooth
 brave-bin # browser
-czkawka-gui-bin # find duplicate files
 btop
 copyparty
+czkawka-gui-bin # find duplicate files
 dash
 docker
 docker-buildx # extended build capabilities with BuildKit
