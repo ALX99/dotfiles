@@ -67,6 +67,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "jq -r '.tool_input.file_path | select(endswith(\".go\")) | select(endswith(\"gen.go\") | not)' | xargs -r goimports -w"
+          },
+          {
+            "type": "command",
             "command": "jq -r '.tool_input.file_path | select(endswith(\".go\")) | select(endswith(\"gen.go\") | not)' | xargs -r gofmt -s -r 'interface{} -> any' -w"
           }
         ]
