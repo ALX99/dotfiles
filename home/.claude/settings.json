@@ -77,6 +77,10 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/status"
+  },
   "enabledPlugins": {
     "feature-dev@claude-code-plugins": true,
     "example-skills@anthropic-agent-skills": true
