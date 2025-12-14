@@ -1,1187 +1,1183 @@
 {
-  "profiles": [
-    {
-      "complex_modifications": {
-        "rules": [
-          {
-            "manipulators": [
-              {
-                "description": "Caps Lock: Hyper when held, Backspace when tapped.",
-                "from": {
-                  "key_code": "caps_lock",
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to": [
-                  {
-                    "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
-                  }
-                ],
-                "to_if_alone": [
-                  {
-                    "key_code": "semicolon"
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "manipulators": [
-              {
-                "description": "Change p to command+control+option+shift.",
-                "from": {
-                  "key_code": "semicolon",
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to": [
-                  {
-                    "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
-                  }
-                ],
-                "to_if_alone": [
-                  {
-                    "key_code": "delete_or_backspace"
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "manipulators": [
-              {
-                "description": "Tab to command+control+option.",
-                "from": {
-                  "key_code": "tab",
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to": [
-                  {
-                    "key_code": "left_option",
-                    "modifiers": ["left_command", "left_control"]
-                  }
-                ],
-                "to_if_alone": [
-                  {
-                    "key_code": "tab"
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Both Shifts -> Toggle Caps Lock",
-            "manipulators": [
-              {
-                "parameters": {
-                  "basic.simultaneous_threshold_milliseconds": 100
-                },
-                "from": {
-                  "simultaneous": [
-                    { "key_code": "left_shift" },
-                    { "key_code": "right_shift" }
-                  ],
-                  "simultaneous_options": {
-                    "detect_key_down_uninterruptedly": true,
-                    "key_down_order": "insensitive",
-                    "key_up_order": "insensitive"
-                  },
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to": [
-                  { "key_code": "caps_lock" }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Comma + Period -> Enter",
-            "manipulators": [
-              {
-                "parameters": {
-                  "basic.simultaneous_threshold_milliseconds": 100
-                },
-                "from": {
-                  "simultaneous": [
-                    { "key_code": "comma" },
-                    { "key_code": "period" }
-                  ],
-                  "simultaneous_options": {
-                    "detect_key_down_uninterruptedly": true,
-                    "key_down_order": "insensitive",
-                    "key_up_order": "insensitive"
-                  },
-                  "modifiers": { "optional": ["any"] }
-                },
-                "to": [
-                  { "key_code": "return_or_enter" }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Symbol layer",
-            "manipulators": [
-              {
-                "from": {
-                  "key_code": "q",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "keypad_asterisk"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "w",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": ["any"]
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "keypad_plus"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "f",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": ["any"]
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "hyphen"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "p",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "equal_sign"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "b",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "6",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "j",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "5",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "l",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "1",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "u",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "open_bracket"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "y",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "close_bracket"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "a",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "semicolon",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "r",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "hyphen",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "s",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "9",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "t",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "0",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "g",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "quote",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "m",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "left_arrow"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "n",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "down_arrow"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "e",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "up_arrow"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "i",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "right_arrow"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "x",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "4",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "c",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "backslash",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "d",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "7",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "k",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "open_bracket",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "h",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "close_bracket",
-                    "modifiers": ["left_shift"]
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "h",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "left_arrow"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "comma",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "home"
-                  }
-                ],
-                "type": "basic"
-              },
-              {
-                "from": {
-                  "key_code": "period",
-                  "modifiers": {
-                    "mandatory": [
-                      "left_shift",
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "end"
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Option + / → Search",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "slash",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "a",
-                    "modifiers": ["left_command", "left_shift"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Navigate to the previous in history",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "m",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "left_arrow",
-                    "modifiers": ["left_command"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Navigate to next page in history",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "i",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "right_arrow",
-                    "modifiers": ["left_command"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Go to previous tab",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "e",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "left_arrow",
-                    "modifiers": ["left_command", "left_option"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Go to next tab",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "n",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "right_arrow",
-                    "modifiers": ["left_command", "left_option"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Close current tab",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "x",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "w",
-                    "modifiers": ["left_command"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Reopen closed tab",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "x",
-                  "modifiers": {
-                    "mandatory": ["left_command", "right_shift"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "t",
-                    "modifiers": ["left_command", "left_shift"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Jump to address bar",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "s",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": []
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "l",
-                    "modifiers": ["left_command"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          },
-          {
-            "description": "Google Chrome: Reload page",
-            "manipulators": [
-              {
-                "conditions": [
-                  {
-                    "bundle_identifiers": [
-                      "^com\\.google\\.Chrome$",
-                      "^com\\.brave\\.Browser$"
-                    ],
-                    "type": "frontmost_application_if"
-                  }
-                ],
-                "from": {
-                  "key_code": "r",
-                  "modifiers": {
-                    "mandatory": ["left_command"],
-                    "optional": ["left_shift", "right_shift"]
-                  }
-                },
-                "to": [
-                  {
-                    "key_code": "r",
-                    "modifiers": ["left_command"]
-                  }
-                ],
-                "type": "basic"
-              }
-            ]
-          }
-        ]
-      },
-      "devices": [
-        {
-          "identifiers": {
-            "is_keyboard": true
-          },
-          "simple_modifications": [
-            {
-              "from": { "key_code": "a" },
-              "to": [{ "key_code": "a" }]
-            },
-            {
-              "from": { "key_code": "b" },
-              "to": [{ "key_code": "z" }]
-            },
-            {
-              "from": { "key_code": "c" },
-              "to": [{ "key_code": "d" }]
-            },
-            {
-              "from": { "key_code": "d" },
-              "to": [{ "key_code": "s" }]
-            },
-            {
-              "from": { "key_code": "e" },
-              "to": [{ "key_code": "f" }]
-            },
-            {
-              "from": { "key_code": "f" },
-              "to": [{ "key_code": "t" }]
-            },
-            {
-              "from": { "key_code": "g" },
-              "to": [{ "key_code": "g" }]
-            },
-            {
-              "from": { "key_code": "h" },
-              "to": [{ "key_code": "m" }]
-            },
-            {
-              "from": { "key_code": "i" },
-              "to": [{ "key_code": "u" }]
-            },
-            {
-              "from": { "key_code": "j" },
-              "to": [{ "key_code": "n" }]
-            },
-            {
-              "from": { "key_code": "k" },
-              "to": [{ "key_code": "e" }]
-            },
-            {
-              "from": { "key_code": "l" },
-              "to": [{ "key_code": "i" }]
-            },
-            {
-              "from": { "key_code": "m" },
-              "to": [{ "key_code": "h" }]
-            },
-            {
-              "from": { "key_code": "n" },
-              "to": [{ "key_code": "k" }]
-            },
-            {
-              "from": { "key_code": "o" },
-              "to": [{ "key_code": "y" }]
-            },
-            {
-              "from": { "key_code": "p" },
-              "to": [{ "key_code": "semicolon" }]
-            },
-            {
-              "from": { "key_code": "q" },
-              "to": [{ "key_code": "q" }]
-            },
-            {
-              "from": { "key_code": "r" },
-              "to": [{ "key_code": "p" }]
-            },
-            {
-              "from": { "key_code": "s" },
-              "to": [{ "key_code": "r" }]
-            },
-            {
-              "from": { "key_code": "semicolon" },
-              "to": [{ "key_code": "o" }]
-            },
-            {
-              "from": { "key_code": "t" },
-              "to": [{ "key_code": "b" }]
-            },
-            {
-              "from": { "key_code": "u" },
-              "to": [{ "key_code": "l" }]
-            },
-            {
-              "from": { "key_code": "v" },
-              "to": [{ "key_code": "v" }]
-            },
-            {
-              "from": { "key_code": "w" },
-              "to": [{ "key_code": "w" }]
-            },
-            {
-              "from": { "key_code": "x" },
-              "to": [{ "key_code": "c" }]
-            },
-            {
-              "from": { "key_code": "y" },
-              "to": [{ "key_code": "j" }]
-            },
-            {
-              "from": { "key_code": "z" },
-              "to": [{ "key_code": "x" }]
-            }
-          ]
-        },
-        {
-          "identifiers": {
-            "is_keyboard": true,
-            "is_pointing_device": true,
-            "product_id": 24801,
-            "vendor_id": 6127
-          },
-          "ignore": false,
-          "simple_modifications": [
-            {
-              "from": { "key_code": "a" },
-              "to": [{ "key_code": "a" }]
-            },
-            {
-              "from": { "key_code": "b" },
-              "to": [{ "key_code": "z" }]
-            },
-            {
-              "from": { "key_code": "c" },
-              "to": [{ "key_code": "d" }]
-            },
-            {
-              "from": { "key_code": "d" },
-              "to": [{ "key_code": "s" }]
-            },
-            {
-              "from": { "key_code": "e" },
-              "to": [{ "key_code": "f" }]
-            },
-            {
-              "from": { "key_code": "f" },
-              "to": [{ "key_code": "t" }]
-            },
-            {
-              "from": { "key_code": "g" },
-              "to": [{ "key_code": "g" }]
-            },
-            {
-              "from": { "key_code": "h" },
-              "to": [{ "key_code": "m" }]
-            },
-            {
-              "from": { "key_code": "i" },
-              "to": [{ "key_code": "u" }]
-            },
-            {
-              "from": { "key_code": "j" },
-              "to": [{ "key_code": "n" }]
-            },
-            {
-              "from": { "key_code": "k" },
-              "to": [{ "key_code": "e" }]
-            },
-            {
-              "from": { "key_code": "l" },
-              "to": [{ "key_code": "i" }]
-            },
-            {
-              "from": { "key_code": "m" },
-              "to": [{ "key_code": "h" }]
-            },
-            {
-              "from": { "key_code": "n" },
-              "to": [{ "key_code": "k" }]
-            },
-            {
-              "from": { "key_code": "o" },
-              "to": [{ "key_code": "y" }]
-            },
-            {
-              "from": { "key_code": "p" },
-              "to": [{ "key_code": "semicolon" }]
-            },
-            {
-              "from": { "key_code": "q" },
-              "to": [{ "key_code": "q" }]
-            },
-            {
-              "from": { "key_code": "r" },
-              "to": [{ "key_code": "p" }]
-            },
-            {
-              "from": { "key_code": "s" },
-              "to": [{ "key_code": "r" }]
-            },
-            {
-              "from": { "key_code": "semicolon" },
-              "to": [{ "key_code": "o" }]
-            },
-            {
-              "from": { "key_code": "t" },
-              "to": [{ "key_code": "b" }]
-            },
-            {
-              "from": { "key_code": "u" },
-              "to": [{ "key_code": "l" }]
-            },
-            {
-              "from": { "key_code": "v" },
-              "to": [{ "key_code": "v" }]
-            },
-            {
-              "from": { "key_code": "w" },
-              "to": [{ "key_code": "w" }]
-            },
-            {
-              "from": { "key_code": "x" },
-              "to": [{ "key_code": "c" }]
-            },
-            {
-              "from": { "key_code": "y" },
-              "to": [{ "key_code": "j" }]
-            },
-            {
-              "from": { "key_code": "z" },
-              "to": [{ "key_code": "x" }]
-            }
-          ]
-        }
-      ],
-      "name": "Customized colemak",
-      "selected": true,
-      "virtual_hid_keyboard": {
-        "country_code": 0,
-        "keyboard_type_v2": "ansi"
-      }
-    },
-    {
-      "name": "Empty profile",
-      "virtual_hid_keyboard": {
-        "country_code": 0
-      }
-    }
-  ]
+	"profiles": [
+		{
+			"complex_modifications": {
+				"rules": [
+					{
+						"manipulators": [
+							{
+								"description": "Caps Lock: Hyper when held, Backspace when tapped.",
+								"from": {
+									"key_code": "caps_lock",
+									"modifiers": { "optional": ["any"] }
+								},
+								"to": [
+									{
+										"key_code": "left_shift",
+										"modifiers": ["left_command", "left_control", "left_option"]
+									}
+								],
+								"to_if_alone": [
+									{
+										"key_code": "semicolon"
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"manipulators": [
+							{
+								"description": "Change p to command+control+option+shift.",
+								"from": {
+									"key_code": "semicolon",
+									"modifiers": { "optional": ["any"] }
+								},
+								"to": [
+									{
+										"key_code": "left_shift",
+										"modifiers": ["left_command", "left_control", "left_option"]
+									}
+								],
+								"to_if_alone": [
+									{
+										"key_code": "delete_or_backspace"
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"manipulators": [
+							{
+								"description": "Tab to command+control+option.",
+								"from": {
+									"key_code": "tab",
+									"modifiers": { "optional": ["any"] }
+								},
+								"to": [
+									{
+										"key_code": "left_option",
+										"modifiers": ["left_command", "left_control"]
+									}
+								],
+								"to_if_alone": [
+									{
+										"key_code": "tab"
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Both Shifts -> Toggle Caps Lock",
+						"manipulators": [
+							{
+								"parameters": {
+									"basic.simultaneous_threshold_milliseconds": 100
+								},
+								"from": {
+									"simultaneous": [
+										{ "key_code": "left_shift" },
+										{ "key_code": "right_shift" }
+									],
+									"simultaneous_options": {
+										"detect_key_down_uninterruptedly": true,
+										"key_down_order": "insensitive",
+										"key_up_order": "insensitive"
+									},
+									"modifiers": { "optional": ["any"] }
+								},
+								"to": [{ "key_code": "caps_lock" }],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Comma + Period -> Enter",
+						"manipulators": [
+							{
+								"parameters": {
+									"basic.simultaneous_threshold_milliseconds": 100
+								},
+								"from": {
+									"simultaneous": [
+										{ "key_code": "comma" },
+										{ "key_code": "period" }
+									],
+									"simultaneous_options": {
+										"detect_key_down_uninterruptedly": true,
+										"key_down_order": "insensitive",
+										"key_up_order": "insensitive"
+									},
+									"modifiers": { "optional": ["any"] }
+								},
+								"to": [{ "key_code": "return_or_enter" }],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Symbol layer",
+						"manipulators": [
+							{
+								"from": {
+									"key_code": "q",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "keypad_asterisk"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "w",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": ["any"]
+									}
+								},
+								"to": [
+									{
+										"key_code": "keypad_plus"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "f",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": ["any"]
+									}
+								},
+								"to": [
+									{
+										"key_code": "hyphen"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "p",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "equal_sign"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "b",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "6",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "j",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "5",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "l",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "1",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "u",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "open_bracket"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "y",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "close_bracket"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "a",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "semicolon",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "r",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "hyphen",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "s",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "9",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "t",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "0",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "g",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "quote",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "m",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "left_arrow"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "n",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "down_arrow"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "e",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "up_arrow"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "i",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "right_arrow"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "x",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "4",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "c",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "backslash",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "d",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "7",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "k",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "open_bracket",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "h",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "close_bracket",
+										"modifiers": ["left_shift"]
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "h",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "left_arrow"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "comma",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "home"
+									}
+								],
+								"type": "basic"
+							},
+							{
+								"from": {
+									"key_code": "period",
+									"modifiers": {
+										"mandatory": [
+											"left_shift",
+											"left_command",
+											"left_control",
+											"left_option"
+										],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "end"
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Option + / → Search",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "slash",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "a",
+										"modifiers": ["left_command", "left_shift"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Navigate to the previous in history",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "m",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "left_arrow",
+										"modifiers": ["left_command"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Navigate to next page in history",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "i",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "right_arrow",
+										"modifiers": ["left_command"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Go to previous tab",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "e",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "left_arrow",
+										"modifiers": ["left_command", "left_option"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Go to next tab",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "n",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "right_arrow",
+										"modifiers": ["left_command", "left_option"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Close current tab",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "x",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "w",
+										"modifiers": ["left_command"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Reopen closed tab",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "x",
+									"modifiers": {
+										"mandatory": ["left_command", "right_shift"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "t",
+										"modifiers": ["left_command", "left_shift"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Jump to address bar",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "s",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": []
+									}
+								},
+								"to": [
+									{
+										"key_code": "l",
+										"modifiers": ["left_command"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					},
+					{
+						"description": "Google Chrome: Reload page",
+						"manipulators": [
+							{
+								"conditions": [
+									{
+										"bundle_identifiers": [
+											"^com\\.google\\.Chrome$",
+											"^com\\.brave\\.Browser$"
+										],
+										"type": "frontmost_application_if"
+									}
+								],
+								"from": {
+									"key_code": "r",
+									"modifiers": {
+										"mandatory": ["left_command"],
+										"optional": ["left_shift", "right_shift"]
+									}
+								},
+								"to": [
+									{
+										"key_code": "r",
+										"modifiers": ["left_command"]
+									}
+								],
+								"type": "basic"
+							}
+						]
+					}
+				]
+			},
+			"devices": [
+				{
+					"identifiers": {
+						"is_keyboard": true
+					},
+					"simple_modifications": [
+						{
+							"from": { "key_code": "a" },
+							"to": [{ "key_code": "a" }]
+						},
+						{
+							"from": { "key_code": "b" },
+							"to": [{ "key_code": "z" }]
+						},
+						{
+							"from": { "key_code": "c" },
+							"to": [{ "key_code": "d" }]
+						},
+						{
+							"from": { "key_code": "d" },
+							"to": [{ "key_code": "s" }]
+						},
+						{
+							"from": { "key_code": "e" },
+							"to": [{ "key_code": "f" }]
+						},
+						{
+							"from": { "key_code": "f" },
+							"to": [{ "key_code": "t" }]
+						},
+						{
+							"from": { "key_code": "g" },
+							"to": [{ "key_code": "g" }]
+						},
+						{
+							"from": { "key_code": "h" },
+							"to": [{ "key_code": "m" }]
+						},
+						{
+							"from": { "key_code": "i" },
+							"to": [{ "key_code": "u" }]
+						},
+						{
+							"from": { "key_code": "j" },
+							"to": [{ "key_code": "n" }]
+						},
+						{
+							"from": { "key_code": "k" },
+							"to": [{ "key_code": "e" }]
+						},
+						{
+							"from": { "key_code": "l" },
+							"to": [{ "key_code": "i" }]
+						},
+						{
+							"from": { "key_code": "m" },
+							"to": [{ "key_code": "h" }]
+						},
+						{
+							"from": { "key_code": "n" },
+							"to": [{ "key_code": "k" }]
+						},
+						{
+							"from": { "key_code": "o" },
+							"to": [{ "key_code": "y" }]
+						},
+						{
+							"from": { "key_code": "p" },
+							"to": [{ "key_code": "semicolon" }]
+						},
+						{
+							"from": { "key_code": "q" },
+							"to": [{ "key_code": "q" }]
+						},
+						{
+							"from": { "key_code": "r" },
+							"to": [{ "key_code": "p" }]
+						},
+						{
+							"from": { "key_code": "s" },
+							"to": [{ "key_code": "r" }]
+						},
+						{
+							"from": { "key_code": "semicolon" },
+							"to": [{ "key_code": "o" }]
+						},
+						{
+							"from": { "key_code": "t" },
+							"to": [{ "key_code": "b" }]
+						},
+						{
+							"from": { "key_code": "u" },
+							"to": [{ "key_code": "l" }]
+						},
+						{
+							"from": { "key_code": "v" },
+							"to": [{ "key_code": "v" }]
+						},
+						{
+							"from": { "key_code": "w" },
+							"to": [{ "key_code": "w" }]
+						},
+						{
+							"from": { "key_code": "x" },
+							"to": [{ "key_code": "c" }]
+						},
+						{
+							"from": { "key_code": "y" },
+							"to": [{ "key_code": "j" }]
+						},
+						{
+							"from": { "key_code": "z" },
+							"to": [{ "key_code": "x" }]
+						}
+					]
+				},
+				{
+					"identifiers": {
+						"is_keyboard": true,
+						"is_pointing_device": true,
+						"product_id": 24801,
+						"vendor_id": 6127
+					},
+					"ignore": false,
+					"simple_modifications": [
+						{
+							"from": { "key_code": "a" },
+							"to": [{ "key_code": "a" }]
+						},
+						{
+							"from": { "key_code": "b" },
+							"to": [{ "key_code": "z" }]
+						},
+						{
+							"from": { "key_code": "c" },
+							"to": [{ "key_code": "d" }]
+						},
+						{
+							"from": { "key_code": "d" },
+							"to": [{ "key_code": "s" }]
+						},
+						{
+							"from": { "key_code": "e" },
+							"to": [{ "key_code": "f" }]
+						},
+						{
+							"from": { "key_code": "f" },
+							"to": [{ "key_code": "t" }]
+						},
+						{
+							"from": { "key_code": "g" },
+							"to": [{ "key_code": "g" }]
+						},
+						{
+							"from": { "key_code": "h" },
+							"to": [{ "key_code": "m" }]
+						},
+						{
+							"from": { "key_code": "i" },
+							"to": [{ "key_code": "u" }]
+						},
+						{
+							"from": { "key_code": "j" },
+							"to": [{ "key_code": "n" }]
+						},
+						{
+							"from": { "key_code": "k" },
+							"to": [{ "key_code": "e" }]
+						},
+						{
+							"from": { "key_code": "l" },
+							"to": [{ "key_code": "i" }]
+						},
+						{
+							"from": { "key_code": "m" },
+							"to": [{ "key_code": "h" }]
+						},
+						{
+							"from": { "key_code": "n" },
+							"to": [{ "key_code": "k" }]
+						},
+						{
+							"from": { "key_code": "o" },
+							"to": [{ "key_code": "y" }]
+						},
+						{
+							"from": { "key_code": "p" },
+							"to": [{ "key_code": "semicolon" }]
+						},
+						{
+							"from": { "key_code": "q" },
+							"to": [{ "key_code": "q" }]
+						},
+						{
+							"from": { "key_code": "r" },
+							"to": [{ "key_code": "p" }]
+						},
+						{
+							"from": { "key_code": "s" },
+							"to": [{ "key_code": "r" }]
+						},
+						{
+							"from": { "key_code": "semicolon" },
+							"to": [{ "key_code": "o" }]
+						},
+						{
+							"from": { "key_code": "t" },
+							"to": [{ "key_code": "b" }]
+						},
+						{
+							"from": { "key_code": "u" },
+							"to": [{ "key_code": "l" }]
+						},
+						{
+							"from": { "key_code": "v" },
+							"to": [{ "key_code": "v" }]
+						},
+						{
+							"from": { "key_code": "w" },
+							"to": [{ "key_code": "w" }]
+						},
+						{
+							"from": { "key_code": "x" },
+							"to": [{ "key_code": "c" }]
+						},
+						{
+							"from": { "key_code": "y" },
+							"to": [{ "key_code": "j" }]
+						},
+						{
+							"from": { "key_code": "z" },
+							"to": [{ "key_code": "x" }]
+						}
+					]
+				}
+			],
+			"name": "Customized colemak",
+			"selected": true,
+			"virtual_hid_keyboard": {
+				"country_code": 0,
+				"keyboard_type_v2": "ansi"
+			}
+		},
+		{
+			"name": "Empty profile",
+			"virtual_hid_keyboard": {
+				"country_code": 0
+			}
+		}
+	]
 }
