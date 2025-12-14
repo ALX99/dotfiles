@@ -5,7 +5,7 @@
 - Keep it concise, clear, and to the point
 - Always consider alternatives, best practices and, ways to improve
 - Before saying something is wrong, use `WebSearch` and `WebFetch` to verify
-- Use the Golang expert skill AS SOON as you understand you are working with Golang code
+- Before writing code, launch an `Explore` subagent to gather context, problem domain knowledge, and then ask clarifying questions
 
 ## CODE
 
