@@ -3,7 +3,7 @@
 ## GENERAL
 
 - Keep it concise, clear, and to the point
-- Always consider alternatives, best practices and, ways to improve
+- Always consider alternatives, best practices and ways to improve
 - Before saying something is wrong, use `WebSearch` and `WebFetch` to verify
 - Before writing code, launch an `Explore` subagent to gather context, problem domain knowledge, and then ask clarifying questions
 
