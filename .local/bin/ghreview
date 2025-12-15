@@ -12,7 +12,7 @@ if [[ $# -eq 1 ]]; then
     exit 1
   fi
 else
-  pr_selection=$(gh search prs --review-requested=@me --json number,title,repository,author,updatedAt \
+  pr_selection=$(gh search prs --review-requested=@me --state=open --sort updated --order desc --json number,title,repository,author,updatedAt \
     --template '{{range .}}{{.repository.nameWithOwner}}{{"\t"}}{{.number}}{{"\t"}}{{.author.login}}{{"\t"}}{{.title}}{{"\n"}}{{end}}' |
     fzf --prompt="Select PR to review: " --delimiter='\t' --with-nth=1,2,4)
   [[ -n $pr_selection ]] || exit 0
@@ -34,12 +34,10 @@ echo "Fetching PR #$pr from $repo_full (shallow clone)..."
 repo_url=$(gh repo view "$repo_full" --json url --jq .url)
 base_branch=$(gh pr view "$pr" --repo "$repo_full" --json baseRefName --jq .baseRefName)
 
-# Initialize repo and fetch only the PR + base branch
+# Clone and checkout PR branch
+gh repo clone "$repo_full" "$review_dir" -- --quiet
 cd "$review_dir"
-git init --quiet
-git remote add origin "$repo_url"
-git fetch --depth=1 origin "pull/$pr/head:pr-$pr" "$base_branch" 2>&1 | grep -v "^From"
-git checkout --quiet "pr-$pr"
+gh pr checkout "$pr" --force
 
 echo "✓ Checked out PR #$pr (base: $base_branch)"
 
