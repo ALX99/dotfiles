@@ -50,6 +50,8 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr create:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh repo clone:*)",
       "mcp__gopls",
       "mcp__context7",
       "mcp__playwright",
