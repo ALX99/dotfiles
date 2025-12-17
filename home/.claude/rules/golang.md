@@ -123,3 +123,7 @@ Write minimal, idiomatic Go with KISS-first design.
 - Use `time.Duration` for durations, `time.Time` for timestamps
 - Avoid naked returns
 - Use `iota` for enums, implement `String()`
+
+# Navigation
+
+- Utilize the gopls MCP's capabilities

@@ -57,6 +57,7 @@
       "mcp__chrome-devtools__*"
     ],
     "deny": [],
+    "defaultMode": "acceptEdits",
     "additionalDirectories": [
       "/var/folders/"
     ]
