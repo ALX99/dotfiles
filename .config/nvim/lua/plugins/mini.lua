@@ -79,7 +79,7 @@ return {
             WARN  = { duration = 5000 },
             INFO  = { duration = 5000 },
             DEBUG = { duration = 1000 },
-            TRACE = { duration = 500 },
+            TRACE = { duration = 0 },
           }
         )
       end

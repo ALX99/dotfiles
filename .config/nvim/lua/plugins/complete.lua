@@ -1,14 +1,11 @@
 return {
   {
     'saghen/blink.cmp',
-    dependencies = { 'rafamadriz/friendly-snippets' },
     version = '1.*',
     cond = function()
       return not vim.g.vscode
     end,
 
-    ---@module 'blink.cmp'
-    ---@type blink.cmp.Config
     opts = {
       -- All presets have the following mappings:
       -- C-space: Open menu or open docs if already open
@@ -21,7 +18,6 @@ return {
         preset = 'default',
         ['<CR>'] = { 'select_and_accept', 'fallback' },
         ["<Tab>"] = {
-          "snippet_forward",
           function() -- sidekick next edit suggestion
             return require("sidekick").nes_jump_or_apply()
           end,
@@ -52,15 +48,7 @@ return {
       signature = { enabled = true },
 
       sources = {
-        default = { 'lsp', 'path', 'snippets', 'buffer' },
-
-        providers = {
-          snippets = {
-            -- boost score
-            -- score_offset = 1000,
-            min_keyword_length = 2,
-          }
-        }
+        default = { 'lsp', 'path', 'buffer' },
       },
     },
   }
