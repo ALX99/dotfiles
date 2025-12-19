@@ -62,7 +62,7 @@ else
   XDG_DOWNLOAD_DIR="$HOME/Downloads"
 
   # Default programs
-  TERMINAL="alacritty"
+  TERMINAL="ghostty"
   VISUAL="nvim"
   BROWSER="brave"
   FILE="pcmanfm"
