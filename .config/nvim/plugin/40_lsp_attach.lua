@@ -1,5 +1,10 @@
+-- Skip the file, vscode has its own lsps
+if vim.g.vscode then
+  return
+end
+
 vim.g.diagnostics_visible = true
-local utils = require('core.utils')
+local utils = require('utils')
 
 local auto_fmt_clients = {
   "lua_ls",
@@ -233,7 +238,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     end
 
     vim.notify("lsp_attach: " .. client.name .. " to buf " .. tostring(args.buf) .. " file " .. filename,
-      vim.log.levels.INFO)
+      vim.log.levels.TRACE)
 
     -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
     if client.server_capabilities.definitionProvider then

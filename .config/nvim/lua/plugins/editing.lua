@@ -102,8 +102,8 @@ return {
     event = { "InsertEnter" },
   },
   {
-      "mason-org/mason.nvim",
-      opts = {}
+    "mason-org/mason.nvim",
+    opts = {}
   },
   {
     dir = "~/dotfiles/.config/nvim/lua/custom_plugins/vscode",
