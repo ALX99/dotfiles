@@ -74,7 +74,7 @@ return {
     cond         = function()
       return not vim.g.vscode
     end,
-    enabled      = require('core.utils').is_linux
+    enabled      = require('utils').is_linux
   },
 
 }

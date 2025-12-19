@@ -1,7 +1,7 @@
 local M = {}
 
 function M.setup()
-  local map = require("core.utils").map
+  local map = require("utils").map
   local vscode = require("vscode")
 
   -- Show hover

@@ -1,32 +1,33 @@
+-- Don't auto-wrap comments and don't insert comment leader after hitting 'o'.
+-- Do on `FileType` to always override these changes from filetype plugins.
+local f = function() vim.cmd('setlocal formatoptions-=c formatoptions-=o') end
+_G.Config.new_autocmd('FileType',
+  {
+    callback = f,
+    desc = "Proper 'formatoptions' for all filetypes",
+  })
+
+-- Skip the rest of the autocommands if we are in VSCode
 if vim.g.vscode then
   return
 end
 
-local autocmd = vim.api.nvim_create_autocmd
-
-local augroup = function(name, args)
-  return vim.api.nvim_create_augroup('local_' .. name, args)
-end
-
 
 -- Check if we need to reload the file when it changed
-autocmd({ "FocusGained", "TermClose", "TermLeave", "CursorHold" }, {
-  group = augroup('checktime', { clear = true }),
+_G.Config.new_autocmd({ "FocusGained", "TermClose", "TermLeave", "CursorHold" }, {
   command = "checktime",
 })
 
 -- Highlight on yank
-autocmd('TextYankPost', {
+_G.Config.new_autocmd('TextYankPost', {
   callback = function()
     vim.highlight.on_yank()
   end,
-  group = augroup('YankHighlight', { clear = true }),
   pattern = '*',
 })
 
 -- resize splits if window got resized
-autocmd({ "VimResized" }, {
-  group = augroup('resize_splits', { clear = true }),
+_G.Config.new_autocmd({ "VimResized" }, {
   callback = function()
     local current_tab = vim.fn.tabpagenr()
     vim.cmd("tabdo wincmd =")
@@ -35,22 +36,18 @@ autocmd({ "VimResized" }, {
 })
 
 -- show cursor line only in active window
--- local cursorGrp = augroup("CursorLine", { clear = true })
--- autocmd({ "InsertLeave", "WinEnter" }, {
---   group = cursorGrp,
---   pattern = "*",
---   command = "set cursorline",
--- })
--- autocmd({ "InsertEnter", "WinLeave" }, {
---   pattern = "*",
---   command = "set nocursorline",
---   group = cursorGrp
--- })
+_G.Config.new_autocmd({ "InsertLeave", "WinEnter" }, {
+  pattern = "*",
+  command = "set cursorline",
+})
+_G.Config.new_autocmd({ "InsertEnter", "WinLeave" }, {
+  pattern = "*",
+  command = "set nocursorline",
+})
 
 
 -- Format shell scripts on save without re-triggering write
-autocmd("BufWritePre", {
-  group = augroup("shfmt-autofmt", { clear = true }),
+_G.Config.new_autocmd("BufWritePre", {
   callback = function(info)
     if vim.bo[info.buf].filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
@@ -73,7 +70,7 @@ autocmd("BufWritePre", {
   end
 })
 
-autocmd("BufWritePre", {
+_G.Config.new_autocmd("BufWritePre", {
   pattern = "*.go",
   callback = function()
     local clients = vim.lsp.get_clients({ bufnr = 0 })
@@ -104,5 +101,5 @@ local function update_lead()
   end
   vim.opt_local.listchars:append({ leadmultispace = vim.fn.list2str(lead) })
 end
-autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
-autocmd("VimEnter", { callback = update_lead, once = true })
+_G.Config.new_autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
+_G.Config.new_autocmd("VimEnter", { callback = update_lead, once = true })

@@ -1,14 +1,14 @@
-local utils = require('core.utils')
+local utils = require('utils')
 local map = utils.map
 
-require('core.colemak').setup()
+require('colemak').setup()
 
 -- QoL
 map("n", "U", "<C-r>", { desc = "Redo" })
-map("x", ">", ">gv", { desc = "Increase indent" })             -- Stay in indent mode
-map("x", "<", "<gv", { desc = "Decrease indent" })             -- Stay in indent mode
-map("i", "tn", "<Esc>", { desc = "Exit insert mode" })         -- Esc is hard to press
-map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" }) -- CTRL+BS = C-h
+map("x", ">", ">gv", { desc = "Increase indent" })              -- Stay in indent mode
+map("x", "<", "<gv", { desc = "Decrease indent" })              -- Stay in indent mode
+map("i", "tn", "<Esc>", { desc = "Exit insert mode" })          -- Esc is hard to press
+map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" })  -- CTRL+BS = C-h
 map("i", "<M-BS>", "<C-W>", { desc = "Delete word backwards" }) -- For macOS
 
 
@@ -22,8 +22,8 @@ map('n', '<C-d>', '<C-d>zz')
 map('n', '<C-u>', '<C-u>zz')
 
 -- Center search results when navigating
-map("n", "n", "nzzzv",{silent=true})
-map("n", "N", "Nzzzv",{silent=true})
+map("n", "n", "nzzzv", { silent = true })
+map("n", "N", "Nzzzv", { silent = true })
 
 -- plugins
 map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })

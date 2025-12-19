@@ -15,7 +15,7 @@ return {
     config = function()
       -- vim.g.copilot_assume_mapped = true
 
-      local map = require('core.utils').map
+      local map = require('utils').map
       map(
         "i",
         "<A-CR>",
@@ -68,9 +68,9 @@ return {
         function()
           -- if there is a next edit, jump to it, otherwise apply it if any
           if require("sidekick").nes_jump_or_apply() then
-            return ""       -- consume the key when handled by sidekick
+            return ""    -- consume the key when handled by sidekick
           end
-          return "<Tab>"    -- fallback to normal tab
+          return "<Tab>" -- fallback to normal tab
         end,
         expr = true,
         desc = "Goto/Apply Next Edit Suggestion",
