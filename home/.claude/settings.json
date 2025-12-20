@@ -60,7 +60,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path | select(endswith(\".go\")) | select(endswith(\"gen.go\") | not)' | xargs -r go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix"
+            "command": "jq -r '.tool_input.file_path | select(endswith(\".go\")) | select(endswith(\"gen.go\") | not)' | xargs -r gofmt -w"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[[ $(uname -s) == 'Darwin' ]] && osascript -e 'display notification \"Claude is waiting for your input\" with title \"Claude Code\"'"
           }
         ]
       }
@@ -72,7 +83,8 @@
   },
   "enabledPlugins": {
     "feature-dev@claude-code-plugins": true,
-    "example-skills@anthropic-agent-skills": true
+    "example-skills@anthropic-agent-skills": true,
+    "gopls-lsp@claude-plugins-official": true
   },
   "alwaysThinkingEnabled": true,
   "model": "haiku"
