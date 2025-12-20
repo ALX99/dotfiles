@@ -4,7 +4,7 @@ set -euo pipefail
 
 show_help() {
   if ! "$@" >/dev/null 2>&1; then
-    echo "failed: ${cmd[*]} --help"
+    echo "failed: $@"
     return
   fi
 
@@ -21,11 +21,17 @@ show_help() {
 
 #shellcheck disable=SC2206
 args=($READLINE_LINE)
-cmd=()
 
-for i in "${!args[@]}"; do
-  if [[ ! ${args[i]} =~ ^- ]]; then
-    cmd+=("${args[i]}")
+if bash -ic "alias ${args[0]}" &>/dev/null; then
+  expanded="$(bash -ic "alias ${args[0]}" | sed "s/^alias [^=]*='//; s/'$//")"
+  echo "Expanded alias: ${args[0]} -> $expanded"
+  args=($expanded)
+fi
+
+cmd=()
+for arg in "${args[@]}"; do
+  if [[ ! $arg =~ ^- ]]; then
+    cmd+=("$arg")
   else
     break
   fi
@@ -34,5 +40,8 @@ done
 while [ ${#cmd[@]} -gt 0 ]; do
   show_help "${cmd[@]}" --help
   show_help "${cmd[@]}" -h
+  show_help "${cmd[@]}" -?
+  show_help "${cmd[@]}" help
+  show_help "${cmd[@]}" usage
   cmd=("${cmd[@]:0:${#cmd[@]}-1}")
 done
