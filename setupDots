@@ -76,7 +76,7 @@ linux_system_config() {
 
   run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 
-  run_command sudo ln -sf "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
+  run_command sudo ln -sfT "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
 
   # Udev rules
