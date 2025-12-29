@@ -13,7 +13,11 @@ function parse_git_dirty {
 function parse_git_branch {
   git branch --no-color 2>/dev/null | sed -e '/^[^*]/d' -e "s/* \(.*\)/(\1$(parse_git_dirty))/"
 }
-export PS1='\[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
+if [ -n "$SSH_CLIENT" ]; then
+  export PS1='\[\e[1;31m\][\u@\h]\[\033[0m\] \[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
+else
+  export PS1='\[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
+fi
 
 # autocd autocd
 # cdspell fix minor spelling mistakes in dirname of a cd command
