@@ -61,14 +61,18 @@ linux_system_config() {
     /etc/systemd/logind.conf.d/ \
     /etc/systemd/resolved.conf.d/
 
-  run_command sudo ln -sf "$PWD"/misc/systemd-config/99-sleep.conf /etc/systemd/sleep.conf.d/
+  # Systemd runs in a sandbox and does not have access to user directories by default.
+  # That's why we copy things
+  run_command sudo rm -f /etc/systemd/sleep.conf.d/99-sleep.conf
+  run_command sudo cp -f "$PWD"/misc/systemd-config/99-sleep.conf /etc/systemd/sleep.conf.d/
 
   # sudoers
   run_command sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
   run_command sudo chown root:root /etc/sudoers.d/99-sudoers
 
   # logind
-  run_command sudo ln -sf "$PWD"/misc/systemd-config/99-logind.conf /etc/systemd/logind.conf.d/
+  run_command sudo rm -f /etc/systemd/logind.conf.d/99-logind.conf
+  run_command sudo cp -f "$PWD"/misc/systemd-config/99-logind.conf /etc/systemd/logind.conf.d/
 
   run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 
