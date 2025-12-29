@@ -79,11 +79,6 @@ linux_system_config() {
   run_command sudo ln -sfT "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
 
-  # Udev rules
-  run_command sudo bash -c "sed -e 's|__USER__|'$USER'|g' -e 's|__HOME__|'$HOME'|g' '$PWD/misc/99-power.rules.in' > /etc/udev/rules.d/99-power.rules"
-  run_command sudo udevadm control --reload-rules
-  run_command sudo udevadm trigger
-  echo -e "${GREEN}Udev rules set up.${NC}"
 }
 
 mac_system_config() {
