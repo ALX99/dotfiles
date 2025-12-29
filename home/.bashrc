@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Runs every time bash shell is launched
 
+# Private rc file
+# shellcheck disable=SC1091
+[ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
+
 # If not running interactively, don't do anything
 case $- in
 *i*) ;;
@@ -37,7 +41,3 @@ if [ -f "$HOME/.aliasrc" ]; then
 else
   echo "Could not load aliases"
 fi
-
-# Private rc file
-# shellcheck disable=SC1091
-[ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
