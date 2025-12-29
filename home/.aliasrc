@@ -78,6 +78,10 @@ alias \
   mpv='mpv --hwdec=auto' \
   du='du --human-readable'
 
+# Media
+alias \
+  ytmp3='_x() { yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"; }; _x'
+
 # Navigation
 alias \
   ..='cd ..' \
@@ -148,7 +152,10 @@ _man_help() {
 
 _fzf_file_insert() {
   local preview_cmd picker file
-  command -v fd >/dev/null 2>&1 || { printf "fd is required for Alt+f file picker\n" >&2; return; }
+  command -v fd >/dev/null 2>&1 || {
+    printf "fd is required for Alt+f file picker\n" >&2
+    return
+  }
 
   preview_cmd="cat {}"
   if command -v bat >/dev/null 2>&1; then
@@ -166,7 +173,7 @@ _fzf_file_insert() {
       "${picker[@]}" --prompt 'files > ' --preview "$preview_cmd" --preview-window=right,60%
   )" || return
 
-  [[ -z "$file" ]] && return
+  [[ -z $file ]] && return
   READLINE_LINE="${READLINE_LINE:0:READLINE_POINT}${file}${READLINE_LINE:READLINE_POINT}"
   READLINE_POINT=$((READLINE_POINT + ${#file}))
 }

@@ -7,5 +7,18 @@
     "auth": {
       "selectedType": "oauth-personal"
     }
-  }
+  },
+  "approvalMode": "auto_edit",
+  "allowedTools": [
+    "run_shell_command",
+    "read_file",
+    "write_file",
+    "replace",
+    "web_fetch",
+    "google_web_search",
+    "codebase_investigator",
+    "glob",
+    "search_file_content",
+    "list_directory"
+  ]
 }

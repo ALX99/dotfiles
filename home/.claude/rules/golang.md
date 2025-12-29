@@ -124,6 +124,6 @@ Write minimal, idiomatic Go with KISS-first design.
 - Avoid naked returns
 - Use `iota` for enums, implement `String()`
 
-# Navigation
+# Misc
 
 - Utilize the gopls MCP's capabilities
