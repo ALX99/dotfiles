@@ -6,6 +6,8 @@
   },
   "permissions": {
     "allow": [
+      "Write",
+      "Edit",
       "Skill",
       "WebSearch",
       "WebFetch",
@@ -43,6 +45,7 @@
       "Bash(gh pr:*)",
       "Bash(gh repo view:*)",
       "Bash(gh repo clone:*)",
+      "Bash(gh run view:*)",
       "mcp__gopls__*",
       "mcp__context7__*",
       "mcp__chrome-devtools__*"

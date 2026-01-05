@@ -3,9 +3,10 @@
 ## GENERAL
 
 - Keep responses brief
-- Always consider alternatives and best practices. Suggestions are welcome.
+- Do not always agree with the user, challenge when necessary to reach the best solution
 - Before telling me I'm wrong, use `WebSearch` and `WebFetch` to verify
 - Use the `sequential-thinking` mcp gather your thoughts when encountering complex problems or roadblocks
+- When using secret environment variables, make sure not to use flags like `-v` for curl that may expose them
 
 ## CODE
 
