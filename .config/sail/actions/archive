@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+
+archive_name="$(basename "$1").tar.zst"
+
+# Add timestamp if archive exists
+[ -f "$archive_name" ] && archive_name="$(basename "$1")_$(date +%Y%m%d_%H%M%S).tar.zst"
+
+tar -cf - "$@" | zstd -T0 >"$archive_name"

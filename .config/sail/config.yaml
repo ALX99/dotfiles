@@ -5,3 +5,15 @@ settings:
     right: i
     up: e
     down: n
+    bookmark_set: b
+    preview_scroll_up: E
+    preview_scroll_down: N
+  actions:
+    archive:
+      key: "alt+z"
+      refresh: true
+      clear_selection: true
+  bookmarks:
+    h: '~/'
+    d: '~/Downloads'
+    p: '~/projects'
