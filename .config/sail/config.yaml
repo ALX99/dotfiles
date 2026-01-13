@@ -13,6 +13,15 @@ settings:
       key: "alt+z"
       refresh: true
       clear_selection: true
+    open:
+      key: "o"
+      refresh: false
+      clear_selection: false
+    textedit:
+      key: "ctrl+e"
+      refresh: true
+      clear_selection: true
+      interactive: true
   bookmarks:
     h: '~/'
     d: '~/Downloads'
