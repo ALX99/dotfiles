@@ -34,14 +34,16 @@ remove_broken_symlinks() {
 }
 
 user_config() {
-  run_command mkdir -p ~/.config
-  run_command mkdir -p ~/.local
+  run_command mkdir -p ~/.config ~/.local ~/.claude/skills ~/.gemini/skills
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
 
   remove_broken_symlinks ~/.claude
+  remove_broken_symlinks ~/.gemini
   run_command stow --dir "$PWD" --target ~ --restow --no-folding home
+
+  run_command stow --dir "$PWD/home/.claude" --target ~/.gemini/skills --restow --no-folding --no-folding skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
