@@ -12,3 +12,4 @@
 
 - Avoid trivial comments. I am a senior developer.
 - I want simple and KISS code, no over-engineered bullshit
+- State is bad, prefer designs/patterns/solutions that keep minimal state

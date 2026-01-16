@@ -43,11 +43,9 @@
       "Bash(kustomize:*)",
       "Bash(kubectl:*)",
       "Bash(gh pr:*)",
-      "Bash(gh repo view:*)",
+      "Bash(gh * view)",
       "Bash(gh repo clone:*)",
-      "Bash(gh run view:*)",
       "mcp__gopls__*",
-      "mcp__context7__*",
       "mcp__chrome-devtools__*"
     ],
     "deny": [],
@@ -88,7 +86,11 @@
     "feature-dev@claude-code-plugins": true,
     "example-skills@anthropic-agent-skills": true,
     "gopls-lsp@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true
+    "superpowers@superpowers-marketplace": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "atlassian@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false
   },
   "alwaysThinkingEnabled": true,
   "model": "haiku"
