@@ -8,6 +8,9 @@
       "selectedType": "oauth-personal"
     }
   },
+  "experimental": {
+    "skills": true
+  },
   "approvalMode": "auto_edit",
   "allowedTools": [
     "run_shell_command",
