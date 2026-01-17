@@ -3,60 +3,31 @@ local colemak = {}
 -- Colemak-DH remaps
 -- :h map-overview
 local mappings = {
-  -- Up/Down/Left/Right
-  -- { modes = { "n", "o", "x" }, lhs = "m",      rhs = "h",     desc = "Left (h)" },
-  -- { modes = { "n", "o", "x" }, lhs = "n",      rhs = "j",     desc = "Down (j)" },
-  -- { modes = { "n", "o", "x" }, lhs = "e",      rhs = "k",     desc = "Up (k)" },
-  -- { modes = { "n", "o", "x" }, lhs = "i",      rhs = "l",     desc = "Right (l)" },
-  --
-  -- -- Top/Bottom of screen
-  -- { modes = { "n", "o", "x" }, lhs = "M",      rhs = "H",     desc = "Cursor to top of screen" },
-  -- { modes = { "n", "o", "x" }, lhs = "I",      rhs = "L",     desc = "Cursor to bottom of screen" },
-  --
-  -- -- Search
-  -- { modes = { "n", "o", "x" }, lhs = "l",      rhs = "n" },
-  -- { modes = { "n", "o", "x" }, lhs = "L",      rhs = "N" },
-  --
-  -- -- Substitute
-  -- { modes = { "n", "o", "x" }, lhs = "j",      rhs = "S",     desc = "Substitute line" },
-  --
-  -- -- Insert
-  -- { modes = { "n" },           lhs = "s",      rhs = "i",     desc = "Insert mode" },
-  -- { modes = { "n", "v" },      lhs = "S",      rhs = "I",     desc = "Insert mode" },
-  --
-  -- -- Mark
-  -- { modes = { "n", "o", "x" }, lhs = "k",      rhs = "m",     desc = "Create mark" },
-  --
-  -- -- End of word
-  -- { modes = { "n", "o", "x" }, lhs = "h",      rhs = "e",     desc = "End of word" },
-  -- { modes = { "n", "o", "x" }, lhs = "H",      rhs = "E",     desc = "End of WORD" },
-  -- -- gh is taken by mini.diff
-  -- -- { modes = { "n", "o", "x" }, lhs = "gh",     rhs = "ge",    desc = "Previous end of word" },
-  -- -- { modes = { "n", "o", "x" }, lhs = "gH",     rhs = "gE",    desc = "Previous end of WORD" },
-  -- { modes = { "n", "o", "x" }, lhs = "ge",     rhs = "gk",    desc = "Go up by screen lines" },
-  -- { modes = { "n", "o", "x" }, lhs = "gn",     rhs = "gj",    desc = "Go down by screen lines" },
-  -- { modes = { "n", "o", "x" }, lhs = "gE",     rhs = "<nop>", desc = "<nop>" },
-  -- { modes = { "n", "o", "x" }, lhs = "gN",     rhs = "<nop>", desc = "<nop>" },
+  -- Up/Down/Left/Right (normal/visual only, not operator-pending)
+  -- This preserves text objects like 'iw', 'aw' in operator-pending mode
+  { modes = { "n", "x" }, lhs = "m",      rhs = "h",     desc = "Left (h)" },
+  { modes = { "n", "x" }, lhs = "n",      rhs = "j",     desc = "Down (j)" },
+  { modes = { "n", "x" }, lhs = "e",      rhs = "k",     desc = "Up (k)" },
+  { modes = { "n", "x" }, lhs = "i",      rhs = "l",     desc = "Right (l)" },
 
-  -- Text objects (NOTE: 's' is mapped by mini.ai currently)
-  -- { modes = { "o", "x" },      lhs = "s",      rhs = "i",     desc = "O/V mode: inner (i)" },
-
-  -- Jumplist navigation
-  -- { modes = { "n" },           lhs = "<C-u>",      rhs = "<C-i>",      desc = "Jumplist forward" },
-  -- { modes = { "n" },           lhs = "<C-e>",      rhs = "<C-o>",      desc = "Jumplist forward" },
-
-  -- Macros (replay the macro recorded by qq)
-  -- { modes = { "n" },           lhs = "Q",          rhs = "@q",    desc = "replay the 'q' macro" },
+  -- Displaced keys
+  { modes = { "n", "x" }, lhs = "l",      rhs = "n",     desc = "Next search (n)" },
+  { modes = { "n", "x" }, lhs = "L",      rhs = "N",     desc = "Prev search (N)" },
+  { modes = { "n", "x" }, lhs = "h",      rhs = "e",     desc = "End of word (e)" },
+  { modes = { "n", "x" }, lhs = "H",      rhs = "E",     desc = "End of WORD (E)" },
+  { modes = { "n" },           lhs = "j",      rhs = "m",     desc = "Set mark (m)" },
+  { modes = { "n" },           lhs = "k",      rhs = "i",     desc = "Insert (i)" },
+  -- { modes = { "n" },           lhs = "K",      rhs = "I",     desc = "Insert at start (I)" },
 
   -- Window navigation
-  { modes = { "n" }, lhs = "<C-w>m", rhs = "<C-w>h" },
-  { modes = { "n" }, lhs = "<C-w>n", rhs = "<C-w>j" },
-  { modes = { "n" }, lhs = "<C-w>e", rhs = "<C-w>k" },
-  { modes = { "n" }, lhs = "<C-w>i", rhs = "<C-w>l" },
-  { modes = { "n" }, lhs = "<C-w>M", rhs = "<C-w>H" },
-  { modes = { "n" }, lhs = "<C-w>N", rhs = "<C-w>J" },
-  { modes = { "n" }, lhs = "<C-w>E", rhs = "<C-w>K" },
-  { modes = { "n" }, lhs = "<C-w>I", rhs = "<C-w>L" },
+  { modes = { "n" },           lhs = "<C-w>m", rhs = "<C-w>h" },
+  { modes = { "n" },           lhs = "<C-w>n", rhs = "<C-w>j" },
+  { modes = { "n" },           lhs = "<C-w>e", rhs = "<C-w>k" },
+  { modes = { "n" },           lhs = "<C-w>i", rhs = "<C-w>l" },
+  { modes = { "n" },           lhs = "<C-w>M", rhs = "<C-w>H" },
+  { modes = { "n" },           lhs = "<C-w>N", rhs = "<C-w>J" },
+  { modes = { "n" },           lhs = "<C-w>E", rhs = "<C-w>K" },
+  { modes = { "n" },           lhs = "<C-w>I", rhs = "<C-w>L" },
 }
 
 function colemak.setup(_)

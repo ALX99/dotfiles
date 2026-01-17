@@ -13,6 +13,9 @@ return {
           -- keep smart/recent results scoped to the current root
           smart = { filter = { cwd = true } },
           recent = { filter = { cwd = true } },
+
+          files = { exclude = { "**/vendor/**" }, },
+          grep = { exclude = { "**/vendor/**" }, },
         },
         formatters = {
           file = {
@@ -20,16 +23,28 @@ return {
           },
         },
         win = {
+          input = {
+            keys = {
+              -- Colemak: n=down, e=up (disable j/k defaults)
+              ["j"] = false,
+              ["k"] = false,
+              ["<C-n>"] = { "list_down", mode = { "i", "n" } },
+              ["<C-e>"] = { "list_up", mode = { "i", "n" } },
+              ["n"] = { "list_down", mode = { "n" } },
+              ["e"] = { "list_up", mode = { "n" } },
+            },
+          },
+          list = {
+            keys = {
+              -- Colemak: n=down, e=up (disable j/k defaults)
+              ["j"] = false,
+              ["k"] = false,
+              ["n"] = "list_down",
+              ["e"] = "list_up",
+            },
+          },
           preview = {
             minimal = true,
-          },
-        },
-        sources = {
-          files = {
-            exclude = { "**/vendor/**" },
-          },
-          grep = {
-            exclude = { "**/vendor/**" },
           },
         },
       },

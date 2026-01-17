@@ -22,8 +22,8 @@ map('n', '<C-d>', '<C-d>zz')
 map('n', '<C-u>', '<C-u>zz')
 
 -- Center search results when navigating
-map("n", "n", "nzzzv", { silent = true })
-map("n", "N", "Nzzzv", { silent = true })
+map("n", "l", "nzzzv", { silent = true })
+map("n", "L", "Nzzzv", { silent = true })
 
 -- plugins
 map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
