@@ -8,7 +8,13 @@ on:
 jobs:
   claude:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:

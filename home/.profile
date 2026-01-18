@@ -38,7 +38,7 @@ HISTCONTROL=ignoreboth
 # Platform-specific
 # =============================================================================
 if [[ $OSTYPE == darwin* ]]; then
-  PATH="/opt/homebrew/bin:$PATH:$HOME/.rd/bin:$HOME/.gem/ruby/2.6.0/bin"
+  PATH="/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
   USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
   XDG_CACHE_HOME="$HOME/Library/Caches"
