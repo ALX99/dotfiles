@@ -7,8 +7,8 @@ model=$(echo "$input" | jq -r '.model.display_name // empty')
 # Token usage
 input_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 output_tokens=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0')
-context_limit=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
 total_tokens=$((input_tokens + output_tokens))
+used_percentage=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
 # Cost & stats
 cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
@@ -63,15 +63,13 @@ fi
 # Token usage with progress bar
 token_info=""
 if [ "$total_tokens" -gt 0 ] 2>/dev/null; then
-  if [ "$total_tokens" -ge 1000 ]; then
-    tokens_fmt="$((total_tokens / 1000))k"
+  if [ -n "$used_percentage" ] && [ "$used_percentage" != "null" ]; then
+    pct=$(printf "%.0f" "$used_percentage")
   else
-    tokens_fmt="$total_tokens"
+    pct=0
   fi
 
-  if [ "$context_limit" -gt 0 ] 2>/dev/null; then
-    pct=$((total_tokens * 100 / context_limit))
-
+  if [ "$pct" -gt 0 ] 2>/dev/null; then
     # Color based on usage
     if [ "$pct" -ge 75 ]; then
       bar_color="$RED"

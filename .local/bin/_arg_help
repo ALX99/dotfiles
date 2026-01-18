@@ -4,7 +4,7 @@ set -euo pipefail
 
 show_help() {
   if ! "$@" >/dev/null 2>&1; then
-    echo "failed: $@"
+    echo "failed: $*"
     return
   fi
 
@@ -25,6 +25,7 @@ args=($READLINE_LINE)
 if bash -ic "alias ${args[0]}" &>/dev/null; then
   expanded="$(bash -ic "alias ${args[0]}" | sed "s/^alias [^=]*='//; s/'$//")"
   echo "Expanded alias: ${args[0]} -> $expanded"
+  # shellcheck disable=SC2206
   args=($expanded)
 fi
 
