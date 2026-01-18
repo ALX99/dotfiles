@@ -1,88 +1,28 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2142
+# Interactive shell configuration: aliases, functions, bindings, completions
 
-# Make common commands shorter
-# shellcheck disable=SC2142
+# =============================================================================
+# Shell settings
+# =============================================================================
+PROMPT_COMMAND='history -a; [[ -r venv/bin/activate ]] && . venv/bin/activate'
+
+# =============================================================================
+# Short aliases
+# =============================================================================
 alias \
   q="exit" \
   c="clear" \
   e="\$EDITOR" \
   g="git" \
+  k='kubectl' \
   p="paccy" \
   se="sudoedit" \
-  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  task='go-task' \
-  ch="code . && exit" \
-  bye='systemctl suspend-then-hibernate' \
-  utop='htop -t -u $(whoami)' \
-  perms="stat -c '%a %n' *" \
-  mimetype="file --dereference --brief --mime-type" \
-  archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
-  update="paccy -Syu" \
-  pf='rg --files | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
-  pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
-  ef='nvim "$(pf)"' \
-  ef.='nvim "$(pf.)"' \
-  cheat='_x() { curl cht.sh/"$1"; }; _x' \
-  tgs='tmux-go-session' \
-  pnav='cd "$(_projselect)"' \
-  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
-  urldecode='python3 -c "import sys, urllib.parse as ul; print(ul.unquote_plus(sys.argv[1]))"' \
-  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
-  vset='_x() { read -r "$1" && export "$1"; }; _x' \
-  set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
-  unset_aws_profile='unset AWS_PROFILE'
+  cat="bat"
 
-# Helm
-alias \
-  hls="helm ls" \
-  hdu="helm dependency update" \
-  hui="helm upgrade --install" \
-  hur="helm upgrade --reuse-values" \
-  hua='helm uninstall $(helm ls --short)'
-
-# Kubectl
-# shellcheck disable=SC2154
-alias \
-  kgc='kubectl config current-context' \
-  kgn='kubectl config get-contexts --no-headers "$(kgc)" | awk "{print \$5}" | sed "s/^$/default/"' \
-  klc='yq ".contexts.[].name" ~/.kube/config' \
-  kln='kubectl get namespaces -o custom-columns=NAME:.metadata.name --no-headers' \
-  ksn='kubectl config set-context --current --namespace "$(kln | fzf --header "select ns. ctx: ["$(kubectl config current-context)"]")"' \
-  ksc='_x() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }; (_x)' \
-  k='kubectl'
-# kdcn='command kubectl delete ns "$(krn)"'
-# kccn='command kubectl create ns "$(krn)"'
-
-# Docker
-alias \
-  dshell='_x() { docker run --entrypoint /bin/bash --rm -it "$1" || docker run --entrypoint /bin/sh --rm -it "$1"; }; _x' \
-  dprune='docker system prune -a --volumes' \
-  drr='docker run --rm'
-
-# Better flags
-alias \
-  grep="grep --color=auto" \
-  diff="diff --color=auto" \
-  ip="ip -color=auto" \
-  cp="cp -i" \
-  mv="mv -i" \
-  rm="rm -v" \
-  mkdir="mkdir -p" \
-  free="free -h" \
-  df="df --human-readable --output=source,target,size,used,avail,pcent" \
-  upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0" \
-  dd="dd bs=512k status=progress" \
-  gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto' \
-  du='du --human-readable'
-
-# Media
-alias \
-  ytmp3='_x() { yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"; }; _x'
-
+# =============================================================================
 # Navigation
+# =============================================================================
 alias \
   ..='cd ..' \
   ...='cd ../..' \
@@ -93,9 +33,91 @@ alias \
   dots='cd ~/dotfiles' \
   config='cd ~/dotfiles/.config'
 
-[ -x "$(command -v bat)" ] && alias cat="bat"
+# =============================================================================
+# Better defaults
+# =============================================================================
+alias \
+  grep="grep --color=auto" \
+  diff="diff --color=auto" \
+  ip="ip -color=auto" \
+  cp="cp -i" \
+  mv="mv -i" \
+  rm="rm -v" \
+  mkdir="mkdir -p" \
+  free="free -h" \
+  df="df --human-readable --output=source,target,size,used,avail,pcent" \
+  du='du --human-readable' \
+  dd="dd bs=512k status=progress" \
+  gcc="gcc -Wall -W -pedantic" \
+  htop="htop -s PERCENT_CPU" \
+  mpv='mpv --hwdec=auto' \
+  upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0"
 
-if [ "$(uname -s)" = "Darwin" ]; then
+# =============================================================================
+# Kubectl
+# =============================================================================
+# shellcheck disable=SC2154
+alias \
+  kgc='kubectl config current-context' \
+  kgn='kubectl config get-contexts --no-headers "$(kgc)" | awk "{print \$5}" | sed "s/^$/default/"' \
+  klc='yq ".contexts.[].name" ~/.kube/config' \
+  kln='kubectl get namespaces -o custom-columns=NAME:.metadata.name --no-headers' \
+  ksn='kubectl config set-context --current --namespace "$(kln | fzf --header "select ns. ctx: ["$(kubectl config current-context)"]")"' \
+  ksc='_x() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }; (_x)'
+
+# =============================================================================
+# Helm
+# =============================================================================
+alias \
+  hls="helm ls" \
+  hdu="helm dependency update" \
+  hui="helm upgrade --install" \
+  hur="helm upgrade --reuse-values" \
+  hua='helm uninstall $(helm ls --short)'
+
+# =============================================================================
+# Docker
+# =============================================================================
+alias \
+  dshell='_x() { docker run --entrypoint /bin/bash --rm -it "$1" || docker run --entrypoint /bin/sh --rm -it "$1"; }; _x' \
+  dprune='docker system prune -a --volumes' \
+  drr='docker run --rm'
+
+# =============================================================================
+# Utilities
+# =============================================================================
+alias \
+  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
+  task='go-task' \
+  ch="code . && exit" \
+  bye='systemctl suspend-then-hibernate' \
+  utop='htop -t -u $(whoami)' \
+  perms="stat -c '%a %n' *" \
+  mimetype="file --dereference --brief --mime-type" \
+  archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
+  update="paccy -Syu" \
+  cheat='_x() { curl cht.sh/"$1"; }; _x' \
+  tgs='tmux-go-session' \
+  pnav='cd "$(_projselect)"' \
+  dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
+  urldecode='python3 -c "import sys, urllib.parse as ul; print(ul.unquote_plus(sys.argv[1]))"' \
+  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
+  vset='_x() { read -r "$1" && export "$1"; }; _x' \
+  set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
+  unset_aws_profile='unset AWS_PROFILE' \
+  ytmp3='_x() { yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"; }; _x'
+
+# Fuzzy file picker
+alias \
+  pf='rg --files | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
+  ef='nvim "$(pf)"' \
+  ef.='nvim "$(pf.)"'
+
+# =============================================================================
+# Platform-specific aliases
+# =============================================================================
+if [[ $OSTYPE == darwin* ]]; then
   alias \
     ls="gls -hN --color=auto --group-directories-first" \
     ll="gls -hNlA --color=auto" \
@@ -107,21 +129,9 @@ else
     ll="ls -hNlA --color=auto"
 fi
 
-# Tmux destroys $PROMPT_COMMAND, idk why...
-if [ -n "$TMUX" ]; then
-  PROMPT_COMMAND='history -a' # Record each line as it gets issued
-  # Auto-activate venv
-  PROMPT_COMMAND="$PROMPT_COMMAND; [[ -r venv/bin/activate ]] && . venv/bin/activate"
-fi
-
-command -v kubectl >/dev/null 2>&1 && . <(kubectl completion bash)
-command -v kubectl >/dev/null 2>&1 && complete -o default -F __start_kubectl k
-command -v helm >/dev/null 2>&1 && . <(helm completion "${SHELL##*/}")
-command -v k6 >/dev/null 2>&1 && . <(k6 completion "${SHELL##*/}")
-command -v gh >/dev/null 2>&1 && . <(gh completion -s "${SHELL##*/}")
-command -v direnv >/dev/null 2>&1 && PROMPT_COMMAND="$PROMPT_COMMAND; . <(direnv export ${SHELL##*/})"
-command -v orb >/dev/null 2>&1 && . <(orb completion "${SHELL##*/}")
-
+# =============================================================================
+# Functions
+# =============================================================================
 sd() {
   set -e
   tmp_file="$(mktemp)"
@@ -131,7 +141,6 @@ sd() {
   set +e
 }
 
-# Git browse
 gbrowse() {
   git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
     fzf --ansi --no-sort --reverse --tiebreak=index +m \
@@ -139,7 +148,7 @@ gbrowse() {
       --preview "git show --stat --color=always \$(echo {} | cut -d' ' -f2)" \
       --preview-window=right,60
 }
-# launch in background
+
 launch() {
   "$@" >/dev/null 2>&1 &
   disown
@@ -158,9 +167,7 @@ _fzf_file_insert() {
   }
 
   preview_cmd="cat {}"
-  if command -v bat >/dev/null 2>&1; then
-    preview_cmd="bat --color=always --style=numbers --line-range :200 {}"
-  fi
+  command -v bat >/dev/null 2>&1 && preview_cmd="bat --color=always --style=numbers --line-range :200 {}"
 
   if command -v fzf-tmux >/dev/null 2>&1 && [ -n "$TMUX" ]; then
     picker=(fzf-tmux -p 60%,80%)
@@ -178,20 +185,48 @@ _fzf_file_insert() {
   READLINE_POINT=$((READLINE_POINT + ${#file}))
 }
 
+# =============================================================================
+# Key bindings
+# =============================================================================
 bind -x '"\eF": _fzf_file_insert'
 bind -m vi-insert -x '"\eF": _fzf_file_insert'
 bind -m vi-insert -x '"\eh": _arg_help'
 bind -m vi-insert -x '"\eH": _man_help'
 
-# External stuff
+# =============================================================================
+# Completions
+# =============================================================================
+_lazy_completion() {
+  local cmd=$1 aliases=$2 loader=$3
+  eval "_lazy_${cmd}() {
+        unset -f _lazy_${cmd}
+        command -v $cmd >/dev/null 2>&1 || return
+        . <($loader)
+        complete -o default -F __start_${cmd} ${cmd} ${aliases}
+    }
+    complete -F _lazy_${cmd} ${cmd} ${aliases}"
+}
+_lazy_completion kubectl "k" "kubectl completion bash"
+_lazy_completion helm "" "helm completion bash"
+_lazy_completion k6 "" "k6 completion bash"
+_lazy_completion gh "" "gh completion -s bash"
+_lazy_completion orb "" "orb completion bash"
+
+command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
+
+# =============================================================================
+# External sources
+# =============================================================================
+_sh="${SHELL##*/}"
+
 # shellcheck disable=SC1091
 [ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
-[ -f "/usr/share/fzf/key-bindings.${SHELL##*/}" ] && . "/usr/share/fzf/key-bindings.${SHELL##*/}"
-[ -f "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}" ] && . "/usr/share/doc/pkgfile/command-not-found.${SHELL##*/}"
+[ -f "/usr/share/fzf/key-bindings.$_sh" ] && . "/usr/share/fzf/key-bindings.$_sh"
+[ -f "/usr/share/doc/pkgfile/command-not-found.$_sh" ] && . "/usr/share/doc/pkgfile/command-not-found.$_sh"
 # shellcheck disable=SC1091
 [ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
-fzf_dir="$(echo /opt/homebrew/Cellar/fzf/* | tail -n 1)"
-[ -f "$fzf_dir/shell/key-bindings.${SHELL##*/}" ] && . "$fzf_dir/shell/key-bindings.${SHELL##*/}"
-# Keychain for setting up ssh-agent
-command -v keychain >/dev/null 2>&1 && eval "$(keychain --eval --quiet --noask)"
-[ -r "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" 2>/dev/null
+# shellcheck disable=SC2206
+_fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
+[ -f "${_fzf_dirs[-1]}/key-bindings.$_sh" ] && . "${_fzf_dirs[-1]}/key-bindings.$_sh"
+
+unset _sh
