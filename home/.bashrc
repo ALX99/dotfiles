@@ -11,11 +11,11 @@ case $- in
 *) return ;;
 esac
 
-function parse_git_dirty {
-  [[ -n $(git status -s 2>/dev/null) ]] && echo "*"
-}
 function parse_git_branch {
-  git branch --no-color 2>/dev/null | sed -e '/^[^*]/d' -e "s/* \(.*\)/(\1$(parse_git_dirty))/"
+  local branch dirty
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || return
+  [[ -n $(git status --porcelain 2>/dev/null) ]] && dirty="*"
+  echo "($branch$dirty)"
 }
 if [ -n "$SSH_CLIENT" ]; then
   export PS1='\[\e[1;31m\][\u@\h]\[\033[0m\] \[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
