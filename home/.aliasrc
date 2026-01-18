@@ -170,7 +170,7 @@ _fzf_file_insert() {
   command -v bat >/dev/null 2>&1 && preview_cmd="bat --color=always --style=numbers --line-range :200 {}"
 
   if command -v fzf-tmux >/dev/null 2>&1 && [ -n "$TMUX" ]; then
-    picker=(fzf-tmux -p 60%,80%)
+    picker=(fzf-tmux -p "60%,80%")
   else
     picker=(fzf --height=40% --layout=reverse --border)
   fi

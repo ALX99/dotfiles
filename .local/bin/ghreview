@@ -30,8 +30,6 @@ trap cleanup EXIT INT TERM
 
 echo "Fetching PR #$pr from $repo_full (shallow clone)..."
 
-# Get repo URL and base branch
-repo_url=$(gh repo view "$repo_full" --json url --jq .url)
 base_branch=$(gh pr view "$pr" --repo "$repo_full" --json baseRefName --jq .baseRefName)
 
 # Clone and checkout PR branch

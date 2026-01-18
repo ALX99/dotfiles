@@ -17,6 +17,7 @@ list_projects() {
   )"
 }
 
+# shellcheck disable=SC2016
 selected_entry="$(
   list_projects |
     fzf-tmux -p 80%,90% --prompt 'tmux session > ' --with-nth=1 --delimiter '\t' \
