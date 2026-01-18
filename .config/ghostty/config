@@ -1,6 +1,6 @@
 background = #1F1F28
 font-family = Departure Mono
-font-size = 13
+font-size = 14
 
 copy-on-select = clipboard
 macos-option-as-alt = true
@@ -24,6 +24,9 @@ custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 #keybind = ctrl+c=copy_to_clipboard
 #keybind = ctrl+v=paste_from_clipboard
 
+# cmd+l -> ctrl+l
+keybind = cmd+l=text:\x0c
+
 # for claude code shift+enter
 keybind = shift+enter=text:\x1b\r
 
@@ -36,7 +39,7 @@ keybind = cmd+e=text:\x1be
 keybind = cmd+i=text:\x1bi
 keybind = cmd+g=text:\x1bg
 keybind = cmd+t=text:\x1bt
-keybind = cmd+l=text:\x1bl
 keybind = cmd+h=text:\x1bh
+keybind = cmd+o=text:\x1bo
 
 confirm-close-surface = false
