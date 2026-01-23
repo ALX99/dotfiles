@@ -230,4 +230,8 @@ _sh="${SHELL##*/}"
 _fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
 [ -f "${_fzf_dirs[-1]}/key-bindings.$_sh" ] && . "${_fzf_dirs[-1]}/key-bindings.$_sh"
 
+# keychain
+command -v keychain >/dev/null 2>&1 && eval "$(keychain --eval --quiet --noask)"
+[ -r "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" 2>/dev/null
+
 unset _sh
