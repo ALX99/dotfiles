@@ -41,7 +41,6 @@ return {
         "cssls",
         "sourcekit",
         "tailwindcss",
-        "biome",
         "tsgo",
         "zls",
         "gleam",
