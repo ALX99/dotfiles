@@ -11,7 +11,6 @@ local auto_fmt_clients = {
   "gopls",
   "rust_analyzer",
   "html",
-  "biome",
   "tsgo",
 }
 
@@ -19,10 +18,10 @@ local auto_fmt_clients = {
 -- Can be a string for single formatter or a table for fallback order
 -- Example: { "biome", "tsgo" } will use biome if available, else tsgo
 local filetype_formatters = {
-  javascript = { "biome", "tsgo" },
-  typescript = { "biome", "tsgo" },
-  javascriptreact = { "biome", "tsgo" },
-  typescriptreact = { "biome", "tsgo" },
+  javascript = { "tsgo" },
+  typescript = { "tsgo" },
+  javascriptreact = { "tsgo" },
+  typescriptreact = { "tsgo" },
 }
 
 ---Get the appropriate formatter for a buffer

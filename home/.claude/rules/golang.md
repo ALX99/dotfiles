@@ -2,4 +2,4 @@
 paths: "**/*.go"
 ---
 
-Use the `go-best-practices` skill.
+Use the `go-expert` skill
