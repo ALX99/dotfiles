@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "cleanupPeriodDays": 365,
   "attribution": {
     "commit": "",
@@ -93,5 +94,8 @@
     "ralph-loop@claude-plugins-official": false
   },
   "alwaysThinkingEnabled": true,
-  "model": "haiku"
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": ["Cooking"]
+  }
 }
