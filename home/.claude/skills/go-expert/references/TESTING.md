@@ -1,9 +1,11 @@
 ## Testing Instructions
 
+Go testing best practices covering table-driven tests, test helpers, and naming conventions.
+
 ### Table-Driven Tests
 
-- Use standrd table-driven tests for all test cases.
-- Use `t.Parallel()` to run allow tests to run concurrently.
+- Use standard table-driven tests for all test cases.
+- Use `t.Parallel()` to allow tests to run concurrently.
 
 ```go
 func TestValidateEmail(t *testing.T) {

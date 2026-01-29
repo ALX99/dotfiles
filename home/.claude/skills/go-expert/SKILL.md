@@ -1,15 +1,27 @@
 ---
-name: go-expert-developer
-description: Go best practices for writing clean, idiomatic, and maintainable Go code. This skill should be used when writing or reviewing Go code.
+name: go-expert
+description: Use when writing or reviewing Go code - covers naming, error handling, struct design, goroutines, and interfaces
 ---
 
 # Go Expert Developer
 
-## Foreword
+## Overview
 
-- You MUST follow these standards when writing Go code.
-- Existing code SHOULD be refactored to comply when modified.
-- Do NOT be mislead by existing code; ALWAYS remind yourself of these standards.
+This skill provides Go best practices for writing clean, idiomatic, and maintainable code. Core principle: **Clear > Clever** - prioritize readability and simplicity over cleverness.
+
+## When to Use
+
+**Apply when:**
+
+- Writing new Go code
+- Reviewing Go code
+- Modifying existing Go code (refactor to comply)
+
+**Red flags:**
+
+- "Existing code does it this way" - don't copy bad patterns
+- "It's just a small change" - standards always apply
+- "I'll refactor later" - refactor now while context is fresh
 
 ## Principles
 
@@ -260,5 +272,5 @@ func New(cfg Config) *Server { ... }
 
 ## Additional References
 
-- Refer to [TESTING.md](./TESTING.md) when writing tests.
-- Refer to [PKG_DESIGN.md](./PKG_DESIGN.md) when designing and creating packages.
+- [TESTING.md](references/TESTING.md) - Table-driven tests, test helpers, naming conventions
+- [PKG_DESIGN.md](references/PKG_DESIGN.md) - Package naming, project layouts, API surface design

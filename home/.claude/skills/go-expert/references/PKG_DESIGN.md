@@ -1,5 +1,7 @@
 ## Package Design
 
+Go package design principles covering naming, organization, internal packages, API surface, and common project layouts.
+
 ### Package Scope & Naming
 
 A package should have a single, clear purpose. The name reflects that purpose.
