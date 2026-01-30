@@ -85,17 +85,18 @@
   },
   "enabledPlugins": {
     "feature-dev@claude-code-plugins": true,
-    "example-skills@anthropic-agent-skills": true,
     "gopls-lsp@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
     "typescript-lsp@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
-    "atlassian@claude-plugins-official": true,
+    "atlassian@claude-plugins-official": false,
     "ralph-loop@claude-plugins-official": false
   },
-  "alwaysThinkingEnabled": true,
   "spinnerVerbs": {
     "mode": "replace",
-    "verbs": ["Cooking"]
-  }
+    "verbs": [
+      "Cooking"
+    ]
+  },
+  "alwaysThinkingEnabled": true
 }
