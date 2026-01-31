@@ -27,6 +27,7 @@ return {
         "yaml",
         "regex", -- for Snacks.picker
         "gitcommit",
+        "svelte",
       })
 
 
