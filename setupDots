@@ -18,32 +18,32 @@ complete_message() {
 
 remove_broken_symlinks() {
   local target_dir="$1"
-  echo -e "${YELLOW}Checking for broken symlinks in ${target_dir}${NC}"
 
-  # Find and remove only broken symlinks that point to the dotfiles directory
   while IFS= read -r -d '' link; do
-    if [[ ! -e $link ]]; then
-      local link_target
-      link_target=$(readlink "$link")
-      if [[ $link_target == *"dotfiles"* ]]; then
-        echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $link_target"
-        rm -f "$link"
-      fi
+    local target
+    target=$(readlink "$link")
+    if [[ $target == *"dotfiles"* ]]; then
+      echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $target"
+      rm -f "$link"
     fi
-  done < <(find "$target_dir" -type l -print0 2>/dev/null)
+  done < <(find "$target_dir" -maxdepth 1 -type l -xtype l -print0 2>/dev/null)
 }
 
 user_config() {
-  run_command mkdir -p ~/.config ~/.local ~/.claude/skills ~/.gemini/skills
+  run_command mkdir -p ~/.config ~/.local ~/.claude/skills ~/.gemini/skills ~/.kilocode/skills
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
 
   remove_broken_symlinks ~/.claude
   remove_broken_symlinks ~/.gemini
+  remove_broken_symlinks ~/.kilocode
   run_command stow --dir "$PWD" --target ~ --restow --no-folding home
 
-  run_command stow --dir "$PWD/home/.claude" --target ~/.gemini/skills --restow --no-folding --no-folding skills
+  # Create symlink for opencode skills to share with claude skills
+  # Must be after home stow so ~/.claude/skills exists as a symlink first
+  run_command mkdir -p ~/.config/opencode
+  run_command ln -sf ~/.claude/skills ~/.config/opencode/skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
