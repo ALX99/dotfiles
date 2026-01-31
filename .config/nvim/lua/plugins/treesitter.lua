@@ -31,7 +31,7 @@ return {
       })
 
 
-      if not vim.g.vscode then
+      if vim.g.vscode then
         return -- if in vscode, do nothing
       end
 
