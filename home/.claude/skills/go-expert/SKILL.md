@@ -36,12 +36,20 @@ This skill provides Go best practices for writing clean, idiomatic, and maintain
 
 ### Constructors
 
+Default to `New()` when the package name provides context. Only use `NewX()` when the package contains multiple constructible types.
+
 ```go
-// ✓ package.New() when package name provides context
+// ✓ package.New() - the default
 package server
 func New() *Server { ... }  // server.New()
 
-// ✗ Redundant type name
+// ✓ NewX() only when package has multiple types
+package storage
+func NewRedis() *Redis { ... }   // storage.NewRedis()
+func NewPostgres() *Postgres { ... }
+
+// ✗ Redundant - package already says "server"
+package server
 func NewServer() *Server { ... }
 ```
 
@@ -89,8 +97,11 @@ func (ns *Namespace) Name() string { ... }
 fmt.Errorf("connect to database: %w", err)
 fmt.Errorf("parse config: %w", err)
 
-// ✗ Bad patterns
+// ✗ NEVER use these prefixes
 fmt.Errorf("failed to connect: %w", err)
+fmt.Errorf("error connecting to database: %w", err)
+fmt.Errorf("could not connect: %w", err)
+fmt.Errorf("unable to parse config: %w", err)
 fmt.Errorf("Error parsing config: %w", err)
 ```
 
@@ -165,19 +176,30 @@ func loadConfig() (Config, error) {
 }
 ```
 
-### Nil Handing
+### Nil Handling
 
-1. Functions must never return (nil, nil) or when returning a single non-error value, never return nil.
-   It is the responsibility of functions to ensure `(nil, nil)` or only `nil` is ever returned.
-2. When a function parameter is a pointer, it is the caller's responsibility to ensure it is non-nil unless otherwise documented.
+1. Functions returning `(T, error)` must return either a valid T or a non-nil error. Never both zero.
+2. Pointer parameters are the caller's responsibility to ensure non-nil unless documented otherwise.
 
 ```go
-// ✓ User is not nil-checked
-func (s *Service) NotifyUser(user *User, msg string) error {
-    if user.Email != "" {
-        return s.mailer.Send(user.Email, msg)
+// ✓ Caller ensures valid input — no defensive nil/zero checks
+func (s *Service) DisableUser(user *User) error {
+    user.Active = false
+    if err := s.db.SaveUser(user); err != nil {
+        return fmt.Errorf("save user: %w", err)
+    }
+    if err := s.cache.Invalidate(user.ID); err != nil {
+        return fmt.Errorf("invalidate cache: %w", err)
     }
     return nil
+}
+
+// ✗ Defensive checks that are the caller's responsibility
+func (s *Service) DisableUser(user *User) error {
+    if user == nil {
+        return errors.New("user is nil")
+    }
+    // ...
 }
 ```
 
