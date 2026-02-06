@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Instructions from remote CLAUDE.md
+  "instructions": ["https://raw.githubusercontent.com/alx99/dotfiles/main/home/.claude/CLAUDE.md"],
+
+  // Directory permissions migrated from Claude Code
+  "permission": {
+    "external_directory": {
+      "~/projects/**": "allow",
+      "~/dotfiles/**": "allow",
+      "/var/folders/**": "allow"
+    }
+  },
+
+  // MCP Servers configuration
+  "mcp": {
+    "deepwiki": {
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+
+    "svelte": {
+      "type": "remote",
+      "url": "https://mcp.svelte.dev/mcp"
+    },
+
+    "gopls": {
+      "enabled": true,
+      "type": "local",
+      "command": ["gopls", "mcp"],
+    }
+  }
+}
