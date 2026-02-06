@@ -50,6 +50,7 @@ return {
         "yamlls",
         "lua_ls",
         "copilot",
+        "svelte",
       }
 
       for _, name in ipairs(enabled_lsps) do
