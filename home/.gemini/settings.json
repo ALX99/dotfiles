@@ -1,7 +1,8 @@
 {
   "general": {
     "disableAutoUpdate": true,
-    "previewFeatures": true
+    "previewFeatures": true,
+    "enableAutoUpdate": false
   },
   "security": {
     "auth": {

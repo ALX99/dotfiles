@@ -22,14 +22,15 @@
       "Bash(cd:*)",
       "Bash(git:*)",
       "Bash(ls:*)",
-      "Bash(tree:*)",
+      "Bash(grep:*)",
       "Bash(cat:*)",
+      "Bash(wc:*)",
       "Bash(make:*)",
       "Bash(npm:*)",
       "Bash(pnpm:*)",
       "Bash(go:*)",
       "Bash(docker:*)",
-      "Bash(docker-compose:*)",
+      "Bash(docker compose:*)",
       "Bash(find:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
@@ -37,8 +38,6 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(echo:*)",
-      "Bash(diff:*)",
-      "Bash(node:*)",
       "Bash(jq:*)",
       "Bash(yq:*)",
       "Bash(kustomize:*)",
@@ -47,7 +46,8 @@
       "Bash(gh * view)",
       "Bash(gh repo clone:*)",
       "mcp__gopls__*",
-      "mcp__chrome-devtools__*"
+      "mcp__chrome-devtools__*",
+      "mcp__svelte__*"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
@@ -88,9 +88,7 @@
     "gopls-lsp@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
     "typescript-lsp@claude-plugins-official": true,
-    "commit-commands@claude-plugins-official": true,
-    "atlassian@claude-plugins-official": false,
-    "ralph-loop@claude-plugins-official": false
+    "atlassian@claude-plugins-official": false
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -98,5 +96,6 @@
       "Cooking"
     ]
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "low"
 }
