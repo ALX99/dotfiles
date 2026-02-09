@@ -7,7 +7,7 @@ allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git
 ## Context
 
 - Are there staged files: !`git diff --cached --quiet && echo false || echo true`
-- Current git status: !`git status --short`
+- Current git status: !`git status`
 - Recent commits: !`git log --oneline -5`
 
 **The user provided the following description of what to commit**
