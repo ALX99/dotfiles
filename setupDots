@@ -30,7 +30,7 @@ remove_broken_symlinks() {
 }
 
 user_config() {
-  run_command mkdir -p ~/.config ~/.local ~/.claude/skills ~/.gemini/skills ~/.kilocode/skills
+  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.kilocode/skills
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
@@ -43,7 +43,8 @@ user_config() {
   # Create symlink for opencode skills to share with claude skills
   # Must be after home stow so ~/.claude/skills exists as a symlink first
   run_command mkdir -p ~/.config/opencode
-  run_command ln -sf ~/.claude/skills ~/.config/opencode/skills
+  rm -f ~/.config/opencode/skills
+  run_command ln -s ~/.claude/skills ~/.config/opencode/skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
