@@ -1,0 +1,14 @@
+{
+  "name": "alx99-personal",
+  "description": "Personal Claude Code plugins",
+  "owner": {
+    "name": "alx99"
+  },
+  "plugins": [
+    {
+      "name": "lsp",
+      "description": "LSP servers",
+      "source": "./plugins/lsp"
+    }
+  ]
+}

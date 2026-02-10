@@ -1,5 +1,5 @@
 return {
-  -- cmd = { vim.fn.getenv("HOME") .. "/go/bin/gopls" },
+  cmd = { "gopls", "-remote=auto" },
   settings = {
     gopls = {
       hints = {
