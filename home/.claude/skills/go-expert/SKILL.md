@@ -9,20 +9,6 @@ description: Use when writing or reviewing Go code - covers naming, error handli
 
 This skill provides Go best practices for writing clean, idiomatic, and maintainable code. Core principle: **Clear > Clever** - prioritize readability and simplicity over cleverness.
 
-## When to Use
-
-**Apply when:**
-
-- Writing new Go code
-- Reviewing Go code
-- Modifying existing Go code (refactor to comply)
-
-**Red flags:**
-
-- "Existing code does it this way" - don't copy bad patterns
-- "It's just a small change" - standards always apply
-- "I'll refactor later" - refactor now while context is fresh
-
 ## Principles
 
 - **KISS**: Code should be as simple as possible; avoid premature abstractions and optimizations
@@ -31,6 +17,12 @@ This skill provides Go best practices for writing clean, idiomatic, and maintain
 - **Clear > Clever**: Readability is EXTREMELY important. Do not sacrifice clarity for cleverness.
 - **Idiomatic Go**: stdlib first; don't import other languages' idioms
 - Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
+
+**Red flags:**
+
+- "Existing code does it this way" - don't copy bad patterns
+- "It's just a small change" - standards always apply
+- "I'll refactor later" - refactor now while context is fresh
 
 ## Naming
 
