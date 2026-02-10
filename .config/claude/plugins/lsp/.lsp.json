@@ -1,0 +1,43 @@
+{
+  "gopls": {
+    "command": "gopls",
+    "args": [
+      "-remote=auto"
+    ],
+    "extensionToLanguage": {
+      ".go": "go",
+      ".mod": "gomod",
+      ".sum": "gosum",
+      ".work": "gowork"
+    }
+  },
+  "tsgo": {
+    "command": "tsgo",
+    "args": [
+      "--lsp",
+      "--stdio"
+    ],
+    "extensionToLanguage": {
+      ".ts": "typescript",
+      ".tsx": "typescriptreact",
+      ".js": "javascript",
+      ".jsx": "javascriptreact"
+    }
+  },
+  "svelteserver": {
+    "command": "svelteserver",
+    "args": [
+      "--stdio"
+    ],
+    "extensionToLanguage": {
+      ".svelte": "svelte"
+    }
+  },
+  "lua-language-server": {
+    "command": "lua-language-server",
+    "args": [],
+    "extensionToLanguage": {
+      ".lua": "lua"
+    }
+  }
+}
