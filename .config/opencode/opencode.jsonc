@@ -28,7 +28,7 @@
     "gopls": {
       "enabled": true,
       "type": "local",
-      "command": ["gopls", "mcp"],
+      "command": ["gopls", "-remote=auto", "mcp"],
     }
   }
 }
