@@ -30,5 +30,23 @@
       "type": "local",
       "command": ["gopls", "-remote=auto", "mcp"],
     }
+  },
+  "lsp": {
+    "gopls": {
+      "command": ["gopls", "-remote=auto"],
+      "extensions": [".go", ".mod", ".sum", ".work"]
+    },
+    "tsgo": {
+      "command": ["tsgo", "--lsp", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx"]
+    },
+    "svelteserver": {
+      "command": ["svelteserver", "--stdio"],
+      "extensions": [".svelte"]
+    },
+    "lua-language-server": {
+      "command": ["lua-language-server"],
+      "extensions": [".lua"]
+    }
   }
 }
