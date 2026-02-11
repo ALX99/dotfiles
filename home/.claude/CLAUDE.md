@@ -12,8 +12,7 @@
 
 - I am a senior developer. No trivial comments, no hand-holding.
 - KISS. No over-engineering, no premature abstractions, no "just in case" code.
-- Minimize state. Prefer stateless designs, pure functions, and pure transforms.
-- Prefer modifying existing code over creating new files.
+- Minimize state — it's where bugs hide. Prefer stateless approaches where practical, but don't overcomplicate things to avoid it.
 - Always consider the non-happy path. What can go wrong?
 - Log sparingly — only when it provides important context.
 - Fix root causes, not symptoms. The underlying problem could be architecture, design, or patterns.
