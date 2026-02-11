@@ -30,7 +30,7 @@ remove_broken_symlinks() {
 }
 
 user_config() {
-  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.kilocode/skills
+  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.kilocode/skills ~/.agents
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
@@ -45,6 +45,11 @@ user_config() {
   run_command mkdir -p ~/.config/opencode
   rm -f ~/.config/opencode/skills
   run_command ln -s ~/.claude/skills ~/.config/opencode/skills
+
+  # Share Claude skills with Codex
+  # Must be after home stow so ~/.claude/skills exists as a symlink first
+  rm -f ~/.agents/skills
+  run_command ln -s ~/.claude/skills ~/.agents/skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
@@ -89,61 +94,40 @@ mac_system_config() {
   echo -e "${YELLOW}Add tasks here when macOS setup steps are available.${NC}"
 }
 
-main_menu() {
-  echo -e "${YELLOW}Select an option:${NC}"
-  options=("User Configuration" "Linux (Arch) System Configuration" "Mac System Configuration" "Quit")
-  select _ in "${options[@]}"; do
-    case $REPLY in
-    1)
-      user_config
-      complete_message "${options[0]}"
-      ;;
-    2)
-      linux_system_config
-      complete_message "${options[1]}"
-      ;;
-    3)
-      mac_system_config
-      complete_message "${options[2]}"
-      ;;
-    4)
-      break
-      ;;
-    *)
-      echo -e "${RED}Invalid option${NC}"
-      ;;
-    esac
-  done
-}
-
-run_option() {
+run() {
   local option="${1:-}"
+  local -r options=("User Configuration" "Linux (Arch) System Configuration" "Mac System Configuration" "Quit")
+
+  if [[ -z "$option" ]]; then
+    echo -e "${YELLOW}Select an option:${NC}"
+    select _ in "${options[@]}"; do
+      option=$REPLY
+      break
+    done
+  fi
+
   case "$option" in
   1)
     user_config
-    complete_message "User Configuration"
+    complete_message "${options[0]}"
     ;;
   2)
     linux_system_config
-    complete_message "Linux (Arch) System Configuration"
+    complete_message "${options[1]}"
     ;;
   3)
     mac_system_config
-    complete_message "Mac System Configuration"
+    complete_message "${options[2]}"
     ;;
-  4 | q | quit)
+  4|q|quit)
     return 0
     ;;
   *)
     echo -e "${RED}Invalid option: ${option}${NC}"
-    echo "Usage: $0 [1|2|3|4]"
+    [[ -n "${1:-}" ]] && echo "Usage: $0 [1|2|3|4]"
     return 2
     ;;
   esac
 }
 
-if [[ ${1:-} != "" ]]; then
-  run_option "$1"
-else
-  main_menu
-fi
+run "${1:-}"
