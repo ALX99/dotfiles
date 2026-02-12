@@ -1,28 +1,23 @@
 ---
 name: go-expert
-description: Use when writing or reviewing Go code - covers naming, error handling, struct design, goroutines, and interfaces
+description: Use when writing or reviewing Go code - especially naming decisions, error wrapping, concurrency patterns, or struct design
 ---
 
 # Go Expert Developer
 
 ## Overview
 
-This skill provides Go best practices for writing clean, idiomatic, and maintainable code. Core principle: **Clear > Clever** - prioritize readability and simplicity over cleverness.
+Go best practices for clean, idiomatic, maintainable code. Core principle: **Clear > Clever**.
 
 ## Principles
 
-- **KISS**: Code should be as simple as possible; avoid premature abstractions and optimizations
+- **KISS**: As simple as possible; avoid premature abstractions and optimizations
 - **DRY**: Extract shared patterns
 - **YAGNI**: Don't build until needed
-- **Clear > Clever**: Readability is EXTREMELY important. Do not sacrifice clarity for cleverness.
+- **Clear > Clever**: Do not sacrifice readability for cleverness
 - **Idiomatic Go**: stdlib first; don't import other languages' idioms
 - Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
-
-**Red flags:**
-
-- "Existing code does it this way" - don't copy bad patterns
-- "It's just a small change" - standards always apply
-- "I'll refactor later" - refactor now while context is fresh
+- The project is using Go version !`go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Naming
 
@@ -37,20 +32,20 @@ func New() *Server { ... }  // server.New()
 
 // ✓ NewX() only when package has multiple types
 package storage
-func NewRedis() *Redis { ... }   // storage.NewRedis()
+func NewRedis() *Redis { ... }
 func NewPostgres() *Postgres { ... }
 
 // ✗ Redundant - package already says "server"
-package server
 func NewServer() *Server { ... }
 ```
 
-### Methods
+### Methods & Receivers
 
 ```go
-// ✓ No Get prefix
+// ✓ No Get prefix; 1-2 letter receiver abbreviation
 func (u *User) Name() string { ... }
 func (c *Client) FetchUser(id string) (*User, error) { ... }
+func (ns *Namespace) Name() string { ... }
 
 // ✗ Get prefix
 func (u *User) GetName() string { ... }
@@ -61,23 +56,9 @@ func (u *User) GetName() string { ... }
 Rule: distance from declaration → name length.
 
 ```go
-// ✓ Short names for small scopes
-for i := range len(items) { ... }
-func parse(r io.Reader) error { ... }
-
-// ✓ Descriptive for wider scopes
-func (s *Server) sendNotifications(userID string) error {
-    user, err := s.db.GetUser(userID)
-    // ...
-}
-```
-
-### Receivers
-
-```go
-// ✓ 1-2 letter abbreviation
-func (c *Client) Connect() error { ... }
-func (ns *Namespace) Name() string { ... }
+for i := range len(items) { ... }           // ✓ short scope → short name
+func parse(r io.Reader) error { ... }        // ✓ short scope → short name
+func (s *Server) sendNotifications(userID string) error { ... } // ✓ wide scope → descriptive
 ```
 
 ## Errors
@@ -87,21 +68,16 @@ func (ns *Namespace) Name() string { ... }
 ```go
 // ✓ Imperative, lowercase, no "failed/error"
 fmt.Errorf("connect to database: %w", err)
-fmt.Errorf("parse config: %w", err)
 
 // ✗ NEVER use these prefixes
 fmt.Errorf("failed to connect: %w", err)
 fmt.Errorf("error connecting to database: %w", err)
-fmt.Errorf("could not connect: %w", err)
-fmt.Errorf("unable to parse config: %w", err)
-fmt.Errorf("Error parsing config: %w", err)
 ```
 
 ### Naming
 
 ```go
-// ✓ Err prefix
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = errors.New("not found")   // ✓ Err prefix
 var errInternal = errors.New("internal error")
 ```
 
@@ -110,11 +86,8 @@ var errInternal = errors.New("internal error")
 ### Initialization
 
 ```go
-// ✓ Empty slice
-var users []User
-
-// ✓ Named fields
-user := User{Name: "John", Email: "john@example.com"}
+var users []User                                        // ✓ nil slice, not make
+user := User{Name: "John", Email: "john@example.com"}  // ✓ named fields
 ```
 
 ### Struct Field Grouping
@@ -135,62 +108,47 @@ type Server struct {
 }
 ```
 
-### Reduce Nesting & Early Returns
+### Early Returns
 
 ```go
-// ✓ Flat with early returns
-func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
-    id := r.URL.Query().Get("id")
-    if id == "" {
-        http.Error(w, "missing id", http.StatusBadRequest)
-        return
-    }
-
-    user, err := s.db.GetUser(r.Context(), id)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    // happy path continues...
+// ✓ Guard clauses, flat happy path
+if id == "" {
+    http.Error(w, "missing id", http.StatusBadRequest)
+    return
 }
+user, err := s.db.GetUser(r.Context(), id)
+if err != nil { ... }
+// happy path continues...
 ```
 
-### Handle Once
+### Handle Errors Once
+
+Return OR log, never both.
 
 ```go
-// ✓ Return OR log, never both
-func loadConfig() (Config, error) {
-    data, err := os.ReadFile("config.json")
-    if err != nil {
-        return Config{}, fmt.Errorf("load config: %w", err)
-    }
-    // ...
-}
+// ✓ Return the error — let caller decide
+return Config{}, fmt.Errorf("load config: %w", err)
+
+// ✗ Log AND return — error gets reported twice
+log.Error("failed to load config", "err", err)
+return Config{}, fmt.Errorf("load config: %w", err)
 ```
 
 ### Nil Handling
 
-1. Functions returning `(T, error)` must return either a valid T or a non-nil error. Never both zero.
-2. Pointer parameters are the caller's responsibility to ensure non-nil unless documented otherwise.
+1. `(T, error)` returns: valid T or non-nil error. Never both zero.
+2. Pointer params: caller's responsibility to ensure non-nil.
 
 ```go
-// ✓ Caller ensures valid input — no defensive nil/zero checks
+// ✓ No defensive nil check — caller's contract
 func (s *Service) DisableUser(user *User) error {
     user.Active = false
-    if err := s.db.SaveUser(user); err != nil {
-        return fmt.Errorf("save user: %w", err)
-    }
-    if err := s.cache.Invalidate(user.ID); err != nil {
-        return fmt.Errorf("invalidate cache: %w", err)
-    }
-    return nil
+    return s.db.SaveUser(user)
 }
 
-// ✗ Defensive checks that are the caller's responsibility
+// ✗ Defensive check that's the caller's responsibility
 func (s *Service) DisableUser(user *User) error {
-    if user == nil {
-        return errors.New("user is nil")
-    }
+    if user == nil { return errors.New("user is nil") }
     // ...
 }
 ```
@@ -201,26 +159,22 @@ Default to value semantics. Use pointers only for:
 
 - Types with pointer semantics (`sync.Mutex`, `sql.DB`)
 - Types conventionally returned as pointers (`*bytes.Buffer`)
-- Non-data structs such as servers, clients, handlers with a long lifecycle needing mutation
+- Long-lifecycle structs needing mutation (servers, clients, handlers)
 
 ```go
-// ✓ Value for config, time
-func (s *Server) Start(cfg Config) error { ... }
-func formatTimestamp(t time.Time) string { ... }
-
-// ✓ Pointer for mutation, semantics
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request)
+func (s *Server) Start(cfg Config) error { ... }  // ✓ value for config
+func formatTimestamp(t time.Time) string { ... }  // ✓ value for time
 ```
 
 ## Goroutines
 
-- Goroutines must not leak. Use contexts or wait groups to manage lifecycle.
-- Goroutines must not be unbounded in number.
+- Must not leak. Use contexts or wait groups to manage lifecycle.
+- Must not be unbounded in number.
 
 ```go
 func deleteUsers(ctx context.Context, userIDs []int) ([]User, error) {
 	eg, ctx := errgroup.WithContext(ctx)
-	eg.SetLimit(5) // ✓ Bound concurrency
+	eg.SetLimit(5)
 	users := make([]User, len(userIDs))
 
 	for i, id := range userIDs {
@@ -234,55 +188,59 @@ func deleteUsers(ctx context.Context, userIDs []int) ([]User, error) {
 		})
 	}
 
-    // ✓ Wait for all goroutines to finish
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
-
 	return users, nil
 }
 ```
 
 ## Interfaces
 
-**Placement**: Define interfaces in the consuming package, not the implementing package.
-**Embedding**: Prefer composition over type embedding to avoid surprises.
+- Define in the consuming package, not the implementing package
+- Prefer composition over type embedding
+- Don't add interfaces just for testing — accept interfaces, return structs
 
 ```go
-// ✓ Pass interface by value
-func parseYAML(r io.Reader) (Config, error) { ... }
-
-// ✗ Pointer to interface
-func parseYAML(r *io.Reader) (Config, error) { ... }
+func parseYAML(r io.Reader) (Config, error) { ... }   // ✓ interface by value
+func parseYAML(r *io.Reader) (Config, error) { ... }   // ✗ pointer to interface
 ```
 
-### Testability
+## Modern Go Idioms
 
-Don't add interfaces just for testing. Code should be testable as-is. Accept interfaces and return structs.
+### new() (Go 1.26+)
 
-## Documentation
+Use `new()` to get a pointer to a value instead of the `temp := val; &temp` pattern.
 
 ```go
-// Package server provides HTTP server functionality.
-package server
+// ✓ new() — direct pointer to value
+Age: new(yearsSince(born)),
 
-// Config contains server configuration.
-type Config struct {
-    Port int
-}
+// ✗ temp variable just for addressing
+age := yearsSince(born)
+Age: &age,
+```
 
-// New creates a server instance.
-func New(cfg Config) *Server { ... }
+### cmp.Or
+
+```go
+// ✓ cmp.Or for defaulting
+return cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(os.Getenv("HOME"), ".config"))
+
+// ✗ manual defaulting
+dir := os.Getenv("XDG_CONFIG_HOME")
+if dir != "" { return dir }
+return filepath.Join(os.Getenv("HOME"), ".config")
 ```
 
 ## Miscellaneous
 
-- API surface should be minimal; unexported by default.
-- Use logging sparingly; log only when it adds important context.
-- Prefer the standard library over third-party packages unless absolutely necessary.
-- Avoid init functions; prefer explicit initialization.
-- Use `iota` (starting from `1`) for related constants. `stringer` can be used for generating string representations.
-- Use `defer` for resource cleanup and unlocking mutexes.
+- Unexported by default; minimal API surface
+- Prefer stdlib over third-party unless necessary
+- Avoid `init()`; prefer explicit initialization
+- Use `iota` (starting from `1`) for related constants; `stringer` for string representations
+- Use `defer` for resource cleanup and mutex unlocking
+- Godoc: `// Package x provides...`, `// Type does...`, `// Func does...`
 
 ## Additional References
 

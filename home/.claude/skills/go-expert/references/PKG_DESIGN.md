@@ -45,11 +45,19 @@ The `main` package should be small, focused on initialization:
 package main
 
 func main() {
-	ctx := withSignalCancel(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
-    if err := run(ctx); err != nil {
-        log.Fatal(err)
-    }
+	err := run(ctx)
+
+	if cause := context.Cause(ctx); cause != nil {
+		fmt.Fprintf(os.Stderr, "Interrupted: %s\n", cause)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
 }
 
 func run(ctx context.Context) error {
@@ -63,18 +71,6 @@ func run(ctx context.Context) error {
         return fmt.Errorf("start server: %w", err)
     }
     return nil
-}
-
-func withSignalCancel(ctx context.Context, signals ...os.Signal) context.Context {
-	ctx, cancel := context.WithCancelCause(ctx)
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, signals...)
-
-	go func() {
-		cancel(fmt.Errorf("interrupted by signal: %v", <-ch))
-	}()
-
-	return ctx
 }
 ```
 
