@@ -1,6 +1,6 @@
 ---
-name: go-expert
-description: Use when writing or reviewing Go code - especially naming decisions, error wrapping, concurrency patterns, or struct design
+name: go-code
+description: Use ALWAYS when writing, editing, or reviewing ANY Go code — no exceptions, no matter how simple the task
 ---
 
 # Go Expert Developer
