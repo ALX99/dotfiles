@@ -54,7 +54,7 @@ local function get_github_url(opts)
     cmd = string.format(
       "gh browse --no-browser %s --branch %s 2>&1",
       vim.fn.shellescape(file_arg),
-      sha
+      vim.fn.shellescape(sha)
     )
   else
     cmd = string.format(

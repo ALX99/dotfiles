@@ -8,7 +8,7 @@ local mappings = {
   { modes = { "n", "x" }, lhs = "m",      rhs = "h",     desc = "Left (h)" },
   { modes = { "n", "x" }, lhs = "n",      rhs = "j",     desc = "Down (j)" },
   { modes = { "n", "x" }, lhs = "e",      rhs = "k",     desc = "Up (k)" },
-  { modes = { "n" },      lhs = "i",      rhs = "l",     desc = "Right (l)" },
+  { modes = { "n", "x" }, lhs = "i",      rhs = "l",     desc = "Right (l)" },
 
   -- Displaced keys
   { modes = { "n", "x" }, lhs = "l",      rhs = "n",     desc = "Next search (n)" },
