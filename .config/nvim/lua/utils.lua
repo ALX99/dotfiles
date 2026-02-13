@@ -63,7 +63,7 @@ function M.copy_github_permalink()
     file_arg = file_arg .. '-' .. end_line
   end
 
-  local url = vim.fn.system('gh browse --no-browser ' .. vim.fn.shellescape(file_arg) .. ' --commit 2>&1')
+  local url = vim.fn.system({ 'gh', 'browse', '--no-browser', file_arg, '--commit' })
   url = vim.fn.trim(url)
 
   if vim.v.shell_error ~= 0 then
