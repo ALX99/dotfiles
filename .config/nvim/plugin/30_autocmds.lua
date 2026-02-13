@@ -54,8 +54,8 @@ _G.Config.new_autocmd("BufWritePre", {
         return true -- delete the autocmd
       end
 
-      local lines = vim.api.nvim_buf_get_lines(info.buf, 0, -1, true)
-      local input = table.concat(lines, "\n")
+      local original_lines = vim.api.nvim_buf_get_lines(info.buf, 0, -1, true)
+      local input = table.concat(original_lines, "\n")
       local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
       if vim.v.shell_error ~= 0 then
         local error_message = "shfmt failed: " .. table.concat(output, "\n")
@@ -63,6 +63,10 @@ _G.Config.new_autocmd("BufWritePre", {
         return
       end
 
+      if #output > 0 and #output ~= #original_lines then
+        vim.notify("shfmt output line count mismatch", vim.log.levels.ERROR)
+        return
+      end
       if #output > 0 then
         vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, output)
       end
@@ -77,7 +81,7 @@ _G.Config.new_autocmd("BufWritePre", {
     local position_encoding = (clients[1] and clients[1].offset_encoding) or 'utf-16'
     local params = vim.lsp.util.make_range_params(nil, position_encoding)
     params.context = { only = { "source.organizeImports" } }
-    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 1000)
+    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 5000)
     for _, res in pairs(result or {}) do
       for _, action in pairs(res.result or {}) do
         if action.edit then
