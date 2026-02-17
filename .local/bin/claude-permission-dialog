@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $(uname -s) == 'Darwin' ]] || exit 0
+
+input=$(cat)
+
+tool_name=$(printf '%s' "$input" | jq -r '.tool_name // "unknown"')
+
+# Pick the most informative field from tool_input
+tool_input=$(printf '%s' "$input" | jq -r '
+  .tool_input |
+  if .command then .command
+  elif .file_path then .file_path
+  elif .pattern then .pattern
+  elif .query then .query
+  elif .url then .url
+  else (to_entries | map(.value | tostring) | join(", "))
+  end // ""
+')
+
+# Strip characters that break AppleScript string literals
+safe_tool=$(printf '%s' "$tool_name" | tr -d $'"\\')
+safe_input=$(printf '%s' "$tool_input" | tr -d $'"\\' | cut -c1-200)
+
+result=$(osascript <<APPLESCRIPT 2>/dev/null
+set dialogResult to display dialog "Allow Claude to use: ${safe_tool}
+${safe_input}" ¬
+  buttons {"Deny", "Allow"} ¬
+  default button "Allow" ¬
+  with title "Claude Permission Request" ¬
+  giving up after 60
+if gave up of dialogResult then
+  return "ask"
+else if button returned of dialogResult is "Allow" then
+  return "allow"
+else
+  return "deny"
+end if
+APPLESCRIPT
+) || { exit 0; }
+
+case "$result" in
+  allow)
+    printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+    ;;
+  deny)
+    printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Denied by user","interrupt":false}}}'
+    ;;
+  *)
+    # timeout / ask — exit 0 with no output falls back to normal prompt
+    exit 0
+    ;;
+esac
