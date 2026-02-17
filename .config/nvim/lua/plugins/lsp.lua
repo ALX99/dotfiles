@@ -51,6 +51,7 @@ return {
         "lua_ls",
         "copilot",
         "svelte",
+        "gh_actions_ls",
       }
 
       for _, name in ipairs(enabled_lsps) do
