@@ -19,6 +19,7 @@
       "Read(~/dotfiles/**)",
       "Edit(~/projects/**)",
       "Write(~/projects/**)",
+      "Read(~/.claude/**)",
       "Bash(cd:*)",
       "Bash(git:*)",
       "Bash(ls:*)",
@@ -56,6 +57,17 @@
     ]
   },
   "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/claude-permission-dialog"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",
@@ -73,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[[ $(uname -s) == 'Darwin' ]] && osascript -e 'display notification \"Claude is waiting for your input\" with title \"Claude Code\"'"
+            "command": "[[ $(uname -s) == 'Darwin' ]] && { cwd=$(jq -r '.cwd // \".\"'); dir=$(basename \"$cwd\"); osascript -e \"display notification \\\"Waiting for input in: $dir\\\" with title \\\"Claude Code\\\"\"; }"
           }
         ]
       }
@@ -97,5 +109,5 @@
     ]
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "low"
+  "effortLevel": "medium"
 }
