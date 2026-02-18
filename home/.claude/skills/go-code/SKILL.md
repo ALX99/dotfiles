@@ -86,7 +86,7 @@ var errInternal = errors.New("internal error")
 ### Initialization
 
 ```go
-var users []User                                        // ✓ nil slice, not make
+var users []User                                       // ✓ nil slice, not make
 user := User{Name: "John", Email: "john@example.com"}  // ✓ named fields
 ```
 
@@ -240,9 +240,8 @@ return filepath.Join(os.Getenv("HOME"), ".config")
 - Avoid `init()`; prefer explicit initialization
 - Use `iota` (starting from `1`) for related constants; `stringer` for string representations
 - Use `defer` for resource cleanup and mutex unlocking
-- Godoc: `// Package x provides...`, `// Type does...`, `// Func does...`
 
 ## Additional References
 
-- [TESTING.md](references/TESTING.md) - Table-driven tests, test helpers, naming conventions
+- **go-testing** skill — anything related to Go tests
 - [PKG_DESIGN.md](references/PKG_DESIGN.md) - Package naming, project layouts, API surface design
