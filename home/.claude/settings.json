@@ -59,7 +59,7 @@
   "hooks": {
     "PermissionRequest": [
       {
-        "matcher": "*",
+        "matcher": "^(?!AskUserQuestion$|ExitPlanMode$).*",
         "hooks": [
           {
             "type": "command",
