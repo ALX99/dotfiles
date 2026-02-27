@@ -26,17 +26,18 @@ remove_broken_symlinks() {
       echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $target"
       rm -f "$link"
     fi
-  done < <(find "$target_dir" -maxdepth 1 -type l -xtype l -print0 2>/dev/null)
+  done < <(find "$target_dir" -type l -xtype l -print0 2>/dev/null)
 }
 
 user_config() {
-  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.kilocode/skills ~/.agents
+  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.gemini/antigravity ~/.kilocode/skills ~/.agents
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
 
   remove_broken_symlinks ~/.claude
   remove_broken_symlinks ~/.gemini
+  remove_broken_symlinks ~/.gemini/antigravity
   remove_broken_symlinks ~/.kilocode
   run_command stow --dir "$PWD" --target ~ --restow --no-folding home
 
@@ -50,6 +51,16 @@ user_config() {
   # Must be after home stow so ~/.claude/skills exists as a symlink first
   rm -f ~/.agents/skills
   run_command ln -s ~/.claude/skills ~/.agents/skills
+
+  # Share Claude skills with Antigravity
+  # Must be after home stow so ~/.claude/skills exists as a symlink first
+  rm -rf ~/.gemini/antigravity/skills
+  run_command ln -s ~/.claude/skills ~/.gemini/antigravity/skills
+
+  # Share Claude skills with Kilocode
+  # Must be after home stow so ~/.claude/skills exists as a symlink first
+  rm -rf ~/.kilocode/skills
+  run_command ln -s ~/.claude/skills ~/.kilocode/skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config
@@ -98,7 +109,7 @@ run() {
   local option="${1:-}"
   local -r options=("User Configuration" "Linux (Arch) System Configuration" "Mac System Configuration" "Quit")
 
-  if [[ -z "$option" ]]; then
+  if [[ -z $option ]]; then
     echo -e "${YELLOW}Select an option:${NC}"
     select _ in "${options[@]}"; do
       option=$REPLY
@@ -119,12 +130,12 @@ run() {
     mac_system_config
     complete_message "${options[2]}"
     ;;
-  4|q|quit)
+  4 | q | quit)
     return 0
     ;;
   *)
     echo -e "${RED}Invalid option: ${option}${NC}"
-    [[ -n "${1:-}" ]] && echo "Usage: $0 [1|2|3|4]"
+    [[ -n ${1:-} ]] && echo "Usage: $0 [1|2|3|4]"
     return 2
     ;;
   esac
