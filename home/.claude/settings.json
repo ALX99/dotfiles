@@ -1,5 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "opusplan",
+  "language": "japanese",
   "cleanupPeriodDays": 365,
   "attribution": {
     "commit": "",
@@ -37,15 +39,12 @@
       "Bash(tail:*)",
       "Bash(pwd:*)",
       "Bash(mkdir:*)",
-      "Bash(touch:*)",
-      "Bash(echo:*)",
       "Bash(jq:*)",
       "Bash(yq:*)",
       "Bash(kustomize:*)",
       "Bash(kubectl:*)",
       "Bash(gh pr:*)",
       "Bash(gh * view)",
-      "Bash(gh repo clone:*)",
       "mcp__gopls__*",
       "mcp__chrome-devtools__*",
       "mcp__svelte__*"
@@ -96,11 +95,8 @@
     "command": "~/.claude/status"
   },
   "enabledPlugins": {
-    "feature-dev@claude-code-plugins": true,
-    "gopls-lsp@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "atlassian@claude-plugins-official": false
+    "lsp@alx99-personal": true
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -108,6 +104,5 @@
       "Cooking"
     ]
   },
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "medium"
+  "alwaysThinkingEnabled": true
 }
