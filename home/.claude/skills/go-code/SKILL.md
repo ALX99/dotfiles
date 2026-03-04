@@ -3,11 +3,15 @@ name: go-code
 description: Use ALWAYS when writing, editing, or reviewing ANY Go code — no exceptions, no matter how simple the task
 ---
 
-# Go Expert Developer
+# Go Code
 
 ## Overview
 
 Go best practices for clean, idiomatic, maintainable code. Core principle: **Clear > Clever**.
+
+## Context
+
+- The project is using Go version !`go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Principles
 
@@ -17,7 +21,6 @@ Go best practices for clean, idiomatic, maintainable code. Core principle: **Cle
 - **Clear > Clever**: Do not sacrifice readability for cleverness
 - **Idiomatic Go**: stdlib first; don't import other languages' idioms
 - Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
-- The project is using Go version !`go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Naming
 
@@ -79,6 +82,14 @@ fmt.Errorf("error connecting to database: %w", err)
 ```go
 var ErrNotFound = errors.New("not found")   // ✓ Err prefix
 var errInternal = errors.New("internal error")
+```
+
+### errors.AsType (Go 1.26+)
+
+Prefer over `errors.As` — generic, type-safe, no pre-declared target variable.
+
+```go
+if e, ok := errors.AsType[*url.Error](err); ok { ... } // ✓
 ```
 
 ## Structure
@@ -210,7 +221,7 @@ func parseYAML(r *io.Reader) (Config, error) { ... }   // ✗ pointer to interfa
 
 ### new() (Go 1.26+)
 
-Use `new()` to get a pointer to a value instead of the `temp := val; &temp` pattern.
+Use `new()` to get a pointer to a value instead of the `temp := val; &temp` pattern, or `func[T any](v T) *T { return &v }(val)` if you need to specify the type.
 
 ```go
 // ✓ new() — direct pointer to value
@@ -231,6 +242,34 @@ return cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(os.Getenv("HOME"), ".c
 dir := os.Getenv("XDG_CONFIG_HOME")
 if dir != "" { return dir }
 return filepath.Join(os.Getenv("HOME"), ".config")
+```
+
+### unique.Make (Go 1.23+)
+
+Canonicalizes comparable values (interning). `Handle[T]` comparison is O(1) pointer check. Use for high-cardinality repeated values (IPs, hostnames, labels). Don't use for rarely-repeated values — intern table has overhead.
+
+```go
+h1 := unique.Make("hello")
+h2 := unique.Make("hello")
+h1 == h2 // true — same canonical copy
+h1.Value() // "hello"
+```
+
+### omitzero (Go 1.24+)
+
+JSON tag option — omits field when zero. Prefer over `omitempty` for types with `IsZero() bool` (e.g. `time.Time`). Can combine both tags.
+
+```go
+StartTime time.Time `json:"start_time,omitzero"` // ✓ works correctly for zero time
+```
+
+### strings/bytes Iterators (Go 1.24+)
+
+Lazy iterator versions of `Split`, `SplitAfter`, `Fields`, `FieldsFunc` → `SplitSeq`, `SplitAfterSeq`, `FieldsSeq`, `FieldsFuncSeq`. Plus `Lines`. All work with `range`. Prefer over slice-returning variants when you don't need all substrings at once. Available in both `strings` and `bytes`.
+
+```go
+for line := range strings.Lines(text) { ... }
+for part := range strings.SplitSeq(text, ",") { ... }
 ```
 
 ## Miscellaneous
