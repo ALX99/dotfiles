@@ -1,25 +1,53 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 [ ! -r "$1" ] && echo "'$1' is not a readable file" && exit 1
 
-case $1 in
-*.tar.bz2) tar xjf "$1" ;;
-*.tar.gz) tar xzf "$1" ;;
-*.bz2) bunzip2 "$1" ;;
-*.rar) unrar x "$1" ;;
-*.gz) gunzip "$1" ;;
-*.tar) tar xf "$1" ;;
-*.tbz2) tar xjf "$1" ;;
-*.tgz) tar xzf "$1" ;;
-*.zip) unzip "$1" ;;
-*.Z) uncompress "$1" ;;
-*.7z) 7z x "$1" ;;
-*.deb) ar x "$1" ;;
-*.tar.xz) tar xf "$1" ;;
-*.tar.zst) tar --use-compress-program=unzstd -xvf "$1" ;;
-*.tar.zstd) tar --use-compress-program=unzstd -xvf "$1" ;;
-*.xz) unxz --threads 0 "$1" ;;
-*) echo "'$1' cannot be extracted" && exit 1 ;;
+# Strip archive extension(s) to derive target dir name
+name=$(basename "$1")
+case "$name" in
+    *.tar.bz2)  name="${name%.tar.bz2}" ;;
+    *.tar.gz)   name="${name%.tar.gz}" ;;
+    *.tar.xz)   name="${name%.tar.xz}" ;;
+    *.tar.zst)  name="${name%.tar.zst}" ;;
+    *.tar.zstd) name="${name%.tar.zstd}" ;;
+    *)          name="${name%.*}" ;;
 esac
 
+# Given a newline-separated file listing, print "." if single top-level entry,
+# otherwise mkdir $name and print it
+choose_dest() {
+    count=$(awk -F/ '{k=($1=="."?$2:$1)} k && !seen[k]++ {n++} END {print n}' <<< "$1")
+    if [ "$count" -le 1 ]; then
+        printf '.'
+    else
+        mkdir -p "$name"
+        printf '%s' "$name"
+    fi
+}
+
+case "$1" in
+    *.tar.bz2|*.tar.gz|*.tar|*.tbz2|*.tgz|*.tar.xz|*.tar.zst|*.tar.zstd)
+        dest=$(choose_dest "$(tar tf "$1")")
+        tar xf "$1" -C "$dest"
+        ;;
+    *.zip)
+        dest=$(choose_dest "$(unzip -Z1 "$1")")
+        unzip "$1" -d "$dest"
+        ;;
+    *.7z)
+        listing=$(7z l -slt "$1" | grep '^Path = ' | sed 's/^Path = //; 1d')
+        dest=$(choose_dest "$listing")
+        7z x "$1" -o"$dest"
+        ;;
+    *.rar)
+        dest=$(choose_dest "$(unrar lb "$1")")
+        unrar x "$1" "$dest/"
+        ;;
+    *.bz2)  bunzip2 "$1" ;;
+    *.gz)   gunzip "$1" ;;
+    *.Z)    uncompress "$1" ;;
+    *.xz)   unxz --threads 0 "$1" ;;
+    *.deb)  ar x "$1" ;;
+    *)      echo "'$1' cannot be extracted" && exit 1 ;;
+esac
