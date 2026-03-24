@@ -149,6 +149,7 @@ return Config{}, fmt.Errorf("load config: %w", err)
 
 1. `(T, error)` returns: valid T or non-nil error. Never both zero.
 2. Pointer params: caller's responsibility to ensure non-nil.
+3. Never use nil as a sentinel — use `(T, bool)` or `(T, error)` instead.
 
 ```go
 // ✓ No defensive nil check — caller's contract
@@ -162,6 +163,15 @@ func (s *Service) DisableUser(user *User) error {
     if user == nil { return errors.New("user is nil") }
     // ...
 }
+
+// ✗ Nil as sentinel — caller must guess what nil means
+func (r *Repo) FetchUser(id int) *User { ... }
+
+// ✓ Explicit absence with bool
+func (r *Repo) FetchUser(id int) (*User, bool) { ... }
+
+// ✓ Or with error (ErrNotFound) if absence is an error condition
+func (r *Repo) FetchUser(id int) (*User, error) { ... }
 ```
 
 ### Pass by Value
