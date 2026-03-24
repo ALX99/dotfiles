@@ -52,6 +52,7 @@ return {
         "copilot",
         "svelte",
         "gh_actions_ls",
+        "kotlin_lsp",
       }
 
       for _, name in ipairs(enabled_lsps) do
