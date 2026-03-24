@@ -7,7 +7,7 @@ allowed-tools: Bash(git:*), Bash(gh pr:*)
 ## Context
 
 - Current branch: !`git branch --show-current`
-- PR template: !`find . -maxdepth 2 -iname "pull_request_template*" -type f -exec cat {} \; -quit`
+- PR template: !`find . -maxdepth 2 -iname "pull_request_template*" -type f | head -1 | xargs cat 2>/dev/null`
 
 **User description:**
 
@@ -17,10 +17,9 @@ $ARGUMENTS
 
 ## Your task
 
-- Create a draft PR with `gh pr create --draft --title "..." --body "..."`. Use a HEREDOC for the body.
+- Push the branch first with `git push -u origin HEAD`.
+- Then create a draft PR with `gh pr create --draft --title "..." --body "..."`. Use a HEREDOC for the body.
 - Make sure to follow the PR template if one exists.
-
-`gh pr create` handles pushing the branch automatically — don't push manually.
 
 ### Title
 
