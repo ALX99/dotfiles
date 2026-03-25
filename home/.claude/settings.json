@@ -67,6 +67,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command') && if echo \"$cmd\" | grep -qE '\\brm\\b|\\brmdir\\b|\\bshred\\b|\\bunlink\\b|\\btruncate\\b|\\bdel\\b|\\bdelete\\b|\\bremove\\b'; then printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked\"}}'; fi"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",
