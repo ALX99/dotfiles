@@ -26,6 +26,7 @@
       "Bash(git:*)",
       "Bash(ls:*)",
       "Bash(grep:*)",
+      "Bash(find:*)",
       "Bash(cat:*)",
       "Bash(wc:*)",
       "Bash(make:*)",
