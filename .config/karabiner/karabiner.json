@@ -873,7 +873,7 @@
               },
               {
                 "from": {
-                  "key_code": "period",
+                  "key_code": "comma",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -895,7 +895,7 @@
               },
               {
                 "from": {
-                  "key_code": "slash",
+                  "key_code": "period",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
