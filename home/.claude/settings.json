@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "model": "opusplan",
   "language": "japanese",
-  "cleanupPeriodDays": 365,
   "attribution": {
     "commit": "",
     "pr": ""
