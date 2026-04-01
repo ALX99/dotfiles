@@ -52,8 +52,8 @@ if not vim.g.vscode then
 
   -- Diagnostics
   map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
-  map('n', ']d', vim.diagnostic.goto_next, { desc = "Go to next diagnostic" })
-  map('n', '[d', vim.diagnostic.goto_prev, { desc = "Go to previous diagnostic" })
+  map('n', ']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, { desc = "Go to next diagnostic" })
+  map('n', '[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, { desc = "Go to previous diagnostic" })
 
   -- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
   -- todo read about tags

@@ -53,6 +53,7 @@ return {
         "svelte",
         "gh_actions_ls",
         "kotlin_lsp",
+        "astro",
       }
 
       for _, name in ipairs(enabled_lsps) do
