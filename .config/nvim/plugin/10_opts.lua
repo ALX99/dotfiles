@@ -15,10 +15,6 @@ vim.opt.sessionoptions        = { "curdir", "help", "winsize", "terminal" }
 vim.opt.spelllang             = 'en,cjk'
 
 
--- Enable all filetype plugins and syntax (if not enabled, for better startup)
-vim.cmd('filetype plugin indent on')
-if vim.fn.exists('syntax_on') ~= 1 then vim.cmd('syntax enable') end
-
 -- UI =========================================================================
 vim.o.title          = true       -- Set terminal title to the filename
 vim.o.showmatch      = true       -- highlight matching [{()}]
@@ -96,13 +92,6 @@ vim.o.completeopt   = 'menuone,noselect,fuzzy,nosort' -- Use custom behavior
 -- https://github.com/MagicDuck/grug-far.nvim
 -- https://github.com/sindrets/diffview.nvim
 -- https://www.reddit.com/r/neovim/comments/1muy3i1/dartnvim_a_minimalist_tabline_focused_on_pinning/
--- https://www.reddit.com/r/neovim/comments/1myfvla/does_anyone_know_a_good_diff_view_library/
-if vim.fn.has('nvim-0.12') == 1 then
-  vim.o.diffopt = 'internal,filler,closeoff,inline:word,linematch:40'
-elseif vim.fn.has('nvim-0.11') == 1 then
-  vim.o.diffopt = 'internal,filler,closeoff,linematch:40'
-end
-
 
 vim.diagnostic.config({
   severity_sort = true, -- Errors first
@@ -110,12 +99,12 @@ vim.diagnostic.config({
 
   virtual_text = {
     current_line = true,
-    severity = { min = "INFO", max = "WARN" }
+    severity = { min = vim.diagnostic.INFO, max = vim.diagnostic.WARN }
   },
 
   virtual_lines = {
     current_line = true,
-    severity = { min = "ERROR" }
+    severity = { min = vim.diagnostic.ERROR }
   },
 
 
@@ -156,3 +145,6 @@ if vim.g.vscode then
 else
   require('session').setup()
 end
+
+vim.cmd("packadd nvim.undotree")
+vim.keymap.set("n", "<leader>u", require("undotree").open)

@@ -18,13 +18,12 @@ return {
         preset = 'default',
         ['<CR>'] = { 'select_and_accept', 'fallback' },
         ["<Tab>"] = {
-          function() -- sidekick next edit suggestion
+          function()
             return require("sidekick").nes_jump_or_apply()
           end,
-          -- Nvim 0.12 prob
-          -- function() -- if you are using Neovim's native inline completions
-          --   return vim.lsp.inline_completion.get()
-          -- end,
+          function()
+            return vim.lsp.inline_completion.get()
+          end,
           "fallback",
         },
       },
