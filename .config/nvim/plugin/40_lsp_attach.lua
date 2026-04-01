@@ -6,72 +6,19 @@ end
 vim.g.diagnostics_visible = true
 local utils = require('utils')
 
-local auto_fmt_clients = {
-  "lua_ls",
-  "gopls",
-  "rust_analyzer",
-  "html",
-  "tsgo",
+-- Filetype -> formatter client name
+-- Listed filetypes get auto-format on save
+-- Unlisted filetypes can still manual-format with =
+local fmt = {
+  lua = "lua_ls",
+  go = "gopls",
+  rust = "rust_analyzer",
+  html = "html",
+  javascript = "tsgo",
+  typescript = "tsgo",
+  javascriptreact = "tsgo",
+  typescriptreact = "tsgo",
 }
-
--- Map filetypes to their preferred formatter(s)
--- Can be a string for single formatter or a table for fallback order
--- Example: { "biome", "tsgo" } will use biome if available, else tsgo
-local filetype_formatters = {
-  javascript = { "tsgo" },
-  typescript = { "tsgo" },
-  javascriptreact = { "tsgo" },
-  typescriptreact = { "tsgo" },
-}
-
----Get the appropriate formatter for a buffer
----@param bufnr number
----@return vim.lsp.Client|nil
-local function get_formatter(bufnr)
-  local filetype = vim.bo[bufnr].filetype
-  local formatter_pref = filetype_formatters[filetype]
-
-  -- Get all clients that can format this buffer
-  local formatters = {}
-  for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
-    if client:supports_method('textDocument/formatting') then
-      table.insert(formatters, client)
-    end
-  end
-
-  if #formatters == 0 then
-    return nil
-  end
-
-  -- If a preferred formatter(s) is configured for this filetype
-  if formatter_pref then
-    -- Normalize to table format
-    local prefs = type(formatter_pref) == 'string' and { formatter_pref } or formatter_pref
-
-    -- Try each preferred formatter in order
-    for _, pref_name in ipairs(prefs) do
-      for _, client in ipairs(formatters) do
-        if client.name == pref_name then
-          return client
-        end
-      end
-    end
-
-    -- None of the preferred formatters are available
-    local available_names = vim.tbl_map(function(c) return c.name end, formatters)
-    error("Configured formatters '" .. table.concat(prefs, "', '") .. "' not available for " .. filetype ..
-      ". Available: " .. table.concat(available_names, ", "))
-  end
-
-  -- If multiple formatters but none configured, error
-  if #formatters > 1 then
-    local names = vim.tbl_map(function(c) return c.name end, formatters)
-    error("Multiple formatters available for " .. filetype .. ": " .. table.concat(names, ", ") ..
-      ". Please configure preferred formatter in filetype_formatters")
-  end
-
-  return formatters[1]
-end
 
 ---@param client vim.lsp.Client
 ---@param buf number
@@ -124,9 +71,9 @@ local function mappings(client, buf)
 
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })      -- Many LSPs do not implement this
   bmap('n', 'gd', Snacks.picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
-  bmap('n', 'gt', Snacks.picker.lsp_type_definitions, { desc = "Go to type definition" })
   bmap('n', 'gs', Snacks.picker.lsp_symbols, { desc = "Goto symbols" })
 
+  -- builitin "grt" for type definitions, grn for rename, grx for vim.lsp.codelens.run
 
   bmap('n', 'gai', lsp_picker(Snacks.picker.lsp_incoming_calls), { desc = "C[a]lls Incoming" })
   bmap('n', 'gao', lsp_picker(Snacks.picker.lsp_outgoing_calls), { desc = "C[a]lls Outgoing" })
@@ -134,18 +81,18 @@ local function mappings(client, buf)
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
 
-  --
   bmap({ 'n', 'v' }, '=', function()
-    local ok, formatter = pcall(get_formatter, buf)
-    if not ok then
-      vim.notify("Format error: " .. formatter, vim.log.levels.ERROR)
-      return
+    local ft = vim.bo[buf].filetype
+    local name = fmt[ft]
+    if not name then
+      local clients = vim.lsp.get_clients({ bufnr = buf, method = 'textDocument/formatting' })
+      if #clients > 1 then
+        vim.notify("Multiple formatters for " .. ft .. ", add entry to fmt table: " ..
+          table.concat(vim.tbl_map(function(c) return c.name end, clients), ", "), vim.log.levels.WARN)
+        return
+      end
     end
-    if not formatter then
-      vim.notify("No formatter available", vim.log.levels.WARN)
-      return
-    end
-    vim.lsp.buf.format { async = true, id = formatter.id }
+    vim.lsp.buf.format({ async = true, name = name })
   end, { desc = "Format file" })
 
   if client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
@@ -153,6 +100,11 @@ local function mappings(client, buf)
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
     end, { desc = 'Toggle inlay hints' })
   end
+
+  -- if client:supports_method("textDocument/completion") then
+  --   vim.notify("Enabling LSP completion for client " .. client.name)
+  --   vim.lsp.completion.enable(true, client.id, buf, { autotrigger = true })
+  -- end
 
   -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
   -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
@@ -247,25 +199,6 @@ vim.api.nvim_create_autocmd('LspAttach', {
       vim.bo[args.buf].formatexpr = "v:lua.vim.lsp.formatexpr()"
     end
 
-    -- workaround for gopls not supporting semanticTokensProvider
-    -- https://github.com/golang/go/issues/54531#issuecomment-1464982242
-    if client.name == "gopls" then
-      if not client.server_capabilities.semanticTokensProvider then
-        local semantic = client.config.capabilities.textDocument.semanticTokens
-        if semantic then
-          client.server_capabilities.semanticTokensProvider = {
-            full = true,
-            legend = {
-              tokenTypes = semantic.tokenTypes,
-              tokenModifiers = semantic.tokenModifiers,
-            },
-            range = true,
-          }
-        end
-      end
-    end
-    -- end workaround
-
     mappings(client, args.buf)
     highlight_references(client, args.buf)
     show_diagnostics(client, args.buf)
@@ -273,35 +206,23 @@ vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
 })
 
--- Auto-format on save using the configured formatter for each filetype
 vim.api.nvim_create_autocmd('LspAttach', {
-  group = vim.api.nvim_create_augroup('lsp.setupautofmt', {}),
+  group = vim.api.nvim_create_augroup('lsp.autofmt', {}),
   callback = function(args)
     local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
     local buf = args.buf
+    local ft = vim.bo[buf].filetype
 
-    if not vim.tbl_contains(auto_fmt_clients, client.name) then
-      return
-    end
+    if fmt[ft] ~= client.name then return end
+    if not client:supports_method('textDocument/formatting') then return end
+    if client:supports_method('textDocument/willSaveWaitUntil') then return end
 
-    -- Auto-format on save using the configured formatter
-    if not client:supports_method('textDocument/willSaveWaitUntil')
-        and client:supports_method('textDocument/formatting') then
-      vim.notify_once("Formatting provided by " .. client.name, vim.log.levels.INFO)
-      vim.api.nvim_create_autocmd('BufWritePre', {
-        group = vim.api.nvim_create_augroup('lsp.autofmt', { clear = false }),
-        buffer = buf,
-        callback = function()
-          local ok, formatter = pcall(get_formatter, buf)
-          if not ok then
-            vim.notify("Format error: " .. formatter, vim.log.levels.ERROR)
-            return
-          end
-          if formatter then
-            vim.lsp.buf.format({ bufnr = buf, id = formatter.id, timeout_ms = 1000 })
-          end
-        end,
-      })
-    end
+    vim.api.nvim_create_autocmd('BufWritePre', {
+      group = vim.api.nvim_create_augroup('lsp.autofmt.' .. buf, {}),
+      buffer = buf,
+      callback = function()
+        vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
+      end,
+    })
   end,
 })
