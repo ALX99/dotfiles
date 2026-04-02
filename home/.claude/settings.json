@@ -24,8 +24,8 @@
       "Bash(cd:*)",
       "Bash(git:*)",
       "Bash(ls:*)",
-      "Bash(grep:*)",
-      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(fd:*)",
       "Bash(cat:*)",
       "Bash(wc:*)",
       "Bash(make:*)",
@@ -49,7 +49,10 @@
       "mcp__chrome-devtools__*",
       "mcp__svelte__*"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(find:*)",
+      "Bash(grep:*)"
+    ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
       "/var/folders/"
