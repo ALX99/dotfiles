@@ -59,6 +59,7 @@ return {
       for _, name in ipairs(enabled_lsps) do
         vim.lsp.enable(name)
       end
+      vim.lsp.inline_completion.enable(true)
     end,
     cond = function()
       return not vim.g.vscode
