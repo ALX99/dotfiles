@@ -7,7 +7,7 @@ allowed-tools: Bash(git:*), Bash(gh pr:*)
 ## Context
 
 - Current branch: !`git branch --show-current`
-- PR template: !`find . -maxdepth 2 -iname "pull_request_template*" -type f | head -1 | xargs cat 2>/dev/null`
+- PR template: !`fd -d 2 -i -t f "pull_request_template" | head -1 | xargs cat 2>/dev/null`
 
 **User description:**
 
