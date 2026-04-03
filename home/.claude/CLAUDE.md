@@ -35,4 +35,11 @@ In short, 1) understand the problem, 2) gather context (read code), 3) clarify o
 
 </WAY_OF_WORKING>
 
+<TOOLS>
+
+- Use `rg` instead of `grep`
+- Use `fd` instead of `find`
+
+</TOOLS>
+
 </EXTREMELY_IMPORTANT>
