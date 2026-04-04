@@ -18,9 +18,9 @@ function parse_git_branch {
   echo "($branch$dirty)"
 }
 if [ -n "$SSH_CLIENT" ]; then
-  export PS1='\[\e[1;31m\][\u@\h]\[\033[0m\] \[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
+  export PS1='\[\e[1;31m\][\u@\h]\[\e[0m\] \[\e[33m\]\W\[\e[0m\]\[\e[32m\]$(parse_git_branch)\[\e[0m\] ><> '
 else
-  export PS1='\[\e[38;5;211m\]\W\[\033[0m\]\[\e[38;5;48m\]$(parse_git_branch)\[\033[0m\] ><> '
+  export PS1='\[\e[33m\]\W\[\e[0m\]\[\e[32m\]$(parse_git_branch)\[\e[0m\] ><> '
 fi
 
 # autocd autocd
