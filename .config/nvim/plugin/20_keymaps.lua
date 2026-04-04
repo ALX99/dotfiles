@@ -25,9 +25,6 @@ map('n', '<C-u>', '<C-u>zz')
 map("n", "l", "nzzzv", { silent = true })
 map("n", "L", "Nzzzv", { silent = true })
 
--- plugins
-map({ "n", "x", "o" }, "<leader>pl", ":Lazy<CR>", { desc = "Lazy" })
-
 -- Windows
 if not vim.g.vscode then
   map("n", "<leader>w", "<C-w>")

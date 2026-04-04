@@ -1,34 +1,5 @@
 local M = {}
 
-local defaults = {
-  greeting = "Hello from gitgud 👋",
-  enable_autocmd = true,
-}
-
-M.config = vim.deepcopy(defaults)
-
----@param opts table|nil
-function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", {}, defaults, opts or {})
-  return M
-end
-
----@param who string|nil
-function M.hello(who)
-  local target = (who and #who > 0) and who or "world"
-  vim.notify(string.format("%s, %s!", M.config.greeting, target), vim.log.levels.INFO)
-end
-
-local enabled = true
-
-function M.toggle()
-  enabled = not enabled
-  vim.notify(
-    string.format("gitgud demo is now %s", enabled and "enabled" or "disabled"),
-    vim.log.levels.INFO
-  )
-end
-
 local function get_github_url(opts)
   opts = opts or {}
 
@@ -65,7 +36,7 @@ local function get_github_url(opts)
 
   local url = vim.fn.system(cmd)
   url = vim.fn.trim(url)
-  
+
   return url, vim.v.shell_error
 end
 
