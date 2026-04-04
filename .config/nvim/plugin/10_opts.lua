@@ -5,6 +5,7 @@ vim.g.loaded_perl_provider    = 0
 vim.g.loaded_ruby_provider    = 0
 
 -- General ====================================================================
+vim.g.mapleader               = " "           -- Leader key
 vim.o.shell                   = 'bash'
 vim.o.mousescroll             = 'ver:6,hor:6' -- Customize mouse scroll
 vim.o.undofile                = true          -- Enable persistent undo
@@ -14,35 +15,34 @@ vim.opt.updatetime            = 1000          -- If this many milliseconds nothi
 vim.opt.sessionoptions        = { "curdir", "help", "winsize", "terminal" }
 vim.opt.spelllang             = 'en,cjk'
 
-
 -- UI =========================================================================
-vim.o.title          = true       -- Set terminal title to the filename
-vim.o.showmatch      = true       -- highlight matching [{()}]
-vim.o.breakindent    = true       -- Indent wrapped lines to match line start
-vim.o.breakindentopt = 'list:-1'  -- Add padding for lists (if 'wrap' is set)
-vim.o.colorcolumn    = '+1'       -- Draw column on the right of maximum width
-vim.o.cursorline     = true       -- Enable current line highlighting
-vim.o.linebreak      = true       -- Wrap lines at 'breakat' (if 'wrap' is set)
-vim.o.list           = false      -- Show helpful text indicators
-vim.o.number         = true       -- Show line numbers
-vim.o.pumheight      = 10         -- Make popup menu smaller
-vim.o.ruler          = false      -- Don't show cursor coordinates
-vim.o.shortmess      = 'CFOSWaco' -- Disable some built-in completion messages
-vim.o.showmode       = false      -- Don't show mode in command line
-vim.o.signcolumn     = 'yes'      -- Always show signcolumn (less flicker)
-vim.o.splitbelow     = true       -- Horizontal splits will be below
-vim.o.splitkeep      = 'screen'   -- Reduce scroll during window split
-vim.o.splitright     = true       -- Vertical splits will be to the right
-vim.o.wrap           = false      -- Don't visually wrap lines (toggle with \w)
-vim.o.numberwidth    = 2
-vim.o.scrolloff      = 2          -- Leave x spaces when scrolling
-vim.o.helpheight     = 25
+vim.o.title                   = true       -- Set terminal title to the filename
+vim.o.showmatch               = true       -- highlight matching [{()}]
+vim.o.breakindent             = true       -- Indent wrapped lines to match line start
+vim.o.breakindentopt          = 'list:-1'  -- Add padding for lists (if 'wrap' is set)
+vim.o.colorcolumn             = '+1'       -- Draw column on the right of maximum width
+vim.o.cursorline              = true       -- Enable current line highlighting
+vim.o.linebreak               = true       -- Wrap lines at 'breakat' (if 'wrap' is set)
+vim.o.list                    = false      -- Show helpful text indicators
+vim.o.number                  = true       -- Show line numbers
+vim.o.pumheight               = 10         -- Make popup menu smaller
+vim.o.ruler                   = false      -- Don't show cursor coordinates
+vim.o.shortmess               = 'CFOSWaco' -- Disable some built-in completion messages
+vim.o.showmode                = false      -- Don't show mode in command line
+vim.o.signcolumn              = 'yes'      -- Always show signcolumn (less flicker)
+vim.o.splitbelow              = true       -- Horizontal splits will be below
+vim.o.splitkeep               = 'screen'   -- Reduce scroll during window split
+vim.o.splitright              = true       -- Vertical splits will be to the right
+vim.o.wrap                    = false      -- Don't visually wrap lines (toggle with \w)
+vim.o.numberwidth             = 2
+vim.o.scrolloff               = 2          -- Leave x spaces when scrolling
+vim.o.helpheight              = 25
 
-vim.o.cursorlineopt  = 'screenline,number' -- Show cursor line per screen line
+vim.o.cursorlineopt           = 'screenline,number' -- Show cursor line per screen line
 
 -- Special UI symbols. More is set via 'mini.basics' later.
-vim.opt.fillchars    = { fold = "╌", eob = " " }
-vim.opt.listchars    = {
+vim.opt.fillchars             = { fold = "╌", eob = " " }
+vim.opt.listchars             = {
   extends = "…",
   nbsp = "␣",
   precedes = "…",
@@ -54,10 +54,10 @@ vim.opt.listchars    = {
 }
 
 -- Folds (see `:h fold-commands`, `:h zM`, `:h zR`, `:h zA`, `:h zj`)
-vim.o.foldlevel      = 10       -- Fold nothing by default; set to 0 or 1 to fold
-vim.o.foldmethod     = 'indent' -- Fold based on indent level
-vim.o.foldnestmax    = 10       -- Limit number of fold levels
-vim.o.foldtext       = ''       -- Show text under fold with its highlighting
+vim.o.foldlevel               = 10       -- Fold nothing by default; set to 0 or 1 to fold
+vim.o.foldmethod              = 'indent' -- Fold based on indent level
+vim.o.foldnestmax             = 10       -- Limit number of fold levels
+vim.o.foldtext                = ''       -- Show text under fold with its highlighting
 
 
 -- Editing ====================================================================
