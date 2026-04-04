@@ -158,9 +158,8 @@ local function highlight_references(client, buf)
   end
 end
 
----@param client vim.lsp.Client
 ---@param buf number
-local function show_diagnostics(client, buf)
+local function show_diagnostics(buf)
   vim.api.nvim_create_autocmd("CursorHold", {
     group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true }),
     buffer = buf,
@@ -201,7 +200,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 
     mappings(client, args.buf)
     highlight_references(client, args.buf)
-    show_diagnostics(client, args.buf)
+    show_diagnostics(args.buf)
   end,
   group = vim.api.nvim_create_augroup('UserLspConfig', {}),
 })
