@@ -1,3 +1,5 @@
+-- sidekick.nvim (AI assistant)
+-- Load order: must run before mini.lua (statusline reads sidekick.status)
 if vim.g.vscode then return end
 
 vim.pack.add({
@@ -5,7 +7,6 @@ vim.pack.add({
 })
 local map = require('utils').map
 
--- sidekick
 require('sidekick').setup({
   cli = {
     mux = {
@@ -16,7 +17,8 @@ require('sidekick').setup({
 })
 
 map("n", "<tab>", function()
-  if require("sidekick").nes_jump_or_apply() then
+  local ok, sk = pcall(require, "sidekick")
+  if ok and sk.nes_jump_or_apply() then
     return ""
   end
   return "<Tab>"

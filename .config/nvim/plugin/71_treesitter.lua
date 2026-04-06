@@ -1,3 +1,4 @@
+-- nvim-treesitter + treesitter-context
 vim.pack.add({
   'https://github.com/nvim-treesitter/nvim-treesitter',
   'https://github.com/nvim-treesitter/nvim-treesitter-context',
@@ -48,11 +49,9 @@ vim.api.nvim_create_autocmd('FileType', {
     local lang = vim.treesitter.language.get_lang(event.match) or event.match
     local buf = event.buf
 
-
     if lang ~= nil and vim.treesitter.language.add(lang) then
       -- syntax highlighting, provided by Neovim
       pcall(vim.treesitter.start, buf, lang)
-
 
       if vim.treesitter.query.get(lang, "indents") then
         -- indentation, provided by nvim-treesitter
