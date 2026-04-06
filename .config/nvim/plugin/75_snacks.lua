@@ -1,3 +1,4 @@
+-- Snacks.nvim (picker, statuscolumn, etc.)
 if vim.g.vscode then return end
 vim.pack.add({
   {

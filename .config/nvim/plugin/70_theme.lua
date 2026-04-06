@@ -1,4 +1,4 @@
-if vim.g.vscode then return end
+-- themes + markdown preview (kanagawa, tokyonight, markview)
 vim.pack.add({
   'https://github.com/rebelot/kanagawa.nvim',
   'https://github.com/folke/tokyonight.nvim',
@@ -8,9 +8,7 @@ vim.pack.add({
   },
 })
 
-
 require('kanagawa').setup({})
 require('tokyonight').setup({})
 vim.cmd.colorscheme('kanagawa-dragon')
-
 require('markview').setup({})

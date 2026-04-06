@@ -1,25 +1,25 @@
+-- nvim-lspconfig
+-- Depends on: blink_cmp.lua (get_lsp_capabilities called eagerly at load time)
 if vim.g.vscode then return end
--- Depends on: complete.lua (blink.cmp) — get_lsp_capabilities() is called eagerly at load time
---             (load order: complete.lua runs before lsp.lua alphabetically, so this is safe)
+
 vim.pack.add({
   { src = 'https://github.com/neovim/nvim-lspconfig', version = vim.version.range('*') },
   'https://github.com/b0o/schemastore.nvim', -- used by jsonls/yamlls lsp configs
 })
 
-
 local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false)) -- blink.cmp from complete.lua
+capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
 
 vim.lsp.config('*', { capabilities = capabilities })
 
--- vim.lsp.handlers["window/showMessage"] = function(err, result, ctx)
---   local client = ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
---   local msg = "[LSP]"
---   if client then msg = msg .. " [" .. client.name .. "] " end
---   if result and result.message then
---     vim.notify(msg .. result.message, vim.log.levels.INFO)
---   end
--- end
+vim.lsp.handlers["window/showMessage"] = function(err, result, ctx)
+  local client = ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
+  local msg = "[LSP]"
+  if client then msg = msg .. " [" .. client.name .. "] " end
+  if result and result.message then
+    vim.notify(msg .. result.message, vim.log.levels.INFO)
+  end
+end
 
 local enabled_lsps = {
   "pyright",
@@ -50,7 +50,6 @@ for _, name in ipairs(enabled_lsps) do
 end
 vim.lsp.inline_completion.enable(true)
 vim.lsp.codelens.enable(true)
-
 
 vim.api.nvim_create_autocmd('LspProgress', {
   callback = function(ev)

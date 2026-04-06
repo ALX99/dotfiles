@@ -1,9 +1,8 @@
--- Depends on: ai.lua (sidekick) — statusline callback calls sidekick.status.get() on each redraw
---             snacks.lua (snacks) — MiniFilesActionRename autocmd calls snacks.rename (lazy callback, ok)
+-- mini.nvim suite (depends on: sidekick.lua for statusline, snacks.lua for rename)
+-- Load order: must run after sidekick.lua and snacks.lua
 vim.pack.add({
   { src = 'https://github.com/nvim-mini/mini.nvim', version = vim.version.range('*') },
 })
-
 
 local indentscope_symbol = "│"
 local indentscope_animation = nil
@@ -38,13 +37,12 @@ require('mini.statusline').setup({
   content = {
     active = function()
       local mode, mode_hl = MiniStatusline.section_mode({ trunc_width = 120 })
-      local git           = MiniStatusline.section_git({ trunc_width = 40 })
       local diagnostics   = MiniStatusline.section_diagnostics({ trunc_width = 75 })
       local lsp           = MiniStatusline.section_lsp({ trunc_width = 75 })
 
       local copilot       = ''
       local copilot_hl    = 'MiniStatuslineDevinfo'
-      local status        = require("sidekick.status").get() -- sidekick from ai.lua
+      local status        = require("sidekick.status").get()
       if status then
         local icon = ''
         if status.busy then
@@ -140,7 +138,7 @@ require('mini.files').setup({
 vim.api.nvim_create_autocmd("User", {
   pattern  = "MiniFilesActionRename",
   callback = function(event)
-    require('snacks').rename.on_rename_file(event.data.from, event.data.to) -- snacks from snacks.lua
+    require('snacks').rename.on_rename_file(event.data.from, event.data.to)
   end,
 })
 
@@ -181,21 +179,3 @@ miniclue.setup({
     miniclue.gen_clues.z(),
   },
 })
-
--- require("mini.ai").setup({
---   mappings = {
---     -- Main textobject prefixes
---     around = 'a',
---     inside = 'i',
---
---     -- Next/last textobjects
---     -- around_next = 'an',
---     -- inside_next = 'in',
---     around_last = 'al',
---     inside_last = 'il',
---
---     -- Move cursor to corresponding edge of `a` textobject
---     goto_left = 'g[',
---     goto_right = 'g]',
---   },
--- })
