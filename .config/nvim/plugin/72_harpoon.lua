@@ -1,15 +1,14 @@
--- plenary.nvim is a dependency of harpoon — both must be registered together
--- custom_plugins/vscode is a flat init.lua at lua/custom_plugins/vscode/init.lua — require('custom_plugins.vscode') works directly
+-- harpoon (file marks) + flash.nvim (jump navigation) + vscode mode setup
+if vim.g.vscode then
+  require("custom_plugins.vscode").setup()
+  return
+end
+
 vim.pack.add({
   'https://github.com/nvim-lua/plenary.nvim', -- required by harpoon
   'https://github.com/ThePrimeagen/harpoon',
   'https://github.com/folke/flash.nvim',
 })
-
-if vim.g.vscode then
-  require("custom_plugins.vscode").setup()
-  return
-end
 
 local map = require('utils').map
 
