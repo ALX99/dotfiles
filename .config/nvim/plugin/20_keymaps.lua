@@ -25,6 +25,12 @@ map('n', '<C-u>', '<C-u>zz')
 map("n", "l", "nzzzv", { silent = true })
 map("n", "L", "Nzzzv", { silent = true })
 
+-- pack
+map("n", "<leader>Pu", function() vim.pack.update() end, { desc = "vimpack update - code action to skip some" })
+map("n", "<leader>Pr", function() vim.pack.update(nil, { target = "lockfile", force = true }) end,
+  { desc = "vimpack update to lockfile versions" })
+map("n", "<leader>Pi", function() vim.pack.update(nil, { offline = true }) end, { desc = "vimpack info" })
+
 -- Windows
 if not vim.g.vscode then
   map("n", "<leader>w", "<C-w>")
