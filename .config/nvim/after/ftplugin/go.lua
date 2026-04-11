@@ -1,5 +1,3 @@
-vim.b.ts_fip = { "%_test%.go", "%_mock%.go" }
-
 ---Get all test names under the given node
 ---@param node TSNode
 ---@param bufnr number

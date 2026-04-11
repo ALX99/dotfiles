@@ -23,11 +23,7 @@ local fmt = {
 ---@param client vim.lsp.Client
 ---@param buf number
 local function mappings(client, buf)
-  local ok, Snacks = pcall(require, "snacks")
-  if not ok then
-    vim.notify("snacks.nvim not available for LSP mappings", vim.log.levels.WARN)
-    return
-  end
+  local Snacks = require("snacks")
   local bmap = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
     if opts then options = vim.tbl_extend("force", options, opts) end
@@ -52,15 +48,16 @@ local function mappings(client, buf)
       },
     },
     focus = "list", -- Focus the list view
-    pattern = "!_test.go",
   }
 
   -- helper to create Snacks picker functions with default options
   local function lsp_picker(picker_fn, override_opts)
     return function()
-      -- Merge default options with any overrides
-      local final_opts = vim.tbl_extend("force", default_picker_opts, override_opts or {})
-      picker_fn(final_opts)
+      local opts = vim.tbl_extend("force", default_picker_opts, override_opts or {})
+      if vim.bo.filetype == "go" then
+        opts = vim.tbl_extend("force", opts, { pattern = "!_test.go" })
+      end
+      picker_fn(opts)
     end
   end
 

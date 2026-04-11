@@ -63,10 +63,6 @@ _G.Config.new_autocmd("BufWritePre", {
         return
       end
 
-      if #output > 0 and #output ~= #original_lines then
-        vim.notify("shfmt output line count mismatch", vim.log.levels.ERROR)
-        return
-      end
       if #output > 0 then
         vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, output)
       end

@@ -11,14 +11,16 @@ vim.pack.add({
 })
 
 local map = require('utils').map
+local harpoon_ui   = require('harpoon.ui')
+local harpoon_mark = require('harpoon.mark')
 
 -- harpoon
-map("n", "<leader>1", "<cmd>lua require('harpoon.ui').nav_file(1)<cr>", { desc = "Harpoon 1" })
-map("n", "<leader>2", "<cmd>lua require('harpoon.ui').nav_file(2)<cr>", { desc = "Harpoon 2" })
-map("n", "<leader>3", "<cmd>lua require('harpoon.ui').nav_file(3)<cr>", { desc = "Harpoon 3" })
-map("n", "<leader>4", "<cmd>lua require('harpoon.ui').nav_file(4)<cr>", { desc = "Harpoon 4" })
-map("n", "<leader>h", "<cmd>lua require('harpoon.mark').add_file()<cr>", { desc = "Harpoon add file" })
-map("n", "<leader>H", "<cmd>lua require('harpoon.ui').toggle_quick_menu()<cr>", { desc = "Harpoon UI" })
+map("n", "<leader>1", function() harpoon_ui.nav_file(1) end, { desc = "Harpoon 1" })
+map("n", "<leader>2", function() harpoon_ui.nav_file(2) end, { desc = "Harpoon 2" })
+map("n", "<leader>3", function() harpoon_ui.nav_file(3) end, { desc = "Harpoon 3" })
+map("n", "<leader>4", function() harpoon_ui.nav_file(4) end, { desc = "Harpoon 4" })
+map("n", "<leader>h", function() harpoon_mark.add_file() end, { desc = "Harpoon add file" })
+map("n", "<leader>H", function() harpoon_ui.toggle_quick_menu() end, { desc = "Harpoon UI" })
 
 -- flash.nvim
 require("flash").setup({
