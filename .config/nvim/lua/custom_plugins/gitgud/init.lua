@@ -66,7 +66,7 @@ function M.open_github_file(opts)
   if vim.ui.open then
     vim.ui.open(url)
   else
-    local os_name = vim.loop.os_uname().sysname
+    local os_name = vim.uv.os_uname().sysname
     local opener = "xdg-open"
     if os_name == "Darwin" then opener = "open" end
     vim.fn.jobstart({opener, url}, {detach = true})
