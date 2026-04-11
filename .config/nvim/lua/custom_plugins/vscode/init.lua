@@ -53,28 +53,6 @@ function M.setup()
     vscode.action("workbench.action.findInFiles")
   end, { desc = "Find in Files" })
 
-  -- Code navigation
-  map("n", "gd", function()
-    vscode.action("editor.action.revealDefinition")
-  end, { desc = "Go to Definition" })
-
-  map("n", "gr", function()
-    vscode.action("editor.action.goToReferences")
-  end, { desc = "Go to References" })
-
-  map("n", "gi", function()
-    vscode.action("editor.action.goToImplementation")
-  end, { desc = "Go to Implementation" })
-
-  -- Quick actions
-  map("n", "<leader>ca", function()
-    vscode.action("editor.action.quickFix")
-  end, { desc = "Quick Fix" })
-
-  map("n", "<leader>rn", function()
-    vscode.action("editor.action.rename")
-  end, { desc = "Rename Symbol" })
-
   -- File navigation
   map("n", "<leader>fo", function()
     vscode.action("workbench.action.quickOpen")
