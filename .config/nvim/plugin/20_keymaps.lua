@@ -108,3 +108,6 @@ xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
 -- Search inside visual selection
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
+
+vim.cmd("packadd nvim.undotree")
+map("n", "<leader>u", require("undotree").open)

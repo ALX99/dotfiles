@@ -53,28 +53,6 @@ function M.is_linux()
   return vim.uv.os_uname().sysname == "Linux"
 end
 
-function M.copy_github_permalink()
-  local file_path = vim.fn.expand('%:.')
-  local line_number = vim.fn.line('.')
-  local end_line = vim.fn.line("'>")
-
-  local file_arg = file_path .. ':' .. line_number
-  if end_line ~= 0 then
-    file_arg = file_arg .. '-' .. end_line
-  end
-
-  local url = vim.fn.system({ 'gh', 'browse', '--no-browser', file_arg, '--commit' })
-  url = vim.fn.trim(url)
-
-  if vim.v.shell_error ~= 0 then
-    print("Error: " .. url)
-    return
-  end
-
-  vim.fn.setreg("+", url)
-  print("Copied GitHub permalink: " .. url)
-end
-
 --- Copy the selected code block to clipboard
 ---@param opts vim.api.keyset.user_command
 function M.copy_code_block(opts)

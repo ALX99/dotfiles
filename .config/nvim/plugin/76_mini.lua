@@ -112,14 +112,14 @@ require('mini.hipatterns').setup({
 })
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern  = { 'markdown', 'lazy', 'chatgpt-input' },
+  pattern  = { 'markdown' },
   callback = function()
     vim.b.minitrailspace_disable = true
   end,
 })
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern  = { 'NvimTree', 'FTerm', 'lazy', 'chatgpt-input', 'help', 'man' },
+  pattern  = { 'help', 'man' },
   callback = function()
     vim.b.miniindentscope_disable = true
   end,
