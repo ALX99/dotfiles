@@ -136,9 +136,6 @@ vim.ui.open = (function(overridden)
   end
 end)(vim.ui.open)
 
-if vim.g.vscode then
-  local vscode = require('vscode')
-  vim.notify = vscode.notify
-else
+if not vim.g.vscode then
   require('session').setup()
 end
