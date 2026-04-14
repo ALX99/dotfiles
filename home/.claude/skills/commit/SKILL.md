@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Create a git commit
+description: Create a git commit. Use whenever you or the user wants to create a commit.
 argument-hint: [what to commit or "staged files"]
 allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*)
 ---
