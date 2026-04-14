@@ -21,7 +21,7 @@ _G.Config.new_autocmd({ "FocusGained", "TermClose", "TermLeave", "CursorHold" },
 -- Highlight on yank
 _G.Config.new_autocmd('TextYankPost', {
   callback = function()
-    vim.highlight.on_yank()
+    vim.hl.on_yank()
   end,
   pattern = '*',
 })
