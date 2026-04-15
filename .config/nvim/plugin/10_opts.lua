@@ -135,7 +135,3 @@ vim.ui.open = (function(overridden)
     overridden(path)
   end
 end)(vim.ui.open)
-
-if not vim.g.vscode then
-  require('session').setup()
-end
