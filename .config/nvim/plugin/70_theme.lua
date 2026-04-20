@@ -1,3 +1,5 @@
+if vim.g.vscode then return end
+
 -- themes + markdown preview (kanagawa, tokyonight, markview)
 vim.pack.add({
   'https://github.com/rebelot/kanagawa.nvim',
