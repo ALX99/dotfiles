@@ -1,8 +1,4 @@
--- flash.nvim (jump navigation) + vscode mode setup
-if vim.g.vscode then
-  require("custom_plugins.vscode").setup()
-  return
-end
+if vim.g.vscode then return end
 
 vim.pack.add({
   'https://github.com/folke/flash.nvim',
