@@ -21,7 +21,9 @@ vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     local session_file = get_session_file()
     if vim.fn.argc() == 0 and vim.fn.filereadable(session_file) ~= 0 then
-      vim.cmd("silent! source " .. vim.fn.fnameescape(session_file))
+      -- Session files may contain benign errors (e.g. %argdel with empty arglist).
+      -- silent! is the canonical way to source them: keep going regardless.
+      vim.cmd('silent! source ' .. vim.fn.fnameescape(session_file))
     end
   end,
   group = session_group,

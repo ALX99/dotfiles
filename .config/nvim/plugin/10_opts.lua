@@ -6,12 +6,14 @@ vim.g.loaded_ruby_provider    = 0
 
 -- General ====================================================================
 vim.g.mapleader               = " "           -- Leader key
+vim.g.maplocalleader          = " "           -- Local leader
+vim.o.winborder               = 'rounded'     -- Consistent borders on all floats (0.11+)
 vim.o.shell                   = 'bash'
 vim.o.mousescroll             = 'ver:6,hor:6' -- Customize mouse scroll
 vim.o.undofile                = true          -- Enable persistent undo
 vim.o.clipboard               = 'unnamedplus' -- Copy paste between vim and everything else
 vim.o.fileencoding            = "UTF-8"       -- The encoding written to file
-vim.opt.updatetime            = 1000          -- If this many milliseconds nothing is typed the swap file will be written to disk
+vim.opt.updatetime            = 250           -- Faster CursorHold triggers (diagnostics, references)
 vim.opt.sessionoptions        = { "curdir", "help", "winsize", "terminal" }
 vim.opt.spelllang             = 'en,cjk'
 
@@ -41,7 +43,7 @@ vim.o.helpheight              = 25
 vim.o.cursorlineopt           = 'screenline,number' -- Show cursor line per screen line
 
 -- Special UI symbols. More is set via 'mini.basics' later.
-vim.opt.fillchars             = { fold = "╌", eob = " " }
+vim.opt.fillchars             = { fold = "╌", foldopen = "▾", foldclose = "▸", foldsep = "│", eob = " " }
 vim.opt.listchars             = {
   extends = "…",
   nbsp = "␣",
