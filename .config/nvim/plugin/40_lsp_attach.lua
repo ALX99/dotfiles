@@ -125,7 +125,9 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function highlight_references(client, buf)
+  if vim.b[buf].lsp_highlight_setup then return end
   if client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+    vim.b[buf].lsp_highlight_setup = true
     -- only needs one augroup
     local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), {})
     vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
@@ -157,6 +159,8 @@ end
 
 ---@param buf number
 local function show_diagnostics(buf)
+  if vim.b[buf].lsp_diagnostics_float_setup then return end
+  vim.b[buf].lsp_diagnostics_float_setup = true
   vim.api.nvim_create_autocmd("CursorHold", {
     group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true }),
     buffer = buf,
@@ -211,7 +215,6 @@ vim.api.nvim_create_autocmd('LspAttach', {
 
     if fmt[ft] ~= client.name then return end
     if not client:supports_method('textDocument/formatting') then return end
-    if client:supports_method('textDocument/willSaveWaitUntil') then return end
 
     vim.api.nvim_create_autocmd('BufWritePre', {
       group = vim.api.nvim_create_augroup('lsp.autofmt.' .. buf, {}),
