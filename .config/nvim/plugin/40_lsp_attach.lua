@@ -188,8 +188,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
       return
     end
 
-    vim.notify("lsp_attach: " .. client.name .. " to buf " .. tostring(args.buf) .. " file " .. filename,
-      vim.log.levels.TRACE)
+
 
     -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
     if client.server_capabilities.definitionProvider then
@@ -220,6 +219,22 @@ vim.api.nvim_create_autocmd('LspAttach', {
       group = vim.api.nvim_create_augroup('lsp.autofmt.' .. buf, {}),
       buffer = buf,
       callback = function()
+        -- Organize imports before formatting (Go only)
+        if ft == 'go' then
+          local params = vim.lsp.util.make_range_params(nil, client.offset_encoding)
+          params.context = { only = { 'source.organizeImports' } }
+          local result = vim.lsp.buf_request_sync(buf, 'textDocument/codeAction', params, 5000)
+          for _, res in pairs(result or {}) do
+            for _, action in pairs(res.result or {}) do
+              if action.edit then
+                vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
+              end
+              if action.command then
+                client:exec_cmd(action.command)
+              end
+            end
+          end
+        end
         vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
       end,
     })
