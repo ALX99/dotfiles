@@ -2,11 +2,8 @@
 local session_dir = vim.fn.expand(vim.fn.stdpath("state") .. "/sessions")
 
 local function get_session_file()
-  local pattern = "/"
-  if vim.fn.has("win32") == 1 then
-    pattern = "[\\:]"
-  end
-  return session_dir .. "/" .. vim.fn.getcwd():gsub(pattern, "%%") .. ".vim"
+  local cwd = vim.fn.getcwd()
+  return session_dir .. "/" .. vim.fn.sha256(cwd) .. ".vim"
 end
 
 -- Create the dir if it doesn't exist

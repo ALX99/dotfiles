@@ -70,27 +70,7 @@ _G.Config.new_autocmd("BufWritePre", {
   end
 })
 
-_G.Config.new_autocmd("BufWritePre", {
-  pattern = "*.go",
-  callback = function()
-    local clients = vim.lsp.get_clients({ bufnr = 0, name = "gopls" })
-    if not clients[1] then return end
-    local position_encoding = clients[1].offset_encoding
-    local params = vim.lsp.util.make_range_params(nil, position_encoding)
-    params.context = { only = { "source.organizeImports" } }
-    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 5000)
-    for _, res in pairs(result or {}) do
-      for _, action in pairs(res.result or {}) do
-        if action.edit then
-          vim.lsp.util.apply_workspace_edit(action.edit, position_encoding)
-        end
-        if action.command then
-          clients[1]:exec_cmd(action.command)
-        end
-      end
-    end
-  end,
-})
+-- Go organize-imports on save is handled in 40_lsp_attach.lua (combined with auto-format to avoid race conditions)
 
 
 -- Automatically update listchars to match indentation and listchars settings
