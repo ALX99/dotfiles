@@ -19,15 +19,6 @@ local mappings = {
   { modes = { "n" },           lhs = "k",      rhs = "i",     desc = "Insert (i)" },
   -- { modes = { "n" },           lhs = "K",      rhs = "I",     desc = "Insert at start (I)" },
 
-  -- Window navigation
-  { modes = { "n" },           lhs = "<C-w>m", rhs = "<C-w>h" },
-  { modes = { "n" },           lhs = "<C-w>n", rhs = "<C-w>j" },
-  { modes = { "n" },           lhs = "<C-w>e", rhs = "<C-w>k" },
-  { modes = { "n" },           lhs = "<C-w>i", rhs = "<C-w>l" },
-  { modes = { "n" },           lhs = "<C-w>M", rhs = "<C-w>H" },
-  { modes = { "n" },           lhs = "<C-w>N", rhs = "<C-w>J" },
-  { modes = { "n" },           lhs = "<C-w>E", rhs = "<C-w>K" },
-  { modes = { "n" },           lhs = "<C-w>I", rhs = "<C-w>L" },
 }
 
 function colemak.setup(_)
