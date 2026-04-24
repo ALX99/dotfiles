@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request
+description: Create a pull request. Use this skill whenever the user asks to create a PR or pull request — do not use `gh pr create` directly.
 allowed-tools: Bash(git:*), Bash(gh pr:*)
 ---
 
