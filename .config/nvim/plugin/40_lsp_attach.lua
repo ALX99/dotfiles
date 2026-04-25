@@ -128,8 +128,10 @@ local function highlight_references(client, buf)
   if vim.b[buf].lsp_highlight_setup then return end
   if client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
     vim.b[buf].lsp_highlight_setup = true
-    -- only needs one augroup
-    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), {})
+
+    -- Use built-in document highlight with autocmds
+    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), { clear = true })
+
     vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
       desc = "Document Highlight",
       buffer = buf,
@@ -144,7 +146,7 @@ local function highlight_references(client, buf)
       callback = vim.lsp.buf.clear_references,
     })
 
-
+    -- Clean up on LspDetach
     vim.api.nvim_create_autocmd('LspDetach', {
       desc = "Remove highlight autocmds",
       group = vim.api.nvim_create_augroup('lsp-detach-' .. tostring(buf), { clear = true }),

@@ -40,10 +40,10 @@ require('mini.statusline').setup({
       local diagnostics   = MiniStatusline.section_diagnostics({ trunc_width = 75 })
       local lsp           = MiniStatusline.section_lsp({ trunc_width = 75 })
 
-      local filename = MiniStatusline.section_filename({ trunc_width = 140 })
-      local fileinfo = MiniStatusline.section_fileinfo({ trunc_width = 120 })
-      local location = MiniStatusline.section_location({ trunc_width = 75 })
-      local search   = MiniStatusline.section_searchcount({ trunc_width = 75 })
+      local filename      = MiniStatusline.section_filename({ trunc_width = 140 })
+      local fileinfo      = MiniStatusline.section_fileinfo({ trunc_width = 120 })
+      local location      = MiniStatusline.section_location({ trunc_width = 75 })
+      local search        = MiniStatusline.section_searchcount({ trunc_width = 75 })
 
       return MiniStatusline.combine_groups({
         { hl = mode_hl,                 strings = { mode } },
@@ -132,13 +132,22 @@ end, { desc = "MiniFiles" })
 local miniclue = require('mini.clue')
 miniclue.setup({
   triggers = {
+    -- Leader key
     { mode = 'n', keys = '<Leader>' },
     { mode = 'x', keys = '<Leader>' },
+
+    -- Bracket mappings
     { mode = 'n', keys = '[' },
     { mode = 'n', keys = ']' },
+
+    -- Completion
     { mode = 'i', keys = '<C-x>' },
+
+    -- Go mappings
     { mode = 'n', keys = 'g' },
     { mode = 'x', keys = 'g' },
+
+    -- Flash navigation (lazy-loaded)
     { mode = 'n', keys = 'f' },
     { mode = 'x', keys = 'f' },
     { mode = 'n', keys = 'F' },
@@ -147,15 +156,23 @@ miniclue.setup({
     { mode = 'x', keys = 't' },
     { mode = 'n', keys = 'T' },
     { mode = 'x', keys = 'T' },
+
+    -- Marks and registers
     { mode = 'n', keys = "'" },
     { mode = 'n', keys = '`' },
     { mode = 'x', keys = "'" },
     { mode = 'x', keys = '`' },
     { mode = 'n', keys = '"' },
     { mode = 'x', keys = '"' },
+
+    -- Insert mode completion
     { mode = 'i', keys = '<C-r>' },
     { mode = 'c', keys = '<C-r>' },
+
+    -- Window operations
     { mode = 'n', keys = '<C-w>' },
+
+    -- Fold operations
     { mode = 'n', keys = 'z' },
     { mode = 'x', keys = 'z' },
   },
