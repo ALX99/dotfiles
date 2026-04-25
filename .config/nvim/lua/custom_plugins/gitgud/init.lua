@@ -16,28 +16,24 @@ local function get_github_url(opts)
     file_arg = string.format("%s-%d", file_arg, end_line)
   end
 
-  local sha = vim.fn.system("git rev-parse @{u} 2>/dev/null")
-  local is_upstream = (vim.v.shell_error == 0)
-  sha = vim.fn.trim(sha)
+  -- Get upstream branch SHA
+  local sha_result = vim.system({ "git", "rev-parse", "@{u}" }, { text = true }):wait()
+  local is_upstream = sha_result.code == 0
+  local sha = vim.fn.trim(sha_result.stdout or "")
 
-  local cmd
+  -- Build gh browse command with proper argument escaping
+  local cmd = { "gh", "browse", "--no-browser", file_arg }
   if is_upstream and #sha > 0 then
-    cmd = string.format(
-      "gh browse --no-browser %s --branch %s 2>&1",
-      vim.fn.shellescape(file_arg),
-      vim.fn.shellescape(sha)
-    )
+    table.insert(cmd, "--branch")
+    table.insert(cmd, sha)
   else
-    cmd = string.format(
-      "gh browse --no-browser %s --commit 2>&1",
-      vim.fn.shellescape(file_arg)
-    )
+    table.insert(cmd, "--commit")
   end
 
-  local url = vim.fn.system(cmd)
-  url = vim.fn.trim(url)
+  local result = vim.system(cmd, { text = true }):wait()
+  local url = vim.fn.trim(result.stdout or "")
 
-  return url, vim.v.shell_error
+  return url, result.code
 end
 
 ---@param opts? {start_line?: number, end_line?: number}
@@ -63,14 +59,7 @@ function M.open_github_file(opts)
   end
 
   vim.notify("Opening: " .. url, vim.log.levels.INFO)
-  if vim.ui.open then
-    vim.ui.open(url)
-  else
-    local os_name = vim.uv.os_uname().sysname
-    local opener = "xdg-open"
-    if os_name == "Darwin" then opener = "open" end
-    vim.fn.jobstart({opener, url}, {detach = true})
-  end
+  vim.ui.open(url)
 end
 
 return M
