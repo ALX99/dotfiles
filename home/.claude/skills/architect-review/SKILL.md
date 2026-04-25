@@ -1,13 +1,15 @@
 ---
 name: architect-review
-description: Use when reviewing a codebase or module for architectural consistency, file organization, naming conventions, design pattern adherence, or simplicity - especially before major refactors or when onboarding to unfamiliar code.
+description: Use when reviewing a codebase or module for architectural consistency, file organization, naming conventions, design pattern adherence, or simplicity — especially before major refactors or when onboarding to unfamiliar code. Combines structural review with design pattern fit analysis.
 ---
 
 # Architect Review
 
-Review a module or codebase for structural soundness: organization, naming, pattern consistency, simplicity, and cross-module coherence.
+Review a module or codebase for structural soundness: organization, naming, pattern consistency, simplicity, and cross-module coherence. Also evaluate whether the right design patterns are being used for the problems at hand.
 
 **The simplest architecture that works is the correct one.** If you need to explain why something is structured a certain way, it's probably wrong.
+
+**Problem-first, not pattern-matching.** A design pattern finding only fires when there is a named structural problem the pattern would resolve. If the code is simple and works, no pattern is suggested — patterns solve problems, not the other way around.
 
 ## Inputs
 
@@ -42,6 +44,9 @@ gh pr checkout <number>
 - Not a style review — don't flag formatting, variable names within functions, or comment quality.
 - Not a performance review — don't flag slow algorithms unless the architecture forces them.
 - Verify every finding by quoting the code. If you can't quote it, drop it.
+- Only report design pattern findings where a named structural problem exists in the current code.
+- Do not suggest a pattern just because it could apply — it must solve something that is demonstrably broken or painful.
+- For Go code, apply `go-code` guidance.
 - Research established patterns with `deepwiki` if uncertain what the ecosystem convention is.
 
 ## Workflow
@@ -87,6 +92,46 @@ gh pr checkout <number>
 | **Types live in one place** | Type definitions centralized or co-located with the data they describe — pick one, apply everywhere. |
 | **Minimal public surface** | Enumerate everything exported or returned at the language boundary. Go: every uppercase identifier. Lua: every key on the returned `M` table. Every exposed item not part of the external contract is a violation. |
 
+#### Problem-First Pattern Signals
+
+When evaluating design patterns, only flag a finding if a **named structural problem** exists. Use the tables below as a signal checklist — if a signal fires, read enough context to confirm the problem is real, then verify the suggested pattern would actually resolve it.
+
+**GoF Patterns**
+
+| Problem Signal | Pattern |
+|---|---|
+| New variants require editing existing switch/if chains | Factory / Strategy |
+| Object construction is complex, multi-step, or has many optional parts | Builder |
+| Operations need to be undoable, queued, logged, or retried | Command |
+| Objects notify dependents on state change via manual polling or tight coupling | Observer |
+| Incompatible interfaces need to work together | Adapter |
+| Subsystem is complex but callers only need a simple entry point | Facade |
+| Behavior changes based on internal state transitions | State |
+| Type has an explosion of subclass combinations | Bridge |
+| Object wraps another to add behavior without subclassing | Decorator |
+| Tree structures where leaves and composites must be treated uniformly | Composite |
+
+**Go Idioms**
+
+| Problem Signal | Pattern |
+|---|---|
+| Constructor has many optional params (bool flags, scattered defaults) | Functional options |
+| Shared behavior across unrelated types forced into struct embedding | Interface-based composition |
+| Sequential pipeline of transforms with early exit | `io.Reader`/`io.Writer` chaining |
+| Independent work that needs coordination or cancellation | `context` + goroutines + channels |
+| Repeated type switches or `interface{}` assertions on a tag field | Typed interface dispatch |
+
+**TypeScript / React**
+
+| Problem Signal | Pattern |
+|---|---|
+| Component does data fetching, state management, and rendering | Container/Presenter split |
+| Logic duplicated across multiple components | Custom hook extraction |
+| Props drilled through 3+ levels to reach consumers | Context or component composition |
+| Global state managed with scattered `useState` across components | Reducer pattern |
+| Component rendering varies by type using nested conditionals | Strategy via render props or polymorphic components |
+| Side effects coupled directly to UI events | Command / event-driven separation |
+
 ### Solution Design
 
 | Check | What to Look For |
@@ -117,9 +162,9 @@ gh pr checkout <number>
 
 | Level | Meaning |
 |---|---|
-| S0 | Architecture fundamentally blocks simplicity or maintainability — god objects, circular deps, invented patterns replacing standard ones |
-| S1 | Pattern used inconsistently, naming conventions mixed, types scattered |
-| S2 | Could be simpler or clearer but doesn't block work |
+| S0 | Architecture fundamentally blocks simplicity or maintainability — god objects, circular deps, invented patterns replacing standard ones, pattern mismatch causing active structural pain |
+| S1 | Pattern used inconsistently, naming conventions mixed, types scattered, current approach works but will cause pain as code grows |
+| S2 | Could be simpler or clearer but doesn't block work, better pattern exists but current approach is functional |
 
 ## Output Format
 
@@ -135,6 +180,7 @@ For each finding:
 > ```
 >
 > **Issue:** What's wrong, referencing the specific check violated.
+> **Pattern:** *(if applicable)* Name of the pattern that resolves this problem and why.
 > **Fix:** Concrete structural change.
 
 Then a mandatory **Check Coverage** table — one row per check:
@@ -144,6 +190,7 @@ Then a mandatory **Check Coverage** table — one row per check:
 | Naming | File names match contents | ✓ |
 | Naming | No god files | → Finding #1 |
 | Design Patterns | Minimal public surface | ✓ |
+| Design Patterns | Problem-first pattern signals | ✓ |
 | ... | ... | ... |
 
 Every check must appear. A missing row = an unevaluated check = an incomplete review.
@@ -164,3 +211,5 @@ Clean review:
 - Check coverage table is mandatory — omitting a row means the check was skipped.
 - Do not report bugs — that's `/risk-review`.
 - Drop findings that don't survive verification.
+- Never suggest a pattern based on a superficial resemblance — confirm the problem signal is real.
+- Do not suggest refactors when the current approach is correct.
