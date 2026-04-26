@@ -20,6 +20,8 @@ local fmt = {
   typescriptreact = "tsgo",
 }
 
+local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', {})
+
 ---@param client vim.lsp.Client
 ---@param buf number
 local function mappings(client, buf)
@@ -126,45 +128,44 @@ end
 ---@param buf number
 local function highlight_references(client, buf)
   if vim.b[buf].lsp_highlight_setup then return end
-  if client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
-    vim.b[buf].lsp_highlight_setup = true
+  if not client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then return end
+  vim.b[buf].lsp_highlight_setup = true
 
-    -- Use built-in document highlight with autocmds
-    local highlight_augroup = vim.api.nvim_create_augroup('lsp-highlight-' .. tostring(buf), { clear = true })
+  local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf, { clear = true })
+  vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
+    desc = "Document Highlight",
+    buffer = buf,
+    group = group,
+    callback = vim.lsp.buf.document_highlight,
+  })
 
-    vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
-      desc = "Document Highlight",
-      buffer = buf,
-      group = highlight_augroup,
-      callback = vim.lsp.buf.document_highlight,
-    })
+  vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufLeave' }, {
+    desc = "Clear All the References",
+    buffer = buf,
+    group = group,
+    callback = vim.lsp.buf.clear_references,
+  })
 
-    vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufLeave' }, {
-      desc = "Clear All the References",
-      buffer = buf,
-      group = highlight_augroup,
-      callback = vim.lsp.buf.clear_references,
-    })
-
-    -- Clean up on LspDetach
-    vim.api.nvim_create_autocmd('LspDetach', {
-      desc = "Remove highlight autocmds",
-      group = vim.api.nvim_create_augroup('lsp-detach-' .. tostring(buf), { clear = true }),
-      callback = function(ev)
-        vim.lsp.buf.clear_references()
-        vim.api.nvim_clear_autocmds { group = highlight_augroup, buffer = ev.buf }
-        return true -- delete itself
-      end,
-    })
-  end
+  vim.api.nvim_create_autocmd('LspDetach', {
+    desc = "Remove highlight autocmds",
+    group = UserLspConfig,
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.lsp.buf.clear_references()
+      vim.api.nvim_del_augroup_by_name('lsp-highlight-' .. buf)
+    end,
+  })
 end
 
 ---@param buf number
 local function show_diagnostics(buf)
   if vim.b[buf].lsp_diagnostics_float_setup then return end
   vim.b[buf].lsp_diagnostics_float_setup = true
+
+  local group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true })
   vim.api.nvim_create_autocmd("CursorHold", {
-    group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true }),
+    group = group,
     buffer = buf,
     callback = function()
       vim.diagnostic.open_float(nil, {
@@ -176,6 +177,29 @@ local function show_diagnostics(buf)
         scope = 'cursor',
       })
     end
+  })
+
+  vim.api.nvim_create_autocmd('LspDetach', {
+    desc = "Remove diagnostics float autocmd",
+    group = UserLspConfig,
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.api.nvim_del_augroup_by_name('lsp-diag-hold-' .. buf)
+    end,
+  })
+end
+
+local function setup_codelens_refresh(buf)
+  if vim.b[buf].lsp_codelens_setup then return end
+  vim.b[buf].lsp_codelens_setup = true
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'InsertLeave' }, {
+    desc = "Refresh code lenses",
+    group = UserLspConfig,
+    buffer = buf,
+    callback = function()
+      vim.lsp.codelens.refresh({ bufnr = buf })
+    end,
   })
 end
 
@@ -204,7 +228,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     highlight_references(client, args.buf)
     show_diagnostics(args.buf)
   end,
-  group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+  group = UserLspConfig,
 })
 
 vim.api.nvim_create_autocmd('LspAttach', {
@@ -217,27 +241,47 @@ vim.api.nvim_create_autocmd('LspAttach', {
     if fmt[ft] ~= client.name then return end
     if not client:supports_method('textDocument/formatting') then return end
 
+    local group = vim.api.nvim_create_augroup('lsp.autofmt.' .. buf, { clear = true })
     vim.api.nvim_create_autocmd('BufWritePre', {
-      group = vim.api.nvim_create_augroup('lsp.autofmt.' .. buf, {}),
+      group = group,
       buffer = buf,
       callback = function()
-        -- Organize imports before formatting (Go only)
         if ft == 'go' then
           local params = vim.lsp.util.make_range_params(nil, client.offset_encoding)
           params.context = { only = { 'source.organizeImports' } }
-          local result = vim.lsp.buf_request_sync(buf, 'textDocument/codeAction', params, 5000)
-          for _, res in pairs(result or {}) do
-            for _, action in pairs(res.result or {}) do
-              if action.edit then
-                vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
-              end
-              if action.command then
-                client:exec_cmd(action.command)
+          vim.lsp.buf_request_all(buf, 'textDocument/codeAction', params, function(results)
+            for _, res in pairs(results or {}) do
+              for _, action in pairs(res.result or {}) do
+                if action.edit then
+                  vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
+                end
+                if action.command then
+                  client:exec_cmd(action.command)
+                end
               end
             end
-          end
+            vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
+            if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then
+              vim.api.nvim_buf_call(buf, function()
+                vim.cmd('noautocmd write')
+              end)
+            end
+          end)
+          return
         end
         vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
+      end,
+    })
+
+    vim.api.nvim_create_autocmd('LspDetach', {
+      desc = "Remove auto-format autocmd",
+      group = UserLspConfig,
+      buffer = buf,
+      callback = function(ev)
+        if ev.data and ev.data.client_id == client.id then
+          vim.api.nvim_del_augroup_by_name('lsp.autofmt.' .. buf)
+          return true
+        end
       end,
     })
   end,
