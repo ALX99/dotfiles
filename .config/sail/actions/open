@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -e
-
-open "$SAIL_CURSOR"

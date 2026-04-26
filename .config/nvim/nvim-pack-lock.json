@@ -10,7 +10,7 @@
       "version": "1.0.0 - 2.0.0"
     },
     "codediff.nvim": {
-      "rev": "832f1ecc5f8b15a44cf7537e31d3266d657775b1",
+      "rev": "8afc229d38dc13ce71b2ffbb860084b2c726e061",
       "src": "https://github.com/esmuellert/codediff.nvim"
     },
     "flash.nvim": {

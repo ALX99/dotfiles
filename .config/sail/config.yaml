@@ -1,28 +1,36 @@
-settings:
-  alt_screen: true
-  keymap:
-    left: m
-    right: i
-    up: e
-    down: n
-    bookmark_set: b
-    preview_scroll_up: E
-    preview_scroll_down: N
-  actions:
-    archive:
-      key: "alt+z"
-      refresh: true
-      clear_selection: true
-    open:
-      key: "o"
-      refresh: false
-      clear_selection: false
-    textedit:
-      key: "ctrl+e"
-      refresh: true
-      clear_selection: true
-      interactive: true
-  bookmarks:
-    h: '~/'
-    d: '~/Downloads'
-    p: '~/projects'
+alt_screen: true
+keymap:
+  bindings:
+    # Navigation (Colemak)
+    "e": "nav-up"
+    "n": "nav-down"
+    "m": "nav-left"
+    "i": "nav-right"
+    # Disable default bookmark on m (conflicts with nav-left)
+    "m *": ""
+    # Move bookmark-set to b
+    "b *": "bookmark-set"
+    # Disable preview scroll
+    "K": ""
+    "J": ""
+  dialog:
+    scroll_up: e
+    scroll_down: n
+    nav_up: e
+    nav_down: n
+    nav_left: m
+    nav_right: i
+actions:
+  archive:
+    key: "alt+z"
+    refresh: true
+    clear_selection: true
+  shell:
+    key: "alt+s"
+    refresh: true
+    clear_selection: true
+    interactive: true
+bookmarks:
+  h: '~/'
+  d: '~/Downloads'
+  p: '~/projects'
