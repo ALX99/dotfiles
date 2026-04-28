@@ -1,0 +1,15 @@
+{
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "medium",
+  "collapseChangelog": true,
+  "quietStartup": true,
+  "lastChangelogVersion": "0.74.0",
+  "retry": {
+    "maxRetries": 10
+  },
+  "packages": [],
+  "enabledModels": [
+    "openai-codex/gpt-5.5"
+  ]
+}
