@@ -1,5 +1,6 @@
 return {
   cmd = { "gopls", "-remote=auto" },
+  ---@type lspconfig.settings.gopls
   settings = {
     gopls = {
       hints = {

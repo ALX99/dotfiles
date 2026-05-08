@@ -18,11 +18,11 @@
       "src": "https://github.com/folke/flash.nvim"
     },
     "kanagawa.nvim": {
-      "rev": "aef7f5cec0a40dbe7f3304214850c472e2264b10",
+      "rev": "8ad3b4cdcc804b332c32db8f9743667e1bb82b99",
       "src": "https://github.com/rebelot/kanagawa.nvim"
     },
     "markview.nvim": {
-      "rev": "02824a95a0db2c9fd1bab3adba4510bc8f9c91e4",
+      "rev": "692887ec334c41b618ba732047ac9dac3edfaead",
       "src": "https://github.com/OXY2DEV/markview.nvim",
       "version": ">=0.0.0"
     },
@@ -37,7 +37,7 @@
       "version": ">=0.0.0"
     },
     "nvim-lspconfig": {
-      "rev": "9bafffaeaae363c5211080e06e04ed5b422fd5ad",
+      "rev": "f6738ef65dabade340b473d4ff2a1ad3352c10e7",
       "src": "https://github.com/neovim/nvim-lspconfig",
       "version": ">=0.0.0"
     },
@@ -50,7 +50,7 @@
       "src": "https://github.com/nvim-treesitter/nvim-treesitter-context"
     },
     "schemastore.nvim": {
-      "rev": "6d0329adb9c8cbe51b9a28299890a5eb104db7dc",
+      "rev": "20d4e9970798123e6197acb1c85c4b1e897efd29",
       "src": "https://github.com/b0o/schemastore.nvim"
     },
     "sidekick.nvim": {
