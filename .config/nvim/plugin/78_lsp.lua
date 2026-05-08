@@ -51,7 +51,7 @@ end
 vim.lsp.inline_completion.enable(true)
 vim.lsp.codelens.enable(true)
 
-vim.api.nvim_create_autocmd('LspProgress', {
+_G.Config.new_autocmd('LspProgress', {
   callback = function(ev)
     local value = ev.data.params.value
     vim.api.nvim_echo({ { value.message or 'done' } }, false, {

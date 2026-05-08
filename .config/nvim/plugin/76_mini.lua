@@ -93,14 +93,14 @@ require('mini.hipatterns').setup({
   }
 })
 
-vim.api.nvim_create_autocmd('FileType', {
+_G.Config.new_autocmd('FileType', {
   pattern  = { 'markdown' },
   callback = function()
     vim.b.minitrailspace_disable = true
   end,
 })
 
-vim.api.nvim_create_autocmd('FileType', {
+_G.Config.new_autocmd('FileType', {
   pattern  = { 'help', 'man' },
   callback = function()
     vim.b.miniindentscope_disable = true
@@ -117,7 +117,7 @@ require('mini.files').setup({
   },
 })
 
-vim.api.nvim_create_autocmd("User", {
+_G.Config.new_autocmd("User", {
   pattern  = "MiniFilesActionRename",
   callback = function(event)
     require('snacks').rename.on_rename_file(event.data.from, event.data.to)

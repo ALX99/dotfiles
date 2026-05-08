@@ -46,7 +46,7 @@ end
 
 local session_group = vim.api.nvim_create_augroup("auto_sessions", { clear = true })
 
-vim.api.nvim_create_autocmd("VimEnter", {
+_G.Config.new_autocmd("VimEnter", {
   desc = "Restore previous session",
   callback = function()
     local session_file = get_session_file()
@@ -61,7 +61,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
   once = true,
 })
 
-vim.api.nvim_create_autocmd("VimLeavePre", {
+_G.Config.new_autocmd("VimLeavePre", {
   desc = "Save session",
   callback = function()
     if should_save_session() then
