@@ -37,14 +37,9 @@
           {
             "manipulators": [
               {
-                "description": "Change p to command+control+option+shift.",
+                "description": "Lay1: Colemak P / QWERTY semicolon to command+control+option+shift.",
                 "from": {
-                  "key_code": "semicolon",
-                  "modifiers": {
-                    "optional": [
-                      "any"
-                    ]
-                  }
+                  "key_code": "semicolon"
                 },
                 "to": [
                   {
@@ -822,7 +817,7 @@
               },
               {
                 "from": {
-                  "key_code": ",",
+                  "key_code": "comma",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -844,7 +839,7 @@
               },
               {
                 "from": {
-                  "key_code": ".",
+                  "key_code": "period",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -888,7 +883,7 @@
               },
               {
                 "from": {
-                  "key_code": ";",
+                  "key_code": "semicolon",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -913,7 +908,7 @@
               },
               {
                 "from": {
-                  "key_code": "'",
+                  "key_code": "quote",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -938,7 +933,7 @@
               },
               {
                 "from": {
-                  "key_code": "[",
+                  "key_code": "open_bracket",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
@@ -963,7 +958,7 @@
               },
               {
                 "from": {
-                  "key_code": "]",
+                  "key_code": "close_bracket",
                   "modifiers": {
                     "mandatory": [
                       "left_shift",
