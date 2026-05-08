@@ -5,8 +5,8 @@ file="$(mktemp -t tmux-history.XXXXXX).log"
 cleanup() { rm -f "$file"; }
 trap cleanup EXIT
 
-tmux capture-pane -pS - >"$file"
-tmux new-window -n history "nvim +$ '+normal! zb' '$file'; rm -f '$file'"
+tmux capture-pane -pS - | perl -0pe 's/(?:[ \t]*\n)+\z/\n/' >"$file"
+tmux new-window -n history "nvim +$ '+normal! zb' '+nnoremap <buffer> q :quit<CR>' '$file'; rm -f '$file'"
 
 # keep the file for the tmux window; rely on the command above to clean up
 trap - EXIT
