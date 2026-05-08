@@ -4,7 +4,7 @@ vim.pack.add({
   'https://github.com/nvim-treesitter/nvim-treesitter-context',
 })
 
-vim.api.nvim_create_autocmd('PackChanged', {
+_G.Config.new_autocmd('PackChanged', {
   callback = function(ev)
     local name, kind = ev.data.spec.name, ev.data.kind
     if name == 'nvim-treesitter' and kind == 'update' then
@@ -42,7 +42,7 @@ if vim.g.vscode then return end
 
 local group = vim.api.nvim_create_augroup('treesitter_filetypes', { clear = true })
 
-vim.api.nvim_create_autocmd('FileType', {
+_G.Config.new_autocmd('FileType', {
   group = group,
   desc = 'Enable treesitter highlighting and indentation',
   callback = function(event)

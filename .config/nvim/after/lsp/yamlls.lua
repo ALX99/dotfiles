@@ -1,4 +1,5 @@
 return {
+  ---@type lspconfig.settings.yamlls
   settings = {
     yaml = {
       schemas = require('schemastore').yaml.schemas(),
