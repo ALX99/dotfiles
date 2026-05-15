@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-grey="#[fg=colour244]"
-accent="#[fg=colour250]"
-warn="#[fg=colour178]"
-crit="#[fg=colour196]"
+# AI: Keep these colors aligned with the tmux theme in tmux.conf,
+# PS1 in home/.bashrc, LS_COLORS in home/.profile, and Ghostty config.
+grey="#[fg=colour245]"
+accent="#[fg=colour75]"
+warn="#[fg=colour179]"
+crit="#[fg=colour203]"
 reset="#[fg=default]"
 
 get_time() {
