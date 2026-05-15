@@ -3,11 +3,6 @@
 # Interactive shell configuration: aliases, functions, bindings, completions
 
 # =============================================================================
-# Shell settings
-# =============================================================================
-PROMPT_COMMAND='history -a; [[ -r venv/bin/activate ]] && . venv/bin/activate'
-
-# =============================================================================
 # Short aliases
 # =============================================================================
 alias \
@@ -88,7 +83,6 @@ alias \
 # =============================================================================
 alias \
   sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  task='go-task' \
   ch="code . && exit" \
   bye='systemctl suspend-then-hibernate' \
   utop='htop -t -u $(whoami)' \
