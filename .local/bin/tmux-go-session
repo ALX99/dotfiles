@@ -3,44 +3,188 @@ set -euo pipefail
 
 PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 
-list_projects() {
-  local dir path
-  local IFS=:
-  while IFS= read -r dir; do
-    printf "%s\t%s\n" "${dir##*/}" "$dir"
-  done <<<"$(
-    for path in $PROJ_DIR; do
-      [ -d "$path" ] && find "$path" -mindepth 1 -maxdepth 1 -type d
-    done
-    echo "$HOME/dotfiles"
-    echo "$HOME/.claude"
-  )"
+tmpdir="$(mktemp -d)"
+cleanup() {
+  rm -rf "$tmpdir"
 }
+trap cleanup EXIT
+
+session_names_file="$tmpdir/session-names"
+project_paths_file="$tmpdir/project-paths"
+picker_rows_file="$tmpdir/picker-rows"
+script_path="${BASH_SOURCE[0]}"
+
+list_sessions() {
+  tmux list-sessions -F $'#{session_name}\t#{session_path}' 2>/dev/null |
+    awk -F '\t' '$1 !~ /^_/ { printf "session\t\033[38;5;75m[session]\033[0m %s\t%s\t%s\n", $1, $1, $2 }' || :
+}
+
+collect_session_names() {
+  tmux list-sessions -F '#{session_name}' 2>/dev/null |
+    awk '$0 !~ /^_/' || :
+}
+
+collect_project_paths() {
+  local path
+  local IFS=:
+
+  for path in $PROJ_DIR; do
+    [ -d "$path" ] && find "$path" -mindepth 1 -maxdepth 1 -type d
+  done
+  echo "$HOME/dotfiles"
+  echo "$HOME/.claude"
+}
+
+build_project_rows() {
+  collect_project_paths >"$project_paths_file"
+
+  awk -F '\t' '
+    function basename(path, value) {
+      value = path
+      sub(/^.*\//, "", value)
+      return value
+    }
+
+    function parent_basename(path, parent) {
+      parent = path
+      sub(/\/[^\/]*$/, "", parent)
+      sub(/^.*\//, "", parent)
+      return parent
+    }
+
+    function sanitize(name) {
+      gsub(/[^[:alnum:]_-]/, "_", name)
+      sub(/^_+/, "", name)
+      sub(/_+$/, "", name)
+      return name
+    }
+
+    NR == FNR {
+      existing[$0] = 1
+      next
+    }
+
+    {
+      paths[++path_count] = $0
+      base = basename($0)
+      bases[path_count] = base
+      base_count[base]++
+    }
+
+    END {
+      for (i = 1; i <= path_count; i++) {
+        unsanitized = base_count[bases[i]] > 1 ? parent_basename(paths[i]) "_" bases[i] : bases[i]
+        session_name = sanitize(unsanitized)
+
+        if (session_name == "") {
+          printf "Cannot derive a tmux session name for project: %s\n", paths[i] > "/dev/stderr"
+          exit 1
+        }
+
+        if (seen_path[session_name] != "" && seen_path[session_name] != paths[i]) {
+          if (!found_collision) {
+            print "Project paths derive the same tmux session name after sanitization:" > "/dev/stderr"
+          }
+          printf "  %s: %s and %s\n", session_name, seen_path[session_name], paths[i] > "/dev/stderr"
+          found_collision = 1
+          continue
+        }
+        seen_path[session_name] = paths[i]
+
+        if (!existing[session_name]) {
+          printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n", unsanitized, session_name, paths[i]
+        }
+      }
+
+      if (found_collision) {
+        print "Rename one project or choose a collision policy." > "/dev/stderr"
+        exit 1
+      }
+    }
+  ' "$session_names_file" "$project_paths_file"
+}
+
+emit_picker_rows() {
+  collect_session_names >"$session_names_file"
+  list_sessions
+  build_project_rows
+}
+
+kill_session_family() {
+  local session_name=$1
+  local child_name parent_name is_private prefix
+
+  while IFS=$'\t' read -r child_name parent_name is_private; do
+    if [[ $is_private == 1 && $parent_name == "$session_name" ]]; then
+      tmux kill-session -t "=$child_name" 2>/dev/null || :
+    fi
+  done < <(tmux list-sessions -F $'#{session_name}\t#{@tmux_go_parent_session}\t#{@tmux_go_private_session}' 2>/dev/null || :)
+
+  # Fallback for private sessions created before metadata was added.
+  for prefix in shell pi claude; do
+    tmux kill-session -t "=_${prefix}_${session_name}" 2>/dev/null || :
+  done
+  tmux kill-session -t "=$session_name" 2>/dev/null || :
+}
+
+switch_or_attach() {
+  local session_name=$1
+
+  if [[ -z ${TMUX:-} ]]; then
+    tmux attach-session -t "=$session_name"
+  else
+    tmux switch-client -t "=$session_name"
+  fi
+}
+
+case "${1:-}" in
+  --list)
+    emit_picker_rows
+    exit 0
+    ;;
+  --kill)
+    if [[ $# -ne 2 ]]; then
+      printf 'Usage: %s --kill <session-name>\n' "$0" >&2
+      exit 2
+    fi
+    kill_session_family "$2"
+    exit 0
+    ;;
+esac
+
+emit_picker_rows >"$picker_rows_file"
 
 # shellcheck disable=SC2016
 selected_entry="$(
-  list_projects |
-    fzf-tmux -p 80%,90% --prompt 'tmux session > ' --with-nth=1 --delimiter '\t' \
-      --preview 'dir={2}; readme=$(find "$dir" -maxdepth 1 -type f \( -iname "readme" -o -iname "readme.*" \) | head -n1); if [[ -n "$readme" ]]; then if command -v bat >/dev/null 2>&1; then bat --style=plain --color=always --paging=never "$readme"; else cat "$readme"; fi; elif git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else ls --color=always -al "$dir"; fi' \
-      --preview-window=right,60% ||
+  fzf-tmux -p 80%,90% --ansi --prompt 'tmux session > ' --with-nth=2 --delimiter '\t' \
+      --preview 'type={1}; name={3}; dir={4}; if [[ -n "$dir" && -d "$dir" ]]; then readme=$(find "$dir" -maxdepth 1 -type f \( -iname "readme" -o -iname "readme.*" \) | head -n1); if [[ -n "$readme" ]]; then if command -v bat >/dev/null 2>&1; then bat --style=plain --color=always --paging=never "$readme"; else cat "$readme"; fi; elif git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C "$dir" log --color --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit | head -200; else ls --color=always -al "$dir"; fi; elif [[ "$type" == session ]]; then tmux display-message -p -t "=$name" "session: #S
+windows: #{session_windows}
+created: #{session_created_string}" 2>/dev/null || printf "session: %s\n" "$name"; else printf "No preview available\n"; fi' \
+      --bind "ctrl-x:execute-silent([[ {1} == session ]] && '$script_path' --kill {3})+reload('$script_path' --list)" \
+      --preview-window=right,60% <"$picker_rows_file" ||
     :
 )"
 
 [[ -z ${selected_entry:-} ]] && exit 0
 
-selected_name="${selected_entry%%$'\t'*}"
-selected_dir="${selected_entry#*$'\t'}"
-session_name="${selected_name//./_}" # tmux dislikes dots
+IFS=$'\t' read -r selected_type _display_label session_name selected_dir <<<"$selected_entry"
 
-if [[ -z ${TMUX:-} ]]; then
-  tmux new-session -As "$session_name" -c "$selected_dir"
-  exit 0
-elif ! tmux has-session -t="$session_name" 2>/dev/null; then
-  tmux new-session -ds "$session_name" -c "$selected_dir"
-fi
-
-if [[ -z ${TMUX:-} ]]; then
-  tmux attach-session -t "$session_name"
-else
-  tmux switch-client -t "$session_name"
-fi
+case "$selected_type" in
+  session)
+    switch_or_attach "$session_name"
+    ;;
+  project)
+    if tmux has-session -t "=$session_name" 2>/dev/null; then
+      switch_or_attach "$session_name"
+    elif [[ -z ${TMUX:-} ]]; then
+      tmux new-session -s "$session_name" -c "$selected_dir"
+    else
+      tmux new-session -ds "$session_name" -c "$selected_dir"
+      tmux switch-client -t "=$session_name"
+    fi
+    ;;
+  *)
+    printf 'Unknown picker entry type: %s\n' "$selected_type" >&2
+    exit 1
+    ;;
+esac
