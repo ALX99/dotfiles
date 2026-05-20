@@ -9,6 +9,11 @@
       ".mod": "gomod",
       ".sum": "gosum",
       ".work": "gowork"
+    },
+    "settings": {
+      "gopls": {
+        "fileWatcher": "poll"
+      }
     }
   },
   "tsgo": {

@@ -12,6 +12,7 @@ return {
         parameterNames = true,
         rangeVariableTypes = true
       },
+      fileWatcher = "poll",
       gofumpt = true,
       staticcheck = true,
       usePlaceholders = false,
