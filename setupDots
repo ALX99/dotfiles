@@ -101,8 +101,18 @@ linux_system_config() {
 }
 
 mac_system_config() {
-  echo -e "${YELLOW}No macOS-specific automation is defined yet.${NC}"
-  echo -e "${YELLOW}Add tasks here when macOS setup steps are available.${NC}"
+  if [[ "$(uname)" != "Darwin" ]]; then
+    echo -e "${RED}macOS system configuration can only run on macOS.${NC}"
+    return 1
+  fi
+
+  local keyboard_layout_dir="$HOME/Library/Keyboard Layouts"
+  local keyboard_layout_src="$PWD/misc/keymaps/Colemak-DH-ANSI.keylayout"
+
+  run_command mkdir -p "$keyboard_layout_dir"
+  run_command install -m 0644 "$keyboard_layout_src" "$keyboard_layout_dir/"
+
+  echo -e "${YELLOW}Log out and back in, then enable:${NC} System Settings → Keyboard → Text Input → Edit → + → Others → Colemak-DH ANSI"
 }
 
 run() {
