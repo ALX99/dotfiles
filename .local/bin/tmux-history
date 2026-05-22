@@ -5,8 +5,15 @@ file="$(mktemp -t tmux-history.XXXXXX).log"
 cleanup() { rm -f "$file"; }
 trap cleanup EXIT
 
-tmux capture-pane -pS - | perl -0pe 's/(?:[ \t]*\n)+\z/\n/' >"$file"
-tmux new-window -n history "nvim +$ '+normal! zb' '+nnoremap <buffer> q :quit<CR>' '$file'; rm -f '$file'"
+if [[ $(tmux display-message -p '#{pane_in_mode}') == 1 ]]; then
+  tmux capture-pane -M -p | perl -0pe 's/(?:[ \t]*\n)+\z/\n/' >"$file"
+  nvim_position='+normal! ggzt'
+else
+  tmux capture-pane -pS - | perl -0pe 's/(?:[ \t]*\n)+\z/\n/' >"$file"
+  nvim_position='+normal! Gzb'
+fi
+
+tmux new-window -n history "nvim '$nvim_position' '+nnoremap <buffer> q :quit<CR>' '$file'; rm -f '$file'"
 
 # keep the file for the tmux window; rely on the command above to clean up
 trap - EXIT
