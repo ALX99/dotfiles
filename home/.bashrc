@@ -117,7 +117,7 @@ __prompt_render() {
 __prompt_command() {
   local exit_status=$?
   history -a
-  [[ -r venv/bin/activate ]] && . venv/bin/activate
+  [[ -r .venv/bin/activate ]] && . .venv/bin/activate
   __prompt_render "$exit_status"
 }
 
