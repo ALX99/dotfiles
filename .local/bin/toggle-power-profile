@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s nullglob
+
+readonly balanced="balanced"
+readonly performance="performance"
+
+set_governor() {
+  local governor="$1"
+  local file
+
+  for file in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+    [[ "$(<"$file")" == "$governor" ]] && continue
+    echo "$governor" | sudo tee "$file" >/dev/null
+  done
+}
+
+current="$(powerprofilesctl get)"
+
+case "$current" in
+"$balanced")
+  target="$performance"
+  ;;
+"$performance")
+  target="$balanced"
+  ;;
+*)
+  target="$balanced"
+  ;;
+esac
+
+# power-profiles-daemon controls Intel EPP and can fail if the cpufreq
+# governor was manually forced to "performance". Put intel_pstate back in
+# its managed mode first; the profile still controls performance vs balanced.
+set_governor powersave
+powerprofilesctl set "$target"
+echo "$target"
