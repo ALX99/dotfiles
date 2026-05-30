@@ -22,9 +22,9 @@ hl.monitor({
 ---- MY PROGRAMS ----
 ---------------------
 
-local terminal = "ghostty"
-local fileManager = "dolphin"
-local menu = "fuzzel"
+local terminal = "uwsm app -- com.mitchellh.ghostty.desktop"
+local fileManager = "uwsm app -- dolphin"
+local menu = "uwsm app -- fuzzel"
 local mainMod = "SUPER"
 
 -------------------
@@ -32,10 +32,7 @@ local mainMod = "SUPER"
 -------------------
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("easyeffects --gapplication-service -l dynamic")
-    hl.exec_cmd("waybar")
-    hl.exec_cmd("fcitx5 --replace -d >/tmp/fcitx5.log 2>&1")
-    hl.exec_cmd("swaybg -i $HOME/papes/bg.jpeg")
+    hl.exec_cmd("uwsm finalize")
 end)
 
 -----------------------
@@ -132,9 +129,9 @@ hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.window.kill())
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(menu))
-hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("brave"))
+hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("uwsm app -- brave-browser.desktop"))
 hl.bind(mainMod .. " + SHIFT + E", hl.dsp.exec_cmd(fileManager))
-hl.bind(mainMod .. " + SHIFT + A", hl.dsp.exec_cmd("anki"))
+hl.bind(mainMod .. " + SHIFT + A", hl.dsp.exec_cmd("uwsm app -- anki.desktop"))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + J", hl.dsp.layout("orientationnext"))

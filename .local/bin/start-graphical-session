@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+may_start() {
+  command -v uwsm >/dev/null 2>&1 && uwsm check may-start
+}
+
+case "${1:-}" in
+  --may-start)
+    may_start
+    ;;
+  "")
+    if may_start; then
+      exec uwsm start -e -D Hyprland -- hyprland.desktop >/tmp/hyprland.log 2>&1
+    fi
+    ;;
+  *)
+    printf 'usage: %s [--may-start]\n' "${0##*/}" >&2
+    exit 2
+    ;;
+esac
