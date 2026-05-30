@@ -1,0 +1,13 @@
+[Unit]
+Description=Wallpaper daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/swaybg -i %h/pape/bg.jpeg
+Restart=on-failure
+Slice=background-graphical.slice
+
+[Install]
+WantedBy=graphical-session.target

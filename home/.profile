@@ -4,6 +4,13 @@
 
 set -a
 
+# UWSM sources this file with /bin/sh while preparing the graphical session.
+# The rest of this profile intentionally uses bash syntax, and the login
+# environment has already been captured by `uwsm start`, so skip it here.
+if [ "${IN_UWSM_ENV_PRELOADER:-}" = "true" ]; then
+  return 0
+fi
+
 # =============================================================================
 # PATH
 # =============================================================================
@@ -75,8 +82,6 @@ else
   QT_IM_MODULE="fcitx"
   QT_IM_MODULES="wayland;fcitx;ibus"
 
-  set +a
-  [ "$(tty)" = "/dev/tty1" ] && exec dbus-run-session hyprland >/tmp/hyprland.log 2>&1
 fi
 
 # =============================================================================
@@ -168,6 +173,13 @@ if [ "$(uname)" = "Linux" ]; then
 fi
 
 set +a
+
+if [ "$(uname)" = "Linux" ] && \
+  [ -x "$HOME/.local/bin/start-graphical-session" ] && \
+  "$HOME/.local/bin/start-graphical-session" --may-start
+then
+  exec "$HOME/.local/bin/start-graphical-session"
+fi
 
 # shellcheck source=/dev/null
 [ -f ~/.bashrc ] && . ~/.bashrc

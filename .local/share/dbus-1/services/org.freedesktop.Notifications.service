@@ -1,0 +1,8 @@
+# User-level override for dunst's packaged DBus service.
+# The packaged file is named org.knopwob.dunst.service but provides
+# org.freedesktop.Notifications, which makes dbus-broker warn because the
+# filename does not match the provided bus name.
+[D-BUS Service]
+Name=org.freedesktop.Notifications
+Exec=/usr/bin/dunst
+SystemdService=dunst.service
