@@ -1,0 +1,13 @@
+[Unit]
+Description=EasyEffects audio processing
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service pipewire-pulse.service
+Requisite=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/easyeffects --gapplication-service -l dynamic
+Restart=on-failure
+Slice=background-graphical.slice
+
+[Install]
+WantedBy=graphical-session.target
