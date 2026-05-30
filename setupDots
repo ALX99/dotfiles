@@ -95,6 +95,12 @@ linux_system_config() {
 
   run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 
+  # CPU power scaling
+  run_command sudo systemctl enable --now power-profiles-daemon.service
+  run_command powerprofilesctl set balanced
+
+  run_command sudo systemctl enable --now fstrim.timer
+
   run_command sudo ln -sfT "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
 
