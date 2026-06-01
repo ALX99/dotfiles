@@ -1,5 +1,5 @@
--- mini.nvim suite (depends on: sidekick.lua for statusline, snacks.lua for rename)
--- Load order: must run after sidekick.lua and snacks.lua
+-- mini.nvim suite (depends on: snacks.lua for rename)
+-- Load order: must run after snacks.lua
 vim.pack.add({
   { src = 'https://github.com/nvim-mini/mini.nvim', version = vim.version.range('*') },
 })
