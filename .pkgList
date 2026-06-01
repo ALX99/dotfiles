@@ -85,9 +85,7 @@ plocate # Locate
 power-profiles-daemon # configure CPU frequency scaling
 pyright
 ripgrep
-river
 rust
-rust-analyzer
 shellcheck
 shfmt # shell format
 sof-firmware # Sound firmware, usually required for laptop audio

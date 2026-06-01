@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-pidof dunst && killall dunst
-dunst &
-
-notify-send -u low "low" "This is not a very urgent message"
-notify-send -u normal "normal" "This is a normal message."
-notify-send -u critical "critical" "This is a very critical message!"
