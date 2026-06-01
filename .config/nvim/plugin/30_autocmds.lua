@@ -70,7 +70,7 @@ _G.Config.new_autocmd("BufWritePre", {
   end
 })
 
--- Go organize-imports on save is handled in 40_lsp_attach.lua (combined with auto-format to avoid race conditions)
+-- Go organize-imports on save is handled in 41_lsp_format.lua (combined with auto-format to avoid race conditions)
 
 
 -- Automatically update listchars to match indentation and listchars settings

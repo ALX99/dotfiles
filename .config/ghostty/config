@@ -6,12 +6,6 @@ macos-option-as-alt = true
 window-inherit-font-size = true
 mouse-hide-while-typing = true
 
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/bloom.glsl
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/dither.glsl
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/matrix-hallway.glsl
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/mnoise.glsl
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/retro-terminal.glsl
-#custom-shader = ~/dotfiles/misc/ghostty-shaders/starfield-colors.glsl
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 
 # PS1 / LS_COLORS theme

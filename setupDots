@@ -30,37 +30,18 @@ remove_broken_symlinks() {
 }
 
 user_config() {
-  run_command mkdir -p ~/.config ~/.local ~/.gemini/skills ~/.gemini/antigravity ~/.kilocode/skills ~/.agents
+  run_command mkdir -p ~/.config ~/.local ~/.agents
 
   remove_broken_symlinks ~/.local
   run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
 
   remove_broken_symlinks ~/.claude
-  remove_broken_symlinks ~/.gemini
-  remove_broken_symlinks ~/.gemini/antigravity
-  remove_broken_symlinks ~/.kilocode
   run_command stow --dir "$PWD" --target ~ --restow --no-folding home
-
-  # Create symlink for opencode skills to share with claude skills
-  # Must be after home stow so ~/.claude/skills exists as a symlink first
-  run_command mkdir -p ~/.config/opencode
-  rm -f ~/.config/opencode/skills
-  run_command ln -s ~/.claude/skills ~/.config/opencode/skills
 
   # Share Claude skills with Codex
   # Must be after home stow so ~/.claude/skills exists as a symlink first
   rm -f ~/.agents/skills
   run_command ln -s ~/.claude/skills ~/.agents/skills
-
-  # Share Claude skills with Antigravity
-  # Must be after home stow so ~/.claude/skills exists as a symlink first
-  rm -rf ~/.gemini/antigravity/skills
-  run_command ln -s ~/.claude/skills ~/.gemini/antigravity/skills
-
-  # Share Claude skills with Kilocode
-  # Must be after home stow so ~/.claude/skills exists as a symlink first
-  rm -rf ~/.kilocode/skills
-  run_command ln -s ~/.claude/skills ~/.kilocode/skills
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$PWD" --target ~/.config --restow .config

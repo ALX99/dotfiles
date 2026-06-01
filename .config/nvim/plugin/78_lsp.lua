@@ -23,26 +23,19 @@ end
 
 local enabled_lsps = {
   "pyright",
-  "docker_language_server",
-  "rust_analyzer",
   "jsonls",
   "html",
   "cssls",
-  "sourcekit",
   "tailwindcss",
   "tsgo",
-  "zls",
-  "gleam",
   "terraformls",
   "eslint",
   "gopls",
   "yamlls",
   "lua_ls",
   "copilot",
-  "svelte",
   "gh_actions_ls",
   "kotlin_lsp",
-  "astro",
 }
 
 for _, name in ipairs(enabled_lsps) do
