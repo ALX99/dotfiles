@@ -6,7 +6,7 @@ vim.pack.add({
 })
 
 local map = require('utils').map
-local gitgud = require('custom_plugins.gitgud')
+local gitgud = require('custom.gitgud')
 
 map('n', '<leader>Gl', function() gitgud.copy_github_permalink() end, { desc = "Copy GitHub permalink" })
 map('x', '<leader>Gl', function()
