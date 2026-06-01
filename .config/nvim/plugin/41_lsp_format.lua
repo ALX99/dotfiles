@@ -11,7 +11,6 @@ local utils = require('utils')
 local fmt = {
   lua = "lua_ls",
   go = "gopls",
-  rust = "rust_analyzer",
   html = "html",
   javascript = "tsgo",
   typescript = "tsgo",

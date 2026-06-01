@@ -49,10 +49,6 @@ function M.map(mode, lhs, rhs, opts)
   vim.keymap.set(mode, lhs, rhs, options)
 end
 
-function M.is_linux()
-  return vim.uv.os_uname().sysname == "Linux"
-end
-
 --- Copy the selected code block to clipboard
 ---@param opts vim.api.keyset.user_command
 function M.copy_code_block(opts)
