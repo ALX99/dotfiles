@@ -206,6 +206,12 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true 
 --------------------------------
 
 hl.window_rule({
+    name = "float-blueman-manager",
+    match = { class = "blueman-manager" },
+    float = true,
+})
+
+hl.window_rule({
     name = "suppress-maximize-events",
     match = { class = ".*" },
     suppress_event = "maximize",

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if bluetoothctl show | rg -q 'Powered: yes'; then
+  bluetoothctl power off >/dev/null
+  notify-send 'Bluetooth' 'Powered off'
+else
+  bluetoothctl power on >/dev/null
+  notify-send 'Bluetooth' 'Powered on'
+fi

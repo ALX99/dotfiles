@@ -61,6 +61,10 @@ linux_system_config() {
     /etc/systemd/logind.conf.d/ \
     /etc/systemd/resolved.conf.d/
 
+  run_command sudo cp -f "$PWD"/misc/systemd-config/zram-generator.conf /etc/systemd/
+  run_command sudo systemctl daemon-reload
+  run_command sudo systemctl start systemd-zram-setup@zram0.service
+
   # Systemd runs in a sandbox and does not have access to user directories by default.
   # That's why we copy things
   run_command sudo rm -f /etc/systemd/sleep.conf.d/99-sleep.conf
@@ -81,6 +85,7 @@ linux_system_config() {
   run_command powerprofilesctl set balanced
 
   run_command sudo systemctl enable --now fstrim.timer
+  run_command sudo systemctl enable --now bluetooth.service
 
   run_command sudo ln -sfT "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
