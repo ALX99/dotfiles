@@ -215,11 +215,24 @@ command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
 _sh="${SHELL##*/}"
 
 # shellcheck disable=SC1091
-[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
+bbcomp() {
+  local completion
+  for completion in \
+    /opt/homebrew/etc/profile.d/bash_completion.sh \
+    /usr/local/etc/profile.d/bash_completion.sh \
+    /usr/share/bash-completion/bash_completion; do
+    if [ -r "$completion" ]; then
+      . "$completion"
+      unset -f bbcomp
+      return 0
+    fi
+  done
+
+  printf 'bbcomp: bash-completion not found\n' >&2
+  return 1
+}
 [ -f "/usr/share/fzf/key-bindings.$_sh" ] && . "/usr/share/fzf/key-bindings.$_sh"
 [ -f "/usr/share/doc/pkgfile/command-not-found.$_sh" ] && . "/usr/share/doc/pkgfile/command-not-found.$_sh"
-# shellcheck disable=SC1091
-[ -r "/usr/share/bash-completion/bash_completion" ] && . "/usr/share/bash-completion/bash_completion"
 # shellcheck disable=SC2206
 _fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
 [ -f "${_fzf_dirs[-1]}/key-bindings.$_sh" ] && . "${_fzf_dirs[-1]}/key-bindings.$_sh"
@@ -228,4 +241,4 @@ _fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
 command -v keychain >/dev/null 2>&1 && eval "$(keychain --eval --quiet --noask)"
 [ -r "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" 2>/dev/null
 
-unset _sh
+unset _sh _fzf_dirs
