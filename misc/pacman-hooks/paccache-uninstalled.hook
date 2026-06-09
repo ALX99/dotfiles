@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Cleaning uninstalled packages from the package cache older than 30 days...
+When = PostTransaction
+Exec = /usr/bin/paccache -rvuk0 --min-mtime "30 days ago"
+Depends = pacman-contrib

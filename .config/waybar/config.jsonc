@@ -5,8 +5,8 @@
     "spacing": 1,
     "margin": 0,
     "modules-left": ["hyprland/workspaces"],
-        "modules-center": [],
-    "modules-right": ["clock","pulseaudio", "backlight", "network", "cpu", "memory", "temperature", "battery", "disk", "custom/updates", "custom/weather", "tray"],
+    "modules-center": [],
+    "modules-right": ["clock", "pulseaudio", "backlight", "network", "bluetooth", "cpu", "memory", "temperature", "battery", "disk", "custom/updates", "custom/weather", "tray"],
 
 
     "hyprland/workspaces": {
@@ -122,6 +122,22 @@
         "format-alt": "{ifname}: {ipaddr}/{cidr}",
         "tooltip-format": "{ifname}: {ipaddr}",
         "on-click": "ghostty -e nmtui"
+    },
+
+    "bluetooth": {
+        "format": "󰂯",
+        "format-disabled": "󰂲",
+        "format-off": "󰂲",
+        "format-on": "󰂯",
+        "format-connected": "󰂱 {num_connections}",
+        "format-connected-battery": "󰂱 {device_battery_percentage}%",
+        "tooltip-format": "{controller_alias}\t{controller_address}\n\n{num_connections} connected",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_address}\t{device_battery_percentage}%",
+        "on-click": "blueman-manager",
+        "on-click-right": "toggle-bluetooth",
+        "on-click-middle": "ghostty -e bluetui"
     },
 
     "pulseaudio": {
