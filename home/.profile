@@ -175,10 +175,10 @@ fi
 set +a
 
 if [ "$(uname)" = "Linux" ] && \
-  [ -x "$HOME/.local/bin/start-graphical-session" ] && \
-  "$HOME/.local/bin/start-graphical-session" --may-start
+  command -v uwsm >/dev/null 2>&1 && \
+  uwsm check may-start
 then
-  exec "$HOME/.local/bin/start-graphical-session"
+  exec uwsm start -e -D Hyprland -- hyprland.desktop >/tmp/hyprland.log 2>&1
 fi
 
 # shellcheck source=/dev/null

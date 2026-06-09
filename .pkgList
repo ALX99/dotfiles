@@ -1,6 +1,6 @@
 7zip
 alsa-utils # alsamixer and more
-anki-bin # anki
+anki
 bash-completion # completion
 bat # better cat
 bind # nslookup and more
@@ -31,7 +31,6 @@ fcitx5-qt
 fuzzel # app launcher
 fzf
 gammastep # adjust screen color temp
-gemini-cli
 ghostty
 git
 git-delta
@@ -48,6 +47,7 @@ htop
 hyprland
 imv # image viewer
 intel-media-sdk
+intel-ucode
 iwd # Daemon to manage network connections (make sure to configure it with systemd-networkd, systemd-resolved)
 iw # iw wifi thingy
 jq # Json parser
@@ -57,6 +57,7 @@ lazygit
 libnotify # library for sending desktop notifications
 libva-utils # used to verify VA-API
 linux-firmware # Required for hardware video acceleration for skylake or later generations
+lsp-plugins-lv2 # LV2 plugins used by EasyEffects presets
 lua-language-server
 lxqt-openssh-askpass # askpass tool
 man-db
@@ -78,6 +79,7 @@ pacman-contrib # checkupdates, pactree and stuff
 pavucontrol # Volume control
 pcmanfm
 perl-image-exiftool # extract exif data from images
+pi
 pipewire-alsa
 pipewire-pulse # replacement for pulseaudio and pulseaudio-bluetooth (bluetooth audio support). pipewire replaces both jack and pulseaudio
 pkgfile # tool for searching files from packages
@@ -109,6 +111,7 @@ unrar # RAR
 unzip # ZIP
 upower
 usbutils # lsusb
+uwsm
 valkey
 ventoy-bin # manage ISOs on USBs
 veracrypt
@@ -128,3 +131,4 @@ yt-dlp
 zathura # document viewer
 zathura-pdf-poppler # pdf support
 zip
+zram-generator # compressed RAM swap; keep disk swap for hibernation
