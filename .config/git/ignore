@@ -1,0 +1,79 @@
+# Global gitignore — applies to all repositories.
+# Matches are case-sensitive unless the filesystem forces otherwise.
+
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# Editor swap/backup files
+*.swp
+*.swo
+*.swn
+*.bak
+*~
+
+# Compiled / generated
+*.pyc
+__pycache__
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+*.so
+
+# IDE / project-local
+.idea/
+.vscode/
+*.iml
+.ensime_cache
+.cache/
+
+# AI tools — project-local state, config, agent artifacts
+.claude/
+.pi/
+.cursor/
+
+# OS artifacts
+Desktop.ini
+$RECYCLE.BIN/
+
+# Secrets and credentials — never commit these
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.token
+secrets*
+id_rsa
+id_ecdsa
+id_ecdsa_sk
+id_ed25519
+id_ed25519_sk
+id_dsa
+credentials
+.aws/credentials
+.aws/config
+.gcs*
+.netrc
+.htpasswd
+*.service-account-key.json
+*-service-account.json
+*credentials.json
