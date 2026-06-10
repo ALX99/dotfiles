@@ -86,17 +86,17 @@ NPM_CONFIG_IGNORE_SCRIPTS=true
 DISABLE_TELEMETRY=1 # Disable claude code telemetry
 
 # Compact PS1-themed GNU ls colors.
-__ls_colors() {
-  local slate='38;5;245'
-  local red='38;5;203'
-  local green='38;5;114'
-  local yellow='38;5;179'
-  local blue='38;5;75'
-  local purple='38;5;141'
-  local cyan='38;5;109'
-  local dir_blue='38;5;69'
-  local dim_slate="2;${slate}"
-  local c=""
+__ls_colors() (
+  slate='38;5;245'
+  red='38;5;203'
+  green='38;5;114'
+  yellow='38;5;179'
+  blue='38;5;75'
+  purple='38;5;141'
+  cyan='38;5;109'
+  dir_blue='38;5;69'
+  dim_slate="2;${slate}"
+  c=""
 
   # Filesystem state: keep high-risk and unusual entries obvious.
   c="${c}di=1;${dir_blue}:ln=4;${cyan}:or=1;${red}:mi=1;${red}:ex=1;${green}:"
