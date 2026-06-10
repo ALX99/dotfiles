@@ -19,6 +19,7 @@ if ! tmux has -t "=$session" 2>/dev/null; then
 
   tmux set-option -s -t "$session_id" key-table popup
   tmux set-option -s -t "$session_id" status off
+  tmux set-option -s -t "$session_id" prefix None
   tmux set-option -t "$session_id" @tmux_go_private_session 1
   tmux set-option -t "$session_id" @tmux_go_parent_session "$parent_session_name"
   session="$session_id"
