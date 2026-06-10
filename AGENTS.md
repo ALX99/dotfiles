@@ -21,7 +21,7 @@ misc/            → system-level configs (keymaps, systemd, pacman-hooks, sudoe
 
 ### Bi-Platform Code
 Platform conditionals everywhere — always check both branches:
-- Shell: `[[ $OSTYPE == darwin* ]]` vs `else` (Linux)
+- Shell: `[ "$(uname)" = "Darwin" ]` vs `else` (Linux)
 - Shell: `[ "$(uname)" = "Linux" ]`
 - macOS uses Homebrew (`/opt/homebrew/bin`), GNU utils via aliases (`gls`, `gfind`, `gsed`)
 - Linux uses Arch Linux, systemd, Hyprland
@@ -106,6 +106,7 @@ Load order (inside `.config/nvim/`):
 - **Stow**: `.stowrc` sets `--no-folding`; setup commands use `--restow`
 
 ## Gotchas
+- `.profile` is pure POSIX sh. `home/.bash_profile` is a symlink to the same file (bash login shell compatibility). UWSM preloader sources it directly with `/bin/sh`.
 - `.profile` on Linux auto-launches Hyprland on tty1 — **do not edit blindly on macOS**
 - `setupDots` resolves paths from its own location, so it can be run from outside the repo root
 - Ghostty cmd-keybindings pass through to tmux (`cmd+a` → `\x1ba`) — this is how Colemak navigation reaches tmux

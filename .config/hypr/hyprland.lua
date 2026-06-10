@@ -28,6 +28,21 @@ local menu = "uwsm app -- fuzzel"
 local mainMod = "SUPER"
 
 -------------------
+---- ENVIRONMENT ----
+-------------------
+-- Mirrors the Wayland env vars previously set in home/.profile.
+-- Setting them here ensures GUI apps see them before any client starts.
+-- See https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland
+
+hl.env("_JAVA_AWT_WM_NONREPARENTING", "1")
+hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+hl.env("QT_QPA_PLATFORM", "wayland")
+hl.env("ANKI_WAYLAND", "1")
+hl.env("MOZ_ENABLE_WAYLAND", "1")
+hl.env("QT_IM_MODULE", "fcitx")
+hl.env("QT_IM_MODULES", "wayland;fcitx;ibus")
+
+-------------------
 ---- AUTOSTART ----
 -------------------
 
