@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo_dir"
+
 # Color variables
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -33,10 +36,10 @@ user_config() {
   run_command mkdir -p ~/.config ~/.local ~/.agents
 
   remove_broken_symlinks ~/.local
-  run_command stow --dir "$PWD" --target ~/.local --restow --no-folding .local
+  run_command stow --dir "$repo_dir" --target ~/.local --restow .local
 
   remove_broken_symlinks ~/.claude
-  run_command stow --dir "$PWD" --target ~ --restow --no-folding home
+  run_command stow --dir "$repo_dir" --target ~ --restow home
 
   # Share Claude skills with Codex
   # Must be after home stow so ~/.claude/skills exists as a symlink first
@@ -44,7 +47,7 @@ user_config() {
   run_command ln -s ~/.claude/skills ~/.agents/skills
 
   remove_broken_symlinks ~/.config
-  run_command stow --dir "$PWD" --target ~/.config --restow .config
+  run_command stow --dir "$repo_dir" --target ~/.config --restow .config
 
   if [[ "$(uname)" == "Linux" ]]; then
     run_command systemctl --user enable ssh-agent
@@ -53,30 +56,30 @@ user_config() {
 }
 
 linux_system_config() {
-  run_command sudo ln -sf "$PWD"/misc/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
-  run_command sudo ln -sf "$PWD"/misc/keymaps/keyd.conf /etc/keyd/default.conf
+  run_command sudo ln -sf "$repo_dir"/misc/keymaps/colemak /usr/share/X11/xkb/symbols/colemak
+  run_command sudo ln -sf "$repo_dir"/misc/keymaps/keyd.conf /etc/keyd/default.conf
 
   run_command sudo mkdir -p -m 755 \
     /etc/systemd/sleep.conf.d/ \
     /etc/systemd/logind.conf.d/ \
     /etc/systemd/resolved.conf.d/
 
-  run_command sudo cp -f "$PWD"/misc/systemd-config/zram-generator.conf /etc/systemd/
+  run_command sudo cp -f "$repo_dir"/misc/systemd-config/zram-generator.conf /etc/systemd/
   run_command sudo systemctl daemon-reload
   run_command sudo systemctl start systemd-zram-setup@zram0.service
 
   # Systemd runs in a sandbox and does not have access to user directories by default.
   # That's why we copy things
   run_command sudo rm -f /etc/systemd/sleep.conf.d/99-sleep.conf
-  run_command sudo cp -f "$PWD"/misc/systemd-config/99-sleep.conf /etc/systemd/sleep.conf.d/
+  run_command sudo cp -f "$repo_dir"/misc/systemd-config/99-sleep.conf /etc/systemd/sleep.conf.d/
 
   # sudoers
-  run_command sudo ln -sf "$PWD"/misc/99-sudoers /etc/sudoers.d/
+  run_command sudo ln -sf "$repo_dir"/misc/99-sudoers /etc/sudoers.d/
   run_command sudo chown root:root /etc/sudoers.d/99-sudoers
 
   # logind
   run_command sudo rm -f /etc/systemd/logind.conf.d/99-logind.conf
-  run_command sudo cp -f "$PWD"/misc/systemd-config/99-logind.conf /etc/systemd/logind.conf.d/
+  run_command sudo cp -f "$repo_dir"/misc/systemd-config/99-logind.conf /etc/systemd/logind.conf.d/
 
   run_command sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
 
@@ -87,7 +90,7 @@ linux_system_config() {
   run_command sudo systemctl enable --now fstrim.timer
   run_command sudo systemctl enable --now bluetooth.service
 
-  run_command sudo ln -sfT "$PWD"/misc/pacman-hooks /etc/pacman.d/hooks
+  run_command sudo ln -sfT "$repo_dir"/misc/pacman-hooks /etc/pacman.d/hooks
   run_command sudo ln -sfT dash /usr/bin/sh
 
 }
@@ -99,7 +102,7 @@ mac_system_config() {
   fi
 
   local keyboard_layout_dir="$HOME/Library/Keyboard Layouts"
-  local keyboard_layout_src="$PWD/misc/keymaps/Colemak-DH-ANSI.keylayout"
+  local keyboard_layout_src="$repo_dir/misc/keymaps/Colemak-DH-ANSI.keylayout"
 
   run_command mkdir -p "$keyboard_layout_dir"
   run_command install -m 0644 "$keyboard_layout_src" "$keyboard_layout_dir/"

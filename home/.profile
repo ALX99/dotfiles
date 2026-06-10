@@ -38,7 +38,6 @@ EDITOR="nvim"
 HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
 HISTSIZE=
 HISTFILESIZE=
-SAVEHIST=
 HISTCONTROL=ignoreboth
 
 # =============================================================================
@@ -69,7 +68,6 @@ else
   SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"
 
   # Clean up ~/ (https://wiki.archlinux.org/title/XDG_Base_Directory)
-  ZDOTDIR="$XDG_CONFIG_HOME/.config}/zsh"
   LESSHISTFILE="-"
   LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
   XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority"

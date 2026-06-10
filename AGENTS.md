@@ -17,7 +17,7 @@ misc/            → system-level configs (keymaps, systemd, pacman-hooks, sudoe
 - `.config/` is stowed directly to `~/.config/` (not `~/.config/.config/`)
 - `home/` is stowed to `~/`
 - `.local/` is stowed to `~/.local/`
-- All use `--no-folding` (creates symlinks for each file, not directories)
+- `.stowrc` enables `--no-folding` (creates symlinks for each file, not directories)
 
 ### Bi-Platform Code
 Platform conditionals everywhere — always check both branches:
@@ -89,7 +89,7 @@ Load order (inside `.config/nvim/`):
 
 ### Git Config
 - `home/.gitconfig` — delta diff viewer, SSH push, aliases, interactive diffFilter
-- `home/.gitalias` — sourced by `.gitconfig` via `!source ~/dotfiles/shell/.gitalias && ...`
+- `home/.gitalias` — sourced by `.gitconfig` via `!source ~/.gitalias && ...`
 - Uses `git@github.com:` insteadOf `https://github.com/`
 - Git aliases in `.gitconfig` are Colemak-agnostic but use short single-letter aliases: `g a`, `g c`, `g s`, `g d`, `g f`, `g p`
 
@@ -103,11 +103,11 @@ Load order (inside `.config/nvim/`):
 - **Shell**: `#!/usr/bin/env bash` with `set -euo pipefail`
 - **Neovim**: `vim.pack.add` for plugins, `_G.Config.new_autocmd()` for autocmds, `utils.map()` for keybindings
 - **Lua**: `local` everywhere, no OOP, `local M = {}` return pattern for modules
-- **Stow**: always `--restow --no-folding`
+- **Stow**: `.stowrc` sets `--no-folding`; setup commands use `--restow`
 
 ## Gotchas
 - `.profile` on Linux auto-launches Hyprland on tty1 — **do not edit blindly on macOS**
-- `stow` runs from `$PWD` in `setupDots`, so always run from the dotfiles repo root
+- `setupDots` resolves paths from its own location, so it can be run from outside the repo root
 - Ghostty cmd-keybindings pass through to tmux (`cmd+a` → `\x1ba`) — this is how Colemak navigation reaches tmux
 - nvim `plugin/` files load in **alphanumeric order by filename** — the `10_`/`20_`/`30_` prefixes enforce order
 - Go format-on-save in nvim runs `organizeImports` code action BEFORE format (see `41_lsp_format.lua`)

@@ -57,10 +57,14 @@ When pushing back:
 - Favor correct architecture, design, and extensibility over "quick" solutions, even if it means more upfront work.
 </constraints>
 
+<context_efficiency>
+- Before reading a file, ask: can I answer this from what I already know? If yes, skip the read.
+- Use targeted rg searches to find specific API details — do not read entire files.
+- When running shell commands that could produce large output, pipe through head/tail/rg/awk to limit results. Example: `rg pattern ./path | head -20` not bare `rg pattern ./path`.
+</context_efficiency>
+
 <tool_use>
 - Use rg over grep, and fd over find.
 - Trust the write tool's response; do not re-read files to verify writes.
-- Tokens are expensive. Only read relevant sections of a file after determining relevance with arcto.
-- Run `/Users/dozy/projects/arcto/target/release/arcto &lt;file&gt;` before reading an entire file to determine if it contains relevant information.
 </tool_use>
 </append_system_prompt>
