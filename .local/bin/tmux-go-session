@@ -160,7 +160,7 @@ pick_entry() {
   local -a picker_cmd
 
   if [[ -n ${TMUX:-} ]]; then
-    picker_cmd=(fzf-tmux -p 80%,90%)
+    picker_cmd=(fzf-tmux -p '80%,90%')
   else
     picker_cmd=(fzf)
   fi
