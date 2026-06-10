@@ -47,7 +47,7 @@
   cm  = c -m
   ca  = c --amend --no-edit
   cam = c --amend
-  ch  = !source ~/dotfiles/shell/.gitalias && gch $1
+  ch  = !source ~/.gitalias && gch $1
   cu  = reset --mixed HEAD~1
 
   # diff
@@ -56,10 +56,10 @@
   dc = diff --cached
 
   # branches
-  bd = !source ~/dotfiles/shell/.gitalias && gbd $1
+  bd = !source ~/.gitalias && gbd $1
   bl = branch
   bc = checkout -b
-  bs = !source ~/dotfiles/shell/.gitalias && gbs $1
+  bs = !source ~/.gitalias && gbs $1
 
   # stashes
   sa = stash push
