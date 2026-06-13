@@ -12,10 +12,10 @@ case $- in
 esac
 
 # History
-HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
+HISTIGNORE="&:exit:ls:bg:fg:history:clear"
 HISTSIZE=-1
 HISTFILESIZE=-1
-HISTCONTROL=ignoreboth
+HISTCONTROL=ignoredups
 
 __prompt_is_unmerged_status() {
   case "$1" in
