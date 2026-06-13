@@ -27,14 +27,6 @@ TERMINAL="ghostty"
 EDITOR="nvim"
 
 # =============================================================================
-# History
-# =============================================================================
-HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
-HISTSIZE=
-HISTFILESIZE=
-HISTCONTROL=ignoreboth
-
-# =============================================================================
 # Platform-specific
 # =============================================================================
 if [ "$(uname)" = "Darwin" ]; then
@@ -141,7 +133,8 @@ __ls_colors() (
   c="${c}*.cache=${dim_slate}:*.DS_Store=${dim_slate}:"
 
   printf '%s\n' "$c"
-}
+)
+
 LS_COLORS="$(__ls_colors)"
 unset -f __ls_colors
 

@@ -47,7 +47,6 @@
   cm  = c -m
   ca  = c --amend --no-edit
   cam = c --amend
-  ch  = !source ~/.gitalias && gch $1
   cu  = reset --mixed HEAD~1
 
   # diff
@@ -79,10 +78,6 @@
   rank    = shortlog -sn --no-merges
   remotes = remote -v
   review  = push origin HEAD:refs/for/master
-
-# Push over SSH instead of HTTPS
-[url "ssh://git@github.com/"]
-  pushInsteadOf = https://github.com/
 
 [difftool]
     prompt = false
