@@ -11,6 +11,12 @@ case $- in
 *) return ;;
 esac
 
+# History
+HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
+HISTSIZE=-1
+HISTFILESIZE=-1
+HISTCONTROL=ignoreboth
+
 __prompt_is_unmerged_status() {
   case "$1" in
   DD | AU | UD | UA | DU | AA | UU) return 0 ;;

@@ -43,7 +43,7 @@ Config files with Colemak remappings:
 
 ### Shell (bash)
 - `.profile` → login shell env (PATH, XDG, platform vars, `fcitx5`/Wayland setup)
-  - On Linux tty1: auto-starts Hyprland via `.local/bin/start-graphical-session`
+  - On Linux tty1: auto-starts Hyprland inline from `.profile`
 - `.bashrc` → interactive shell (sources `.privrc`, `.priv_env`, shopt settings, aliases)
 - `.aliasrc` → sourced by `.bashrc`, contains all aliases/functions/bindings/completions
 - `.inputrc` → vi editing mode (`set editing-mode vi`), Colemak search bindings
