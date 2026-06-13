@@ -27,6 +27,7 @@
 [diff]
   colorMoved = default
   submodule = log
+  tool = nvimdiff
 
 [interactive]
   diffFilter = delta --color-only
@@ -50,7 +51,6 @@
   cu  = reset --mixed HEAD~1
 
   # diff
-  d  = diff
   d  = diff --stat
   dc = diff --cached
 
@@ -81,8 +81,6 @@
 
 [difftool]
     prompt = false
-[diff]
-    tool = nvimdiff
 [difftool "nvimdiff"]
     cmd = "nvim -d \"$LOCAL\" \"$REMOTE\""
 [url "git@github.com:"]
