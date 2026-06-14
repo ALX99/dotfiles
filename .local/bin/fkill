@@ -12,7 +12,7 @@ if [ -n "$pid" ]; then
     sleep 5
     for p in $pid; do
       # Send SIGKILL
-      ps --pid "$p" &>/dev/null && kill -s 9 "$p"
+      ps -p "$p" &>/dev/null && kill -s 9 "$p"
     done
   ) &
 fi
