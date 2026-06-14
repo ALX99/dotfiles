@@ -73,10 +73,11 @@ if not vim.g.vscode then
 end
 
 vim.api.nvim_create_user_command("CopyPath", function()
-  local path = vim.fn.expand("%:p")
+  local file = vim.fn.expand("%:p")
   local cwd = vim.fn.getcwd()
-  path = path:sub(#cwd + 2) .. ":" .. vim.fn.line(".")
-  vim.fn.setreg("+", path)
+  local rel = vim.fs.relpath(cwd, file)
+  local display = (rel and rel ~= "") and rel or file
+  vim.fn.setreg("+", display .. ":" .. vim.fn.line("."))
 end, {})
 
 -- Copy text to clipboard using codeblock format ```{ft}{content}```
