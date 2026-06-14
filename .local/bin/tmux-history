@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-file="$(mktemp -t tmux-history.XXXXXX).log"
+file="$(mktemp -t tmux-history.XXXXXX.log)"
 cleanup() { rm -f "$file"; }
 trap cleanup EXIT
 
