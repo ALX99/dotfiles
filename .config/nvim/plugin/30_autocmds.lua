@@ -51,7 +51,7 @@ _G.Config.new_autocmd("BufWritePre", {
   callback = function(info)
     if vim.bo[info.buf].filetype == "sh" then
       if vim.fn.executable('shfmt') ~= 1 then
-        return true -- delete the autocmd
+        return
       end
 
       local original_lines = vim.api.nvim_buf_get_lines(info.buf, 0, -1, true)
