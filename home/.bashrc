@@ -123,7 +123,11 @@ __prompt_render() {
 __prompt_command() {
   local exit_status=$?
   history -a
-  [[ -r .venv/bin/activate ]] && . .venv/bin/activate
+  # Activate project's venv once per shell; guard with $VIRTUAL_ENV to avoid re-sourcing.
+  if [[ -z ${VIRTUAL_ENV:-} && -r .venv/bin/activate ]]; then
+    # shellcheck disable=SC1091
+    . .venv/bin/activate
+  fi
   __prompt_render "$exit_status"
 }
 
