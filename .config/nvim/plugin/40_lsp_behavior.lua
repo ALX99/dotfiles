@@ -167,7 +167,7 @@ _G.Config.new_autocmd('LspAttach', {
     local client = vim.lsp.get_client_by_id(args.data.client_id)
 
     if not client then
-      vim.notify("????????", vim.log.levels.WARN)
+      vim.notify("LspAttach: client " .. args.data.client_id .. " not found", vim.log.levels.INFO)
       return
     end
 
