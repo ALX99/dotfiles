@@ -14,7 +14,6 @@ return {
       },
       fileWatcher = "poll",
       gofumpt = true,
-      staticcheck = true,
       usePlaceholders = false,
       semanticTokens = true,
       directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
