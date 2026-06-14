@@ -1,13 +1,13 @@
-local function use_project_venv(config, root_dir)
-  if not root_dir then return end
+local function use_project_venv(_, config)
+  if not config.root_dir then return end
 
-  local python = root_dir .. '/.venv/bin/python'
+  local python = config.root_dir .. '/.venv/bin/python'
   if vim.fn.executable(python) ~= 1 then return end
 
   config.settings = config.settings or {}
   config.settings.python = config.settings.python or {}
   config.settings.python.pythonPath = python
-  config.settings.python.venvPath = root_dir
+  config.settings.python.venvPath = config.root_dir
   config.settings.python.venv = '.venv'
 end
 
@@ -21,5 +21,5 @@ return {
       },
     },
   },
-  on_new_config = use_project_venv,
+  before_init = use_project_venv,
 }
