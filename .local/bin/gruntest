@@ -24,7 +24,7 @@ set_go_test_flags() {
       shift
     done
     GO_TEST_FLAGS=("$@")
-    printf "%s\n" "${GO_TEST_FLAGS[@]}" | grep '\S' >"$GO_TEST_FLAGS_FILE"
+    printf "%s\n" "${GO_TEST_FLAGS[@]}" | grep '\S' >"$GO_TEST_FLAGS_FILE" || true
   else
    touch "$GO_TEST_FLAGS_FILE"
   fi
@@ -98,7 +98,7 @@ handle_subcommand() {
       jq -re 'select(.Action == "output" and (.Output | startswith("T"))) | .Package + " " + .Output' |
       sed '/^$/d' | fzf-tmux --multi --preview \
       "echo -e '${WHITE}{2}${RESET}  ${GREY}{1}${RESET}'" --preview-window=down:3:wrap --delimiter=" " --ansi --with-nth=2 --bind 'ctrl-a:toggle-all' |
-      tee "$LAST_TESTS_FILE" | xargs -d '\n' bash -c 'run_tests "$@"' _
+      tee "$LAST_TESTS_FILE" | gxargs -d '\n' bash -c 'run_tests "$@"' _
     return
     ;;
   esac
