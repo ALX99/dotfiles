@@ -74,6 +74,16 @@ handle_subcommand() {
   if [[ $1 != "--" ]]; then
     shift
   fi
+  # xargs -d is GNU-only. On Darwin, use the GNU xargs from brew findutils
+  # (gxargs); on Linux, use the system xargs (which is GNU). Matches the
+  # gfind/find split in _projselect.
+  xargs() {
+    if [ "$(uname -s)" = "Darwin" ] && command -v gxargs >/dev/null 2>&1; then
+      gxargs "$@"
+    else
+      command xargs "$@"
+    fi
+  }
   case "$subcommand" in
   rerun)
     if [[ ! -r $LAST_TESTS_FILE ]]; then
@@ -98,7 +108,7 @@ handle_subcommand() {
       jq -re 'select(.Action == "output" and (.Output | startswith("T"))) | .Package + " " + .Output' |
       sed '/^$/d' | fzf-tmux --multi --preview \
       "echo -e '${WHITE}{2}${RESET}  ${GREY}{1}${RESET}'" --preview-window=down:3:wrap --delimiter=" " --ansi --with-nth=2 --bind 'ctrl-a:toggle-all' |
-      tee "$LAST_TESTS_FILE" | gxargs -d '\n' bash -c 'run_tests "$@"' _
+      tee "$LAST_TESTS_FILE" | xargs -d '\n' bash -c 'run_tests "$@"' _
     return
     ;;
   esac
