@@ -11,6 +11,7 @@ gbs() {
   bs="$(git --no-pager branch -vv | grep -v '^\*')"
   [ "$(echo "$bs" | wc -l)" -le 0 ] && return
   b="$(echo "$bs" | fzf-tmux -p +m)"
+  [ -z "$b" ] && return 0
   git switch "$(echo "$b" | awk '{print $1}')"
 }
 
