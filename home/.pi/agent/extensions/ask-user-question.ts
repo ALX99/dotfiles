@@ -1,16 +1,19 @@
 /**
- * Ask User Question — multiple choice with an automatic "Something else" option.
+ * Ask User Question — multiple choice with automatic follow-up options.
  *
- * The AI provides a question and 2-5 alternatives. The tool appends "Something else"
- * as the final option. If the user picks it, a free-form input prompt is shown.
+ * The AI provides a question and 2-5 alternatives. The tool appends "Ask AI for pros and cons"
+ * and "Something else" as final options. If the user asks for pros/cons, the AI should
+ * explain the trade-offs and call this tool again with the same question/alternatives.
+ * If the user picks "Something else", a free-form input prompt is shown.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Text } from "@mariozechner/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 
+const PROS_CONS_OPTION = "Ask AI for pros and cons";
 const OTHER_OPTION = "Something else";
-const NO_ANSWER_MSG = "The user did not answer the question. Wait until further input from the user.";
+const NO_ANSWER_MSG = "User declined to answer, await further instructions.";
 
 interface AskUserQuestionDetails {
   question: string;
@@ -24,20 +27,19 @@ const AskUserQuestionParams = Type.Object({
   alternatives: Type.Array(Type.String({ description: "One alternative answer option" }), {
     minItems: 2,
     maxItems: 5,
-    description: "2 to 5 alternative answer options. Do NOT include 'Something else' — it is appended automatically.",
+    description: "2 to 5 alternative answer options."
   }),
 });
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   pi.registerTool({
     name: "ask_user_question",
     label: "Ask User Question",
     description:
-      "Ask the user a multiple-choice question. Provide 2-5 alternatives; a 'Something else' option is appended automatically. Use when you need the user to choose between specific options or provide a custom answer.",
+      "Ask the user a multiple-choice question. Provide 2-5 alternatives. The tool automatically adds 'Ask AI for pros and cons' and 'Something else'. Use when you need the user to choose between specific options, ask for trade-offs, or provide a custom answer.",
     promptSnippet: "Ask the user a multiple-choice question with 2-5 alternatives",
     promptGuidelines: [
-      "Use ask_user_question when you need the user to pick from specific options or provide a custom answer.",
-      "Provide exactly the question and 2-5 concise alternatives. Do NOT include 'Something else' — it is added automatically.",
+      "Use ask_user_question when you need the user to pick from specific options, ask for trade-offs, or provide a custom answer.",
       "Keep alternatives short and mutually exclusive.",
     ],
     parameters: AskUserQuestionParams,
@@ -47,16 +49,25 @@ export default function (pi: ExtensionAPI) {
         return makeResult(params, "Error: UI not available (running in non-interactive mode)", null, false);
       }
 
-      const options = [...params.alternatives, OTHER_OPTION];
+      const options = [...params.alternatives, PROS_CONS_OPTION, OTHER_OPTION];
       const choice = await ctx.ui.select(params.question, options, { signal });
 
-      if (choice === null) {
+      if (choice == null) {
         return makeResult(params, NO_ANSWER_MSG, null, false);
+      }
+
+      if (choice === PROS_CONS_OPTION) {
+        return makeResult(
+          params,
+          "User asked for pros and cons. Explain the pros and cons of each alternative, then call ask_user_question again with the same question and alternatives.",
+          choice,
+          false,
+        );
       }
 
       if (choice === OTHER_OPTION) {
         const custom = await ctx.ui.input("Something else", "Type your answer...", { signal });
-        if (custom === null) {
+        if (custom == null) {
           return makeResult(params, NO_ANSWER_MSG, null, false);
         }
         return makeResult(params, `User answered (custom): ${custom}`, custom, true);
@@ -66,7 +77,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, _context) {
-      const opts = [...args.alternatives, OTHER_OPTION];
+      const opts = [...args.alternatives, PROS_CONS_OPTION, OTHER_OPTION];
       const optsText = opts.map((o, i) => `${i + 1}. ${o}`).join(", ");
       const text =
         theme.fg("toolTitle", theme.bold("ask_user_question ")) +

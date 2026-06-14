@@ -1,15 +1,19 @@
 {
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "medium",
+  "defaultProvider": "tokenrouter",
+  "defaultModel": "MiniMax-M3",
+  "defaultThinkingLevel": "high",
+  "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": true,
-  "lastChangelogVersion": "0.74.0",
+  "lastChangelogVersion": "0.79.3",
   "retry": {
     "maxRetries": 10
   },
   "packages": [],
   "enabledModels": [
-    "openai-codex/gpt-5.5"
+    "openai-codex/gpt-5.5",
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-pro",
+    "tokenrouter/MiniMax-M3"
   ]
 }
