@@ -37,7 +37,7 @@ function colemak.setup(_)
 end
 
 function colemak.apply()
-  for _, mapping in pairs(mappings) do
+  for _, mapping in ipairs(mappings) do
     local desc = mapping.desc
     if desc then
       desc = desc .. ' [COLEMAK]'
@@ -52,7 +52,7 @@ function colemak.apply()
 end
 
 function colemak.unapply()
-  for _, mapping in pairs(mappings) do
+  for _, mapping in ipairs(mappings) do
     vim.keymap.del(mapping.modes, mapping.lhs)
   end
 end
