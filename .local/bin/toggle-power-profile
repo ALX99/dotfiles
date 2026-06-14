@@ -18,15 +18,10 @@ set_governor() {
 current="$(powerprofilesctl get)"
 
 case "$current" in
-"$balanced")
-  target="$performance"
-  ;;
-"$performance")
-  target="$balanced"
-  ;;
-*)
-  target="$balanced"
-  ;;
+"$performance") target="$balanced" ;;
+"$balanced")    target="power-saver" ;;
+"power-saver")  target="$performance" ;;
+*)              target="$performance" ;;
 esac
 
 # power-profiles-daemon controls Intel EPP and can fail if the cpufreq
