@@ -33,7 +33,8 @@ gbd() {
   bs="$(git --no-pager branch -vv | awk -v default_branch="$default_branch" '{ branch = $1; if (branch == "*" || branch == default_branch) next; print }')"
   [ "$(echo "$bs" | wc -l)" -le 0 ] && return
   b="$(echo "$bs" | fzf-tmux -p -m)"
-  echo "$b" | awk '{print $1}' | grep -v "\*" | sed "s/.* //" | xargs -I{} git branch -D '{}'
+  [ -z "$b" ] && return 0
+  echo "$b" | awk '{print $1}' | grep -v "\*" | xargs -I{} git branch -D '{}'
 }
 
 
