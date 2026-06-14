@@ -17,7 +17,8 @@ vim.lsp.handlers["window/showMessage"] = function(err, result, ctx)
   local msg = "[LSP]"
   if client then msg = msg .. " [" .. client.name .. "] " end
   if result and result.message then
-    vim.notify(msg .. result.message, vim.log.levels.INFO)
+    local level = ({ [1] = vim.log.levels.ERROR, [2] = vim.log.levels.WARN, [3] = vim.log.levels.INFO, [4] = vim.log.levels.DEBUG })[result.type] or vim.log.levels.INFO
+    vim.notify(msg .. result.message, level)
   end
 end
 
