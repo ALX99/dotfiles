@@ -1,4 +1,10 @@
 #!/bin/sh
+set -u
+
+if [ "$(uname -s)" != "Linux" ]; then
+  printf 'priv: Linux-only (requires /proc/sys and iptables)\n' >&2
+  exit 0
+fi
 
 # Ignore all ICMP echo
 echo "1" >/proc/sys/net/ipv4/icmp_echo_ignore_all
