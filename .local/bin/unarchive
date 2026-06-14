@@ -21,8 +21,8 @@ choose_dest() {
     if [ "$count" -le 1 ]; then
         printf '.'
     else
-        mkdir -p "$name"
-        printf '%s' "$name"
+        mkdir -p "${name:-.}"
+        printf '%s' "${name:-.}"
     fi
 }
 
