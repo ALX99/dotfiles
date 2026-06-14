@@ -123,15 +123,19 @@ local function highlight_references(client, buf)
     group = UserLspConfig,
     buffer = buf,
     once = true,
-    callback = function()
+    callback = function(ev)
+      if not (ev.data and ev.data.client_id == client.id) then return end
       vim.lsp.buf.clear_references()
       vim.api.nvim_del_augroup_by_name('lsp-highlight-' .. buf)
+      vim.b[buf].lsp_highlight_setup = nil
+      return true
     end,
   })
 end
 
+---@param client vim.lsp.Client
 ---@param buf number
-local function show_diagnostics(buf)
+local function show_diagnostics(client, buf)
   if vim.b[buf].lsp_diagnostics_float_setup then return end
   vim.b[buf].lsp_diagnostics_float_setup = true
 
@@ -156,8 +160,11 @@ local function show_diagnostics(buf)
     group = UserLspConfig,
     buffer = buf,
     once = true,
-    callback = function()
+    callback = function(ev)
+      if not (ev.data and ev.data.client_id == client.id) then return end
       vim.api.nvim_del_augroup_by_name('lsp-diag-hold-' .. buf)
+      vim.b[buf].lsp_diagnostics_float_setup = nil
+      return true
     end,
   })
 end
@@ -183,7 +190,7 @@ _G.Config.new_autocmd('LspAttach', {
 
     mappings(client, args.buf)
     highlight_references(client, args.buf)
-    show_diagnostics(args.buf)
+    show_diagnostics(client, args.buf)
   end,
   group = UserLspConfig,
 })
