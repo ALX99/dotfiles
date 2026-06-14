@@ -2,13 +2,13 @@
  * Footer Extension — Full custom footer replacement.
  *
  * Shows on the left:  other extension statuses, cwd, git branch
- * Shows on the right: (provider) model, thinking level, context bar, session tokens
+ * Shows on the right: (provider) model, thinking level, context bar, session tokens, latest cache hit rate
  *
  * Right-aligned with space padding so stats stay flush to the terminal edge.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 
 /* ─── formatting ─── */
@@ -140,12 +140,27 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 function buildSessionTokens(ctx: ExtensionContext): string {
   let input = 0;
   let output = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
+  let latestCacheHitRate: number | undefined;
+
   for (const e of ctx.sessionManager.getBranch()) {
     if (e.type === "message" && e.message.role === "assistant" && e.message.usage) {
-      input += e.message.usage.input ?? 0;
-      output += e.message.usage.output ?? 0;
+      const usage = e.message.usage;
+      input += usage.input ?? 0;
+      output += usage.output ?? 0;
+      cacheRead += usage.cacheRead ?? 0;
+      cacheWrite += usage.cacheWrite ?? 0;
+
+      const latestPromptTokens = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+      latestCacheHitRate = latestPromptTokens > 0 ? ((usage.cacheRead ?? 0) / latestPromptTokens) * 100 : undefined;
     }
   }
+
   const sep = ctx.ui.theme.fg("dim", "/");
-  return `${ctx.ui.theme.fg("accent", "↑")}${fmt(input)}${sep}${ctx.ui.theme.fg("accent", "↓")}${fmt(output)}`;
+  let tokens = `${ctx.ui.theme.fg("accent", "↑")}${fmt(input)}${sep}${ctx.ui.theme.fg("accent", "↓")}${fmt(output)}`;
+  if ((cacheRead > 0 || cacheWrite > 0) && latestCacheHitRate !== undefined) {
+    tokens += `${sep}${ctx.ui.theme.fg("accent", "CH")}${latestCacheHitRate.toFixed(1)}%`;
+  }
+  return tokens;
 }
