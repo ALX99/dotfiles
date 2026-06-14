@@ -14,7 +14,7 @@ local skip_dirs = {
 local function should_save_session()
   local cwd = vim.fn.getcwd()
 
-  -- Don't save if no files are open
+  -- Don't save/restore if files were passed on the command line
   if vim.fn.argc() > 0 then
     return false
   end
