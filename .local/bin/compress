@@ -2,7 +2,7 @@
 # Compress directory
 
 cLevel="3"
-PARAMS=""
+PARAMS=()
 while (("$#")); do
   case "$1" in
   -cl | --compression-level)
@@ -18,13 +18,11 @@ while (("$#")); do
     exit 1
     ;;
   *) # preserve positional arguments
-    PARAMS+="$1"
+    PARAMS+=("$1")
     shift
     ;;
   esac
 done
-# set positional arguments in their proper place
-eval set -- "$PARAMS"
 
-tar -cvf archive.tar "$PARAMS" &&
-  zstd -z --rm -"$cLevel" -T"$(nproc)" archive.tar -o archive.tar.zst
+tar -cvf archive.tar "${PARAMS[@]}" &&
+  zstd -z --rm -"$cLevel" -T"$(nproc 2>/dev/null || sysctl -n hw.ncpu)" archive.tar -o archive.tar.zst
