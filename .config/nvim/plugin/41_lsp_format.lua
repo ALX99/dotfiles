@@ -95,7 +95,7 @@ local function organize_go_imports(buf, client)
 end
 
 local function set_format_on_save(buf, client, callback)
-  local group = vim.api.nvim_create_augroup('lsp.format.' .. buf, { clear = true })
+  local group = vim.api.nvim_create_augroup('lsp.format.' .. buf .. '.' .. client.id, { clear = true })
   _G.Config.new_autocmd('BufWritePre', {
     group = group,
     buffer = buf,
@@ -108,7 +108,7 @@ local function set_format_on_save(buf, client, callback)
     buffer = buf,
     callback = function(ev)
       if ev.data and ev.data.client_id == client.id then
-        vim.api.nvim_del_augroup_by_name('lsp.format.' .. buf)
+        vim.api.nvim_del_augroup_by_name('lsp.format.' .. buf .. '.' .. client.id)
         return true
       end
     end,
