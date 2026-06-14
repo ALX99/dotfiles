@@ -21,7 +21,7 @@ map("n", "<leader>!", function()
 end, { desc = "Reload Window" })
 
 map("n", "zta", function()
-  vscode.notify("Close Active Editor")
+  vscode.action("workbench.action.closeActiveEditor")
 end, { desc = "Close Active Editor" })
 
 -- Window navigation
