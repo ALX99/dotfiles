@@ -1,7 +1,7 @@
 ---@type lspconfig.settings.lua_ls
 return {
   on_init = function(client)
-    if client.workspace_folders then
+    if client.workspace_folders and client.workspace_folders[1] then
       local path = client.workspace_folders[1].name
       if
           path ~= vim.fn.stdpath('config')
