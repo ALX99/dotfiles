@@ -5,8 +5,11 @@ local function tmux(args, input)
   return result.code == 0, vim.trim(result.stdout or ""), vim.trim(result.stderr or "")
 end
 
+-- Prefer single quotes; fall back to double quotes with \" escapes for paths containing '
 local function quote_path(path)
-  return path:find("[^%w/_%.%-]") and ('"' .. path .. '"') or path
+  if not path:find("[^%w/_%.%-]") then return path end
+  if path:find("'") then return '"' .. path:gsub('"', '\\"') .. '"' end
+  return "'" .. path .. "'"
 end
 
 local function current_session()
@@ -37,7 +40,7 @@ local function send_to_pane(pane_id, text)
 end
 
 local function focus_popup(tool)
-  local popup = vim.fn.expand("~/dotfiles/.config/tmux/session-popup")
+  local popup = vim.fn.expand("~/.config/tmux/session-popup")
   local job = vim.fn.jobstart({ "tmux", "display-popup", "-T", tool, "-w", "95%", "-h", "95%", "-E", popup, tool }, {
     detach = true,
   })
