@@ -57,27 +57,27 @@ end
 local function organize_go_imports(buf, client)
   local params = vim.lsp.util.make_range_params(nil, client.offset_encoding)
   params.context = { only = { 'source.organizeImports' } }
-  vim.lsp.buf_request_all(buf, 'textDocument/codeAction', params, function(results)
-    for _, res in pairs(results or {}) do
-      for _, action in pairs(res.result or {}) do
-        if action.edit then
-          local ok, err = pcall(vim.lsp.util.apply_workspace_edit, action.edit, client.offset_encoding)
-          if not ok then
-            vim.notify("organizeImports edit failed: " .. tostring(err), vim.log.levels.WARN)
-          end
-        end
-        if action.command then
-          client:exec_cmd(action.command)
+  local results, err = vim.lsp.buf_request_sync(buf, 'textDocument/codeAction', params, 1000)
+  if not results then
+    vim.notify("organizeImports request failed: " .. tostring(err), vim.log.levels.WARN)
+    return
+  end
+  for _, res in pairs(results) do
+    for _, action in pairs(res.result or {}) do
+      if action.edit then
+        local ok, e = pcall(vim.lsp.util.apply_workspace_edit, action.edit, client.offset_encoding)
+        if not ok then
+          vim.notify("organizeImports edit failed: " .. tostring(e), vim.log.levels.WARN)
         end
       end
+      if action.command then
+        client:exec_cmd(action.command)
+      end
     end
+  end
+  if vim.api.nvim_buf_is_valid(buf) then
     vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
-    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then
-      vim.api.nvim_buf_call(buf, function()
-        vim.cmd('noautocmd write')
-      end)
-    end
-  end)
+  end
 end
 
 local function set_format_on_save(buf, client, callback)
