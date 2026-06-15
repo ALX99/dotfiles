@@ -36,11 +36,11 @@ end
 
 local function focus_popup(tool)
   local popup = vim.fn.expand("~/.config/tmux/session-popup")
-  local job = vim.fn.jobstart({ "tmux", "display-popup", "-T", tool, "-w", "95%", "-h", "95%", "-E", popup, tool }, {
+  local job_id = vim.fn.jobstart({ "tmux", "display-popup", "-T", tool, "-w", "95%", "-h", "95%", "-E", popup, tool }, {
     detach = true,
   })
 
-  if job <= 0 then
+  if job_id <= 0 then
     vim.notify("Failed to focus " .. tool .. " popup", vim.log.levels.ERROR)
   end
 end
