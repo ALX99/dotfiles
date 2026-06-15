@@ -133,7 +133,7 @@ vim.ui.open = (function(overridden)
       elseif is_repo then
         path = ('https://github.com/%s'):format(path)
       elseif not is_dir then
-        path = ('https://google.com/search?q=%s'):format(path)
+        path = ('https://google.com/search?q=%s'):format(vim.uri_encode(path))
       end
     end
     overridden(path)
