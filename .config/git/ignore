@@ -40,7 +40,7 @@ __pycache__
 
 # AI tools — project-local state, config, agent artifacts
 .claude/
-.pi/
+.pi/memory/
 .cursor/
 
 # OS artifacts
