@@ -6,7 +6,7 @@ end
 vim.g.diagnostics_visible = true
 local utils = require('utils')
 
-local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', {})
+local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', { clear = true })
 
 ---@param client vim.lsp.Client
 ---@param buf number
