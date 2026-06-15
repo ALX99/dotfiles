@@ -25,12 +25,9 @@ XDG_CONFIG_HOME="$HOME/.config"
 # =============================================================================
 TERMINAL="ghostty"
 if command -v code >/dev/null 2>&1; then
-  EDITOR="code --wait"
   VISUAL="code --wait"
-else
-  EDITOR="nvim"
-  VISUAL="nvim"
 fi
+EDITOR="nvim"
 
 # =============================================================================
 # Platform-specific
