@@ -11,4 +11,4 @@ echo '' |
   fzf --disabled \
     --preview-window='down:95%' \
     --print-query \
-    --preview "gawk {q} $input"
+    --preview "gawk {q} \"$input\""
