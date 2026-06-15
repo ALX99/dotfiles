@@ -62,19 +62,22 @@ build_project_rows() {
     s=$(printf '%s' "$unsanitized" | tr -c '[:alnum:]_-' '_' | sed 's/^_*//; s/_*$//')
     [[ -z $s ]] && { echo "Cannot derive a tmux session name for project: $path" >&2; return 1; }
 
-    if [[ -n ${seen[$s]} && ${seen[$s]} != "$path" ]]; then
+    if [[ -n ${seen[$s]:-} && ${seen[$s]:-} != "$path" ]]; then
       (( found_collision )) || echo "Project paths derive the same tmux session name after sanitization:" >&2
-      echo "  $s: ${seen[$s]} and $path" >&2
+      echo "  $s: ${seen[$s]:-} and $path" >&2
       found_collision=1
       continue
     fi
     seen[$s]="$path"
 
-    [[ -z ${existing[$s]} ]] && \
+    [[ -z ${existing[$s]:-} ]] && \
       printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n" "$unsanitized" "$s" "$path"
   done
 
-  (( found_collision )) && { echo "Rename one project or choose a collision policy." >&2; return 1; }
+  if (( found_collision )); then
+    echo "Rename one project or choose a collision policy." >&2
+    return 1
+  fi
 }
 
 emit_picker_rows() {
