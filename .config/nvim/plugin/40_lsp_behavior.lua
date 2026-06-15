@@ -18,34 +18,28 @@ local function mappings(client, buf)
     utils.map(mode, lhs, rhs, options)
   end
 
-  local default_picker_opts = {
-    layout = {
-      layout = {
-        backdrop = false,
-        width = 0.5,
-        min_width = 80,
-        height = 0.8,
-        min_height = 30,
-        box = "vertical",
-        border = true,
-        title = "{title} {live} {flags}",
-        title_pos = "center",
-        { win = "input",   height = 1,          border = "bottom" },
-        { win = "list",    border = "none" },
-        { win = "preview", title = "{preview}", height = 0.4,     border = "top" },
-      },
-    },
-    focus = "list", -- Focus the list view
-  }
-
-  -- helper to create Snacks picker functions with default options
-  local function lsp_picker(picker_fn, override_opts)
+  local function lsp_picker(picker_fn)
     return function()
-      local opts = vim.tbl_extend("force", default_picker_opts, override_opts or {})
-      if vim.bo.filetype == "go" then
-        opts = vim.tbl_extend("force", opts, { pattern = "!_test.go" })
-      end
-      picker_fn(opts)
+      picker_fn({
+        layout = {
+          layout = {
+            backdrop = false,
+            width = 0.5,
+            min_width = 80,
+            height = 0.8,
+            min_height = 30,
+            box = "vertical",
+            border = true,
+            title = "{title} {live} {flags}",
+            title_pos = "center",
+            { win = "input",   height = 1,      border = "bottom" },
+            { win = "list",    border = "none" },
+            { win = "preview", title = "{preview}", height = 0.4, border = "top" },
+          },
+        },
+        focus = "list",
+        pattern = vim.bo.filetype == "go" and "!_test.go" or nil,
+      })
     end
   end
 

@@ -5,13 +5,6 @@ local function tmux(args, input)
   return result.code == 0, vim.trim(result.stdout or ""), vim.trim(result.stderr or "")
 end
 
--- Prefer single quotes; fall back to double quotes with \" escapes for paths containing '
-local function quote_path(path)
-  if not path:find("[^%w/_%.%-]") then return path end
-  if path:find("'") then return '"' .. path:gsub('"', '\\"') .. '"' end
-  return "'" .. path .. "'"
-end
-
 local function current_session()
   local ok, stdout = tmux({ "display-message", "-p", "#S" })
   return ok and stdout ~= "" and stdout or nil
@@ -22,9 +15,11 @@ local function target_pane(session_name)
   return ok and stdout:match("[^\n]+") or nil
 end
 
-local function send_to_pane(pane_id, text)
+-- Send a path to a tmux pane using shellescape for safe quoting.
+local function send_to_pane(pane_id, path)
   local buffer = "nvim-ai-file-" .. pane_id:gsub("^%%", "")
-  local ok, _, err = tmux({ "load-buffer", "-b", buffer, "-" }, text)
+  local payload = "@" .. vim.fn.shellescape(path) .. "\n"
+  local ok, _, err = tmux({ "load-buffer", "-b", buffer, "-" }, payload)
   if not ok then
     vim.notify("Failed to load tmux buffer: " .. err, vim.log.levels.ERROR)
     return false
@@ -83,7 +78,7 @@ function M.send_file_to_popup()
   end
 
   local rel = vim.fs.relpath(vim.fn.getcwd(), file) or file
-  if send_to_pane(pane_id, "@" .. quote_path(rel) .. "\n") then
+  if send_to_pane(pane_id, rel) then
     focus_popup(tool)
     vim.notify("Sent " .. rel .. " to " .. tool, vim.log.levels.INFO)
   end
