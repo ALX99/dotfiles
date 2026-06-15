@@ -176,10 +176,15 @@ _G.Config.new_autocmd('LspAttach', {
 
 
     -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
-    if client.server_capabilities.definitionProvider then
+    -- Only set the LSP funcs when the option is empty/default; otherwise
+    -- we'd clobber a user-customized tagfunc/formatexpr every time a
+    -- client attaches. server_capabilities is optional on the client type
+    -- (it's nil pre-initialize) so guard that too.
+    local caps = client.server_capabilities or {}
+    if caps.definitionProvider and vim.bo[args.buf].tagfunc == '' then
       vim.bo[args.buf].tagfunc = "v:lua.vim.lsp.tagfunc"
     end
-    if client.server_capabilities.documentFormattingProvider then
+    if caps.documentFormattingProvider and vim.bo[args.buf].formatexpr == '' then
       vim.bo[args.buf].formatexpr = "v:lua.vim.lsp.formatexpr()"
     end
 
