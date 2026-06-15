@@ -40,70 +40,41 @@ collect_project_paths() {
 build_project_rows() {
   collect_project_paths >"$project_paths_file"
 
-  awk -F '\t' '
-    function basename(path, value) {
-      value = path
-      sub(/^.*\//, "", value)
-      return value
-    }
+  declare -A existing seen base_count
+  while IFS= read -r s; do existing["$s"]=1; done < "$session_names_file"
 
-    function parent_basename(path, parent) {
-      parent = path
-      sub(/\/[^\/]*$/, "", parent)
-      sub(/^.*\//, "", parent)
-      return parent
-    }
+  declare -a paths bases
+  while IFS= read -r p; do
+    paths+=("$p")
+    b=$(basename "$p")
+    bases+=("$b")
+    base_count["$b"]=$(( ${base_count["$b"]:-0} + 1 ))
+  done < "$project_paths_file"
 
-    function sanitize(name) {
-      gsub(/[^[:alnum:]_-]/, "_", name)
-      sub(/^_+/, "", name)
-      sub(/_+$/, "", name)
-      return name
-    }
+  local found_collision=0 path b unsanitized s
+  for i in "${!paths[@]}"; do
+    path="${paths[$i]}"; b="${bases[$i]}"
+    if [[ ${base_count["$b"]:-0} -gt 1 ]]; then
+      unsanitized="$(basename "$(dirname "$path")")_${b}"
+    else
+      unsanitized="$b"
+    fi
+    s=$(printf '%s' "$unsanitized" | tr -c '[:alnum:]_-' '_' | sed 's/^_*//; s/_*$//')
+    [[ -z $s ]] && { echo "Cannot derive a tmux session name for project: $path" >&2; return 1; }
 
-    FILENAME == ARGV[1] {
-      existing[$0] = 1
-      next
-    }
+    if [[ -n ${seen[$s]} && ${seen[$s]} != "$path" ]]; then
+      (( found_collision )) || echo "Project paths derive the same tmux session name after sanitization:" >&2
+      echo "  $s: ${seen[$s]} and $path" >&2
+      found_collision=1
+      continue
+    fi
+    seen[$s]="$path"
 
-    {
-      paths[++path_count] = $0
-      base = basename($0)
-      bases[path_count] = base
-      base_count[base]++
-    }
+    [[ -z ${existing[$s]} ]] && \
+      printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n" "$unsanitized" "$s" "$path"
+  done
 
-    END {
-      for (i = 1; i <= path_count; i++) {
-        unsanitized = base_count[bases[i]] > 1 ? parent_basename(paths[i]) "_" bases[i] : bases[i]
-        session_name = sanitize(unsanitized)
-
-        if (session_name == "") {
-          printf "Cannot derive a tmux session name for project: %s\n", paths[i] > "/dev/stderr"
-          exit 1
-        }
-
-        if (seen_path[session_name] != "" && seen_path[session_name] != paths[i]) {
-          if (!found_collision) {
-            print "Project paths derive the same tmux session name after sanitization:" > "/dev/stderr"
-          }
-          printf "  %s: %s and %s\n", session_name, seen_path[session_name], paths[i] > "/dev/stderr"
-          found_collision = 1
-          continue
-        }
-        seen_path[session_name] = paths[i]
-
-        if (!existing[session_name]) {
-          printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n", unsanitized, session_name, paths[i]
-        }
-      }
-
-      if (found_collision) {
-        print "Rename one project or choose a collision policy." > "/dev/stderr"
-        exit 1
-      }
-    }
-  ' "$session_names_file" "$project_paths_file"
+  (( found_collision )) && { echo "Rename one project or choose a collision policy." >&2; return 1; }
 }
 
 emit_picker_rows() {

@@ -106,6 +106,9 @@ get_untracked() {
     <(comm -23 <(pacman -Qeq | sort) <(pacman -Qgq base-devel | sort)) \
     <(get_tracked) || true
 }
+
+preview=(fzf --preview 'pacman -Qil {}')
+
 main() {
   case "${1-}" in
   -h | --help)
@@ -226,5 +229,4 @@ main() {
   esac
 }
 
-preview=(fzf --preview 'pacman -Qil {}')
 main "$@"
