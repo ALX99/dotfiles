@@ -167,9 +167,14 @@ yoink() {
   local url=$1 dest=$2
   [[ -e $dest ]] && { echo "yoink: $dest already exists" >&2; return 1; }
   local p=${url#https://github.com/}
-  local owner_repo=${p%%/tree/*} branch_path=${p#*/tree/}
-  local branch=${branch_path%%/*} subpath=${branch_path#*/}
-  [[ $subpath == "$branch_path" ]] && subpath=""
+  local owner_repo branch subpath
+  if [[ $p == *"/tree/"* ]]; then
+    owner_repo=${p%%/tree/*} branch_path=${p#*/tree/}
+    branch=${branch_path%%/*} subpath=${branch_path#*/}
+    [[ $subpath == "$branch_path" ]] && subpath=""
+  else
+    owner_repo=$p branch="" subpath=""
+  fi
   local tmp; tmp=$(mktemp -d)
   if [[ -n $branch ]]; then
     gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse --branch "$branch" 2>/dev/null
