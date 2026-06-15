@@ -13,7 +13,11 @@ map("i", "<M-BS>", "<C-W>", { desc = "Delete word backwards" }) -- For macOS
 
 
 map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
-map("n", "<leader>bD", "<cmd>%bd|e#<CR>", { desc = "Close all buffers except current" })
+map("n", "<leader>bD", function()
+  local cur_path = vim.api.nvim_buf_get_name(0)
+  vim.cmd("%bd!")
+  if cur_path ~= "" then vim.cmd("edit " .. vim.fn.fnameescape(cur_path)) end
+end, { desc = "Close all buffers except current" })
 map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
 map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
 
