@@ -24,7 +24,13 @@ XDG_CONFIG_HOME="$HOME/.config"
 # Default programs
 # =============================================================================
 TERMINAL="ghostty"
-EDITOR="nvim"
+if command -v code >/dev/null 2>&1; then
+  EDITOR="code --wait"
+  VISUAL="code --wait"
+else
+  EDITOR="nvim"
+  VISUAL="nvim"
+fi
 
 # =============================================================================
 # Platform-specific
@@ -44,7 +50,6 @@ else
   BUN_INSTALL_CACHE_DIR="$XDG_CACHE_HOME/bun"
 
   # Default programs
-  VISUAL="nvim"
   BROWSER="brave"
   FILE="pcmanfm"
 
