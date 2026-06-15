@@ -18,7 +18,8 @@ local function mappings(client, buf)
     utils.map(mode, lhs, rhs, options)
   end
 
-  local function lsp_picker(picker_fn)
+  local function lsp_picker(picker_fn, opts)
+    opts = opts or {}
     return function()
       picker_fn({
         layout = {
@@ -38,13 +39,15 @@ local function mappings(client, buf)
           },
         },
         focus = "list",
-        pattern = vim.bo.filetype == "go" and "!_test.go" or nil,
+        pattern = opts.pattern,
       })
     end
   end
 
+  local go_test_exclude = vim.bo.filetype == "go" and "!_test.go" or nil
+
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gri', lsp_picker(Snacks.picker.lsp_implementations), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'gri', lsp_picker(Snacks.picker.lsp_implementations, { pattern = go_test_exclude }), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
   bmap('n', 'grr', lsp_picker(Snacks.picker.lsp_references), { desc = "Go to reference" })           -- vim.lsp.buf.references
   bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
