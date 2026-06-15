@@ -47,11 +47,12 @@ log_pkg() {
 
 # Read packages to either install or remove
 read_pkgs() {
+  local result=""
   while [[ $# -gt 0 ]] && [[ ${1:0:1} != - ]]; do
-    pkgs+="$1 "
+    result+="$1 "
     shift
   done
-  echo "$pkgs"
+  echo "$result"
 }
 
 # Remove a tracked package
