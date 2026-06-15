@@ -3,13 +3,7 @@ local M = {}
 local function get_github_url(opts)
   opts = opts or {}
 
-  -- gh browse takes paths relative to the repo root, but expand('%:.') is
-  -- relative to cwd. A buffer in a subdir would 404. Resolve through git
-  -- so the path is anchored at the worktree root regardless of cwd.
-  -- Untracked files fall back to expand('%:.'): gh refuses them anyway,
-  -- and permalinks for uncommitted code don't make sense.
-  local file_path = (vim.trim(vim.system({ "git", "ls-files", "--full-name", "--", vim.fn.expand("%:p") }, { text = true }):wait().stdout or ""):match("^[^
-]+")) or vim.fn.expand("%:.")
+  local file_path = vim.fn.expand("%:.")
   local start_line = tonumber(opts.start_line) or vim.fn.line(".")
   local end_line = opts.end_line and tonumber(opts.end_line) or nil
 
