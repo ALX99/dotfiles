@@ -61,7 +61,10 @@ local function organize_go_imports(buf, client)
     for _, res in pairs(results or {}) do
       for _, action in pairs(res.result or {}) do
         if action.edit then
-          vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
+          local ok, err = pcall(vim.lsp.util.apply_workspace_edit, action.edit, client.offset_encoding)
+          if not ok then
+            vim.notify("organizeImports edit failed: " .. tostring(err), vim.log.levels.WARN)
+          end
         end
         if action.command then
           client:exec_cmd(action.command)
