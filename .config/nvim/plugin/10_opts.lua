@@ -128,7 +128,9 @@ vim.ui.open = (function(overridden)
     local is_repo = vim.bo.filetype == 'lua' and path:match('%w/%w') and vim.fn.count(path, '/') == 1
     local is_dir = path:match('^/') or path:match('^~')
     if not is_uri then
-      if is_half_url then
+      if is_dir and path:sub(1, 1) == '~' then
+        path = vim.fn.expand(path)
+      elseif is_half_url then
         path = ('https://%s'):format(path)
       elseif is_repo then
         path = ('https://github.com/%s'):format(path)
