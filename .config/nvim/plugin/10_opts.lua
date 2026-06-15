@@ -124,7 +124,7 @@ vim.ui.open = (function(overridden)
       path = { path, 'string' },
     })
     local is_uri = path:match('%w+:')
-    local is_half_url = path:match('%.com$')
+    local is_half_url = path:match('%.%a%a+')
     local is_repo = vim.bo.filetype == 'lua' and path:match('%w/%w') and vim.fn.count(path, '/') == 1
     local is_dir = path:match('^/') or path:match('^~')
     if not is_uri then
