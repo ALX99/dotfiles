@@ -130,11 +130,15 @@ vim.ui.open = (function(overridden)
     if not is_uri then
       if is_dir and path:sub(1, 1) == '~' then
         path = vim.fn.expand(path)
+      elseif is_dir then
+        -- Absolute path with no tilde: leave as-is so overridden() can open it
+        -- (e.g. /foo/bar.py must not be treated as a half-URL just because it
+        -- has a dot in the filename).
       elseif is_half_url then
         path = ('https://%s'):format(path)
       elseif is_repo then
         path = ('https://github.com/%s'):format(path)
-      elseif not is_dir then
+      else
         path = ('https://google.com/search?q=%s'):format(vim.uri_encode(path))
       end
     end
