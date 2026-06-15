@@ -2,35 +2,19 @@ local M = {
 }
 
 
----strip leading spaces
+---strip leading spaces (smallest indent wins; empty lines ignored)
 ---@param lines table<string>
 ---@return table<string>
 local function strip_leading_spaces(lines)
-  local spaces_to_trim_cnt = nil
-
+  local min = math.huge
   for _, line in ipairs(lines) do
     if line ~= "" then
-      local space_count = #line:match("^(%s*)")
-
-      if not spaces_to_trim_cnt or space_count < spaces_to_trim_cnt then
-        spaces_to_trim_cnt = space_count
-      end
+      local n = #line:match("^%s*")
+      if n < min then min = n end
     end
   end
-
-  -- If all lines are empty, return them as is
-  if not spaces_to_trim_cnt then
-    return lines
-  end
-
-  -- Strip the leading spaces from each line
-  local stripped_lines = {}
-  for _, line in ipairs(lines) do
-    -- Remove the leading spaces
-    table.insert(stripped_lines, line:sub(spaces_to_trim_cnt + 1))
-  end
-
-  return stripped_lines
+  if min == math.huge then return lines end
+  return vim.tbl_map(function(line) return line:sub(min + 1) end, lines)
 end
 
 

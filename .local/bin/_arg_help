@@ -3,19 +3,14 @@
 set -euo pipefail
 
 show_help() {
-  if ! "$@" >/dev/null 2>&1; then
-    echo "failed: $*"
-    return
-  fi
-
-  if command -v bat >/dev/null 2>&1; then
-    "$@" | bat --plain --language=help &&
-      echo "$@" &&
-      exit 0
+  if "$@" >/dev/null 2>&1; then
+    if command -v bat >/dev/null 2>&1; then
+      "$@" | bat --plain --language=help
+    else
+      "$@"
+    fi
   else
-    "$@" &&
-      echo "$@" &&
-      exit 0
+    echo "failed: $*"
   fi
 }
 
@@ -39,10 +34,11 @@ for arg in "${args[@]}"; do
 done
 
 while [ ${#cmd[@]} -gt 0 ]; do
-  show_help "${cmd[@]}" --help
-  show_help "${cmd[@]}" -h
-  show_help "${cmd[@]}" -?
-  show_help "${cmd[@]}" help
-  show_help "${cmd[@]}" usage
+  for help_flag in --help -h -? help usage; do
+    if show_help "${cmd[@]}" "$help_flag" 2>/dev/null; then
+      echo "${cmd[*]} $help_flag"
+      exit 0
+    fi
+  done
   cmd=("${cmd[@]:0:${#cmd[@]}-1}")
 done
