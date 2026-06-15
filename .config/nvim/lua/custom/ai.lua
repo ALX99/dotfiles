@@ -15,10 +15,13 @@ local function target_pane(session_name)
   return ok and stdout:match("[^\n]+") or nil
 end
 
--- Send a path to a tmux pane using shellescape for safe quoting.
+-- Send a path to a tmux pane via tmux paste-buffer. The bytes are written
+-- verbatim into the target pane, so shellescape is wrong: it would wrap the
+-- path in single quotes, and any backslash-escaped chars would land in the
+-- pane as backslashes.
 local function send_to_pane(pane_id, path)
   local buffer = "nvim-ai-file-" .. pane_id:gsub("^%%", "")
-  local payload = "@" .. vim.fn.shellescape(path) .. "\n"
+  local payload = "@" .. path .. "\n"
   local ok, _, err = tmux({ "load-buffer", "-b", buffer, "-" }, payload)
   if not ok then
     vim.notify("Failed to load tmux buffer: " .. err, vim.log.levels.ERROR)
