@@ -122,7 +122,6 @@ local function highlight_references(client, buf)
     desc = "Remove highlight autocmds",
     group = UserLspConfig,
     buffer = buf,
-    once = true,
     callback = function(ev)
       if not (ev.data and ev.data.client_id == client.id) then return end
       vim.lsp.buf.clear_references()
@@ -159,7 +158,6 @@ local function show_diagnostics(client, buf)
     desc = "Remove diagnostics float autocmd",
     group = UserLspConfig,
     buffer = buf,
-    once = true,
     callback = function(ev)
       if not (ev.data and ev.data.client_id == client.id) then return end
       vim.api.nvim_del_augroup_by_name('lsp-diag-hold-' .. buf)
