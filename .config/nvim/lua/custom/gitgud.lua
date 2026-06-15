@@ -32,16 +32,17 @@ local function get_github_url(opts)
 
   local result = vim.system(cmd, { text = true }):wait()
   local url = vim.fn.trim(result.stdout or "")
+  local stderr = vim.fn.trim(result.stderr or "")
 
-  return url, result.code
+  return url, result.code, stderr
 end
 
 ---@param opts? {start_line?: number, end_line?: number}
 function M.copy_github_permalink(opts)
-  local url, err = get_github_url(opts)
+  local url, err, stderr = get_github_url(opts)
 
   if err ~= 0 then
-    vim.notify("gitgud: " .. url, vim.log.levels.ERROR)
+    vim.notify("gitgud: " .. (stderr ~= "" and stderr or ("gh exited with code " .. err)), vim.log.levels.ERROR)
     return
   end
 
@@ -51,10 +52,10 @@ end
 
 ---@param opts? {start_line?: number, end_line?: number}
 function M.open_github_file(opts)
-  local url, err = get_github_url(opts)
+  local url, err, stderr = get_github_url(opts)
 
   if err ~= 0 then
-    vim.notify("gitgud: " .. url, vim.log.levels.ERROR)
+    vim.notify("gitgud: " .. (stderr ~= "" and stderr or ("gh exited with code " .. err)), vim.log.levels.ERROR)
     return
   end
 
