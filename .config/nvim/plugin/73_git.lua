@@ -36,8 +36,15 @@ require('blame').setup({
     end
 
     local parent = commit_hash .. "^"
-    local buf    = vim.fn.bufadd(file_path)
-    vim.fn.bufload(buf)
+    -- Only allocate a new buffer if one doesn't already exist for the
+    -- file; bufadd() leaks a hidden buffer into the list every time
+    -- the user opens a blame detail on a different file. If the buffer
+    -- is already known, reuse it.
+    local buf = vim.fn.bufnr(file_path)
+    if buf == -1 then
+      buf = vim.fn.bufadd(file_path)
+      vim.fn.bufload(buf)
+    end
 
     local ok, err = pcall(vim.api.nvim_buf_call, buf, function()
       vim.cmd(("CodeDiff file %s %s"):format(parent, commit_hash))
