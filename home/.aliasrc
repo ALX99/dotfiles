@@ -92,8 +92,7 @@ alias \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
-  urldecode='printf "%b" "${1//%/\\x}"' \
-  urlencode='printf "%s" "$1" | jq -sRr @uri' \
+  vset='_x() { read -r "$1" && export "$1"; }; _x' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
   unset_aws_profile='unset AWS_PROFILE' \
@@ -150,6 +149,9 @@ _man_help() {
   res="${READLINE_LINE%% *}"
   help "$res" 2>/dev/null || man "$res"
 }
+
+urldecode() { printf "%b" "${1//%/\\x}"; }
+urlencode() { printf "%s" "$1" | jq -sRr @uri; }
 
 dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker run --entrypoint /bin/sh --rm -it "$1"; }
 
