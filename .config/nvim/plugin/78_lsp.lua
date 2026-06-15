@@ -46,6 +46,7 @@ vim.lsp.codelens.enable(true)
 _G.Config.new_autocmd('LspProgress', {
   callback = function(ev)
     local value = ev.data.params.value
+    if type(value) ~= 'table' or not value.kind then return end
     vim.api.nvim_echo({ { value.message or 'done' } }, false, {
       id = 'lsp.' .. ev.data.client_id,
       kind = 'progress',
