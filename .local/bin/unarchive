@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-[ ! -r "$1" ] && echo "'$1' is not a readable file" && exit 1
+if [ ! -r "$1" ]; then
+  echo "'$1' is not a readable file" >&2
+  exit 1
+fi
 
 # Strip archive extension(s) to derive target dir name
 name=$(basename "$1")
@@ -17,8 +20,8 @@ esac
 # Given a newline-separated file listing, print "." if single top-level entry,
 # otherwise mkdir $name and print it
 choose_dest() {
-    count=$(awk -F/ '{k=($1=="."?$2:$1)} k && !seen[k]++ {n++} END {print n}' <<< "$1")
-    if [ "$count" -le 1 ]; then
+    count=$(awk -F/ '{k=($1=="."?$2:$1)} k && !seen[k]++ {n++} END {print n+0}' <<< "$1")
+    if [ -z "$count" ] || [ "$count" -le 1 ]; then
         printf '.'
     else
         mkdir -p "${name:-.}"
