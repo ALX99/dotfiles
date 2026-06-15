@@ -121,5 +121,7 @@ end, { expr = true })
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
 
-vim.cmd("packadd nvim.undotree")
-map("n", "<leader>u", require("undotree").open)
+map("n", "<leader>u", function()
+  vim.cmd("packadd nvim.undotree")
+  require("undotree").open()
+end, { desc = "Undo tree" })
