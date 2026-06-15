@@ -21,21 +21,8 @@ local fmt = {
 local format_group = vim.api.nvim_create_augroup('lsp.format', {})
 local missing_black_notified = false
 
-local function black_command(buf)
-  local buf_name = vim.api.nvim_buf_get_name(buf)
-  local start = buf_name ~= '' and vim.fs.dirname(buf_name) or vim.uv.cwd()
-  local venv = vim.fs.find('.venv', { path = start, upward = true, type = 'directory' })[1]
-  if venv then
-    local black = venv .. '/bin/black'
-    if vim.fn.executable(black) == 1 then return black end
-  end
-
-  if vim.fn.executable('black') == 1 then return 'black' end
-end
-
 local function format_python_black(buf)
-  local black = black_command(buf)
-  if not black then
+  if vim.fn.executable('black') ~= 1 then
     if not missing_black_notified then
       missing_black_notified = true
       vim.notify('black not found; install it in .venv or on PATH', vim.log.levels.WARN)
@@ -47,7 +34,7 @@ local function format_python_black(buf)
   if filename == '' then filename = 'stdin.py' end
 
   local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, true), '\n')
-  local output = vim.fn.systemlist({ black, '--quiet', '--stdin-filename', filename, '-' }, input)
+  local output = vim.fn.systemlist({ 'black', '--quiet', '--stdin-filename', filename, '-' }, input)
   if vim.v.shell_error ~= 0 then
     vim.notify('black failed: ' .. table.concat(output, '\n'), vim.log.levels.ERROR)
     return

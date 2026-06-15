@@ -57,8 +57,7 @@ alias \
   kgn='kubectl config get-contexts --no-headers "$(kgc)" | awk "{print \$5}" | sed "s/^$/default/"' \
   klc='yq ".contexts.[].name" ~/.kube/config' \
   kln='kubectl get namespaces -o custom-columns=NAME:.metadata.name --no-headers' \
-  ksn='kubectl config set-context --current --namespace "$(kln | fzf --header "select ns. ctx: ["$(kubectl config current-context)"]")"' \
-  ksc='_x() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }; (_x)'
+  ksn='kubectl config set-context --current --namespace "$(kln | fzf --header "select ns. ctx: ["$(kubectl config current-context)"]")"'
 
 # =============================================================================
 # Helm
@@ -74,7 +73,6 @@ alias \
 # Docker
 # =============================================================================
 alias \
-  dshell='_x() { docker run --entrypoint /bin/bash --rm -it "$1" || docker run --entrypoint /bin/sh --rm -it "$1"; }; _x' \
   dprune='docker system prune -a --volumes' \
   drr='docker run --rm'
 
@@ -90,16 +88,16 @@ alias \
   mimetype="file --dereference --brief --mime-type" \
   archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="paccy -Syu" \
-  cheat='_x() { curl cht.sh/"$1"; }; _x' \
+  cheat='curl cht.sh' \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
-  urldecode='python3 -c "import sys, urllib.parse as ul; print(ul.unquote_plus(sys.argv[1]))"' \
-  urlencode='python3 -c "import sys, urllib.parse as ul; print (ul.quote_plus(sys.argv[1]))"' \
+  urldecode='printf "%b" "${1//%/\\x}"' \
+  urlencode='printf "%s" "$1" | jq -sRr @uri' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
   unset_aws_profile='unset AWS_PROFILE' \
-  ytmp3='_x() { yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"; }; _x'
+  ytmp3='yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s"'
 
 # Fuzzy file picker
 alias \
@@ -151,6 +149,31 @@ launch() {
 _man_help() {
   res="${READLINE_LINE%% *}"
   help "$res" 2>/dev/null || man "$res"
+}
+
+dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker run --entrypoint /bin/sh --rm -it "$1"; }
+
+ksc() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }
+
+# Download a directory from a GitHub repo via sparse checkout.
+# Usage: yoink <github-url> <local-dir>
+yoink() {
+  local url=$1 dest=$2
+  [[ -e $dest ]] && { echo "yoink: $dest already exists" >&2; return 1; }
+  local p=${url#https://github.com/}
+  local owner_repo=${p%%/tree/*} branch_path=${p#*/tree/}
+  local branch=${branch_path%%/*} subpath=${branch_path#*/}
+  [[ $subpath == "$branch_path" ]] && subpath=""
+  local tmp; tmp=$(mktemp -d)
+  gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse 2>/dev/null
+  (cd "$tmp/repo" && git sparse-checkout set "$subpath")
+  mkdir -p "$dest"
+  if [[ -n $subpath ]]; then
+    cp -r "$tmp/repo/$subpath"/. "$dest"/
+  else
+    cp -r "$tmp/repo"/. "$dest"/
+  fi
+  rm -rf "$tmp"
 }
 
 _fzf_file_insert() {

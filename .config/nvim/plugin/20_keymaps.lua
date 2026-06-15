@@ -93,18 +93,25 @@ map("n", "dd", function()
   end
 end, { noremap = true, expr = true })
 
--- makes * and # act on whole selection in visual mode ("very nomagic")
--- allows to easily find weird strings like /*foo*/
-vim.cmd([[
-function! g:VSetSearch(cmdtype)
-  let temp = @s
-  norm! gv"sy
-  let @/ = '\V' . substitute(escape(@s, a:cmdtype.'\'), '\n', '\\n', 'g')
-  let @s = temp
-endfunction
-xnoremap * :<c-u>call g:VSetSearch('/')<cr>/<c-r>=@/<cr><cr>
-xnoremap # :<c-u>call g:VSetSearch('?')<cr>?<c-r>=@/<cr><cr>
-]])
+-- Visual-mode "very nomagic" search: yank selection into /, then re-run * or #.
+-- Makes * and # search the literal selection (handles /*foo*/ cleanly).
+local function vset_search()
+  local temp = vim.fn.getreg('s')
+  vim.cmd('normal! gv"sy')
+  local s = vim.fn.getreg('s'):gsub('\n', '\\n')
+  s = vim.fn.escape(s, [[/\?]])
+  vim.fn.setreg('/', [[\V]] .. s)
+  vim.fn.setreg('s', temp)
+end
+
+map('x', '*', function()
+  vset_search()
+  return '/' .. vim.fn.getreg('/') .. '<CR>'
+end, { expr = true })
+map('x', '#', function()
+  vset_search()
+  return '?' .. vim.fn.getreg('/') .. '<CR>'
+end, { expr = true })
 
 -- Search inside visual selection
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/

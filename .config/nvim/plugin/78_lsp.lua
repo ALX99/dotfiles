@@ -12,14 +12,12 @@ capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').g
 
 vim.lsp.config('*', { capabilities = capabilities })
 
-vim.lsp.handlers["window/showMessage"] = function(err, result, ctx)
-  local client = ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
-  local msg = "[LSP]"
-  if client then msg = msg .. " [" .. client.name .. "] " end
-  if result and result.message then
-    local level = ({ [1] = vim.log.levels.ERROR, [2] = vim.log.levels.WARN, [3] = vim.log.levels.INFO, [4] = vim.log.levels.DEBUG })[result.type] or vim.log.levels.INFO
-    vim.notify(msg .. result.message, level)
-  end
+vim.lsp.handlers["window/showMessage"] = function(_, result, ctx)
+  if not (result and result.message) then return end
+  local client = ctx and ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
+  local prefix = client and ("[LSP] [" .. client.name .. "]") or "[LSP]"
+  local levels = { [1] = vim.log.levels.ERROR, [2] = vim.log.levels.WARN, [3] = vim.log.levels.INFO, [4] = vim.log.levels.DEBUG }
+  vim.notify(prefix .. " " .. result.message, levels[result.type] or vim.log.levels.INFO)
 end
 
 local enabled_lsps = {
