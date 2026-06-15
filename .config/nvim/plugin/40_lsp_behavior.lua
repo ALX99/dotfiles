@@ -18,29 +18,28 @@ local function mappings(client, buf)
     utils.map(mode, lhs, rhs, options)
   end
 
+  -- ponytail: the layout spec is identical for every picker invocation;
+  -- allocate it once at attach time instead of per keystroke.
+  local picker_layout = {
+    layout = {
+      backdrop = false,
+      width = 0.5,
+      min_width = 80,
+      height = 0.8,
+      min_height = 30,
+      box = "vertical",
+      border = true,
+      title = "{title} {live} {flags}",
+      title_pos = "center",
+      { win = "input",   height = 1,      border = "bottom" },
+      { win = "list",    border = "none" },
+      { win = "preview", title = "{preview}", height = 0.4, border = "top" },
+    },
+  }
   local function lsp_picker(picker_fn, opts)
     opts = opts or {}
     return function()
-      picker_fn({
-        layout = {
-          layout = {
-            backdrop = false,
-            width = 0.5,
-            min_width = 80,
-            height = 0.8,
-            min_height = 30,
-            box = "vertical",
-            border = true,
-            title = "{title} {live} {flags}",
-            title_pos = "center",
-            { win = "input",   height = 1,      border = "bottom" },
-            { win = "list",    border = "none" },
-            { win = "preview", title = "{preview}", height = 0.4, border = "top" },
-          },
-        },
-        focus = "list",
-        pattern = opts.pattern,
-      })
+      picker_fn({ layout = picker_layout, focus = "list", pattern = opts.pattern })
     end
   end
 
