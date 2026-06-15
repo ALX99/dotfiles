@@ -55,7 +55,7 @@ local function formatter_name(buf)
     return nil
   end
 
-  return nil
+  return clients[1] and clients[1].name or nil
 end
 
 local function organize_go_imports(buf, client)
