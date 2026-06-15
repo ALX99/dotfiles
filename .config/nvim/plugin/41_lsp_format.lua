@@ -18,7 +18,7 @@ local fmt = {
   typescriptreact = "tsgo",
 }
 
-local format_group = vim.api.nvim_create_augroup('lsp.format', {})
+local format_group = vim.api.nvim_create_augroup('lsp.format', { clear = true })
 
 local function format_python_black(buf)
   if vim.fn.executable('black') ~= 1 then
