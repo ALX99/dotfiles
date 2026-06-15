@@ -6,7 +6,15 @@ PARAMS=()
 while (("$#")); do
   case "$1" in
   -cl | --compression-level)
+    if ! [[ $2 =~ ^[0-9]+$ ]]; then
+      echo "Error: compression level must be an integer 0-19, got '$2'" >&2
+      exit 1
+    fi
     cLevel=$2
+    if (( cLevel < 0 || cLevel > 19 )); then
+      echo "Error: compression level out of range, must be 0-19, got '$cLevel'" >&2
+      exit 1
+    fi
     shift 2
     ;;
   --) # end argument parsing
