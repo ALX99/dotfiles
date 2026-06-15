@@ -12,4 +12,4 @@ echo '' |
     --preview-window='down:95%' \
     --query="." \
     --print-query \
-    --preview "jq --color-output -r {q} $input"
+    --preview "jq --color-output -r {q} \"$input\""
