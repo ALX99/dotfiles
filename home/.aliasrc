@@ -157,6 +157,10 @@ ksc() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\""
 
 # Download a directory from a GitHub repo via sparse checkout.
 # Usage: yoink <github-url> <local-dir>
+# The URL may point at a specific branch and subpath:
+#   https://github.com/owner/repo                  -> repo, default branch
+#   https://github.com/owner/repo/tree/branch      -> repo @ branch
+#   https://github.com/owner/repo/tree/branch/dir  -> dir under repo @ branch
 yoink() {
   local url=$1 dest=$2
   [[ -e $dest ]] && { echo "yoink: $dest already exists" >&2; return 1; }
@@ -165,7 +169,11 @@ yoink() {
   local branch=${branch_path%%/*} subpath=${branch_path#*/}
   [[ $subpath == "$branch_path" ]] && subpath=""
   local tmp; tmp=$(mktemp -d)
-  gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse 2>/dev/null
+  if [[ -n $branch ]]; then
+    gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse --branch "$branch" 2>/dev/null
+  else
+    gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse 2>/dev/null
+  fi
   (cd "$tmp/repo" && git sparse-checkout set "$subpath")
   mkdir -p "$dest"
   if [[ -n $subpath ]]; then
