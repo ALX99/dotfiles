@@ -55,7 +55,7 @@ local function mappings(client, buf)
   bmap('n', 'gd', Snacks.picker.lsp_definitions, { desc = "Go to definition" }) -- vim.lsp.buf.definition
   bmap('n', 'gs', Snacks.picker.lsp_symbols, { desc = "Goto symbols" })
 
-  -- builitin "grt" for type definitions, grn for rename, grx for vim.lsp.codelens.run
+  bmap('n', 'grx', vim.lsp.codelens.run, { desc = 'Run codelens' })
 
   bmap('n', 'gai', lsp_picker(Snacks.picker.lsp_incoming_calls), { desc = "C[a]lls Incoming" })
   bmap('n', 'gao', lsp_picker(Snacks.picker.lsp_outgoing_calls), { desc = "C[a]lls Outgoing" })
