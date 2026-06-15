@@ -10,7 +10,8 @@ show_help() {
       "$@"
     fi
   else
-    echo "failed: $*"
+    echo "failed: $*" >&2
+    return 1
   fi
 }
 
