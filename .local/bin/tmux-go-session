@@ -46,7 +46,7 @@ build_project_rows() {
   declare -a paths bases
   while IFS= read -r p; do
     paths+=("$p")
-    b=$(basename "$p")
+    b="${p##*/}"
     bases+=("$b")
     base_count["$b"]=$(( ${base_count["$b"]:-0} + 1 ))
   done < "$project_paths_file"
@@ -55,11 +55,14 @@ build_project_rows() {
   for i in "${!paths[@]}"; do
     path="${paths[$i]}"; b="${bases[$i]}"
     if [[ ${base_count["$b"]:-0} -gt 1 ]]; then
-      unsanitized="$(basename "$(dirname "$path")")_${b}"
+      local parent="${path%/*}"
+      unsanitized="${parent##*/}_${b}"
     else
       unsanitized="$b"
     fi
-    s=$(printf '%s' "$unsanitized" | tr -c '[:alnum:]_-' '_' | sed 's/^_*//; s/_*$//')
+    s="${unsanitized//[^[:alnum:]_-]/_}"
+    while [[ $s == _* ]]; do s="${s#_}"; done
+    while [[ $s == *_ ]]; do s="${s%_}"; done
     [[ -z $s ]] && { echo "Cannot derive a tmux session name for project: $path" >&2; return 1; }
 
     if [[ -n ${seen[$s]:-} && ${seen[$s]:-} != "$path" ]]; then
