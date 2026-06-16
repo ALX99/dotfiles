@@ -61,9 +61,11 @@ export default function(pi: ExtensionAPI) {
 }
 
 function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
-  // Cache tokens between renders — only recompute when the session grows.
-  let cachedTokens = buildSessionTokens(ctx);
-  let lastBranchLen = ctx.sessionManager.getBranch().length;
+  // Cache tokens between renders — recomputed on turn_end (O(1)), not on
+  // every render. invalidate() resets the counter to rebuild from scratch
+  // (used by session_compact and explicit refresh paths).
+  let cachedTokens = "";
+  let lastBranchLen = 0;
   let requestRender: (() => void) | undefined;
 
   function rebuildTokens() {
@@ -76,6 +78,14 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
       rebuildTokens();
     }
   }
+
+  // Build once at attach time, then keep current via turn_end deltas.
+  rebuildTokens();
+
+  pi.on("turn_end", () => {
+    rebuildTokens();
+    requestRender?.();
+  });
 
   ctx.ui.setFooter((tui, theme, footerData) => {
     requestRender = () => tui.requestRender();

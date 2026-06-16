@@ -2,11 +2,7 @@ set selection-clipboard clipboard
 set recolor
 set recolor-keephue
 
-# Tokyonight color theme for Zathura
-# Swaps Foreground for Background to get a light version if the user prefers
-#
 # Tokyonight moon color theme
-#
 set notification-error-bg "#ff757f"
 set notification-error-fg "#c8d3f5"
 set notification-warning-bg "#ffc777"

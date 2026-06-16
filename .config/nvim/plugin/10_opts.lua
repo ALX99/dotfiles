@@ -116,32 +116,3 @@ vim.diagnostic.config({
     source = "if_many",
   },
 })
-
-
-vim.ui.open = (function(overridden)
-  return function(path)
-    vim.validate({
-      path = { path, 'string' },
-    })
-    local is_uri = path:match('%w+:')
-    local is_half_url = path:match('%.%a%a+')
-    local is_repo = vim.bo.filetype == 'lua' and path:match('%w/%w') and vim.fn.count(path, '/') == 1
-    local is_dir = path:match('^/') or path:match('^~')
-    if not is_uri then
-      if is_dir and path:sub(1, 1) == '~' then
-        path = vim.fn.expand(path)
-      elseif is_dir then
-        -- Absolute path with no tilde: leave as-is so overridden() can open it
-        -- (e.g. /foo/bar.py must not be treated as a half-URL just because it
-        -- has a dot in the filename).
-      elseif is_half_url then
-        path = ('https://%s'):format(path)
-      elseif is_repo then
-        path = ('https://github.com/%s'):format(path)
-      else
-        path = ('https://google.com/search?q=%s'):format(vim.uri_encode(path))
-      end
-    end
-    overridden(path)
-  end
-end)(vim.ui.open)

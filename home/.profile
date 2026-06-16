@@ -13,7 +13,7 @@ CARGO_BIN="$HOME/.cargo/bin"
 PIPX_BIN="$HOME/.local/pipxbin"
 ORBSTACK_BIN="$HOME/.orbstack/bin"
 
-PATH="$PATH:$GO_BIN:$CARGO_BIN:$PNPM_HOME:$PIPX_BIN:$ORBSTACK_BIN:$HOME/.local/bin"
+PATH="$PATH:$GO_BIN:$CARGO_BIN:$PNPM_HOME:$PIPX_BIN:$ORBSTACK_BIN:$HOME/.local/bin:$HOME/.local/share/nvim/mason/bin"
 
 # =============================================================================
 # XDG
