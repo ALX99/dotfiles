@@ -4,7 +4,7 @@ export default function(pi: ExtensionAPI) {
   pi.registerProvider("tokenrouter", {
     name: "TokenRouter",
     baseUrl: "https://api.tokenrouter.com/v1",
-    apiKey: "dummy",
+    apiKey: "$TOKENROUTER_API_KEY",
     api: "openai-completions",
     authHeader: true,
 
