@@ -93,7 +93,6 @@ alias \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
-  vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
   unset_aws_profile='unset AWS_PROFILE' \
   ytmp3='yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s"'
@@ -158,36 +157,20 @@ dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker
 ksc() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }
 
 # Download a directory from a GitHub repo via sparse checkout.
-# Usage: yoink <github-url> <local-dir>
-# The URL may point at a specific branch and subpath:
-#   https://github.com/owner/repo                  -> repo, default branch
-#   https://github.com/owner/repo/tree/branch      -> repo @ branch
-#   https://github.com/owner/repo/tree/branch/dir  -> dir under repo @ branch
+# Usage: yoink <github-url-or-owner/repo> <dest> [branch] [subpath]
+#   yoink foo/bar ./out              -> default branch, full repo
+#   yoink foo/bar ./out main         -> branch main, full repo
+#   yoink foo/bar ./out main src/pkg -> branch main, subpath src/pkg
 yoink() {
-  local url=$1 dest=$2
-  [[ -e $dest ]] && { echo "yoink: $dest already exists" >&2; return 1; }
-  local p=${url#https://github.com/}
-  local owner_repo branch subpath
-  if [[ $p == *"/tree/"* ]]; then
-    owner_repo=${p%%/tree/*} branch_path=${p#*/tree/}
-    branch=${branch_path%%/*} subpath=${branch_path#*/}
-    [[ $subpath == "$branch_path" ]] && subpath=""
-  else
-    owner_repo=$p branch="" subpath=""
-  fi
-  local tmp; tmp=$(mktemp -d)
-  if [[ -n $branch ]]; then
-    gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse --branch "$branch" 2>/dev/null
-  else
-    gh repo clone "$owner_repo" "$tmp/repo" -- --depth 1 --filter=blob:none --sparse 2>/dev/null
-  fi
-  (cd "$tmp/repo" && git sparse-checkout set "$subpath")
-  mkdir -p "$dest"
-  if [[ -n $subpath ]]; then
-    cp -r "$tmp/repo/$subpath"/. "$dest"/
-  else
-    cp -r "$tmp/repo"/. "$dest"/
-  fi
+  local p=${1#https://github.com/} dest=$2
+  local repo=${p%%/tree/*} spec=${p#*/tree/}
+  local branch subpath=""
+  [[ $spec != $p ]] && { branch=${spec%%/*}; subpath=${spec#*/}; [[ $subpath == $spec ]] && subpath=""; }
+  [[ -e $dest ]] && { echo "yoink: $dest exists" >&2; return 1; }
+  local tmp=$(mktemp -d)
+  gh repo clone "$repo" "$tmp/r" -- --depth 1 --filter=blob:none --sparse ${branch:+--branch "$branch"} &&
+    (cd "$tmp/r" && git sparse-checkout set "$subpath") &&
+    mkdir -p "$dest" && cp -r "$tmp/r/${subpath:-.}"/. "$dest/"
   rm -rf "$tmp"
 }
 
