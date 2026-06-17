@@ -88,12 +88,6 @@ vim.o.complete      = '.,w,b,kspell'                  -- Use less sources
 vim.o.completeopt   = 'menuone,noselect,fuzzy,nosort' -- Use custom behavior
 
 
--- https://github.com/nvzone/typr
--- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
--- https://github.com/MagicDuck/grug-far.nvim
--- https://github.com/sindrets/diffview.nvim
--- https://www.reddit.com/r/neovim/comments/1muy3i1/dartnvim_a_minimalist_tabline_focused_on_pinning/
-
 vim.diagnostic.config({
   severity_sort = true, -- Errors first
   underline = true,     -- Show all diagnostics as underline
