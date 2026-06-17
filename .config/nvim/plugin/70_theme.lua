@@ -11,6 +11,5 @@ vim.pack.add({
 })
 
 require('kanagawa').setup({})
-require('tokyonight').setup({})
 vim.cmd.colorscheme('kanagawa')
 require('markview').setup({})
