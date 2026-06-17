@@ -68,7 +68,7 @@ if not vim.g.vscode then
 
   map("n", "<leader>q", ":q<CR>", { silent = true })
   map("n", "<leader>C", function()
-    local file_path = vim.fn.expand('%:p')
+    local file_path = vim.api.nvim_buf_get_name(0)
     local line_number = vim.fn.line('.')
     local column_number = vim.fn.col('.')
     local goto_arg = string.format("%s:%d:%d", file_path, line_number, column_number)
