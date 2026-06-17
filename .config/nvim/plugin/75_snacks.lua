@@ -61,6 +61,7 @@ require('snacks').setup({
 })
 
 local map = require('utils').map
+local Snacks = require('snacks')
 
 map('n', '<leader>fo', function() Snacks.picker.files({ hidden = true }) end, { desc = "Find files" })
 map('n', '<leader>fO', function() Snacks.picker.files({ hidden = true, ignored = true }) end,
