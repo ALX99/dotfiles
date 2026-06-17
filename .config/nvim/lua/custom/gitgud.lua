@@ -3,7 +3,7 @@ local M = {}
 local function get_github_url(opts)
   opts = opts or {}
 
-  local file_path = vim.fn.expand("%:.")
+  local file_path = vim.api.nvim_buf_get_name(0)
   local start_line = tonumber(opts.start_line) or vim.fn.line(".")
   local end_line = opts.end_line and tonumber(opts.end_line) or nil
 
