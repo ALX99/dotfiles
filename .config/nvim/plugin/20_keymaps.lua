@@ -108,14 +108,13 @@ local function vset_search()
   vim.fn.setreg('s', temp)
 end
 
-map('x', '*', function()
+local function vsearch(direction)
   vset_search()
-  return '/' .. vim.fn.getreg('/') .. '<CR>'
-end, { expr = true })
-map('x', '#', function()
-  vset_search()
-  return '?' .. vim.fn.getreg('/') .. '<CR>'
-end, { expr = true })
+  return direction .. vim.fn.getreg('/') .. '<CR>'
+end
+
+map('x', '*', function() return vsearch('/') end, { expr = true })
+map('x', '#', function() return vsearch('?') end, { expr = true })
 
 -- Search inside visual selection
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
