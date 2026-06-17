@@ -38,9 +38,7 @@ local enabled_lsps = {
   "kotlin_lsp",
 }
 
-for _, name in ipairs(enabled_lsps) do
-  vim.lsp.enable(name)
-end
+vim.lsp.enable(enabled_lsps)
 vim.lsp.inline_completion.enable(true)
 vim.lsp.codelens.enable(true)
 
