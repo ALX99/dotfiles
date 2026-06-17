@@ -51,11 +51,6 @@ if not vim.g.vscode then
   map("n", "<leader>wi", "<C-w>l", { desc = "Focus right" })
   map("n", "<leader>wo", "<C-w>o", { desc = "Close all but current" })
 
-  -- Resize windows
-  map("n", "<C-Up>", ":resize +2<CR>")
-  map("n", "<C-Down>", ":resize -2<CR>")
-  map("n", "<C-Left>", ":vertical resize -2<CR>")
-  map("n", "<C-Right>", ":vertical resize +2<CR>")
 
   -- Diagnostics
   map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
