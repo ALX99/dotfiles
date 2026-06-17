@@ -19,7 +19,7 @@ local function get_github_url(opts)
   -- Get upstream branch SHA
   local sha_result = vim.system({ "git", "rev-parse", "@{u}" }, { text = true }):wait()
   local is_upstream = sha_result.code == 0
-  local sha = vim.fn.trim(sha_result.stdout or "")
+  local sha = vim.trim(sha_result.stdout or "")
 
   -- Build gh browse command with proper argument escaping
   local cmd = { "gh", "browse", "--no-browser", file_arg }
@@ -31,8 +31,8 @@ local function get_github_url(opts)
   end
 
   local result = vim.system(cmd, { text = true }):wait()
-  local url = vim.fn.trim(result.stdout or "")
-  local stderr = vim.fn.trim(result.stderr or "")
+  local url = vim.trim(result.stdout or "")
+  local stderr = vim.trim(result.stderr or "")
 
   return url, result.code, stderr
 end
