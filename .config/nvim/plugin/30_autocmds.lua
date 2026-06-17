@@ -1,11 +1,9 @@
 -- Don't auto-wrap comments and don't insert comment leader after hitting 'o'.
 -- Do on `FileType` to always override these changes from filetype plugins.
-local f = function() vim.cmd('setlocal formatoptions-=c formatoptions-=o') end
-_G.Config.new_autocmd('FileType',
-  {
-    callback = f,
-    desc = "Proper 'formatoptions' for all filetypes",
-  })
+_G.Config.new_autocmd('FileType', {
+  desc = "Proper 'formatoptions' for all filetypes",
+  callback = function() vim.cmd('setlocal formatoptions-=c formatoptions-=o') end,
+})
 
 -- Skip the rest of the autocommands if we are in VSCode
 if vim.g.vscode then
