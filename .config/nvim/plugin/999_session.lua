@@ -38,9 +38,7 @@ local function get_session_file()
 end
 
 -- Create the dir if it doesn't exist
-if vim.uv.fs_stat(session_dir) == nil then
-  vim.fn.mkdir(session_dir, "p")
-end
+vim.fn.mkdir(session_dir, "p")
 
 local session_group = vim.api.nvim_create_augroup("auto_sessions", { clear = true })
 
@@ -69,4 +67,3 @@ _G.Config.new_autocmd("VimLeavePre", {
   group = session_group,
   once = true,
 })
-
