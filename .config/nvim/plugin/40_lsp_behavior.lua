@@ -3,7 +3,6 @@ if vim.g.vscode then
   return
 end
 
-vim.g.diagnostics_visible = true
 local utils = require('utils')
 
 local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', { clear = true })
@@ -81,13 +80,7 @@ local function mappings(client, buf)
 
   --- toggle diagnostics
   bmap('n', '<leader>td', function()
-    if vim.g.diagnostics_visible then
-      vim.g.diagnostics_visible = false
-      vim.diagnostic.enable(false)
-    else
-      vim.g.diagnostics_visible = true
-      vim.diagnostic.enable()
-    end
+    vim.diagnostic.enable(not vim.diagnostic.is_enabled({}))
   end, { desc = 'Toggle diagnostics' })
 end
 
