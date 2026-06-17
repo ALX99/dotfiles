@@ -46,7 +46,7 @@ _G.Config.new_autocmd({ "InsertEnter", "WinLeave" }, {
 
 -- Format shell scripts on save without re-triggering write
 local function shfmt_on_save(buf)
-  if vim.fn.executable('shfmt') ~= 1 then return end
+  if not vim.fn.executable('shfmt') then return end
 
   local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, true), "\n")
   local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
