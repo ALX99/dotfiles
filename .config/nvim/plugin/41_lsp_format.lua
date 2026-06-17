@@ -3,7 +3,7 @@ if vim.g.vscode then
   return
 end
 
-local utils = require('utils')
+local map = require('utils').map
 
 -- Filetype -> formatter client name
 -- Listed filetypes get auto-format on save.
@@ -108,7 +108,7 @@ _G.Config.new_autocmd('LspAttach', {
     local buf = args.buf
     local ft = vim.bo[buf].filetype
 
-    utils.map({ 'n', 'v' }, '=', function()
+    map({ 'n', 'v' }, '=', function()
       if vim.bo[buf].filetype == 'python' then
         format_python_black(buf)
         return
