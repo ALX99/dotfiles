@@ -114,6 +114,6 @@ map('x', '#', function() return vsearch('?') end, { expr = true })
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
 
 map("n", "<leader>u", function()
-  vim.cmd("packadd nvim.undotree")
+  vim.cmd.packadd("nvim.undotree")
   require("undotree").open()
 end, { desc = "Undo tree" })
