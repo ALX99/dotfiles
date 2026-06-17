@@ -1,5 +1,5 @@
 -- Auto-session management
-local session_dir = vim.fn.stdpath("state") .. "/sessions"
+local session_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "sessions")
 
 -- Directories where sessions should not be saved
 local skip_dirs = {
