@@ -3,7 +3,7 @@ if vim.g.vscode then
   return
 end
 
-local utils = require('utils')
+local map = require('utils').map
 
 local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', { clear = true })
 local Methods = vim.lsp.protocol.Methods
@@ -32,7 +32,7 @@ local function mappings(client, buf)
   local bmap = function(mode, lhs, rhs, opts)
     local options = { buffer = buf }
     if opts then options = vim.tbl_extend("force", options, opts) end
-    utils.map(mode, lhs, rhs, options)
+    map(mode, lhs, rhs, options)
   end
 
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
