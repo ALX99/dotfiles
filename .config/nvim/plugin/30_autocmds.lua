@@ -47,27 +47,25 @@ _G.Config.new_autocmd({ "InsertEnter", "WinLeave" }, {
 
 
 -- Format shell scripts on save without re-triggering write
+local function shfmt_on_save(buf)
+  if vim.fn.executable('shfmt') ~= 1 then return end
+
+  local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, true), "\n")
+  local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
+  if vim.v.shell_error ~= 0 then
+    vim.notify("shfmt failed: " .. table.concat(output, "\n"), vim.log.levels.ERROR)
+    return
+  end
+
+  if #output > 0 then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
+  end
+end
+
 _G.Config.new_autocmd("BufWritePre", {
   callback = function(info)
-    if vim.bo[info.buf].filetype == "sh" then
-      if vim.fn.executable('shfmt') ~= 1 then
-        return
-      end
-
-      local original_lines = vim.api.nvim_buf_get_lines(info.buf, 0, -1, true)
-      local input = table.concat(original_lines, "\n")
-      local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
-      if vim.v.shell_error ~= 0 then
-        local error_message = "shfmt failed: " .. table.concat(output, "\n")
-        vim.notify(error_message, vim.log.levels.ERROR)
-        return
-      end
-
-      if #output > 0 then
-        vim.api.nvim_buf_set_lines(info.buf, 0, -1, true, output)
-      end
-    end
-  end
+    if vim.bo[info.buf].filetype == "sh" then shfmt_on_save(info.buf) end
+  end,
 })
 
 -- Go organize-imports on save is handled in 41_lsp_format.lua (combined with auto-format to avoid race conditions)
