@@ -135,7 +135,8 @@ PROMPT_COMMAND=__prompt_command
 # checkjobs check if there are any stopped or running jobs before exiting an interactive shell
 # checkwinsize check the window size after each external command and, if necessary, updates the values of $LINES and $COLUMNSk
 # cmdhist save multiple-line commands in the same history entry
-shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist
+# huponexit send SIGHUP to all jobs when an interactive login shell exits
+shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist huponexit
 
 stty -ixon # Disable ctrl-s and ctrl-q.
 
