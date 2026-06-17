@@ -22,3 +22,6 @@ map("n", "<tab>", function()
   end
   return "<Tab>"
 end, { expr = true, desc = "Goto/Apply Next Edit Suggestion" })
+
+-- Custom AI helpers (file send)
+require("custom.ai").setup()
