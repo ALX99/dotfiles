@@ -20,10 +20,8 @@ local function should_save_session()
   end
 
   -- Don't save in skip directories
-  for _, dir in ipairs(skip_dirs) do
-    if cwd == dir then
-      return false
-    end
+  if vim.tbl_contains(skip_dirs, cwd) then
+    return false
   end
 
   -- Don't save if directory doesn't exist or isn't accessible
