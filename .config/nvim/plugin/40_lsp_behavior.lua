@@ -7,6 +7,7 @@ vim.g.diagnostics_visible = true
 local utils = require('utils')
 
 local UserLspConfig = vim.api.nvim_create_augroup('UserLspConfig', { clear = true })
+local Methods = vim.lsp.protocol.Methods
 
 local lsp_picker_layout = {
   layout = {
@@ -61,7 +62,7 @@ local function mappings(client, buf)
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
 
-  if client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+  if client:supports_method(Methods.textDocument_inlayHint) then
     bmap('n', '<leader>th', function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
     end, { desc = 'Toggle inlay hints' })
@@ -95,7 +96,7 @@ end
 ---@param buf number
 local function highlight_references(client, buf)
   if vim.b[buf].lsp_highlight_setup then return end
-  if not client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then return end
+  if not client:supports_method(Methods.textDocument_documentHighlight) then return end
   vim.b[buf].lsp_highlight_setup = true
 
   local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf, { clear = true })
