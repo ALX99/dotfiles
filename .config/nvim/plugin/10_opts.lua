@@ -2,7 +2,7 @@
 
 -- General ====================================================================
 vim.g.mapleader               = " "           -- Leader key
-vim.g.maplocalleader          = " "           -- Local leader
+vim.g.maplocalleader          = vim.g.mapleader
 vim.o.winborder               = 'rounded'     -- Consistent borders on all floats (0.11+)
 vim.o.shell                   = 'bash'
 vim.o.mousescroll             = 'ver:6,hor:6' -- Customize mouse scroll
