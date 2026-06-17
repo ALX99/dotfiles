@@ -77,7 +77,7 @@ if not vim.g.vscode then
 end
 
 vim.api.nvim_create_user_command("CopyPath", function()
-  local file = vim.fn.expand("%:p")
+  local file = vim.api.nvim_buf_get_name(0)
   local cwd = vim.fn.getcwd()
   local rel = vim.fs.relpath(cwd, file)
   local display = (rel and rel ~= "") and rel or file
