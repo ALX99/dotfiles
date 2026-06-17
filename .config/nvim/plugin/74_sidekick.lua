@@ -7,14 +7,7 @@ vim.pack.add({
 
 local map = require('utils').map
 
-require('sidekick').setup({
-  cli = {
-    mux = {
-      backend = "tmux",
-      enabled = false,
-    },
-  },
-})
+require('sidekick').setup({})
 
 map("n", "<tab>", function()
   if require('sidekick').nes_jump_or_apply() then
