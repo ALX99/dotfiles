@@ -21,7 +21,7 @@ local mappings = {
 
 }
 
-function colemak.setup(_)
+function colemak.setup()
   colemak.apply()
 
   vim.api.nvim_create_user_command(
