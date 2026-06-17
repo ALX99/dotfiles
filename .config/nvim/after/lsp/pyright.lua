@@ -1,7 +1,7 @@
 local function use_project_venv(_, config)
   if not config.root_dir then return end
 
-  local python = config.root_dir .. '/.venv/bin/python'
+  local python = vim.fs.joinpath(config.root_dir, '.venv/bin/python')
   if not vim.fn.executable(python) then return end
 
   config.settings = config.settings or {}
