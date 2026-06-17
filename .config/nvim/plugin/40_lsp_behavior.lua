@@ -35,18 +35,14 @@ local function mappings(client, buf)
     utils.map(mode, lhs, rhs, options)
   end
 
-  local function lsp_picker(picker_fn, opts)
-    opts = opts or {}
-    return function()
-      picker_fn({ layout = lsp_picker_layout, focus = "list", pattern = opts.pattern })
-    end
-  end
-
-  local go_test_exclude = vim.bo.filetype == "go" and "!_test.go" or nil
-
   -- See `:help vim.lsp.*` for documentation on any of the below functions ()
-  bmap('n', 'gri', lsp_picker(Snacks.picker.lsp_implementations, { pattern = go_test_exclude }), { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
-  bmap('n', 'grr', lsp_picker(Snacks.picker.lsp_references), { desc = "Go to reference" })           -- vim.lsp.buf.references
+  bmap('n', 'gri', function()
+    local pattern = vim.bo.filetype == "go" and "!_test.go" or nil
+    Snacks.picker.lsp_implementations({ layout = lsp_picker_layout, focus = "list", pattern = pattern })
+  end, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
+  bmap('n', 'grr', function()
+    Snacks.picker.lsp_references({ layout = lsp_picker_layout, focus = "list" })
+  end, { desc = "Go to reference" })           -- vim.lsp.buf.references
   bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })      -- Many LSPs do not implement this
@@ -55,8 +51,12 @@ local function mappings(client, buf)
 
   bmap('n', 'grx', vim.lsp.codelens.run, { desc = 'Run codelens' })
 
-  bmap('n', 'gai', lsp_picker(Snacks.picker.lsp_incoming_calls), { desc = "C[a]lls Incoming" })
-  bmap('n', 'gao', lsp_picker(Snacks.picker.lsp_outgoing_calls), { desc = "C[a]lls Outgoing" })
+  bmap('n', 'gai', function()
+    Snacks.picker.lsp_incoming_calls({ layout = lsp_picker_layout, focus = "list" })
+  end, { desc = "C[a]lls Incoming" })
+  bmap('n', 'gao', function()
+    Snacks.picker.lsp_outgoing_calls({ layout = lsp_picker_layout, focus = "list" })
+  end, { desc = "C[a]lls Outgoing" })
 
   -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
   bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
