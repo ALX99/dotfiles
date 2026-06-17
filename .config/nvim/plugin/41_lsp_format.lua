@@ -21,7 +21,7 @@ local fmt = {
 local format_group = vim.api.nvim_create_augroup('lsp.format', { clear = true })
 
 local function format_python_black(buf)
-  if vim.fn.executable('black') ~= 1 then
+  if not vim.fn.executable('black') then
     vim.notify('black not found; install it in .venv or on PATH', vim.log.levels.WARN)
     return
   end
