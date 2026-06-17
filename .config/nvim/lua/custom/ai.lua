@@ -38,7 +38,7 @@ local function send_to_pane(pane_id, path)
 end
 
 local function focus_popup(tool)
-  local popup = vim.fn.expand("~/.config/tmux/session-popup")
+  local popup = vim.fs.joinpath(vim.env.HOME, ".config/tmux/session-popup")
   local job_id = vim.fn.jobstart({ "tmux", "display-popup", "-T", tool, "-w", "95%", "-h", "95%", "-E", popup, tool }, {
     detach = true,
   })
