@@ -24,8 +24,17 @@ Create a single git commit using **Conventional Commits** format:
 
 - **type**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`
 - **scope**: optional, the area of the codebase (e.g. `nvim`, `tmux`, `shell`, `backend`)
-- **summary**: imperative, lowercase, no period, entire title max 50 chars
+- **summary**: imperative, lowercase, no period, max 50 chars (hard limit 72)
 
-If the changes span multiple unrelated areas, pick the most significant one for the type/scope. Add a body only if the "why" isn't obvious from the summary.
+**Litmus test**: a new contributor should understand the problem, why it matters, and the impact without opening files or reading the diff. Avoid code identifiers, filenames, and function names in the summary unless they ARE the user-facing impact.
+
+- Bad: `Add NameFromHex with sync.Once lazy init`
+- Good: `Improve color name lookup performance while keeping startup fast`
+- Bad: `fix: nil pointer in session.go`
+- Good: `fix: prevent session loading from crashing on missing metadata`
+
+Draft 1-2 sentences focused on the "why" and outcome, not a list of files or implementation details. Use clear verbs: `add` (new capability), `update` (enhancement), `fix` (bug fix). Add a body only when the "why" isn't obvious from the summary; wrap body lines at 72 chars.
+
+If the changes span multiple unrelated areas, pick the most significant one for the type/scope.
 
 Do not send any other text or messages besides tool calls (except when asking the user what to commit).
