@@ -1,115 +1,74 @@
-# AGENTS.md
+# dotfiles
 
-Personal dotfiles repo for Arch Linux + macOS. Configs managed via GNU Stow (`home/`→`~/`, `.config/`→`~/.config/`, `.local/`→`~/.local/`).
+Stow-managed personal dotfiles. Forked from `alx99/dotfiles` and heavily modified — README and `.gitconfig` still reference ALX99 (deliberate, do not "fix" without asking).
 
-## Layout
+## Shape
 
-```
-home/            → ~/  (shell dotfiles: .bashrc, .profile, .aliasrc, .gitconfig, .claude/, .inputrc, .ssh/config)
-.config/         → ~/.config/  (nvim, ghostty, tmux, hyprland, waybar, dunst, fcitx5, lazygit, mpv, ...)
-.local/bin/      → ~/.local/bin/  (custom shell scripts)
-misc/            → system-level configs (keymaps, systemd, pacman-hooks, sudoers)
-```
+- **Stow packages:** `home/` (→ `~`), `.config/` (→ `~/.config`), `.local/` (→ `~/.local`). `.stowrc` sets `--no-folding`.
+- **One Makefile target** (`make user-cfg` → `./setupDots 1`). Full menu in `setupDots`: `1` user config, `2` Linux system (Arch), `3` Mac system.
+- **Submodule:** `.config/mpv/scripts/subs2srs` → `Ajatt-Tools/mpvacious` (path name is misleading; it is mpvacious, not subs2srs).
+- **Scratch dir:** `tmp/` is **untracked** (`.gitignore` and `git status` confirm). Do not put real work there.
+- **170 tracked files.** No test framework, no build system. The only "build" is `make user-cfg`. The only "lint" is shellcheck via CI.
 
-## Architecture & Key Gotchas
+## Symlinks in the repo (not stow-created)
 
-### GNU Stow Conventions
-- `.config/` is stowed directly to `~/.config/` (not `~/.config/.config/`)
-- `home/` is stowed to `~/`
-- `.local/` is stowed to `~/.local/`
-- `.stowrc` enables `--no-folding` (creates symlinks for each file, not directories)
+- `CLAUDE.md` (repo root) → `AGENTS.md` — both names resolve to the same file.
+- `home/.bash_profile` → `.profile` — login shells source the POSIX profile.
+- `home/.codex/AGENTS.md` → `../.claude/CLAUDE.md` — Codex reads Claude's instruction file.
 
-### Bi-Platform Code
-Platform conditionals everywhere — always check both branches:
-- Shell: `[ "$(uname)" = "Darwin" ]` vs `else` (Linux)
-- Shell: `[ "$(uname)" = "Linux" ]`
-- macOS uses Homebrew (`/opt/homebrew/bin`), GNU utils via aliases (`gls`, `gfind`, `gsed`)
-- Linux uses Arch Linux, systemd, Hyprland
+Runtime: `~/.pi/agent/extensions/<name>.ts` (and `agents/*.md`, `supervisor.md`) are symlinks back into the dotfiles. **Pi's extension loader only auto-discovers from `<agentDir>/extensions/`** — placing an extension at `~/.pi/agent/<name>/` (one level up) makes it invisible. Same for `agents/`, `prompts/`, `skills/`. See `home/.pi/agent/extensions/subagents/` and the deleted-then-moved history in `git status`.
 
-### Keyboard: Colemak DH
-**Every keybinding config in this repo assumes Colemak DH.** Home row movement keys are:
-```
-Colemak:  m(←) n(↓) e(↑) i(→)
-Qwerty:   h(←) j(↓) k(↑) l(→)
-```
+## Setup invariants
 
-Config files with Colemak remappings:
-- `.config/nvim/lua/colemak.lua` — nvim normal/visual mode movement, displaced keys
-- `.config/nvim/plugin/75_snacks.lua` — picker keys: `n`=down, `e`=up
-- `.config/tmux/tmux.conf` — copy-mode-vi: `m`/`n`/`e`/`i`, pane movement: `M-m`/`M-n`/`M-e`/`M-i`
-- `.config/ghostty/config` — cmd+`m`/`n`/`e`/`i`/`h`/`o` passthrough to tmux
-- `.config/hypr/hyprland.lua` — `M`/`N`/`E`/`I` for movefocus
-- `home/.inputrc` — vi-mode bindings: `n`=forward-search, `e`=backward-search
+- `setupDots` shares `~/.agents/skills/<skill>` with `~/.claude/skills/<skill>` via per-skill symlinks. It uses `is_stale_dotfile_entry` to avoid clobbering content from `npx agents` or other tools — never `rm -rf` a `~/.claude/skills/<x>` that the script flagged as "not a stale dotfile leftover."
+- Linux: `setupDots 2` requires sudo for XKB/keyd/systemd units, enables `systemctl --user` ssh-agent, links `dash` to `/usr/bin/sh`.
+- Mac: `setupDots 3` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout` and prompts the user to enable it manually in System Settings. No auto-reboot.
+- `home/.privrc` is **tracked** and is sourced from `~/.bashrc`. It holds private env vars (e.g., `TOKENROUTER_API_KEY`). Treat as secret.
 
-### Shell (bash)
-- `.profile` → login shell env (PATH, XDG, platform vars, `fcitx5`/Wayland setup)
-  - On Linux tty1: auto-starts Hyprland inline from `.profile`
-- `.bashrc` → interactive shell (sources `.privrc`, `.priv_env`, shopt settings, aliases)
-- `.aliasrc` → sourced by `.bashrc`, contains all aliases/functions/bindings/completions
-- `.inputrc` → vi editing mode (`set editing-mode vi`), Colemak search bindings
-- Lazy completions: `kubectl`, `helm`, `k6`, `gh`, `orb` use `_lazy_completion` wrapper
-- `.privrc` and `.priv_env` are sourced if present — **not tracked in repo**
+## Two AI ecosystems in parallel
 
-### Neovim Config
-Uses **built-in `vim.pack.add`** (nvim 0.12+), not lazy.nvim.
+| Tool | Source in repo | Notes |
+|------|----------------|-------|
+| **pi** | `home/.pi/agent/` | Primary. `settings.json` (provider tokenrouter, model `MiniMax-M3`, ponytail full, packages: ponytail, superpowers, pi-fff). `APPEND_SYSTEM.md` injects persona. `supervisor.md` is the goal-driven subagent protocol. |
+| **Claude Code** | `home/.claude/` + `home/.agents/skills/` | `settings.json` has hooks (gofmt on .go, macOS notification on Stop), permissions allowlist, plugins (`superpowers@superpowers-marketplace`, `lsp@alx99-personal`). `status` script is the statusline. |
+| **Codex** | `home/.codex/` | Just the symlink to Claude's CLAUDE.md. No other config. |
 
-Load order (inside `.config/nvim/`):
-1. `init.lua` — sets `_G.Config`, creates augroup `custom-config`, `_G.Config.new_autocmd()` helper
-2. `plugin/*.lua` — loaded alphabetically by `vim.pack`:
-   - `10_opts.lua` — general options, UI, editing, diagnostic config, `vim.ui.open` override
-   - `20_keymaps.lua` — general keybindings (runs `colemak.setup()`), user commands
-   - `30_autocmds.lua` — `FileType`, `TextYankPost`, `VimResized`, `BufWritePre`, cursorline toggles, `shfmt` format-on-save
-   - `40_lsp_behavior.lua` — LSP keymaps, diagnostics, highlight references
-   - `41_lsp_format.lua` — LSP formatting and format-on-save
-   - `70_theme.lua` — colorscheme (kanagawa/tokyonight)
-   - `71_treesitter.lua` — nvim-treesitter install + per-FileType highlighting
-   - `72_flash.lua` — flash.nvim (navigation)
-   - `73_git.lua` — git blame, snacks git pickers
-   - `74_sidekick.lua` — sidekick.nvim
-   - `75_snacks.lua` — Snacks.nvim (picker, bigfile, input) with Colemak Picker keys
-   - `76_mini.lua` — mini.nvim modules
-   - `77_blink_cmp.lua` — blink.cmp (completion)
-   - `78_lsp.lua` — LSP config (nvim-lspconfig), enables selected LSP servers
-   - `79_mason.lua` — mason.nvim (LSP installer)
-   - `999_session.lua` — session management
-   - `999_vscode.lua` — VS Code-specific keybindings
-3. `lua/colemak.lua` — Colemak DH mapping table (also toggled via `:ColemakEnable`/`:ColemakDisable`)
-4. `lua/utils.lua` — `M.map()` wrapper, `M.copy_code_block()`
-5. `lua/custom/gitgud.lua` — GitHub permalink/open helpers used by git keymaps
-6. `after/lsp/{gopls,jsonls,lua_ls,yamlls}.lua` — per-server LSP config
+**Skill rules live in two places** by design:
+- `home/.pi/agent/skills/` — pi-only skills.
+- `home/.agents/skills/` — canonical, mirrored to `~/.claude/skills/` for Claude Code by `setupDots`.
 
-**VS Code mode**: Many plugin files early-return `if vim.g.vscode then return end`. The config works in both nvim and VS Code.
+The repo is mid-migration to **harness-agnostic skills** under `home/.agents/skills/` (see commits `dda9450`, `252c8ff`, `00d3f68`). Don't write new pi-specific skills — write them under `home/.agents/skills/` and let the mirror propagate.
 
-### Claude Code Integration
-- `home/.claude/settings.json` — permissions, hooks (permission dialog, destructive cmd blocker, gofmt on write), plugins
-- `home/.claude/CLAUDE.md` — communication/coding guidelines for Claude Code agent
-- `home/.claude/agents/` — custom agent definitions (critic, risk-reviewer)
-- `home/.claude/skills/` — reusable skill files for various tasks
-- `home/.claude/status` — status bar script showing tokens/cost/model/duration
+## Active git state (worktree is dirty)
 
-### Git Config
-- `home/.gitconfig` — delta diff viewer, SSH push, aliases, interactive diffFilter
-- `home/.gitalias` — sourced by `.gitconfig` via `!source ~/.gitalias && ...`
-- Uses `git@github.com:` insteadOf `https://github.com/`
-- Git aliases in `.gitconfig` are Colemak-agnostic but use short single-letter aliases: `g a`, `g c`, `g s`, `g d`, `g f`, `g p`
+Staged deletions, untracked additions — the worktree is mid-restructure. Don't run `git checkout` or `git stash` blindly:
+- Deleted from `home/.pi/agent/agents/`: `reviewer.md`, `scout.md`, `worker.md`. Replaced (untracked) by `home/.pi/agent/extensions/subagents/agents/{default,reviewer,scout,worker}.md`.
+- Deleted from `home/.pi/agent/extensions/`: `ask-user-question.ts`, `brainstorm.ts`, `btw.ts`, `subagent/`, `tokenrouter/`. Replaced (untracked) by `ask_question.ts`, `subagents/`, plus new `goals/{storage,validation,templates,templates}.ts`.
+- Modified: `home/.pi/agent/extensions/{footer,goals/index}.ts`, `home/.pi/agent/settings.json`, `home/.profile`, `home/.pi/agent/skills/init/SKILL.md`, `.config/git/ignore`, `misc/keymaps/Colemak-DH-ANSI.keylayout`.
+- Untracked: `Dockerfile.cbm` (builds `DeusData/codebase-memory-mcp`), `reboot.py` (Buffalo router reboot — hardcoded creds, **don't commit**), `tmp/soulforge/` (3rd-party scratch), `symbol-layer-proposal.md`.
 
-### CI
-- GitHub Actions: ShellCheck on push/PR, Dependabot auto-merge for patch updates
+## Colemak-DH and theme colors
 
-### Submodules
-- `.config/mpv/scripts/subs2srs` — https://github.com/Ajatt-Tools/mpvacious
+Colemak-DH keymaps are wired into every layer: nvim (`.config/nvim/lua/colemak.lua`), tmux (`.config/tmux/tmux.conf` and copy-mode), sail (`.config/sail/config.yaml`), keyd (`misc/keymaps/keyd.conf`), karabiner, ghostty passthroughs. The four swapped keys: `h↔m`, `j↔n`, `k↔e`, `l↔i`.
 
-## Conventions
-- **Shell**: `#!/usr/bin/env bash` with `set -euo pipefail`
-- **Neovim**: `vim.pack.add` for plugins, `_G.Config.new_autocmd()` for autocmds, `utils.map()` for keybindings
-- **Lua**: `local` everywhere, no OOP, `local M = {}` return pattern for modules
-- **Stow**: `.stowrc` sets `--no-folding`; setup commands use `--restow`
+The xterm-256 color palette is the source of truth in **three** files and must stay in sync: `home/.bashrc` (PS1), `home/.profile` (LS_COLORS via the inline `__ls_colors` function), and `.config/ghostty/config` (palette + status colors). Theme constants: `245 203 114 179 75 141 109` (slate red green yellow blue purple cyan).
 
-## Gotchas
-- `.profile` is pure POSIX sh. `home/.bash_profile` is a symlink to the same file (bash login shell compatibility). UWSM preloader sources it directly with `/bin/sh`.
-- `.profile` on Linux auto-launches Hyprland on tty1 — **do not edit blindly on macOS**
-- `setupDots` resolves paths from its own location, so it can be run from outside the repo root
-- Ghostty cmd-keybindings pass through to tmux (`cmd+a` → `\x1ba`) — this is how Colemak navigation reaches tmux
-- nvim `plugin/` files load in **alphanumeric order by filename** — the `10_`/`20_`/`30_` prefixes enforce order
-- Go format-on-save in nvim runs `organizeImports` code action BEFORE format (see `41_lsp_format.lua`)
-- `vim.pack.add` is neovim 0.12+ built-in — do not confuse with lazy.nvim
+## CI
+
+Two GitHub Actions, both on push and PR:
+- `automerge.yml` — auto-merges Dependabot PRs for github-actions and gitsubmodules when update-type is `semver-patch`. Has `contents: write` and `pull-requests: write`.
+- `linter.yml` — `reviewdog/action-shellcheck` with `check_all_files_with_shebangs: true`. Scans every tracked script with a shebang.
+
+No tests run in CI. No formatter runs in CI.
+
+## Local hooks (Claude Code)
+
+`home/.claude/settings.json` PostToolUse hook runs `gofmt -w` on edited `.go` files (skips `*gen.go`). Stop hook fires a macOS notification naming the cwd. PreToolUse/PermissionRequest hooks run `~/.local/bin/claude-permission-dialog`.
+
+## Verification gates (when changing things)
+
+No automated tests. Manual gates that catch real breakage:
+- `make user-cfg` — full stow restow. If this fails, the change is broken at the symlink level.
+- `shellcheck $(git ls-files | xargs file | grep -i 'shell script' | cut -d: -f1)` — CI runs this; mirror it locally before pushing.
+- `bash -n home/.bashrc home/.profile` — syntax check the shell init.
+- `command -v stow` — `setupDots` hard-requires GNU stow (BSD `find` is patched for macOS compat, but stow itself is the package manager).
