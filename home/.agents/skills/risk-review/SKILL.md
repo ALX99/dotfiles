@@ -43,7 +43,7 @@ The diff comes from the PR. If `scope` is also provided, use it to narrow focus 
 - Ignore style-only feedback unless it masks a correctness problem.
 - Skip compiler/LSP-only catches unless they reveal runtime risk.
 - Verify claims with code search and call-site inspection — do not infer.
-- For Go code, apply `go-expert` guidance.
+- For Go code, apply `go-code` guidance.
 
 ## Risk Checklist
 

@@ -47,7 +47,7 @@ gh pr checkout <number>
 - Only report design pattern findings where a named structural problem exists in the current code.
 - Do not suggest a pattern just because it could apply — it must solve something that is demonstrably broken or painful.
 - For Go code, apply `go-code` guidance.
-- Research established patterns with `deepwiki` if uncertain what the ecosystem convention is.
+- Research established patterns (e.g., via `deepwiki` MCP, web search, or docs lookup) if uncertain what the ecosystem convention is.
 
 ## Workflow
 

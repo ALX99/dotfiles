@@ -9,7 +9,7 @@ Go testing best practices for clean, parallel, maintainable tests. Use alongside
 
 ## Context
 
-- The project is using Go version !`go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
+- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Principles
 
