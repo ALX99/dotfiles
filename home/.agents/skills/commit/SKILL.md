@@ -1,18 +1,16 @@
 ---
 name: commit
 description: Create a git commit. Use whenever you or the user wants to create a commit.
-argument-hint: [what to commit or "staged files"]
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*)
 ---
 
 ## Context
 
-- Are there staged files? !`git diff --cached --quiet && echo "**No**" || echo "**Yes**"`
-- The user provided the following description of what to commit: `$ARGUMENTS` (if empty, assume "staged changes")
+- Are there staged files? Run `git diff --cached --quiet` — silent output means no staged files.
+- Use the description the user provided when invoking this skill. If none was given, assume "staged changes".
 
 ### `git status -s` output
 
-!`git status -s`
+Run `git status -s` to see the staged changes.
 
 ## Your task
 

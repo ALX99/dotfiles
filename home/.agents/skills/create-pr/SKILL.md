@@ -1,22 +1,19 @@
 ---
 name: create-pr
 description: Use when the user asks to create, open, make, draft, raise, or submit a PR / pull request / MR. Triggers on phrases like "create a PR", "open a PR", "make a PR", "draft a PR", "PR this", "raise a pull request", "submit a PR", "push and PR". MUST be used instead of calling `gh pr create` directly.
-allowed-tools: Bash(git:*), Bash(gh pr:*)
 ---
 
 ## Context
 
-- Current branch: !`git branch --show-current`
-- Default branch: !`gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'`
-- Staged changes: !`git diff --cached --stat`
-- Unstaged/untracked summary: !`git status --short`
-- PR template: !`find . -maxdepth 2 -type f -iname "pull_request_template*" 2>/dev/null | head -1 | xargs cat 2>/dev/null`
+- Current branch: run `git branch --show-current`.
+- Default branch: run `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`; fall back to `git symbolic-ref refs/remotes/origin/HEAD | sed 's|refs/remotes/origin/||'` if that fails.
+- Staged changes: run `git diff --cached --stat`.
+- Unstaged/untracked summary: run `git status --short`.
+- PR template: run `find . -maxdepth 2 -type f -iname "pull_request_template*" | head -1 | xargs cat` if a template exists.
 
 **User description:**
 
-```
-$ARGUMENTS
-```
+The user may have provided a description when invoking this skill. Use it; otherwise the PR should be derived from the staged/unstaged changes.
 
 ## Your task
 
