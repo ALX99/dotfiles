@@ -21,15 +21,73 @@ complete_message() {
 
 remove_broken_symlinks() {
   local target_dir="$1"
+  local link target
 
+  # BSD `find` (macOS) doesn't support `-xtype`, so iterate all symlinks
+  # and check each one ourselves.
   while IFS= read -r -d '' link; do
-    local target
+    [ -L "$link" ] || continue
+    [ -e "$link" ] && continue
     target=$(readlink "$link")
-    if [[ $target == *"dotfiles"* ]]; then
+    # Match absolute ("/.../dotfiles/...") and relative ("../../../dotfiles/...") paths.
+    if [[ "$target" == *"$repo_dir/"* || "$target" == *"/dotfiles/"* ]]; then
       echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $target"
       rm -f "$link"
     fi
-  done < <(find "$target_dir" -type l -xtype l -print0 2>/dev/null)
+  done < <(find "$target_dir" -type l -print0 2>/dev/null)
+}
+
+# True if $1 is a broken symlink whose target resolves into the dotfiles repo.
+# Matches both absolute paths ("/.../dotfiles/...") and stow-style relative
+# paths ("../../../dotfiles/...").
+is_stale_dotfile_link() {
+  [ -L "$1" ] && [ ! -e "$1" ] || return 1
+  local target
+  target=$(readlink "$1")
+  [[ "$target" == *"$repo_dir/"* || "$target" == *"/dotfiles/"* ]]
+}
+
+# True if $1 is a directory whose entries are all stale dotfile symlinks
+# (or empty) — the leftover state from a previous `home/.claude/skills/` stow.
+is_stale_dotfile_dir() {
+  local dir="$1" entry
+  [ -d "$dir" ] || return 1
+  local all_stale=true
+  while IFS= read -r -d '' entry; do
+    is_stale_dotfile_link "$entry" || { all_stale=false; break; }
+  done < <(find "$dir" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
+  [ "$all_stale" = true ]
+}
+
+# True if $1 is safe to replace with our per-skill symlink: missing, a
+# broken dotfile symlink, or a dir whose contents are all broken dotfile
+# symlinks. False if $1 might be content from `npx agents` or another
+# tool — we leave those alone to avoid clobbering other programs.
+is_stale_dotfile_entry() {
+  local p="$1"
+
+  # Path doesn't resolve — either missing or a broken symlink
+  if [ ! -e "$p" ]; then
+    if [ -L "$p" ]; then
+      # Broken symlink → replace only if target is in the dotfiles repo
+      is_stale_dotfile_link "$p" && return 0
+      return 1
+    fi
+    # Truly missing → create new
+    return 0
+  fi
+
+  # Working symlink → leave alone (could be npx, our correct link, etc.)
+  if [ -L "$p" ]; then
+    return 1
+  fi
+
+  # Real dir → replace only if contents are all stale dotfile symlinks
+  if [ -d "$p" ]; then
+    is_stale_dotfile_dir "$p" && return 0
+  fi
+
+  return 1
 }
 
 user_config() {
@@ -38,13 +96,40 @@ user_config() {
   remove_broken_symlinks ~/.local
   run_command stow --dir "$repo_dir" --target ~/.local --restow .local
 
+  # ~/.agents/skills must be a real (stowed) directory before stow so that
+  # ~/.claude/skills/<skill> can symlink to entries inside it.
+  if [ -L ~/.agents/skills ]; then
+    echo -e "${YELLOW}Removing stale symlink:${NC} ~/.agents/skills -> $(readlink ~/.agents/skills)"
+    rm -f ~/.agents/skills
+  fi
+
   remove_broken_symlinks ~/.claude
   run_command stow --dir "$repo_dir" --target ~ --restow home
 
-  # Share Claude skills with Codex
-  # Must be after home stow so ~/.claude/skills exists as a symlink first
-  rm -f ~/.agents/skills
-  run_command ln -s ~/.claude/skills ~/.agents/skills
+  # Share .agents/skills with Claude Code: per-skill symlinks from
+  # ~/.claude/skills/<skill> to ../../.agents/skills/<skill>.
+  # Only replace entries that are clearly our own stale leftovers — never
+  # touch symlinks or content from `npx agents` and other tools.
+  run_command mkdir -p ~/.claude/skills
+  for skill_dir in ~/.agents/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    link_path="$HOME/.claude/skills/$skill_name"
+    link_target="../../.agents/skills/$skill_name"
+
+    # Skip if already a correct symlink (idempotent)
+    if [ -L "$link_path" ] && [ "$(readlink "$link_path")" = "$link_target" ]; then
+      continue
+    fi
+
+    if ! is_stale_dotfile_entry "$link_path"; then
+      echo -e "${YELLOW}Skipping ${skill_name}: ${link_path} is not a stale dotfile leftover (leaving it alone — may be from npx agents or another tool)${NC}"
+      continue
+    fi
+
+    rm -rf "$link_path"
+    run_command ln -s "$link_target" "$link_path"
+  done
 
   remove_broken_symlinks ~/.config
   run_command stow --dir "$repo_dir" --target ~/.config --restow .config
