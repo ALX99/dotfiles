@@ -11,7 +11,7 @@ Go best practices for clean, idiomatic, maintainable code. Core principle: **Cle
 
 ## Context
 
-- The project is using Go version !`go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
+- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Principles
 
