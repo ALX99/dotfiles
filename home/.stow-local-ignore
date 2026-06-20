@@ -1,0 +1,2 @@
+# Ignore npm package directories — tens of thousands of files
+node_modules

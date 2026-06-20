@@ -1,0 +1,24 @@
+{
+  "name": "extensions",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "tsc -p tsconfig.json && eslint && node --test '**/tests/*.test.ts'"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.79.8",
+    "@earendil-works/pi-coding-agent": "^0.79.8",
+    "@earendil-works/pi-tui": "^0.79.8",
+    "execa": "^9.6.1",
+    "neverthrow": "^8.2.0",
+    "typebox": "^1.2.17",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.0.0",
+    "eslint": "^10.5.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
+  }
+}

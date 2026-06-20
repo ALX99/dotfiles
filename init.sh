@@ -138,6 +138,11 @@ user_config() {
     run_command systemctl --user enable ssh-agent
     run_command systemctl --user start ssh-agent
   fi
+
+  # Remind about pi extension deps if missing (stow no longer manages node_modules)
+  if [ ! -d ~/.pi/agent/extensions/node_modules ]; then
+    echo -e "${YELLOW}Hint: run 'make pi' to install npm deps for pi extensions${NC}"
+  fi
 }
 
 linux_system_config() {
