@@ -9,6 +9,11 @@
       "src": "https://github.com/saghen/blink.cmp",
       "version": "1.0.0 - 2.0.0"
     },
+    "fff.nvim": {
+      "rev": "797c045aa93e03e3cec3497a76afe7cb0106bdc2",
+      "src": "https://github.com/dmtrKovalenko/fff.nvim",
+      "version": ">=0.0.0"
+    },
     "flash.nvim": {
       "rev": "fcea7ff883235d9024dc41e638f164a450c14ca2",
       "src": "https://github.com/folke/flash.nvim"
