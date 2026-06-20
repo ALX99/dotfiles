@@ -45,11 +45,6 @@
       "rev": "b311b30818951d01f7b4bf650521b868b3fece16",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter-context"
     },
-    "sidekick.nvim": {
-      "rev": "53a2d3afa61e5fd2e17b270b5fa72e5493808304",
-      "src": "https://github.com/folke/sidekick.nvim",
-      "version": ">=0.0.0"
-    },
     "snacks.nvim": {
       "rev": "e6fd58c82f2f3fcddd3fe81703d47d6d48fc7b9f",
       "src": "https://github.com/folke/snacks.nvim",
