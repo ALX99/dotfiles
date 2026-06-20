@@ -124,6 +124,70 @@ _G.Config.new_autocmd("User", {
   end,
 })
 
+-- Before deleting a buffer, switch any window showing it to another buffer first.
+-- This avoids errors when the buffer is displayed and there's no alt buffer.
+local function switch_windows_off_buffer(buf)
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+      -- Find the first other loaded buffer
+      local alt = nil
+      for _, other in ipairs(vim.api.nvim_list_bufs()) do
+        if other ~= buf and vim.api.nvim_buf_is_loaded(other) then
+          alt = other
+          break
+        end
+      end
+      -- No other loaded buffer — create a fresh one
+      if alt == nil then
+        alt = vim.api.nvim_create_buf(false, true)
+      end
+      vim.api.nvim_win_set_buf(win, alt)
+    end
+  end
+end
+
+_G.Config.new_autocmd("User", {
+  pattern  = "MiniFilesActionDelete",
+  callback = function(event)
+    local path = event.data.from
+    if path == nil then return end
+
+    -- Normalize path (strip trailing slash) for comparison
+    path = path:gsub('/+$', '')
+
+    -- Find any buffer referencing the deleted path (file or directory)
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf) then
+        local name = vim.api.nvim_buf_get_name(buf)
+        if name ~= '' then
+          -- Normalize buffer path for comparison
+          local normalized = name:gsub('/+$', '')
+          -- Match: exact file, or file/dir inside deleted directory
+          local matches = (normalized == path)
+            or normalized:find('^' .. vim.pesc(path .. '/'), 1)
+
+          if matches then
+            if vim.bo[buf].modified then
+              local short = vim.fn.fnamemodify(name, ':~:.')
+              local choice = vim.fn.confirm(
+                "'" .. short .. "' has unsaved changes. Delete anyway?",
+                "&Yes\n&No", 2
+              )
+              if choice == 1 then
+                switch_windows_off_buffer(buf)
+                vim.api.nvim_buf_delete(buf, { force = true })
+              end
+            else
+              switch_windows_off_buffer(buf)
+              vim.api.nvim_buf_delete(buf, { force = true })
+            end
+          end
+        end
+      end
+    end
+  end,
+})
+
 require('utils').map('n', '<leader>ft', function()
   MiniFiles.open(vim.api.nvim_buf_get_name(0))
 end, { desc = "MiniFiles" })
