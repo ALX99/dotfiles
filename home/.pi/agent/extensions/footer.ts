@@ -1,8 +1,8 @@
 /**
  * Footer Extension — Full custom footer replacement.
  *
- * Shows on the left:  other extension statuses, cwd, git branch
- * Shows on the right: (provider) model, thinking level, context bar, session tokens, latest cache hit rate
+ * Shows on the left:  cwd, git branch, model + thinking level, context bar
+ * Shows on the right: extension statuses, session tokens, latest cache hit rate
  *
  * Right-aligned with space padding so stats stay flush to the terminal edge.
  */
@@ -25,6 +25,18 @@ function shortenCwd(cwd: string): string {
   return cwd.startsWith(home) ? cwd.replace(home, "~") : cwd;
 }
 
+/* ─── thinking level color ramp ─── */
+
+// Pi ships per-level theme colors. Map thinking level → theme color so
+// minimal reads cool/dim and xhigh reads hot, using the theme's palette.
+const THINKING_COLOR: Record<string, "thinkingMinimal" | "thinkingLow" | "thinkingMedium" | "thinkingHigh" | "thinkingXhigh"> = {
+  minimal: "thinkingMinimal",
+  low: "thinkingLow",
+  medium: "thinkingMedium",
+  high: "thinkingHigh",
+  xhigh: "thinkingXhigh",
+};
+
 /* ─── context bar ─── */
 
 function renderContextBar(usage: { tokens: number | null; contextWindow: number; percent: number | null }, theme: ExtensionContext["ui"]["theme"]): string {
@@ -36,7 +48,7 @@ function renderContextBar(usage: { tokens: number | null; contextWindow: number;
   const filled = Math.round((usage.percent / 100) * width);
   const empty = width - filled;
 
-  let color: string;
+  let color: "accent" | "warning" | "error";
   if (usage.percent < 50) color = "accent";
   else if (usage.percent < 80) color = "warning";
   else color = "error";
@@ -97,42 +109,46 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
       render(width: number): string[] {
         recheckTokens();
 
-        /* left: other extension statuses + cwd + (branch) */
-        const statuses = footerData.getExtensionStatuses();
-        let left = theme.fg("dim", shortenCwd(ctx.cwd));
+        /* left: cwd, branch, model, context bar */
+        const leftParts: string[] = [];
+        leftParts.push(theme.fg("muted", shortenCwd(ctx.cwd)));
 
         const branchName = footerData.getGitBranch();
         if (branchName) {
-          left += theme.fg("dim", ` (${branchName})`);
+          leftParts.push(theme.fg("dim", "(") + theme.fg("accent", branchName) + theme.fg("dim", ")"));
         }
 
+        const model = ctx.model;
+        if (model) {
+          let modelText = theme.fg("text", model.id) + theme.fg("dim", "(") + theme.fg("muted", model.provider) + theme.fg("dim", ")");
+          const thinking = pi.getThinkingLevel();
+          if (thinking) {
+            const color = thinking === "off" ? "muted" : THINKING_COLOR[thinking];
+            if (color) modelText += theme.fg(color, ` · ${thinking}`);
+          }
+          leftParts.push(modelText);
+        }
+
+        const left = leftParts.join("  ");
+
+        /* right: extension statuses, session tokens, context bar */
+        const statuses = footerData.getExtensionStatuses();
         const statusParts: string[] = [];
         for (const [, text] of statuses) {
           statusParts.push(text);
         }
-        if (statusParts.length > 0) {
-          left = statusParts.join("  ") + "  " + left;
-        }
 
-        /* right: model  ctx-bar  reasoning  session-tokens */
         const rightParts: string[] = [];
-
-        const model = ctx.model;
-        if (model) {
-          rightParts.push(theme.fg("dim", `(${model.provider}) ${model.id}`));
+        if (statusParts.length > 0) {
+          rightParts.push(statusParts.join("  "));
         }
+
+        rightParts.push(cachedTokens);
 
         const ctxUsage = ctx.getContextUsage();
         if (ctxUsage) {
           rightParts.push(renderContextBar(ctxUsage, theme));
         }
-
-        const thinking = pi.getThinkingLevel();
-        if (thinking && thinking !== "off") {
-          rightParts.push(theme.fg("warning", thinking));
-        }
-
-        rightParts.push(cachedTokens);
 
         const right = rightParts.join("  ");
         const pad = width - visibleWidth(left) - visibleWidth(right);
@@ -150,8 +166,6 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 function buildSessionTokens(ctx: ExtensionContext): string {
   let input = 0;
   let output = 0;
-  let cacheRead = 0;
-  let cacheWrite = 0;
   let latestCacheHitRate: number | undefined;
 
   for (const e of ctx.sessionManager.getBranch()) {
@@ -159,18 +173,15 @@ function buildSessionTokens(ctx: ExtensionContext): string {
       const usage = e.message.usage;
       input += usage.input ?? 0;
       output += usage.output ?? 0;
-      cacheRead += usage.cacheRead ?? 0;
-      cacheWrite += usage.cacheWrite ?? 0;
 
       const latestPromptTokens = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
       latestCacheHitRate = latestPromptTokens > 0 ? ((usage.cacheRead ?? 0) / latestPromptTokens) * 100 : undefined;
     }
   }
 
+  // Always show CH (with ??.?% placeholder when unknown) so the right-side
+  // width is stable and the layout doesn't shift as cache data appears.
   const sep = ctx.ui.theme.fg("dim", "/");
-  let tokens = `${ctx.ui.theme.fg("accent", "↑")}${fmt(input)}${sep}${ctx.ui.theme.fg("accent", "↓")}${fmt(output)}`;
-  if ((cacheRead > 0 || cacheWrite > 0) && latestCacheHitRate !== undefined) {
-    tokens += `${sep}${ctx.ui.theme.fg("accent", "CH")}${latestCacheHitRate.toFixed(1)}%`;
-  }
-  return tokens;
+  const chStr = latestCacheHitRate !== undefined ? `${latestCacheHitRate.toFixed(1)}%` : "??.?%";
+  return `${ctx.ui.theme.fg("accent", "↑")}${fmt(input)}${sep}${ctx.ui.theme.fg("accent", "↓")}${fmt(output)}${sep}${ctx.ui.theme.fg("accent", "CH")}${chStr}`;
 }
