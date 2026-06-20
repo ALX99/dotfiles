@@ -78,6 +78,7 @@ GH_PAGER="delta"
 DOCKER_BUILDKIT="1"
 NPM_CONFIG_IGNORE_SCRIPTS=true
 DISABLE_TELEMETRY=1 # Disable claude code telemetry
+PI_FFF_MODE=override # Replace pi's built-in find/grep with FFF (pi-fff ext)
 
 # Compact PS1-themed GNU ls colors.
 __ls_colors() (

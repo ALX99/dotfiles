@@ -42,6 +42,8 @@ __pycache__
 .claude/
 .pi/memory/
 .cursor/
+.superpowers/
+.worktrees/
 
 # OS artifacts
 Desktop.ini
