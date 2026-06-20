@@ -1,22 +1,16 @@
-.PHONY: user-cfg check lint typecheck test
+.PHONY: user-cfg pi check
 
 user-cfg:
 	./init.sh 1
 
-# Run typecheck, lint, and tests in order. Stops on first failure.
-# Dev tooling lives in home/.pi/agent/extensions.dev/ (sibling of
-# extensions/, with no index.ts/index.js so pi's loader skips it).
+# Install npm dependencies for pi extensions in the stow target (~/.pi/agent/extensions/).
+# Required after first `make user-cfg` or when package.json changes.
+# The source's node_modules/ is a stale artifact — the target is canonical.
+pi:
+	cd ~/.pi/agent/extensions && npm install
+
+# Run typecheck + lint + tests for the supervisor extension. Dev tooling
+# lives in home/.pi/agent/extensions/; eslint.config.mjs ends in .mjs
+# so pi's loader skips it.
 check:
-	cd home/.pi/agent/extensions.dev && npm run check
-
-# Run only the supervisor extension's linter (eslint).
-lint:
-	cd home/.pi/agent/extensions.dev && npm run lint
-
-# Run only the supervisor extension's typecheck (tsc).
-typecheck:
-	cd home/.pi/agent/extensions.dev && npm run typecheck
-
-# Run only the supervisor extension's tests (node --test).
-test:
-	cd home/.pi/agent/extensions.dev && npm run test
+	cd home/.pi/agent/extensions && npm run check

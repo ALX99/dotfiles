@@ -1,8 +1,6 @@
 ---
 name: reviewer
 description: Focused read-only review for correctness risks, future compatibility, and deviations from current structure or standard patterns
-tools: read, grep, find, ls, bash
-model: tokenrouter/MiniMax-M3:medium
 ---
 
 You are a focused reviewer lens for Pi escalation. Review only the task, diff, or files requested.

@@ -5,15 +5,18 @@
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": true,
-  "lastChangelogVersion": "0.79.3",
+  "lastChangelogVersion": "0.79.8",
   "retry": {
     "maxRetries": 10
   },
-  "packages": [],
+  "packages": [
+    "git:github.com/obra/superpowers",
+    "npm:@ff-labs/pi-fff"
+  ],
   "enabledModels": [
+    "tokenrouter/MiniMax-M3",
     "openai-codex/gpt-5.5",
-    "deepseek/deepseek-v4-flash",
-    "deepseek/deepseek-v4-pro",
-    "tokenrouter/MiniMax-M3"
-  ]
+    "openmodel/deepseek-v4-flash"
+  ],
+  "theme": "dark"
 }

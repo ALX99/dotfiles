@@ -1,4 +1,3 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { mkdir, readFile, stat, appendFile } from "node:fs/promises";
@@ -87,7 +86,7 @@ function parseCaptureArgs(args: string): { scope?: MemoryScope; note: string } {
 
 async function chooseCaptureTarget(
   pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
+  ctx: ExtensionContext,
   requestedScope?: MemoryScope,
 ): Promise<{ scope: MemoryScope; filePath: string } | undefined> {
   if (requestedScope === "global") return { scope: "global", filePath: GLOBAL_MEMORY_PATH };
@@ -171,7 +170,7 @@ export default function(pi: ExtensionAPI) {
       "Do not use memory_save for secrets, transient task details, guesses, or information already clearly covered by AGENTS.md.",
     ],
     parameters: Type.Object({
-      scope: StringEnum(["global", "repo"], { description: "Where to save the memory" }),
+      scope: Type.Union([Type.Literal("global"), Type.Literal("repo")], { description: "Where to save the memory" }),
       note: Type.String({ description: "Concise durable memory to save" }),
     }),
 

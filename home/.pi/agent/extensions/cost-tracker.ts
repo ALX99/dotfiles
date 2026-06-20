@@ -10,7 +10,7 @@
  * (just timestamps + tool call counts).
  */
 
-import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI, type Theme } from "@earendil-works/pi-coding-agent";
 import {
 	type Component,
 	matchesKey,
@@ -217,11 +217,6 @@ function aggregateTools(toolRecords: ToolRecord[], cutoff: number): Record<strin
 }
 
 // Dashboard component
-
-type Theme = {
-	fg: (color: string, text: string) => string;
-	bold: (text: string) => string;
-};
 
 const TABS: Period[] = ["day", "week", "month"];
 const TAB_LABELS: Record<Period, string> = { day: "Day", week: "Week", month: "Month" };

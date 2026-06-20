@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Launch pi-web in the current directory.
+#
+# Usage:
+#   pi-web                       # chat about the current directory
+#   pi-web --cwd ~/projects/foo  # chat about a different project
+#
+# Env:
+#   PI_WEB_PORT     override port (default 7878)
+#   PI_WEB=0        disable browser auto-open
+#   PI_WEB_ROOT     override install location (default /Users/dozy/dotfiles/pi-web)
+set -euo pipefail
+
+PI_WEB_ROOT="${PI_WEB_ROOT:-/Users/dozy/dotfiles/pi-web}"
+
+if [ ! -d "$PI_WEB_ROOT" ]; then
+  echo "[pi-web] PI_WEB_ROOT not found: $PI_WEB_ROOT" >&2
+  exit 1
+fi
+
+exec "$PI_WEB_ROOT/node_modules/.bin/tsx" "$PI_WEB_ROOT/src/server.ts" "$@"
