@@ -2,7 +2,6 @@ if vim.g.vscode then return end
 
 vim.pack.add({
   'https://github.com/FabijanZulj/blame.nvim',
-  'https://github.com/esmuellert/codediff.nvim',
 })
 
 local map = require('utils').map
@@ -32,28 +31,25 @@ require('blame').setup({
       return
     end
 
-    local parent = commit_hash .. "^"
-    -- Only allocate a new buffer if one doesn't already exist for the
-    -- file; bufadd() leaks a hidden buffer into the list every time
-    -- the user opens a blame detail on a different file. If the buffer
-    -- is already known, reuse it.
-    local buf = vim.fn.bufnr(file_path)
-    if buf == -1 then
-      buf = vim.fn.bufadd(file_path)
-      vim.fn.bufload(buf)
-    end
+    -- ponytail: scope by path when the file existed at this commit;
+    -- fall back to the full commit when it didn't (rename source or
+    -- pre-creation), so delta shows the rename via git -M instead of
+    -- a blank buffer. Assumes nvim's cwd is the repo root; the
+    -- fallback still works if not.
+    local rel = vim.fn.fnamemodify(file_path, ":.")
+    local scoped = vim.system({ "git", "cat-file", "-e", commit_hash .. ":" .. rel }, { text = true }):wait().code == 0
+    local cmd = scoped
+        and string.format("git show %s -- %s | delta --paging never", commit_hash, vim.fn.shellescape(rel))
+        or string.format("git show %s | delta --paging never", commit_hash)
 
-    local ok, err = pcall(vim.api.nvim_buf_call, buf, function()
-      vim.cmd(("CodeDiff file %s %s"):format(parent, commit_hash))
-    end)
-
-    if not ok then
-      vim.notify("CodeDiff failed: " .. tostring(err), vim.log.levels.ERROR)
-    end
+    -- tabnew gives a fresh unmodified buffer for term=true; q closes
+    -- the tab in both t mode (during the pipeline) and n mode (after
+    -- delta exits and the buffer becomes terminal-normal)
+    vim.cmd('tabnew')
+    vim.fn.jobstart(cmd, { term = true })
+    vim.keymap.set('t', 'q', '<C-\\><C-n>:tabclose<CR>', { buffer = 0 })
+    vim.keymap.set('n', 'q', ':tabclose<CR>', { buffer = 0 })
   end,
 })
 
 map('n', '<leader>Gb', ':BlameToggle<CR>', { desc = "Toggle Git blame" })
-
--- codediff.nvim
-map('n', '<leader>Gs', '<cmd>CodeDiff<cr>', { desc = "Show git status" })
