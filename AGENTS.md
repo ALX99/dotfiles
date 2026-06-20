@@ -5,7 +5,7 @@ Stow-managed personal dotfiles. Forked from `alx99/dotfiles` and heavily modifie
 ## Shape
 
 - **Stow packages:** `home/` (→ `~`), `.config/` (→ `~/.config`), `.local/` (→ `~/.local`). `.stowrc` sets `--no-folding`.
-- **One Makefile target** (`make user-cfg` → `./setupDots 1`). Full menu in `setupDots`: `1` user config, `2` Linux system (Arch), `3` Mac system.
+- **One Makefile target** (`make user-cfg` → `./init.sh 1`). Full menu in `init.sh`: `1` user config, `2` Linux system (Arch), `3` Mac system.
 - **Submodule:** `.config/mpv/scripts/subs2srs` → `Ajatt-Tools/mpvacious` (path name is misleading; it is mpvacious, not subs2srs).
 - **Scratch dir:** `tmp/` is **untracked** (`.gitignore` and `git status` confirm). Do not put real work there.
 - **170 tracked files.** No test framework, no build system. The only "build" is `make user-cfg`. The only "lint" is shellcheck via CI.
@@ -20,9 +20,9 @@ Runtime: `~/.pi/agent/extensions/<name>.ts` (and `agents/*.md`, `supervisor.md`)
 
 ## Setup invariants
 
-- `setupDots` shares `~/.agents/skills/<skill>` with `~/.claude/skills/<skill>` via per-skill symlinks. It uses `is_stale_dotfile_entry` to avoid clobbering content from `npx agents` or other tools — never `rm -rf` a `~/.claude/skills/<x>` that the script flagged as "not a stale dotfile leftover."
-- Linux: `setupDots 2` requires sudo for XKB/keyd/systemd units, enables `systemctl --user` ssh-agent, links `dash` to `/usr/bin/sh`.
-- Mac: `setupDots 3` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout` and prompts the user to enable it manually in System Settings. No auto-reboot.
+- `init.sh` shares `~/.agents/skills/<skill>` with `~/.claude/skills/<skill>` via per-skill symlinks. It uses `is_stale_dotfile_entry` to avoid clobbering content from `npx agents` or other tools — never `rm -rf` a `~/.claude/skills/<x>` that the script flagged as "not a stale dotfile leftover."
+- Linux: `init.sh 2` requires sudo for XKB/keyd/systemd units, enables `systemctl --user` ssh-agent, links `dash` to `/usr/bin/sh`.
+- Mac: `init.sh 3` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout` and prompts the user to enable it manually in System Settings. No auto-reboot.
 - `home/.privrc` is **tracked** and is sourced from `~/.bashrc`. It holds private env vars (e.g., `TOKENROUTER_API_KEY`). Treat as secret.
 
 ## Two AI ecosystems in parallel
@@ -35,7 +35,7 @@ Runtime: `~/.pi/agent/extensions/<name>.ts` (and `agents/*.md`, `supervisor.md`)
 
 **Skill rules live in two places** by design:
 - `home/.pi/agent/skills/` — pi-only skills.
-- `home/.agents/skills/` — canonical, mirrored to `~/.claude/skills/` for Claude Code by `setupDots`.
+- `home/.agents/skills/` — canonical, mirrored to `~/.claude/skills/` for Claude Code by `init.sh`.
 
 The repo is mid-migration to **harness-agnostic skills** under `home/.agents/skills/` (see commits `dda9450`, `252c8ff`, `00d3f68`). Don't write new pi-specific skills — write them under `home/.agents/skills/` and let the mirror propagate.
 
@@ -71,4 +71,4 @@ No automated tests. Manual gates that catch real breakage:
 - `make user-cfg` — full stow restow. If this fails, the change is broken at the symlink level.
 - `shellcheck $(git ls-files | xargs file | grep -i 'shell script' | cut -d: -f1)` — CI runs this; mirror it locally before pushing.
 - `bash -n home/.bashrc home/.profile` — syntax check the shell init.
-- `command -v stow` — `setupDots` hard-requires GNU stow (BSD `find` is patched for macOS compat, but stow itself is the package manager).
+- `command -v stow` — `init.sh` hard-requires GNU stow (BSD `find` is patched for macOS compat, but stow itself is the package manager).
