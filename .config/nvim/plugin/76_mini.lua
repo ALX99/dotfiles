@@ -189,7 +189,8 @@ _G.Config.new_autocmd("User", {
 })
 
 require('utils').map('n', '<leader>ft', function()
-  MiniFiles.open(vim.api.nvim_buf_get_name(0))
+  local dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':h')
+  MiniFiles.open(dir ~= '' and dir or nil)
 end, { desc = "MiniFiles" })
 
 -- mini.clue
