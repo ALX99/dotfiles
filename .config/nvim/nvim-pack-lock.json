@@ -9,25 +9,21 @@
       "src": "https://github.com/saghen/blink.cmp",
       "version": "1.0.0 - 2.0.0"
     },
-    "codediff.nvim": {
-      "rev": "5d6aa753797a0ebda14dd769ed03d12a320d689b",
-      "src": "https://github.com/esmuellert/codediff.nvim"
-    },
     "flash.nvim": {
       "rev": "fcea7ff883235d9024dc41e638f164a450c14ca2",
       "src": "https://github.com/folke/flash.nvim"
     },
     "kanagawa.nvim": {
-      "rev": "8ad3b4cdcc804b332c32db8f9743667e1bb82b99",
+      "rev": "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3",
       "src": "https://github.com/rebelot/kanagawa.nvim"
     },
     "markview.nvim": {
-      "rev": "692887ec334c41b618ba732047ac9dac3edfaead",
+      "rev": "3537eb2a9251cad5d7718253768f3772c62233fc",
       "src": "https://github.com/OXY2DEV/markview.nvim",
       "version": ">=0.0.0"
     },
     "mason.nvim": {
-      "rev": "44d1e90e1f66e077268191e3ee9d2ac97cc18e65",
+      "rev": "2a6940af80375532e5e9e7c1f2fc6319a1b7a69d",
       "src": "https://github.com/mason-org/mason.nvim",
       "version": ">=0.0.0"
     },
@@ -48,10 +44,6 @@
     "nvim-treesitter-context": {
       "rev": "b311b30818951d01f7b4bf650521b868b3fece16",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter-context"
-    },
-    "schemastore.nvim": {
-      "rev": "20d4e9970798123e6197acb1c85c4b1e897efd29",
-      "src": "https://github.com/b0o/schemastore.nvim"
     },
     "sidekick.nvim": {
       "rev": "53a2d3afa61e5fd2e17b270b5fa72e5493808304",
