@@ -55,9 +55,13 @@ local function shfmt_on_save(buf)
     return
   end
 
-  if #output > 0 then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
+  if #output > 0 and output[#output] ~= "" then
+    output[#output + 1] = ""
   end
+
+  local view = vim.fn.winsaveview()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
+  vim.fn.winrestview(view)
 end
 
 _G.Config.new_autocmd("BufWritePre", {
@@ -67,21 +71,3 @@ _G.Config.new_autocmd("BufWritePre", {
 })
 
 -- Go organize-imports on save is handled in 41_lsp_format.lua (combined with auto-format to avoid race conditions)
-
-
--- Automatically update listchars to match indentation and listchars settings
--- https://www.reddit.com/r/neovim/comments/17aponn/comment/k5f2n7t/?utm_source=share&utm_medium=web2x&context=3
-local function update_lead()
-  local lcs = vim.opt_local.listchars:get()
-  local space_src = lcs.multispace or lcs.space
-  if not space_src or space_src == "" then return end
-  local tab = vim.fn.str2list(lcs.tab)
-  local space = vim.fn.str2list(space_src)
-  local lead = { tab[1] }
-  for i = 1, vim.bo.tabstop - 1 do
-    lead[#lead + 1] = space[i % #space + 1]
-  end
-  vim.opt_local.listchars:append({ leadmultispace = vim.fn.list2str(lead) })
-end
-_G.Config.new_autocmd("OptionSet", { pattern = { "listchars", "tabstop", "filetype" }, callback = update_lead })
-_G.Config.new_autocmd("VimEnter", { callback = update_lead, once = true })

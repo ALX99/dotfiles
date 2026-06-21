@@ -15,8 +15,8 @@ local mappings = {
   { modes = { "n", "x" }, lhs = "L",      rhs = "N",     desc = "Prev search (N)" },
   { modes = { "n", "x" }, lhs = "h",      rhs = "e",     desc = "End of word (e)" },
   { modes = { "n", "x" }, lhs = "H",      rhs = "E",     desc = "End of WORD (E)" },
-  { modes = { "n" },           lhs = "j",      rhs = "m",     desc = "Set mark (m)" },
-  { modes = { "n" },           lhs = "k",      rhs = "i",     desc = "Insert (i)" },
+  { modes = { "n", "x" }, lhs = "j",      rhs = "m",     desc = "Set mark (m)" },
+  { modes = { "n", "x" }, lhs = "k",      rhs = "i",     desc = "Insert (i)" },
   -- { modes = { "n" },           lhs = "K",      rhs = "I",     desc = "Insert at start (I)" },
 
 }

@@ -30,7 +30,6 @@ local map = require('utils').map
 local fff = require('fff')
 
 map('n', '<leader>fo', function() fff.find_files() end, { desc = "Find Files" })
-map('n', '<leader>fs', function() fff.find_files() end, { desc = "Find Files (smart)" })
 map('n', '<leader>/', function() fff.live_grep() end, { desc = "Grep" })
 map('n', '<leader>*', function() fff.live_grep({ query = vim.fn.expand('<cword>') }) end,
   { desc = "Grep Word" })
