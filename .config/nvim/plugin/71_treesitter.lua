@@ -14,29 +14,31 @@ _G.Config.new_autocmd('PackChanged', {
   end
 })
 
-require('nvim-treesitter').install({
-  "bash",
-  "css",
-  "dockerfile",
-  "go",
-  "gomod",
-  "html",
-  "javascript",
-  "typescript",
-  "tsx",
-  "json",
-  "lua",
-  "luadoc",
-  "make",
-  "markdown",
-  "markdown_inline",
-  "vimdoc",
-  "python",
-  "yaml",
-  "regex", -- for Snacks.picker
-  "gitcommit",
-  "svelte",
-})
+vim.schedule(function()
+  require('nvim-treesitter').install({
+    "bash",
+    "css",
+    "dockerfile",
+    "go",
+    "gomod",
+    "html",
+    "javascript",
+    "typescript",
+    "tsx",
+    "json",
+    "lua",
+    "luadoc",
+    "make",
+    "markdown",
+    "markdown_inline",
+    "vimdoc",
+    "python",
+    "yaml",
+    "regex", -- for Snacks.picker
+    "gitcommit",
+    "svelte",
+  })
+end)
 
 if vim.g.vscode then return end
 

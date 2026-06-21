@@ -60,6 +60,11 @@ map("n", "<leader>fo", function()
   vscode.action("workbench.action.quickOpen")
 end, { desc = "Quick Open" })
 
+-- File tree
+map("n", "<leader>ft", function()
+  vscode.action("workbench.view.explorer")
+end, { desc = "Focus File Explorer" })
+
 map("n", "<leader>?", function()
   vscode.action("workbench.action.showCommands")
 end, { desc = "Show Commands" })
@@ -108,7 +113,3 @@ end, { desc = "Code action" })
 map({ "n", "x" }, "=", function()
   vscode.action("editor.action.formatDocument")
 end, { desc = "Format file" })
-
-map("n", "<leader>ft", function()
-  vscode.action("workbench.view.explorer")
-end, { desc = "Focus File Explorer" })

@@ -19,9 +19,9 @@ local lsp_picker_layout = {
     border = true,
     title = "{title} {live} {flags}",
     title_pos = "center",
-    { win = "input",   height = 1,      border = "bottom" },
+    { win = "input",   height = 1,          border = "bottom" },
     { win = "list",    border = "none" },
-    { win = "preview", title = "{preview}", height = 0.4, border = "top" },
+    { win = "preview", title = "{preview}", height = 0.4,     border = "top" },
   },
 }
 
@@ -42,7 +42,7 @@ local function mappings(client, buf)
   end, { desc = "Go to implementation" }) -- vim.lsp.buf.implementation
   bmap('n', 'grr', function()
     Snacks.picker.lsp_references({ layout = lsp_picker_layout, focus = "list" })
-  end, { desc = "Go to reference" })           -- vim.lsp.buf.references
+  end, { desc = "Go to reference" }) -- vim.lsp.buf.references
   bmap('n', 'gS', Snacks.picker.lsp_workspace_symbols, { desc = "Goto workspace symbols" })
 
   bmap('n', 'gD', vim.lsp.buf.declaration, { desc = "Go to declaration" })      -- Many LSPs do not implement this
@@ -88,19 +88,20 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function highlight_references(client, buf)
-  if vim.b[buf].lsp_highlight_setup then return end
   if not client:supports_method(Methods.textDocument_documentHighlight) then return end
-  vim.b[buf].lsp_highlight_setup = true
+  vim.b[buf].lsp_highlight_setup = vim.b[buf].lsp_highlight_setup or {}
+  if vim.b[buf].lsp_highlight_setup[client.id] then return end
+  vim.b[buf].lsp_highlight_setup[client.id] = true
 
-  local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf, { clear = true })
-  _G.Config.new_autocmd({ 'CursorHold', 'CursorHoldI' }, {
+  local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf .. '.' .. client.id, { clear = true })
+  _G.Config.new_autocmd('CursorHold', {
     desc = "Document Highlight",
     buffer = buf,
     group = group,
     callback = vim.lsp.buf.document_highlight,
   })
 
-  _G.Config.new_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufLeave' }, {
+  _G.Config.new_autocmd({ 'CursorMoved', 'BufLeave' }, {
     desc = "Clear All the References",
     buffer = buf,
     group = group,
@@ -109,13 +110,18 @@ local function highlight_references(client, buf)
 
   _G.Config.new_autocmd('LspDetach', {
     desc = "Remove highlight autocmds",
-    group = UserLspConfig,
+    group = group,
     buffer = buf,
     callback = function(ev)
       if not (ev.data and ev.data.client_id == client.id) then return end
       vim.lsp.buf.clear_references()
-      vim.api.nvim_del_augroup_by_name('lsp-highlight-' .. buf)
-      vim.b[buf].lsp_highlight_setup = nil
+      pcall(vim.api.nvim_del_augroup_by_name, 'lsp-highlight-' .. buf .. '.' .. client.id)
+      if type(vim.b[buf].lsp_highlight_setup) == 'table' then
+        vim.b[buf].lsp_highlight_setup[client.id] = nil
+      end
+      if next(vim.b[buf].lsp_highlight_setup or {}) == nil then
+        vim.b[buf].lsp_highlight_setup = nil
+      end
       return true
     end,
   })
@@ -124,10 +130,11 @@ end
 ---@param client vim.lsp.Client
 ---@param buf number
 local function show_diagnostics(client, buf)
-  if vim.b[buf].lsp_diagnostics_float_setup then return end
-  vim.b[buf].lsp_diagnostics_float_setup = true
+  vim.b[buf].lsp_diagnostics_float_setup = vim.b[buf].lsp_diagnostics_float_setup or {}
+  if vim.b[buf].lsp_diagnostics_float_setup[client.id] then return end
+  vim.b[buf].lsp_diagnostics_float_setup[client.id] = true
 
-  local group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf, { clear = true })
+  local group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf .. '.' .. client.id, { clear = true })
   _G.Config.new_autocmd("CursorHold", {
     group = group,
     buffer = buf,
@@ -145,12 +152,17 @@ local function show_diagnostics(client, buf)
 
   _G.Config.new_autocmd('LspDetach', {
     desc = "Remove diagnostics float autocmd",
-    group = UserLspConfig,
+    group = group,
     buffer = buf,
     callback = function(ev)
       if not (ev.data and ev.data.client_id == client.id) then return end
-      vim.api.nvim_del_augroup_by_name('lsp-diag-hold-' .. buf)
-      vim.b[buf].lsp_diagnostics_float_setup = nil
+      pcall(vim.api.nvim_del_augroup_by_name, 'lsp-diag-hold-' .. buf .. '.' .. client.id)
+      if type(vim.b[buf].lsp_diagnostics_float_setup) == 'table' then
+        vim.b[buf].lsp_diagnostics_float_setup[client.id] = nil
+      end
+      if next(vim.b[buf].lsp_diagnostics_float_setup or {}) == nil then
+        vim.b[buf].lsp_diagnostics_float_setup = nil
+      end
       return true
     end,
   })

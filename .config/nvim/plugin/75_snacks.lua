@@ -63,5 +63,8 @@ map('n', '<leader>oL', function() Snacks.picker.git_log_file({}) end, { desc = "
 map('n', '<leader>oh', function() Snacks.picker.help({}) end, { desc = "Help Pages" })
 map('n', '<leader><leader>/', function() Snacks.picker.lines({}) end, { desc = "Buffer Lines" })
 map('n', '<leader>oq', function() Snacks.picker.qflist({}) end, { desc = "Quickfix List" })
+map('n', '<leader>oR', function() Snacks.picker.recent({}) end, { desc = "Recent files" })
 map('n', '<leader>oS', function() Snacks.picker.spelling({}) end, { desc = "Spelling" })
 map('n', '<leader>ou', function() Snacks.picker.undo({}) end, { desc = "Undo History" })
+
+map('n', '<leader>fs', function() Snacks.picker.smart() end, { desc = "Find Files (smart)" })

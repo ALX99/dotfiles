@@ -12,11 +12,21 @@ map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" })  -- CTRL+BS = C-h
 map("i", "<M-BS>", "<C-W>", { desc = "Delete word backwards" }) -- For macOS
 
 
-map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close current buffer" })
+map("n", "<leader>bd", "<cmd>bdelete!<CR>", { desc = "Close current buffer" })
+
 map("n", "<leader>bD", function()
-  local cur_path = vim.api.nvim_buf_get_name(0)
-  vim.cmd("%bd!")
-  if cur_path ~= "" then vim.cmd("edit " .. vim.fn.fnameescape(cur_path)) end
+  local cur_buf = vim.api.nvim_get_current_buf()
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if buf ~= cur_buf and vim.api.nvim_buf_is_loaded(buf) then
+      local name = vim.api.nvim_buf_get_name(buf)
+      if vim.bo[buf].modified then
+        local short = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
+        local choice = vim.fn.confirm("'" .. short .. "' has unsaved changes. Discard?", "&Discard\n&Cancel", 2)
+        if choice ~= 1 then return end
+      end
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+  end
 end, { desc = "Close all buffers except current" })
 map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
 map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
@@ -113,7 +123,4 @@ map('x', '#', function() return vsearch('?') end, { expr = true })
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
 
-map("n", "<leader>u", function()
-  vim.cmd.packadd("nvim.undotree")
-  require("undotree").open()
-end, { desc = "Undo tree" })
+map("n", "<leader>u", "<cmd>Undotree<CR>", { desc = "Undo tree" })

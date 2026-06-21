@@ -6,7 +6,6 @@ local function use_project_venv(_, config)
 
   config.settings = config.settings or {}
   config.settings.python = config.settings.python or {}
-  config.settings.python.pythonPath = python
   config.settings.python.venvPath = config.root_dir
   config.settings.python.venv = '.venv'
 end
