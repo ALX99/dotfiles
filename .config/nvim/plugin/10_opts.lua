@@ -1,8 +1,10 @@
 -- :options
 
+if vim.g.vscode then
+  return
+end
+
 -- General ====================================================================
-vim.g.mapleader               = " "           -- Leader key
-vim.g.maplocalleader          = vim.g.mapleader
 vim.o.winborder               = 'rounded'     -- Consistent borders on all floats (0.11+)
 vim.o.shell                   = 'bash'
 vim.o.mousescroll             = 'ver:6,hor:6' -- Customize mouse scroll
@@ -18,7 +20,7 @@ vim.o.title                   = true       -- Set terminal title to the filename
 vim.o.showmatch               = true       -- highlight matching [{()}]
 vim.o.breakindent             = true       -- Indent wrapped lines to match line start
 vim.o.breakindentopt          = 'list:-1'  -- Add padding for lists (if 'wrap' is set)
-vim.o.colorcolumn             = '+1'       -- Draw column on the right of maximum width
+vim.o.colorcolumn             = '+1'
 vim.o.cursorline              = true       -- Enable current line highlighting
 vim.o.linebreak               = true       -- Wrap lines at 'breakat' (if 'wrap' is set)
 vim.o.list                    = false      -- Show helpful text indicators
@@ -65,6 +67,7 @@ vim.o.expandtab     = true                  -- Convert tabs to spaces
 vim.o.formatoptions = 'rqnl1j'              -- Improve comment editing
 vim.o.ignorecase    = true                  -- Ignore case during search
 vim.o.infercase     = true                  -- Infer case in built-in completion
+vim.o.textwidth     = 80                    -- Soft wrap target
 vim.o.shiftwidth    = 2                     -- Use this number of spaces for indentation
 vim.o.smartcase     = true                  -- Respect case if search pattern has upper case
 vim.o.smartindent   = true                  -- Make indenting smart
