@@ -12,6 +12,8 @@ local fmt = {
   lua = "lua_ls",
   go = "gopls",
   html = "html",
+  css = "cssls",
+  yaml = "yamlls",
   javascript = "tsgo",
   typescript = "tsgo",
   javascriptreact = "tsgo",
@@ -36,7 +38,17 @@ local function format_python_black(buf)
     return
   end
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
+  if #output > 0 and output[#output] ~= "" then
+    output[#output + 1] = ""
+  end
+
+  -- Guard against empty output (systemlist returns {}): nvim_buf_set_lines with
+  -- an empty list replaces the whole buffer with a single blank line.
+  if #output > 0 then
+    local view = vim.fn.winsaveview()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
+    vim.fn.winrestview(view)
+  end
 end
 
 local function formatter_name(buf)
@@ -54,30 +66,31 @@ local function formatter_name(buf)
   return clients[1] and clients[1].name or nil
 end
 
-local function organize_go_imports(buf, client)
+local function organize_go_imports(buf, client, on_done)
   local params = vim.lsp.util.make_range_params(nil, client.offset_encoding)
   params.context = { only = { 'source.organizeImports' } }
-  local results, err = vim.lsp.buf_request_sync(buf, 'textDocument/codeAction', params, 1000)
-  if not results then
-    vim.notify("organizeImports request failed: " .. tostring(err), vim.log.levels.WARN)
-    return
-  end
-  for _, res in pairs(results) do
-    for _, action in pairs(res.result or {}) do
-      if action.edit then
-        local ok, e = pcall(vim.lsp.util.apply_workspace_edit, action.edit, client.offset_encoding)
-        if not ok then
-          vim.notify("organizeImports edit failed: " .. tostring(e), vim.log.levels.WARN)
+  client:request('textDocument/codeAction', params, function(err, results)
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    if err or not results then
+      vim.notify("organizeImports request failed: " .. tostring(err), vim.log.levels.WARN)
+      on_done()
+      return
+    end
+    for _, res in pairs(results) do
+      for _, action in pairs(res.result or {}) do
+        if action.edit then
+          local ok, e = pcall(vim.lsp.util.apply_workspace_edit, action.edit, client.offset_encoding)
+          if not ok then
+            vim.notify("organizeImports edit failed: " .. tostring(e), vim.log.levels.WARN)
+          end
+        end
+        if action.command then
+          client:exec_cmd(action.command)
         end
       end
-      if action.command then
-        client:exec_cmd(action.command)
-      end
     end
-  end
-  if vim.api.nvim_buf_is_valid(buf) then
-    vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
-  end
+    vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 }, on_done)
+  end, buf)
 end
 
 local function set_format_on_save(buf, client, callback)
@@ -90,7 +103,7 @@ local function set_format_on_save(buf, client, callback)
 
   _G.Config.new_autocmd('LspDetach', {
     desc = "Remove auto-format autocmd",
-    group = format_group,
+    group = group,
     buffer = buf,
     callback = function(ev)
       if ev.data and ev.data.client_id == client.id then
@@ -129,7 +142,7 @@ _G.Config.new_autocmd('LspAttach', {
 
     set_format_on_save(buf, client, function()
       if ft == 'go' then
-        organize_go_imports(buf, client)
+        organize_go_imports(buf, client, function() end)
         return
       end
       vim.lsp.buf.format({ bufnr = buf, name = client.name, timeout_ms = 1000 })
