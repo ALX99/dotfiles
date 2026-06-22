@@ -36,9 +36,6 @@ const AskQuestionParams = Type.Object({
 });
 
 export default function(pi: ExtensionAPI) {
-  // Defer registration to session_start so we can branch on ctx.hasUI.
-  // In non-interactive runs (CLI scripted, agents driving pi, etc.) the
-  // tool is simply absent from the agent's tool list.
   pi.on("session_start", (_event, ctx) => {
     if (!ctx.hasUI) return;
 
@@ -53,6 +50,7 @@ export default function(pi: ExtensionAPI) {
         "Keep alternatives short and mutually exclusive.",
       ],
       parameters: AskQuestionParams,
+      executionMode: "sequential",
 
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const options = [...params.alternatives, PROS_CONS_OPTION, OTHER_OPTION];
