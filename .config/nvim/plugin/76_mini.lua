@@ -27,11 +27,14 @@ require('mini.indentscope').setup({
 if vim.g.vscode then return end
 
 require('mini.misc').setup_restore_cursor()
+require('mini.input').setup({})
 require("mini.notify").setup({ lsp_progress = { enable = false } })
 require("mini.icons").setup({})
 require('mini.cmdline').setup({})
 require('mini.bracketed').setup({})
 require('mini.trailspace').setup({})
+
+require('mini.extra').setup({})
 
 require('mini.statusline').setup({
   content = {
@@ -117,13 +120,6 @@ require('mini.files').setup({
   },
 })
 
-_G.Config.new_autocmd("User", {
-  pattern  = "MiniFilesActionRename",
-  callback = function(event)
-    require('snacks').rename.on_rename_file(event.data.from, event.data.to)
-  end,
-})
-
 -- Before deleting a buffer, switch any window showing it to another buffer first.
 -- This avoids errors when the buffer is displayed and there's no alt buffer.
 local function switch_windows_off_buffer(buf)
@@ -164,7 +160,7 @@ _G.Config.new_autocmd("User", {
           local normalized = name:gsub('/+$', '')
           -- Match: exact file, or file/dir inside deleted directory
           local matches = (normalized == path)
-            or normalized:find('^' .. vim.pesc(path .. '/'), 1)
+              or normalized:find('^' .. vim.pesc(path .. '/'), 1)
 
           if matches then
             if vim.bo[buf].modified then
