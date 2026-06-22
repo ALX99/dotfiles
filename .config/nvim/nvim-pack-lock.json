@@ -10,7 +10,7 @@
       "version": "1.0.0 - 2.0.0"
     },
     "fff.nvim": {
-      "rev": "797c045aa93e03e3cec3497a76afe7cb0106bdc2",
+      "rev": "28321da22836b0e11da81e30f40f7a043b8f8fb4",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
       "version": ">=0.0.0"
     },
@@ -33,7 +33,7 @@
       "version": ">=0.0.0"
     },
     "mini.nvim": {
-      "rev": "a995fe9cd4193fb492b5df69175a351a74b3d36b",
+      "rev": "1345d191bb3da9c7b0e977f4387c5761f9bff68d",
       "src": "https://github.com/nvim-mini/mini.nvim",
       "version": ">=0.0.0"
     },
