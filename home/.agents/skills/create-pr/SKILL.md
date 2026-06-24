@@ -41,4 +41,4 @@ The user may have provided a description when invoking this skill. Use it; other
 ### Body
 
 - Fill in the PR template if one exists. Remove sections that don't apply.
-- Write like a human would — no exhaustive bullet points, be brief and assume the reader knows the codebase.
+- No exhaustive bullet points, be brief and assume the reader knows the codebase.
