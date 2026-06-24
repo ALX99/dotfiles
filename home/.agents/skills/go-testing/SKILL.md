@@ -5,7 +5,7 @@ description: Use when writing, editing, or reviewing Go test code
 
 # Go Testing
 
-Go testing best practices for clean, parallel, maintainable tests. Use alongside the **go-code** skill.
+Use alongside the **go-code** skill.
 
 ## Context
 
