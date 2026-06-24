@@ -5,12 +5,15 @@ description: Create a git commit. Use whenever you or the user wants to create a
 
 ## Context
 
-- Are there staged files? Run `git diff --cached --quiet` — silent output means no staged files.
+- To check if anything is staged: `git diff --cached --quiet && echo "nothing staged" || echo "HAS STAGED CHANGES"`
 - Use the description the user provided when invoking this skill. If none was given, assume "staged changes".
 
 ### `git status -s` output
 
-Run `git status -s` to see the staged changes.
+Run `git status -s` to see the staged changes. The first column shows the staging area (index), the second shows the working tree:
+  - `M ` (first column) = staged
+  - ` M` (second column) = unstaged but modified
+  - `??` = untracked
 
 ## Your task
 
