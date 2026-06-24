@@ -22,7 +22,7 @@ export default function (pi: ExtensionAPI) {
   function startCaffeinate() {
     // Kill any existing instance before starting a new one.
     killCaffeinate();
-    proc = spawn("/usr/bin/caffeinate", ["-t", "1800"], {
+    proc = spawn("/usr/bin/caffeinate", ["-i"], {
       stdio: "ignore",
       detached: false,
     });
@@ -42,4 +42,6 @@ export default function (pi: ExtensionAPI) {
 
   // Safety net: clean up on session shutdown (quit, reload, switch, fork).
   pi.on("session_shutdown", killCaffeinate);
+
+  process.on("exit", killCaffeinate);
 }
