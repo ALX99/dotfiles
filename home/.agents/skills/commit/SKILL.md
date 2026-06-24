@@ -23,8 +23,8 @@ Create a single git commit using **Conventional Commits** format:
 <type>(<scope>): <short summary>
 ```
 
-- **type**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`, `build`
-- **scope**: optional, the area of the codebase (e.g. `nvim`, `tmux`, `shell`, `backend`)
+- **type**: `feat` (new feature), `fix` (bug fix only), `refactor` (restructure without behavior change), `chore` (general random things — build config, deps, minor tweaks, misc), `docs` (documentation), `test` (testing), `perf` (performance), `ci` (CI/CD pipeline, workflows, actions, infra), `build` (build system, tooling)
+- **scope**: optional, the BROAD area of the codebase (e.g. `nvim`, `tmux`, `shell`, `backend`, `frontend`), not individual features
 - **summary**: imperative, lowercase, no period, max 50 chars (hard limit 72)
 
 **Litmus test**: a new contributor should understand the problem, why it matters, and the impact without opening files or reading the diff. Avoid code identifiers, filenames, and function names in the summary unless they ARE the user-facing impact.

@@ -7,7 +7,7 @@ description: Use ALWAYS when writing, editing, or reviewing ANY Go code — no e
 
 ## Overview
 
-Go best practices for clean, idiomatic, maintainable code. Core principle: **Clear > Clever**.
+Go best practices for clean, idiomatic, maintainable code.
 
 ## Context
 
@@ -15,12 +15,7 @@ Go best practices for clean, idiomatic, maintainable code. Core principle: **Cle
 
 ## Principles
 
-- **KISS**: As simple as possible; avoid premature abstractions and optimizations
-- **DRY**: Extract shared patterns
-- **YAGNI**: Don't build until needed
-- **Clear > Clever**: Do not sacrifice readability for cleverness
-- **Idiomatic Go**: stdlib first; don't import other languages' idioms
-- Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
+KISS, DRY, YAGNI, Clear > Clever. **Idiomatic Go**: stdlib first; don't import other languages' idioms. Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
 
 ## Naming
 
