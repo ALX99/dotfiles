@@ -4,7 +4,7 @@
  * Runs the spawned agent as a `pi --mode json --print --no-session` child
  * process with its own context, model, and tools, and returns the child's
  * final text. Codex-compatible arg shape. Depth capped at 3 (tracked across
- * the process tree via CODEX_SUBAGENT_DEPTH).
+ * the process tree via PI_SUBAGENT_DEPTH).
  *
  * Architecture: this is the only module that crosses into pi's tool world.
  * It composes Results from agents.ts / process.ts and converts Err → throw
@@ -16,27 +16,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
-import { getFinalText, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
+import { DEPTH_ENV, getFinalText, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
 import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
 
 const MAX_DEPTH = 3;
-const DEPTH_ENV = "CODEX_SUBAGENT_DEPTH";
-
-const SpawnParams = Type.Object({
-	message: Type.String({ description: "The specific task for this spawn. The agent's role (its system prompt) defines how it works; this is the instance of work to do. Self-contained — the child has no parent history." }),
-	task_name: Type.Optional(Type.String({ description: "Short label for UI and logs. Omit to derive from the message." })),
-	agent_type: Type.Optional(Type.String({ description: "Name of the subagent role to use. Omit for the default role." })),
-	reasoning_effort: Type.Optional(Type.Union([
-		Type.Literal("none"),
-		Type.Literal("minimal"),
-		Type.Literal("low"),
-		Type.Literal("medium"),
-		Type.Literal("high"),
-		Type.Literal("xhigh"),
-	], { description: "Override reasoning effort for the child." })),
-	fork_turns: Type.Optional(Type.String({ description: "Context inheritance mode. Currently only 'none' (default, fresh context) is supported." })),
-	cwd: Type.Optional(Type.String({ description: "Working directory for the child agent. Defaults to current cwd." })),
-});
 
 export default function (_pi: ExtensionAPI) {
 	// Discover agents at registration time so the model sees the current
@@ -52,6 +35,28 @@ export default function (_pi: ExtensionAPI) {
 	const agentList = agents
 		.map((a) => `- **${a.name}** — ${a.description}`)
 		.join("\n");
+
+	// Build agent_type as an enum of the discovered names so the model gets a
+	// hard constraint instead of free text that round-trips as an error.
+	const agentLiterals = agents.map((a) => Type.Literal(a.name));
+	const agentTypeSchema = agentLiterals.length
+		? Type.Union(agentLiterals, { description: "Name of the subagent role to use. Omit for the default role." })
+		: Type.String({ description: "Name of the subagent role to use. Omit for the default role." });
+
+	const SpawnParams = Type.Object({
+		message: Type.String({ description: "The specific task for this spawn. The agent's role (its system prompt) defines how it works; this is the instance of work to do. Self-contained — the child has no parent history." }),
+		task_name: Type.Optional(Type.String({ description: "Short label for UI and logs. Omit to derive from the message." })),
+		agent_type: Type.Optional(agentTypeSchema),
+		reasoning_effort: Type.Optional(Type.Union([
+			Type.Literal("none"),
+			Type.Literal("minimal"),
+			Type.Literal("low"),
+			Type.Literal("medium"),
+			Type.Literal("high"),
+			Type.Literal("xhigh"),
+		], { description: "Override reasoning effort for the child." })),
+		cwd: Type.Optional(Type.String({ description: "Working directory for the child agent. Defaults to current cwd." })),
+	});
 
 	// Per-row tick intervals, keyed by toolCallId. A single shared slot would
 	// let two concurrent spawns clobber each other's interval.
@@ -75,18 +80,8 @@ export default function (_pi: ExtensionAPI) {
 			// Each check throws a targeted message; pi catches and marks isError.
 			const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
 			if (parentDepth >= MAX_DEPTH) {
-				throw new Error(`spawn_agent depth ${parentDepth} >= max ${MAX_DEPTH}.`);
+				throw new Error(`spawn_agent capped at depth ${MAX_DEPTH}. Do not spawn a further child — perform this work in your current session instead.`);
 			}
-			if (params.fork_turns && params.fork_turns !== "none") {
-				throw new Error(`fork_turns='${params.fork_turns}' is not yet implemented. Use 'none' (default) for a fresh-context child.`);
-			}
-
-			const agents = discoverAgents().match(
-				(list) => list,
-				(e) => {
-					throw new Error(discoveryErrorMessage(e));
-				},
-			);
 
 			const requestedType = params.agent_type?.trim() || "default";
 			const agent = resolveAgent(agents, requestedType).match(
@@ -106,7 +101,7 @@ export default function (_pi: ExtensionAPI) {
 				defaultCwd: ctx.cwd,
 				agent,
 				message: params.message,
-				taskName: params.task_name?.trim() || params.message.slice(0, 60),
+				taskName: params.task_name?.trim() || clipAtWord(params.message, 60),
 				reasoningEffortOverride: params.reasoning_effort,
 				cwd: params.cwd,
 				parentDepth,
@@ -164,7 +159,18 @@ function discoveryErrorMessage(e: { kind: string; dir: string; cause?: NodeJS.Er
 
 function spawnErrorMessage(e: SpawnError): string {
 	const details = e.details;
-	const finalText = getFinalText(details.messages);
 	if (e.kind === "aborted") return "spawn_agent aborted.";
-	return details.stderr.trim() || finalText || `Subagent exited with code ${details.exitCode}.`;
+	const code = `Subagent exited with code ${details.exitCode}.`;
+	const stderr = details.stderr.trim();
+	const finalText = getFinalText(details.messages);
+	const body = stderr ? (finalText ? `${stderr}\n${finalText}` : stderr) : finalText;
+	return body ? `${code} ${body}` : code;
+}
+
+function clipAtWord(s: string, max: number): string {
+	const one = s.replace(/\s+/g, " ").trim();
+	if (one.length <= max) return one;
+	const cut = one.slice(0, max);
+	const lastSpace = cut.lastIndexOf(" ");
+	return (lastSpace > max * 0.5 ? one.slice(0, lastSpace) : cut) + "…";
 }

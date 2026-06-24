@@ -6,7 +6,7 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import { getFinalText, type RunDetails } from "./process.ts";
+import { DEPTH_ENV, getFinalText, type RunDetails } from "./process.ts";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -33,17 +33,23 @@ export function taskPreview(s: string): string {
 	return one.length > 80 ? `${one.slice(0, 77)}...` : one;
 }
 
+function clipLine(s: string, max: number): string {
+	return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
 // ── tool-call header ──────────────────────────────────────────────────
 
 export function renderCallHeader(
 	c: Container,
-	args: { message?: string; agent_type?: string; task_name?: string; model?: string; cwd?: string },
+	args: { message?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string },
 	expanded: boolean,
 	theme: Theme,
 ): void {
 	const agentLabel = args.agent_type ? ` ${theme.fg("accent", args.agent_type)}` : "";
-	const meta: string[] = [];
+	const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
+	const meta: string[] = [theme.fg("muted", `[d${parentDepth + 1}]`)];
 	if (args.task_name) meta.push(theme.fg("muted", `· ${args.task_name}`));
+	if (args.reasoning_effort) meta.push(theme.fg("muted", `· effort=${args.reasoning_effort}`));
 	if (args.model) meta.push(theme.fg("muted", `· model=${args.model}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
 	c.addChild(new Text(`${theme.fg("toolTitle", theme.bold("spawn_agent"))}${agentLabel} ${meta.join(" ")}`, 0, 0));
@@ -89,13 +95,19 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 	// Tool log: last 8 collapsed, all expanded; earlier entries summarized.
 	const tools = details.recentTools;
 	const visibleCount = options.expanded ? tools.length : Math.min(tools.length, 8);
-	if (tools.length > visibleCount) {
-		c.addChild(new Text(theme.fg("dim", `… ${tools.length - visibleCount} earlier actions`), 0, 0));
+	if (details.toolCount > visibleCount) {
+		c.addChild(new Text(theme.fg("dim", `… ${details.toolCount - visibleCount} earlier actions`), 0, 0));
 	}
 	for (let i = tools.length - visibleCount; i < tools.length; i++) {
 		const t = tools[i];
 		const body = t.argsPreview ? `${t.name}: ${t.argsPreview}` : t.name;
-		c.addChild(new Text(theme.fg("muted", `  ${body}`), 0, 0));
+		c.addChild(new Text(theme.fg("muted", `  ${clipLine(body, 100)}`), 0, 0));
+	}
+
+	// Waiting indicator for the long first-turn gap before any tool event.
+	if (isRunning && details.toolCount === 0 && !details.lastMessage) {
+		c.addChild(new Spacer(1));
+		c.addChild(new Text(theme.fg("dim", "waiting for first response…"), 0, 0));
 	}
 
 	// Latest thinking line. Skip when the tool log is empty — nothing to think about yet.

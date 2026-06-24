@@ -17,8 +17,9 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { AgentConfig } from "./agents.ts";
 import { z } from "zod";
 
-const DEPTH_ENV = "CODEX_SUBAGENT_DEPTH";
+export const DEPTH_ENV = "PI_SUBAGENT_DEPTH";
 const UPDATE_THROTTLE_MS = 150;
+const MAX_RECENT_TOOLS = 50;
 
 // ── trust boundary: the child's JSON event stream ───────────────────
 const UsageSchema = z.object({
@@ -42,10 +43,10 @@ const MessageSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
-const EventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("message_end"), message: MessageSchema }),
-  z.object({ type: z.literal("tool_result_end"), message: MessageSchema }),
-]);
+const EventSchema = z.object({
+  type: z.literal("message_end"),
+  message: MessageSchema,
+});
 
 
 
@@ -148,7 +149,7 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
 
   const env = { ...process.env, [DEPTH_ENV]: String(details.depth) };
   const throttle = createThrottle(UPDATE_THROTTLE_MS);
-  const emit = () => params.onUpdate?.(details);
+  const emit = () => params.onUpdate?.(toUpdateSnapshot(details));
 
   const invocation = getPiInvocation(args);
 
@@ -193,6 +194,10 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
   return details;
 }
 
+function toUpdateSnapshot(d: RunDetails): RunDetails {
+  return { ...d, messages: [], recentTools: [...d.recentTools] };
+}
+
 async function writeTempPrompt(agentName: string, systemPrompt: string): Promise<{ dir: string; path: string }> {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "subagent-"));
   const safeName = agentName.replace(/[^\w.-]+/g, "_");
@@ -202,7 +207,7 @@ async function writeTempPrompt(agentName: string, systemPrompt: string): Promise
 }
 
 /** Parse one JSON event line and fold it into the run details. */
-function ingestLine(line: string, details: RunDetails): void {
+export function ingestLine(line: string, details: RunDetails): void {
   if (!line.trim()) return;
   let raw: unknown;
   try {
@@ -235,6 +240,7 @@ function ingestLine(line: string, details: RunDetails): void {
     if (part.type === "toolCall") {
       details.toolCount++;
       details.recentTools.push({ name: part.name, argsPreview: argsPreview(part.arguments) });
+      if (details.recentTools.length > MAX_RECENT_TOOLS) details.recentTools.shift();
     } else if (part.type === "text" && part.text.trim()) {
       const prose = part.text.split("\n").find((l) => l.trim() && !l.trimStart().startsWith("```"));
       if (prose) details.lastMessage = prose.trim();
@@ -272,7 +278,7 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 // ── small helpers ─────────────────────────────────────────────────────
 
-function argsPreview(args: unknown): string {
+export function argsPreview(args: unknown): string {
   if (!args || typeof args !== "object") return "";
   const a = args as Record<string, unknown>;
   for (const k of ["path", "file_path", "command", "query", "url", "pattern", "content"]) {
