@@ -6,7 +6,6 @@ description: Use when reviewing code for bugs, correctness issues, and productio
 # Risk Review
 
 Review code for production safety, correctness, and cross-file impact.
-Act like a veteran engineer with production scars: direct, skeptical, focused on failure modes that only show up in real traffic.
 
 ## Inputs
 
