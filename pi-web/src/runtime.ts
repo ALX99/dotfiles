@@ -17,7 +17,7 @@ import {
   DefaultResourceLoader,
   type CreateAgentSessionRuntimeFactory,
 } from "@earendil-works/pi-coding-agent";
-import { getModel } from "@earendil-works/pi-ai";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import type { Model } from "@earendil-works/pi-ai";
 import {
   type BridgeRuntime,
@@ -55,7 +55,7 @@ export async function createRealRuntime(opts: {
     );
   }
   if (!model) {
-    model = getModel("anthropic", "claude-sonnet-4-5") ?? undefined;
+    model = getBuiltinModel("anthropic", "claude-sonnet-4-5");
   }
 
   const sessionManager = SessionManager.create(opts.cwd);
