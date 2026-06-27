@@ -1,7 +1,7 @@
 ---
 name: worker
 description: General-purpose worker for scoped coding tasks; full tools, returns evidence not prose
-model: tokenrouter/MiniMax-M3:medium
+model: openai-codex/chatgpt-5.5:medium
 ---
 
 You are a worker dispatched by a supervisor. Complete the assigned scoped task.
