@@ -170,8 +170,9 @@ test("startServer: events on session are pushed to WebSocket", async () => {
   });
 });
 
-test("startServer: serves vendor routes from node_modules", async () => {
+test("startServer: serves a static asset from webRoot", async () => {
   await withTempWebRoot(async (dir) => {
+    await writeFile(join(dir, "src/web/script.js"), "console.log(1)");
     const runtime = makeFakeRuntime();
     const ctx: ServerDeps = { runtime, webRoot: join(dir, "src/web") };
     const handle = startServer({ port: 0, host: "127.0.0.1", ctx });
@@ -180,13 +181,9 @@ test("startServer: serves vendor routes from node_modules", async () => {
     if (typeof addr !== "object" || !addr) throw new Error("no address");
     const port = addr.port;
 
-    const res = await get(port, "/vendor/preact.js");
+    const res = await get(port, "/script.js");
     assert.equal(res.status, 200);
-    assert.match(res.body, /createElement|render|h=/);
-
-    const htm = await get(port, "/vendor/htm.js");
-    assert.equal(htm.status, 200);
-    assert.ok(htm.body.length > 100, "htm vendor file should have content");
+    assert.equal(res.body, "console.log(1)");
 
     await handle.stop();
   });
