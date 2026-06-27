@@ -1,7 +1,7 @@
 // HTTP + WebSocket server.
 //
-// Static files: GET /<path> from webRoot (default pi-web/src/web).
-// Vendor:       GET /vendor/<name> resolves to node_modules file.
+// Static files: GET /<path> from webRoot (default pi-web/dist, the
+//                Vite build output).
 // WebSocket:    WS  /ws   forwards raw frames to the bridge.
 
 import {
@@ -15,19 +15,16 @@ import { extname, join, normalize, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import { Bridge, type BridgeRuntime, type ClientSender } from "./bridge.ts";
-import { resolveVendorFile } from "./vendor.ts";
 import { createRealRuntime, type RealRuntime } from "./runtime.ts";
 import { openBrowser } from "./open-browser.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const DEFAULT_WEB_ROOT = resolve(__dirname, "web");
+const DEFAULT_WEB_ROOT = resolve(__dirname, "..", "dist");
 
 export interface ServerDeps {
   runtime: BridgeRuntime;
   webRoot: string;
-  /** Map of additional static routes, e.g. { "/vendor/preact.js": "<abs path>" }. */
-  vendorRoutes?: Record<string, string>;
 }
 
 export interface ServerHandle {
@@ -56,17 +53,6 @@ function isLoopback(host: string): boolean {
   );
 }
 
-function defaultVendorRoutes(): Record<string, string> {
-  try {
-    return {
-      "/vendor/preact.js": resolveVendorFile("preact"),
-      "/vendor/htm.js": resolveVendorFile("htm"),
-    };
-  } catch {
-    return {};
-  }
-}
-
 export function startServer(opts: {
   port: number;
   host: string;
@@ -77,14 +63,14 @@ export function startServer(opts: {
       `Refusing to bind to non-loopback host "${opts.host}". Use 127.0.0.1 or ::1.`,
     );
   }
-  const { runtime, webRoot, vendorRoutes = defaultVendorRoutes() } = opts.ctx;
+  const { runtime, webRoot } = opts.ctx;
 
   const bridge = new Bridge({ runtime });
   const wss = new WebSocketServer({ noServer: true });
 
   const server = createServer(async (req, res) => {
     try {
-      await handleHttp(req, res, webRoot, vendorRoutes);
+      await handleHttp(req, res, webRoot);
     } catch (err) {
       res.statusCode = 500;
       res.end(`Internal error: ${(err as Error).message}`);
@@ -146,19 +132,9 @@ async function handleHttp(
   req: IncomingMessage,
   res: ServerResponse,
   webRoot: string,
-  vendorRoutes: Record<string, string>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const pathname = decodeURIComponent(url.pathname);
-
-  if (pathname in vendorRoutes) {
-    const file = vendorRoutes[pathname]!;
-    const buf = await readFile(file);
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-    res.end(buf);
-    return;
-  }
 
   const rel = pathname === "/" ? "/index.html" : pathname;
   const full = normalize(join(webRoot, rel));

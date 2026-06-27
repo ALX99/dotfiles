@@ -23,6 +23,7 @@ export interface BridgeSession {
   setModel(model: Model<any>): Promise<boolean>;
   setThinkingLevel(level: ModelThinkingLevel): void;
   readonly messages: unknown[];
+  readonly sessionFile: string | undefined;
   readonly agent: {
     readonly state: {
       readonly model: Model<any> | undefined;
@@ -37,6 +38,7 @@ export interface SessionListEntry {
   path: string;
   id: string;
   name?: string;
+  firstMessage?: string;
   startedAt?: number;
 }
 
@@ -48,6 +50,8 @@ export interface BridgeRuntime {
   listSessions(): Promise<SessionListEntry[]>;
   /** List models the registry can use. */
   getAvailableModels(): Promise<Model<any>[]>;
+  /** Track the user's model choice so new sessions inherit it. */
+  setCurrentModel?(model: Model<any>): void;
 }
 
 export type ClientSender = (data: string) => void;
@@ -179,6 +183,7 @@ export class Bridge {
           return;
         }
         await session.setModel(target);
+        this.runtime.setCurrentModel?.(target);
         this.respond(replyTo, { type: "response", id: cmd.id, ok: true });
         return;
       }
@@ -203,6 +208,7 @@ export class Bridge {
             isStreaming: s.isStreaming,
             messageCount: s.messageCount,
             messages: session.messages,
+            sessionFile: session.sessionFile,
           },
         });
         return;
