@@ -16,6 +16,7 @@ import {
   SettingsManager,
   DefaultResourceLoader,
   type CreateAgentSessionRuntimeFactory,
+  type CreateAgentSessionFromServicesOptions,
 } from "@earendil-works/pi-coding-agent";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import type { Model } from "@earendil-works/pi-ai";
@@ -60,26 +61,24 @@ export async function createRealRuntime(opts: {
 
   const sessionManager = SessionManager.create(opts.cwd);
 
+  let currentModel = model;
+
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: sm,
     sessionStartEvent,
   }) => {
     const services = await createAgentSessionServices({ cwd });
-    const fromServicesOpts: Record<string, unknown> = {
+    const opts: CreateAgentSessionFromServicesOptions = {
       services,
       sessionManager: sm,
       thinkingLevel: "medium",
+      ...(sessionStartEvent !== undefined
+        ? { sessionStartEvent }
+        : {}),
+      ...(currentModel ? { model: currentModel } : {}),
     };
-    if (sessionStartEvent !== undefined) {
-      fromServicesOpts.sessionStartEvent = sessionStartEvent;
-    }
-    if (model) {
-      fromServicesOpts.model = model;
-    }
-    const result = await createAgentSessionFromServices(
-      fromServicesOpts as unknown as Parameters<typeof createAgentSessionFromServices>[0],
-    );
+    const result = await createAgentSessionFromServices(opts);
     return { ...result, services, diagnostics: services.diagnostics };
   };
 
@@ -89,10 +88,13 @@ export async function createRealRuntime(opts: {
     sessionManager,
   });
 
-  const session = runtime.session as unknown as BridgeSession;
-
   return {
-    session,
+    get session() {
+      return runtime.session as unknown as BridgeSession;
+    },
+    setCurrentModel(m: Model<any>): void {
+      currentModel = m;
+    },
     async newSession() {
       return runtime.newSession();
     },
@@ -101,21 +103,22 @@ export async function createRealRuntime(opts: {
     },
     async listSessions() {
       const list = await SessionManager.list(opts.cwd);
-      return list.map((entry) => {
+      const entries = list.map((entry) => {
         const e: SessionListEntry = { path: entry.path, id: entry.id };
         if (entry.name !== undefined) e.name = entry.name;
+        e.firstMessage = entry.firstMessage;
         e.startedAt = entry.modified.getTime();
         return e;
       });
+      entries.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+      return entries;
     },
     async getAvailableModels(): Promise<Model<any>[]> {
       const all = await modelRegistry.getAvailable();
       return all;
     },
     async dispose() {
-      // The SDK doesn't expose a clean shutdown for the runtime; for v1
-      // we let the process exit handle it. The bridge's dispose() will
-      // unsubscribe from the session.
+      await runtime.dispose();
     },
   };
 }
