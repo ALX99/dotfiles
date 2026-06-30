@@ -19,22 +19,44 @@ complete_message() {
   echo -e "${GREEN}$1 completed.${NC}"
 }
 
+remove_if_broken_dotfile_symlink() {
+  local link="$1" target repo_name
+
+  [ -L "$link" ] || return 1
+  [ -e "$link" ] && return 1
+
+  target=$(readlink "$link")
+  repo_name=$(basename "$repo_dir")
+  # Match absolute ("/.../dotfiles/...") and relative ("dotfiles/..." or
+  # "../../../dotfiles/...") paths.
+  if [[ "$target" == "$repo_dir/"* || "$target" == "$repo_name/"* || "$target" == *"/$repo_name/"* ]]; then
+    echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $target"
+    rm -f "$link"
+    return 0
+  fi
+
+  return 1
+}
+
 remove_broken_symlinks() {
   local target_dir="$1"
-  local link target
+  local link
 
   # BSD `find` (macOS) doesn't support `-xtype`, so iterate all symlinks
   # and check each one ourselves.
   while IFS= read -r -d '' link; do
-    [ -L "$link" ] || continue
-    [ -e "$link" ] && continue
-    target=$(readlink "$link")
-    # Match absolute ("/.../dotfiles/...") and relative ("../../../dotfiles/...") paths.
-    if [[ "$target" == *"$repo_dir/"* || "$target" == *"/dotfiles/"* ]]; then
-      echo -e "${YELLOW}Removing broken symlink:${NC} $link -> $target"
-      rm -f "$link"
-    fi
+    remove_if_broken_dotfile_symlink "$link" || true
   done < <(find "$target_dir" -type l -print0 2>/dev/null)
+}
+
+remove_broken_symlinks_direct() {
+  local target_dir="$1" link
+
+  shopt -s dotglob nullglob
+  for link in "$target_dir"/*; do
+    remove_if_broken_dotfile_symlink "$link" || true
+  done
+  shopt -u dotglob nullglob
 }
 
 # True if $1 is a broken symlink whose target resolves into the dotfiles repo.
@@ -103,7 +125,9 @@ user_config() {
     rm -f ~/.agents/skills
   fi
 
+  remove_broken_symlinks_direct ~
   remove_broken_symlinks ~/.claude
+  remove_broken_symlinks ~/.pi
   run_command stow --dir "$repo_dir" --target ~ --restow home
 
   # Share .agents/skills with Claude Code: per-skill symlinks from
