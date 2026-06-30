@@ -101,6 +101,14 @@ export interface RunParams {
   onUpdate?: (details: RunDetails) => void;
 }
 
+export interface BuildPiArgsParams {
+  model?: string;
+  reasoningEffortOverride?: string;
+  tools?: string[];
+  promptPath?: string;
+  message: string;
+}
+
 /** Spawns the child and resolves Ok on a clean (exit 0) run, Err otherwise. */
 export function runSubprocess(params: RunParams): ResultAsync<RunDetails, SpawnError> {
   const details = initDetails(params);
@@ -134,18 +142,21 @@ function initDetails(params: RunParams): RunDetails {
 }
 
 async function runAndCollect(params: RunParams, details: RunDetails): Promise<RunDetails> {
-  const args = ["--mode", "json", "--print", "--no-session"];
-  if (details.model) args.push("--model", details.model);
-  if (params.reasoningEffortOverride) args.push("--reasoning-effort", params.reasoningEffortOverride);
-  if (params.agent.tools?.length) args.push("--tools", params.agent.tools.join(","));
-
   let tempDir: string | undefined;
+  let promptPath: string | undefined;
   if (params.agent.systemPrompt) {
     const written = await writeTempPrompt(params.agent.name, params.agent.systemPrompt);
     tempDir = written.dir;
-    args.push("--append-system-prompt", written.path);
+    promptPath = written.path;
   }
-  args.push(`Task: ${params.message}`);
+
+  const args = buildPiArgs({
+    model: details.model,
+    reasoningEffortOverride: params.reasoningEffortOverride,
+    tools: params.agent.tools,
+    promptPath,
+    message: params.message,
+  });
 
   const env = { ...process.env, [DEPTH_ENV]: String(details.depth) };
   const throttle = createThrottle(UPDATE_THROTTLE_MS);
@@ -192,6 +203,20 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
   }
 
   return details;
+}
+
+export function buildPiArgs(params: BuildPiArgsParams): string[] {
+  const args = ["--mode", "json", "--print", "--no-session"];
+  if (params.model) args.push("--model", params.model);
+  if (params.reasoningEffortOverride) args.push("--thinking", piThinkingLevel(params.reasoningEffortOverride));
+  if (params.tools?.length) args.push("--tools", params.tools.join(","));
+  if (params.promptPath) args.push("--append-system-prompt", params.promptPath);
+  args.push(`Task: ${params.message}`);
+  return args;
+}
+
+function piThinkingLevel(reasoningEffort: string): string {
+  return reasoningEffort === "none" ? "off" : reasoningEffort;
 }
 
 function toUpdateSnapshot(d: RunDetails): RunDetails {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import type { Message } from "@earendil-works/pi-ai";
-import { argsPreview, getFinalText, ingestLine, type RunDetails } from "../process.ts";
+import { argsPreview, buildPiArgs, getFinalText, ingestLine, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
@@ -139,4 +139,31 @@ test("argsPreview falls back to compact JSON for unknown shapes", () => {
 	assert.equal(argsPreview(undefined), "");
 	assert.equal(argsPreview("str"), "");
 	assert.equal(argsPreview(null), "");
+});
+
+test("buildPiArgs maps reasoning effort override to Pi's thinking flag", () => {
+	const args = buildPiArgs({
+		model: "openai/gpt-5.5",
+		reasoningEffortOverride: "high",
+		tools: ["read", "grep"],
+		message: "check this",
+	});
+
+	assert.deepEqual(args, [
+		"--mode", "json",
+		"--print",
+		"--no-session",
+		"--model", "openai/gpt-5.5",
+		"--thinking", "high",
+		"--tools", "read,grep",
+		"Task: check this",
+	]);
+	assert.equal(args.includes("--reasoning-effort"), false);
+});
+
+test("buildPiArgs translates Codex reasoning effort none to Pi thinking off", () => {
+	assert.deepEqual(
+		buildPiArgs({ reasoningEffortOverride: "none", message: "quiet" }),
+		["--mode", "json", "--print", "--no-session", "--thinking", "off", "Task: quiet"],
+	);
 });
