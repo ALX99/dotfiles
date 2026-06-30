@@ -1,77 +1,101 @@
 ---
 name: init
-description: Create or update AGENTS.md with high-signal, non-obvious repository knowledge
+description: Generate AGENTS.md — a contributor guide for this repository
 ---
 
-Create or update AGENTS.md for this repository.
+Generate a file named AGENTS.md that serves as a contributor guide for this repository.
 
-## Objective
+Before writing, check whether AGENTS.md already exists in the current working directory. If it does, do not overwrite or modify it.
 
-A compact instruction file that helps future agents avoid mistakes and ramp up quickly. Every line must answer: **"Would an agent likely miss this without help?"** If not, leave it out.
+Your goal is to produce a clear, concise, and well-structured document with descriptive headings and actionable explanations for each section. Follow the outline below, but adapt as needed — add sections if relevant, and omit those that do not apply to this project.
 
-## Approach
+## Process
 
-Two phases: **gather** deeply to understand big patterns, then **filter** aggressively so only non-obvious knowledge survives into AGENTS.md.
+Gather deeply, then filter aggressively. Don't just list what you see — cross-reference until non-obvious patterns emerge.
 
-### Gather
+1. **Read executable sources first** — Makefiles, CI workflows, package scripts, lockfiles, lint/format/build configs. These run; prose can lie.
+2. **Map layout** — top-level dirs and what each owns. Enough to navigate, not a full tree.
+3. **Read source until patterns stabilize** — at least 70k tokens or everything in the repo, whichever hits first. Read both sides of plugin systems, both platform branches, both layers of an abstraction boundary.
+4. **Extract only what an agent would miss without help.** If it's obvious from a single file or filename, leave it out.
 
-Goal: understand patterns well enough to write rules that hold up across the codebase, not just enumerate layout. Don't stop at the surface.
+Every fact must be backed by a file path, command output, or git state. Speculation is worse than a gap — drop uncertain claims.
 
-1. Read the project's stated intent (README, top-level docs, architecture notes).
-2. Read configs and executable sources (Makefiles, CI workflows, package scripts, lockfiles, lint/format/build configs). These run; prose can lie.
-3. Map layout: top-level dirs and what each owns. Enough to know where to look, not exhaustive enumeration.
-4. Read source until patterns stabilize. Read at least 70k tokens of content or everything in the repo, whichever hits first. Don't stop at 2–3 spot-checks when the codebase has subsystems, frameworks, or platform branches — read enough that claims survive cross-checks. For bi-platform repos, verify both branches; for plugin systems, both the loader and a representative plugin; for layered architectures, both the boundary and a layer that crosses it.
-5. Note the gotchas and non-obvious conventions that took multiple files or cross-referencing to discover.
+## Document Requirements
 
-### Filter
+- **Title**: `# Repository Guidelines`
+- **Format**: Markdown headings (`#`, `##`, `###`)
+- **Length**: 200–400 words is optimal. Keep explanations short, direct, and specific to this repository.
+- **Tone**: Professional, instructional.
+- **Examples**: Include concrete examples where helpful (commands, directory paths, naming patterns, code snippets).
 
-Apply **What to extract**: would an agent likely miss this without help? If not, leave it out. Directory trees, single-file facts, generic advice — all noise. AGENTS.md is the filtered output, not the gathered context.
+## Recommended Sections
 
-### Updating an existing AGENTS.md
+### Project Structure & Module Organization
 
-- Audit every claim against current state. Delete what doesn't verify.
-- **Structural rewrites are fine and often warranted.** Don't preserve the old layout or sectioning for its own sake — reorganize freely when it serves clarity, including a complete format change.
-- Preserve verified guidance, reconcile with current codebase, add new claims that survive the filter.
+Outline where source code, tests, and assets live. Enough to know where to look.
 
-Stop gathering when a new file in a known place doesn't change the rule.
+**Good**: A concise entry for each top-level dir with what it owns:
+```
+main.go              CLI entry point (cobra)
+internal/
+  agent/             Session manager, coordinator, tools, MCP client integration
+  config/            Config struct loading from crush.json with provider resolution
+  lsp/               LSP client manager with lazy init per file type
+```
+**Better**: Also note the dependency that matters:
+```
+charm.land/fantasy   LLM provider abstraction — handles protocol differences between Anthropic, OpenAI, Gemini
+```
 
-## Sources of truth (priority order)
+### Key Patterns & Architecture Decisions
 
-1. **Executable sources** — scripts, Makefiles, CI workflows, package.json scripts, lockfiles. What actually runs.
-2. **Configs** — lint, format, typecheck, build configs.
-3. **Existing instruction files** — `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, `.cursorrules`, `.github/copilot-instructions.md`. Migrate non-obvious rules worth keeping.
-4. **Prose docs** — README, CONTRIBUTING. Lowest priority; trust executable over prose when they conflict.
+This is the highest-signal section. Capture the non-obvious architectural idioms that would take hours to rediscover.
 
-## Verify before writing
+- **Config is a Service** — accessed via `config.Service`, not global state.
+- **Tools are self-documenting** — each tool has a `.go` implementation and a `.md` description file in `internal/agent/tools/`.
+- **System prompts are Go templates** — `internal/agent/templates/*.md.tpl` with runtime data injected.
+- **Separation of concerns** — event system (PostHog telemetry) uses internal pub/sub for decoupling between agent, UI, and services.
 
-Every fact must be backed by file path, command output, or git state. Enumerate tracked files, map layout, and cross-reference as needed. Read each cited file before claiming what it does.
+Include concrete details: config file names, module paths, env vars that control behavior.
 
-**Only tracked files are sources of truth.** Untracked files are transient — do not include claims about them in AGENTS.md and do not cite them as evidence. If a claim can only be verified from an untracked file, drop it.
+### Build, Test, and Development Commands
 
-Speculation is worse than a gap. Drop uncertain claims.
+List key commands for building, testing, and running locally. Briefly explain what each does. Include non-obvious ones:
 
-## What to extract (high-signal)
+- Single-test command: `go test ./internal/llm/prompt -run TestGetContextFromPaths`
+- Golden file updates: `go test ./... -update` (regenerates `.golden` files)
+- Formatting fallback chain: try `gofumpt`, then `goimports`, then `gofmt`
+- Required command order if applicable (e.g., `lint → typecheck → test`)
 
-- Exact commands, especially non-obvious ones (single-test, focused verification, required order like `lint → typecheck → test`)
-- Monorepo / multi-package boundaries and real entrypoints
-- Framework or toolchain quirks: codegen, migrations, build artifacts, env loading, dev servers
-- Repo conventions that differ from language/framework defaults
-- Testing quirks: fixtures, integration prerequisites, snapshot workflows, required services, flaky/expensive suites
-- Non-obvious gotchas that took reading multiple files to infer
+### Coding Style & Naming Conventions
 
-## Exclude
+Specify indentation rules, language-specific preferences, naming patterns, and any formatting/linting tools used.
 
-- Anything obvious from a single file or filename.
-- Full file trees — easily enumerated on demand.
-- Generic software advice.
-- Long tutorials or exhaustive references.
-- Speculation, "probably", "I think".
-- Apologetic qualifiers (`(not an X)`, `(note: doesn't…)`). If something doesn't fit, omit it or state what it is.
-- Anything the agent would pick up from reading the relevant file. Mentioning the obvious is actively detrimental — it costs tokens and crowds out real gotchas.
+**Good**: "Use gofumpt (stricter than gofmt), enabled in golangci-lint. Imports grouped as stdlib, external, internal. Log messages start with a capital letter."
 
-## Rules
+### Testing Guidelines
 
-- Each line earns its place.
-- When updating, audit existing claims before adding new ones. A stale AGENTS.md is worse than no AGENTS.md.
-- Prefer dense bullets over prose.
-- Trim if a section is longer than what it documents.
+Frameworks, coverage expectations, test naming conventions, how to run tests. Include practical code snippets for common patterns:
+
+```go
+// Example: using mock providers to avoid API calls in tests
+config.UseMockProviders = true
+defer func() {
+    config.UseMockProviders = originalUseMock
+    config.ResetProviders()
+}()
+```
+
+### Commit & Pull Request Guidelines
+
+Summarize commit message conventions from the project's Git history. Outline PR requirements (descriptions, linked issues, screenshots).
+
+### Common Gotchas
+
+Optional but valuable. Capture the non-obvious pitfalls that took reading multiple files to infer:
+
+- "CGO is disabled — builds with `CGO_ENABLED=0` and `GOEXPERIMENT=greenteagc`"
+- "Always account for padding/borders in width calculations in the TUI"
+- "Dialog messages are intercepted first in `Update` before other routing"
+
+(Optional) Add other sections if relevant: Security & Configuration Tips, Architecture Overview, or Agent-Specific Instructions.
