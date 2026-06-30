@@ -2,7 +2,7 @@
  * Footer Extension — Full custom footer replacement.
  *
  * Shows on the left:  cwd, git branch, model + thinking level, context bar
- * Shows on the right: extension statuses, session tokens, latest cache hit rate
+ * Shows on the right: extension statuses, session tokens, latest cache hit rate, session length
  *
  * Right-aligned with space padding so stats stay flush to the terminal edge.
  */
@@ -23,6 +23,38 @@ function fmt(n: number): string {
 function shortenCwd(cwd: string): string {
   const home = homedir();
   return cwd.startsWith(home) ? cwd.replace(home, "~") : cwd;
+}
+
+function parseTimestamp(timestamp: string | undefined): number | undefined {
+  if (!timestamp) return undefined;
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getSessionStartedAt(ctx: ExtensionContext): number {
+  const headerStartedAt = parseTimestamp(ctx.sessionManager.getHeader()?.timestamp);
+  if (headerStartedAt !== undefined) return headerStartedAt;
+
+  for (const entry of ctx.sessionManager.getBranch()) {
+    const entryStartedAt = parseTimestamp(entry.timestamp);
+    if (entryStartedAt !== undefined) return entryStartedAt;
+  }
+
+  return Date.now();
+}
+
+function formatSessionLength(startedAt: number): string {
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
+  const hours = Math.floor(elapsedMinutes / 60);
+  const minutes = elapsedMinutes % 60;
+
+  if (hours < 1) return `${minutes}m`;
+
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  if (days < 1) return `${hours}h`;
+
+  return `${days}d${remainingHours}h`;
 }
 
 /* ─── thinking level color ramp ─── */
@@ -76,6 +108,7 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
   // Cache tokens between renders — recomputed on turn_end (O(1)), not on
   // every render. invalidate() resets the counter to rebuild from scratch
   // (used by session_compact and explicit refresh paths).
+  const sessionStartedAt = getSessionStartedAt(ctx);
   let cachedTokens = "";
   let lastBranchLen = 0;
   let requestRender: (() => void) | undefined;
@@ -102,9 +135,13 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
   ctx.ui.setFooter((tui, theme, footerData) => {
     requestRender = () => tui.requestRender();
     const unsubBranch = footerData.onBranchChange(requestRender);
+    const renderInterval = setInterval(requestRender, 60_000);
 
     return {
-      dispose: unsubBranch,
+      dispose() {
+        clearInterval(renderInterval);
+        unsubBranch();
+      },
       invalidate() { rebuildTokens(); },
       render(width: number): string[] {
         recheckTokens();
@@ -149,6 +186,8 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
         if (ctxUsage) {
           rightParts.push(renderContextBar(ctxUsage, theme));
         }
+
+        rightParts.push(formatSessionLength(sessionStartedAt));
 
         const right = rightParts.join("  ");
         const pad = width - visibleWidth(left) - visibleWidth(right);
