@@ -4,8 +4,8 @@
  * Runs the spawned agent as an isolated `pi --mode json --print --no-session`
  * subprocess — same pattern as pi's built-in bash tool. Streams JSON events
  * off stdout, aggregates usage/tool/text state, and emits throttled UI
- * updates. ResultAsync wraps the spawn so the tool layer's only job is to
- * resolve the agent and render the outcome.
+ * updates. The run returns a small discriminated result so the tool boundary
+ * can turn failed child runs into thrown pi tool errors.
  */
 
 import * as fs from "node:fs";
@@ -13,7 +13,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execa } from "execa";
 import type { Message } from "@earendil-works/pi-ai";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { AgentConfig } from "./agents.ts";
 import { z } from "zod";
 
@@ -47,9 +46,6 @@ const EventSchema = z.object({
   type: z.literal("message_end"),
   message: MessageSchema,
 });
-
-
-
 
 export interface RunUsage {
   input: number;
@@ -89,6 +85,10 @@ export type SpawnError =
   | { kind: "exit"; details: RunDetails }
   | { kind: "aborted"; details: RunDetails };
 
+export type RunResult =
+  | { ok: true; details: RunDetails }
+  | { ok: false; error: SpawnError };
+
 export interface RunParams {
   defaultCwd: string;
   agent: AgentConfig;
@@ -109,16 +109,13 @@ export interface BuildPiArgsParams {
   message: string;
 }
 
-/** Spawns the child and resolves Ok on a clean (exit 0) run, Err otherwise. */
-export function runSubprocess(params: RunParams): ResultAsync<RunDetails, SpawnError> {
+/** Spawns the child and resolves ok=true on a clean (exit 0) run, ok=false otherwise. */
+export async function runSubprocess(params: RunParams): Promise<RunResult> {
   const details = initDetails(params);
-  // runAndCollect never rejects — failures land in details.aborted/exitCode —
-  // so fromSafePromise is the honest wrapper (no synthetic error type).
-  return ResultAsync.fromSafePromise(runAndCollect(params, details)).andThen((d) => {
-    if (d.aborted) return errAsync({ kind: "aborted" as const, details: d });
-    if (d.exitCode !== 0) return errAsync({ kind: "exit" as const, details: d });
-    return okAsync(d);
-  });
+  const finished = await runAndCollect(params, details);
+  if (finished.aborted) return { ok: false, error: { kind: "aborted", details: finished } };
+  if (finished.exitCode !== 0) return { ok: false, error: { kind: "exit", details: finished } };
+  return { ok: true, details: finished };
 }
 
 function initDetails(params: RunParams): RunDetails {
@@ -190,8 +187,7 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
     details.stderr = typeof stderr === "string" ? stderr : "";
     if (params.signal?.aborted) details.aborted = true;
   } catch (error) {
-    // runAndCollect must never reject — runSubprocess wraps it in
-    // ResultAsync.fromSafePromise. Fold any execa/iterator error into
+    // runAndCollect must never reject. Fold any execa/iterator error into
     // details so the tool layer still renders something.
     details.exitCode = 1;
     details.stderr = String(error instanceof Error ? error.message : error);
