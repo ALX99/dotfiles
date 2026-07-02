@@ -7,7 +7,7 @@
  * the process tree via PI_SUBAGENT_DEPTH).
  *
  * Architecture: this is the only module that crosses into pi's tool world.
- * It composes Results from agents.ts / process.ts and converts Err → throw
+ * It composes agent/process helpers and converts failed child runs into throws
  * at the boundary (pi's runtime marks `isError: true` only on thrown errors;
  * a returned `isError` field is silently dropped — see agent-loop.js).
  */
@@ -114,14 +114,12 @@ export default function (_pi: ExtensionAPI) {
 					: undefined,
 			});
 
-			// ── resolve (Err → throw, so pi marks isError) ──
-			const details = result.match(
-				(d) => d,
-				(e) => {
-					throw new Error(spawnErrorMessage(e));
-				},
-			);
+			// ── resolve (failed child run → throw, so pi marks isError) ──
+			if (!result.ok) {
+				throw new Error(spawnErrorMessage(result.error));
+			}
 
+			const details = result.details;
 			const finalText = getFinalText(details.messages);
 			return { content: [{ type: "text" as const, text: finalText || "(no output)" }], details };
 		},
