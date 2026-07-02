@@ -108,6 +108,27 @@ test("startServer: refuses to bind to non-loopback", () => {
   );
 });
 
+test("startServer: blocks paths outside webRoot with a matching prefix", async () => {
+  await withTempWebRoot(async (dir) => {
+    await writeFile(join(dir, "src/web-secret.txt"), "secret");
+    const runtime = makeFakeRuntime();
+    const ctx: ServerDeps = { runtime, webRoot: join(dir, "src/web") };
+    const handle = startServer({ port: 0, host: "127.0.0.1", ctx });
+    await once(handle.server, "listening");
+    const addr = handle.server.address();
+    if (typeof addr !== "object" || !addr) throw new Error("no address");
+    const port = addr.port;
+
+    try {
+      const res = await get(port, "/%2e%2e%2fweb-secret.txt");
+      assert.equal(res.status, 403);
+      assert.equal(res.body, "Forbidden");
+    } finally {
+      await handle.stop();
+    }
+  });
+});
+
 test("startServer: WebSocket at /ws handles a prompt command", async () => {
   await withTempWebRoot(async (dir) => {
     const session = makeFakeSession() as AnySession & {

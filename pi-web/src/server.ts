@@ -11,7 +11,7 @@ import {
   type Server as HttpServer,
 } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, resolve, dirname } from "node:path";
+import { extname, join, normalize, resolve, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import { Bridge, type BridgeRuntime, type ClientSender } from "./bridge.ts";
@@ -128,6 +128,11 @@ export function startServer(opts: {
   };
 }
 
+function isInsideRoot(path: string, root: string): boolean {
+  const rootWithSep = root.endsWith(sep) ? root : `${root}${sep}`;
+  return path === root || path.startsWith(rootWithSep);
+}
+
 async function handleHttp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -137,8 +142,9 @@ async function handleHttp(
   const pathname = decodeURIComponent(url.pathname);
 
   const rel = pathname === "/" ? "/index.html" : pathname;
-  const full = normalize(join(webRoot, rel));
-  if (!full.startsWith(resolve(webRoot))) {
+  const root = resolve(webRoot);
+  const full = normalize(join(root, rel));
+  if (!isInsideRoot(full, root)) {
     res.statusCode = 403;
     res.end("Forbidden");
     return;
