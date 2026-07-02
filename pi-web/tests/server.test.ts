@@ -119,11 +119,13 @@ test("startServer: blocks paths outside webRoot with a matching prefix", async (
     if (typeof addr !== "object" || !addr) throw new Error("no address");
     const port = addr.port;
 
-    const res = await get(port, "/../web-secret.txt");
-    assert.equal(res.status, 403);
-    assert.equal(res.body, "Forbidden");
-
-    await handle.stop();
+    try {
+      const res = await get(port, "/%2e%2e%2fweb-secret.txt");
+      assert.equal(res.status, 403);
+      assert.equal(res.body, "Forbidden");
+    } finally {
+      await handle.stop();
+    }
   });
 });
 
