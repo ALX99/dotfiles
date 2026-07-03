@@ -17,7 +17,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
-import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
 
 export interface AgentConfig {
@@ -43,6 +42,10 @@ export type DiscoverError =
 	| { kind: "read_dir"; dir: string; cause: NodeJS.ErrnoException }
 	| { kind: "empty"; dir: string };
 
+export type DiscoverResult =
+	| { agents: AgentConfig[] }
+	| { error: DiscoverError };
+
 const AGENTS_DIR = path.join(getAgentDir(), "extensions", "subagents", "agents");
 
 export function agentsDir(): string {
@@ -51,16 +54,16 @@ export function agentsDir(): string {
 
 /**
  * Read every `*.md` in the agents dir, parse frontmatter, and return the
- * valid ones sorted by name. Returns Err on an unreadable dir (permission,
+ * valid ones sorted by name. Returns an error on an unreadable dir (permission,
  * IO) or when no usable agent was found at all (so the caller can give a
  * useful error instead of a confusing "unknown type" on the first spawn).
  */
-export function discoverAgents(): Result<AgentConfig[], DiscoverError> {
+export function discoverAgents(): DiscoverResult {
 	let entries: fs.Dirent[];
 	try {
 		entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true });
 	} catch (cause) {
-		return err({ kind: "read_dir", dir: AGENTS_DIR, cause: cause as NodeJS.ErrnoException });
+		return { error: { kind: "read_dir", dir: AGENTS_DIR, cause: cause as NodeJS.ErrnoException } };
 	}
 
 	const agents: AgentConfig[] = [];
@@ -82,10 +85,10 @@ export function discoverAgents(): Result<AgentConfig[], DiscoverError> {
 		if (parsed) agents.push(parsed);
 	}
 
-	if (agents.length === 0) return err({ kind: "empty", dir: AGENTS_DIR });
+	if (agents.length === 0) return { error: { kind: "empty", dir: AGENTS_DIR } };
 
 	agents.sort((a, b) => a.name.localeCompare(b.name));
-	return ok(agents);
+	return { agents };
 }
 
 function parseAgentFile(filePath: string, content: string): AgentConfig | undefined {
@@ -114,11 +117,7 @@ export function formatAgentList(agents: AgentConfig[]): string {
 	return agents.map((a) => `${a.name}: ${a.description}`).join("; ") || "none";
 }
 
-/** Find a role by name. Err carries the full list so callers can render it. */
-export function resolveAgent(
-	agents: AgentConfig[],
-	name: string,
-): Result<AgentConfig, { requested: string; available: AgentConfig[] }> {
-	const found = agents.find((a) => a.name === name);
-	return found ? ok(found) : err({ requested: name, available: agents });
+/** Find a role by name. Undefined means the caller should render the full list. */
+export function resolveAgent(agents: AgentConfig[], name: string): AgentConfig | undefined {
+	return agents.find((a) => a.name === name);
 }
