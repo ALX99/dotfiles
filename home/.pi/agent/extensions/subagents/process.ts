@@ -94,6 +94,7 @@ export interface RunParams {
   agent: AgentConfig;
   message: string;
   taskName: string;
+  model?: string;
   reasoningEffortOverride?: string;
   cwd?: string;
   parentDepth: number;
@@ -123,7 +124,7 @@ function initDetails(params: RunParams): RunDetails {
   return {
     agent: params.agent.name,
     taskName: params.taskName,
-    model: params.agent.model,
+    model: params.model,
     depth: childDepth,
     exitCode: 0,
     messages: [],
@@ -199,6 +200,12 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
   }
 
   return details;
+}
+
+export function resolveEffectiveModel(agentModel: string | undefined, currentModel: { provider: string; id: string } | undefined): string | undefined {
+  if (agentModel) return agentModel;
+  if (!currentModel) return undefined;
+  return `${currentModel.provider}/${currentModel.id}`;
 }
 
 export function buildPiArgs(params: BuildPiArgsParams): string[] {
