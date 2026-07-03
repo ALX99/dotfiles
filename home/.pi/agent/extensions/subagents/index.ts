@@ -16,7 +16,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
-import { DEPTH_ENV, getFinalText, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
+import { DEPTH_ENV, getFinalText, resolveEffectiveModel, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
 import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
 
 const MAX_DEPTH = 3;
@@ -91,7 +91,8 @@ export default function (_pi: ExtensionAPI) {
 				},
 			);
 
-			const [provider, modelId] = (agent.model ?? "").split("/");
+			const effectiveModel = resolveEffectiveModel(agent.model, ctx.model);
+			const [provider, modelId] = (effectiveModel ?? "").split("/");
 			const contextWindow = provider && modelId
 				? ctx.modelRegistry.find(provider, modelId)?.contextWindow
 				: undefined;
@@ -100,6 +101,7 @@ export default function (_pi: ExtensionAPI) {
 			const result = await runSubprocess({
 				defaultCwd: ctx.cwd,
 				agent,
+				model: effectiveModel,
 				message: params.message,
 				taskName: params.task_name?.trim() || clipAtWord(params.message, 60),
 				reasoningEffortOverride: params.reasoning_effort,

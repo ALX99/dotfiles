@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import type { Message } from "@earendil-works/pi-ai";
-import { argsPreview, buildPiArgs, getFinalText, ingestLine, type RunDetails } from "../process.ts";
+import { argsPreview, buildPiArgs, getFinalText, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
@@ -182,4 +182,22 @@ test("buildPiArgs translates Codex reasoning effort none to Pi thinking off", ()
 		buildPiArgs({ reasoningEffortOverride: "none", message: "quiet" }),
 		["--mode", "json", "--print", "--no-session", "--thinking", "off", "Task: quiet"],
 	);
+});
+
+test("resolveEffectiveModel prefers an explicit agent model", () => {
+	assert.equal(
+		resolveEffectiveModel("openai/gpt-5.5", { provider: "openmodel", id: "deepseek-v4-flash" }),
+		"openai/gpt-5.5",
+	);
+});
+
+test("resolveEffectiveModel inherits the current session model when agent model is omitted", () => {
+	assert.equal(
+		resolveEffectiveModel(undefined, { provider: "openmodel", id: "deepseek-v4-flash" }),
+		"openmodel/deepseek-v4-flash",
+	);
+});
+
+test("resolveEffectiveModel leaves model unset when neither source is available", () => {
+	assert.equal(resolveEffectiveModel(undefined, undefined), undefined);
 });
