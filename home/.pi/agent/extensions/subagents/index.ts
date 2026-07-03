@@ -26,12 +26,11 @@ export default function (_pi: ExtensionAPI) {
 	// name+description list, not a hand-written hint that drifts the moment
 	// someone adds a new agents/*.md. A broken agents dir fails loud at load
 	// — a silently registered tool that always errors is worse than no tool.
-	const agents = discoverAgents().match(
-		(list) => list,
-		(e) => {
-			throw new Error(discoveryErrorMessage(e));
-		},
-	);
+	const discovery = discoverAgents();
+	if ("error" in discovery) {
+		throw new Error(discoveryErrorMessage(discovery.error));
+	}
+	const agents = discovery.agents;
 	const agentList = agents
 		.map((a) => `- **${a.name}** — ${a.description}`)
 		.join("\n");
@@ -84,12 +83,10 @@ export default function (_pi: ExtensionAPI) {
 			}
 
 			const requestedType = params.agent_type?.trim() || "default";
-			const agent = resolveAgent(agents, requestedType).match(
-				(a) => a,
-				(e) => {
-					throw new Error(`Unknown agent_type '${e.requested}'. Available: ${formatAgentList(e.available)}.`);
-				},
-			);
+			const agent = resolveAgent(agents, requestedType);
+			if (!agent) {
+				throw new Error(`Unknown agent_type '${requestedType}'. Available: ${formatAgentList(agents)}.`);
+			}
 
 			const [provider, modelId] = (agent.model ?? "").split("/");
 			const contextWindow = provider && modelId
