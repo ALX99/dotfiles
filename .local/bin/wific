@@ -6,9 +6,23 @@ set -euo pipefail
 command -v iwctl >/dev/null 2>&1 || { echo "wific: iwctl not found" >&2; exit 1; }
 command -v fzf >/dev/null 2>&1 || { echo "wific: fzf not found" >&2; exit 1; }
 
+strip_ansi() {
+  sed 's/\x1b\[[0-9;]*m//g'
+}
+
+parse_iwctl_networks() {
+  awk '
+    NR > 4 {
+      sub(/^[[:space:]]*>?[[:space:]]*/, "")
+      sub(/[[:space:]]+(open|psk|8021x|owe|wep)[[:space:]]+\**$/, "")
+      if (length) print
+    }
+  '
+}
+
 device="$(
   iwctl device list |
-    sed 's/\x1b\[[0-9;]*m//g' |
+    strip_ansi |
     awk 'NR > 4 {print $1}' |
     grep . |
     fzf --prompt='device > ' --no-multi
@@ -20,8 +34,8 @@ iwctl station "$device" scan >/dev/null
 
 network="$(
   iwctl station "$device" get-networks |
-    sed 's/\x1b\[[0-9;]*m//g' |
-    awk 'NR > 4 {sub(/^> /, ""); print $1}' |
+    strip_ansi |
+    parse_iwctl_networks |
     grep . |
     fzf --prompt='network > ' --no-multi
 )" || exit 0
