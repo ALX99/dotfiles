@@ -31,7 +31,6 @@ local enabled_lsps = {
   "eslint",
   "gopls",
   "lua_ls",
-  "copilot",
   "gh_actions_ls",
   "kotlin_lsp",
 }
