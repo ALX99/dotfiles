@@ -97,11 +97,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case "set_stick_to_bottom":
       return { ...state, stickToBottom: action.value };
     case "show_toast":
-      toastSeq += 1;
-      return {
-        ...state,
-        toast: { id: toastSeq, text: action.text, kind: action.kind },
-      };
+      return toast(state, action.text, action.kind);
     case "dismiss_toast":
       return state.toast && state.toast.id === action.id
         ? { ...state, toast: null }
