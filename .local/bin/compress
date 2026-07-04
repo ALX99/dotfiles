@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Compress directory
 
+set -euo pipefail
+
 cLevel="3"
 PARAMS=()
 while (("$#")); do
   case "$1" in
   -cl | --compression-level)
+    if [[ $# -lt 2 ]]; then
+      echo "Error: missing compression level after '$1'" >&2
+      exit 1
+    fi
     if ! [[ $2 =~ ^[0-9]+$ ]]; then
       echo "Error: compression level must be an integer 0-19, got '$2'" >&2
       exit 1
@@ -32,5 +38,11 @@ while (("$#")); do
   esac
 done
 
-tar -cvf archive.tar "${PARAMS[@]}" &&
-  zstd -z --rm -"$cLevel" -T"$(nproc 2>/dev/null || sysctl -n hw.ncpu)" archive.tar -o archive.tar.zst
+archive_tmp=$(mktemp "${TMPDIR:-/tmp}/compress.XXXXXX.tar")
+cleanup() {
+  rm -f "$archive_tmp"
+}
+trap cleanup EXIT
+
+tar -cvf "$archive_tmp" "${PARAMS[@]}" &&
+  zstd -z --rm -"$cLevel" -T"$(nproc 2>/dev/null || sysctl -n hw.ncpu)" "$archive_tmp" -o archive.tar.zst
