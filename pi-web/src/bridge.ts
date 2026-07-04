@@ -66,7 +66,7 @@ export class Bridge {
   private readonly runtime: BridgeRuntime;
   private readonly onClientCountChange: ((count: number) => void) | undefined;
   private unsubscribe: (() => void) | null = null;
-  private clients = new Map<ClientSender, true>();
+  private clients = new Set<ClientSender>();
   private disposed = false;
 
   constructor(opts: BridgeOptions) {
@@ -94,7 +94,7 @@ export class Bridge {
 
   private broadcastEvent(event: unknown): void {
     const payload = JSON.stringify(event);
-    for (const send of this.clients.keys()) {
+    for (const send of this.clients) {
       try {
         send(payload);
       } catch {
@@ -112,7 +112,7 @@ export class Bridge {
   }
 
   addClient(send: ClientSender): RemoveClient {
-    this.clients.set(send, true);
+    this.clients.add(send);
     if (this.onClientCountChange !== undefined) {
       this.onClientCountChange(this.clients.size);
     }
