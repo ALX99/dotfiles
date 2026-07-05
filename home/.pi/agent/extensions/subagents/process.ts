@@ -275,7 +275,8 @@ export function getFinalText(messages: RunDetails["messages"]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (message.role !== "assistant") continue;
-    for (const part of message.content) {
+    for (let j = message.content.length - 1; j >= 0; j--) {
+      const part = message.content[j];
       if (part.type === "text" && part.text.trim()) return part.text.trim();
     }
   }
