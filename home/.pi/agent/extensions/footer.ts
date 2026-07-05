@@ -71,13 +71,13 @@ const THINKING_COLOR: Record<string, "thinkingMinimal" | "thinkingLow" | "thinki
 
 /* ─── context bar ─── */
 
-function renderContextBar(usage: { tokens: number | null; contextWindow: number; percent: number | null }, theme: ExtensionContext["ui"]["theme"]): string {
+export function renderContextBar(usage: { tokens: number | null; contextWindow: number; percent: number | null }, theme: ExtensionContext["ui"]["theme"]): string {
   if (usage.tokens === null || usage.percent === null) {
     return theme.fg("dim", "[░░░░░░░░░░]--%");
   }
 
   const width = 10;
-  const filled = Math.round((usage.percent / 100) * width);
+  const filled = Math.min(width, Math.max(0, Math.round((usage.percent / 100) * width)));
   const empty = width - filled;
 
   let color: "accent" | "warning" | "error";
