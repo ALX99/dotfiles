@@ -49,6 +49,22 @@ test("getFinalText returns last assistant text block, trimming whitespace", () =
 	);
 });
 
+test("getFinalText returns the last text part within the final assistant message", () => {
+	assert.equal(
+		getFinalText(msgs([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "draft answer" },
+					{ type: "toolCall", name: "read", arguments: { path: "README.md" } },
+					{ type: "text", text: "  final answer after tool  " },
+				],
+			},
+		])),
+		"final answer after tool",
+	);
+});
+
 test("getFinalText skips empty text parts", () => {
 	assert.equal(
 		getFinalText(msgs([{ role: "assistant", content: [{ type: "text", text: "   " }, { type: "text", text: "real" }] }])),
