@@ -38,6 +38,20 @@ test("openBrowser: spawns 'xdg-open' on linux", () => {
     const { fn, calls } = makeFakeSpawn();
     openBrowser("http://127.0.0.1:7878/", fn);
     assert.equal(calls[0]!.cmd, "xdg-open");
+    assert.deepEqual([...calls[0]!.args], ["http://127.0.0.1:7878/"]);
+  } finally {
+    Object.defineProperty(process, "platform", { value: original });
+  }
+});
+
+test("openBrowser: spawns 'cmd /c start' on win32", () => {
+  const original = process.platform;
+  Object.defineProperty(process, "platform", { value: "win32" });
+  try {
+    const { fn, calls } = makeFakeSpawn();
+    openBrowser("http://127.0.0.1:7878/", fn);
+    assert.equal(calls[0]!.cmd, "cmd");
+    assert.deepEqual([...calls[0]!.args], ["/c", "start", "", "http://127.0.0.1:7878/"]);
   } finally {
     Object.defineProperty(process, "platform", { value: original });
   }
