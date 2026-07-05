@@ -14,39 +14,35 @@ export type SpawnFn = (
   options: SpawnOptions,
 ) => { unref(): void };
 
+type BrowserCommand = (url: string) => { cmd: string; args: string[] };
+
+const BROWSER_COMMANDS: Partial<Record<NodeJS.Platform, BrowserCommand>> = {
+  darwin: (url) => ({ cmd: "open", args: [url] }),
+  linux: (url) => ({ cmd: "xdg-open", args: [url] }),
+  win32: (url) => ({ cmd: "cmd", args: ["/c", "start", "", url] }),
+};
+
 export function openBrowser(
   url: string,
   spawn: SpawnFn = defaultSpawn as unknown as SpawnFn,
 ): void {
-  const platform = process.platform;
-  let cmd: string;
-  let args: string[];
-
-  if (platform === "darwin") {
-    cmd = "open";
-    args = [url];
-  } else if (platform === "linux") {
-    cmd = "xdg-open";
-    args = [url];
-  } else if (platform === "win32") {
-    cmd = "cmd";
-    args = ["/c", "start", "", url];
-  } else {
+  const command = BROWSER_COMMANDS[process.platform]?.(url);
+  if (!command) {
     console.warn(
-      `[pi-web] Cannot auto-open browser on platform "${platform}". Open ${url} manually.`,
+      `[pi-web] Cannot auto-open browser on platform "${process.platform}". Open ${url} manually.`,
     );
     return;
   }
 
   try {
-    const child = spawn(cmd, args, {
+    const child = spawn(command.cmd, command.args, {
       detached: true,
       stdio: "ignore",
     });
     child.unref();
   } catch (err) {
     console.warn(
-      `[pi-web] Failed to spawn ${cmd}: ${(err as Error).message}. Open ${url} manually.`,
+      `[pi-web] Failed to spawn ${command.cmd}: ${(err as Error).message}. Open ${url} manually.`,
     );
   }
 }
