@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
-import { isServerEventType } from "../shared/wire.ts";
+import { isServerEvent } from "../protocol.ts";
 import type {
   ClientCommand,
   ModelRef,
-  ServerEvent,
   ServerResponse,
   ThinkingLevel,
 } from "../shared/wire.ts";
@@ -97,10 +96,9 @@ export function useBridge(): { state: AppState; actions: BridgeActions } {
           }
           return;
         }
-        if (isObject(msg) && isServerEventType(msg.type)) {
-          const ev = msg as ServerEvent;
-          dispatch({ type: "event", msg: ev });
-          if (ev.type === "session_start") {
+        if (isServerEvent(msg)) {
+          dispatch({ type: "event", msg });
+          if (msg.type === "session_start") {
             send({ type: "list_sessions", id: uid() });
           }
         }
