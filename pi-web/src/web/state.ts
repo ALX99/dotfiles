@@ -1,8 +1,4 @@
-import {
-  THINKING_LEVELS,
-  isThinkingLevel,
-  isServerEventType,
-} from "../shared/wire.ts";
+import { isThinkingLevel } from "../shared/wire.ts";
 import type {
   ModelRef,
   ServerEvent,
@@ -239,5 +235,3 @@ function coerceMessage(raw: unknown): ChatMessage | null {
 function coerceMessages(list: unknown[]): ChatMessage[] {
   return list.map(coerceMessage).filter((m): m is ChatMessage => m !== null);
 }
-
-export { THINKING_LEVELS, isServerEventType };
