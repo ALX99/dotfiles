@@ -12,5 +12,8 @@ exit 0
 EOF
 chmod +x "$tmp_dir/fzf"
 
-PATH="$tmp_dir:$PATH" printf '{"hello":"world"}\n' | "$repo_dir/.local/bin/ljq"
-PATH="$tmp_dir:$PATH" printf 'hello world\n' | "$repo_dir/.local/bin/lawk"
+PATH="$tmp_dir:$PATH"
+export PATH
+
+printf '{"hello":"world"}\n' | "$repo_dir/.local/bin/ljq"
+printf 'hello world\n' | "$repo_dir/.local/bin/lawk"
