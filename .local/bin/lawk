@@ -1,14 +1,15 @@
 #!/bin/sh
-if [ -z "$1" ] || [ "$1" = "-" ]; then
+arg=${1:-}
+if [ -z "$arg" ] || [ "$arg" = "-" ]; then
   input=$(mktemp)
   trap 'rm -f "$input"' EXIT
   cat /dev/stdin >"$input"
 else
-  input=$1
+  input=$arg
 fi
 
 echo '' |
   fzf --disabled \
     --preview-window='down:95%' \
     --print-query \
-    --preview "gawk {q} \"$input\""
+    --preview 'gawk {q} "$input"'
