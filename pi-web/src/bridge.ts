@@ -240,8 +240,21 @@ export class Bridge {
       }
       case "new_session":
       case "switch_session": {
-        // Handled by handleSessionCommand, which has access to rebind().
-        await this.handleSessionCommand(cmd, replyTo);
+        const result =
+          cmd.type === "new_session"
+            ? await this.runtime.newSession()
+            : await this.runtime.switchSession(cmd.path);
+        if (result.cancelled) {
+          this.respond(replyTo, {
+            type: "response",
+            id: cmd.id,
+            ok: false,
+            error: "cancelled by extension",
+          });
+          return;
+        }
+        this.rebind();
+        this.respond(replyTo, { type: "response", id: cmd.id, ok: true });
         return;
       }
       default: {
@@ -255,27 +268,6 @@ export class Bridge {
         });
       }
     }
-  }
-
-  private async handleSessionCommand(
-    cmd: Extract<ClientCommand, { type: "new_session" | "switch_session" }>,
-    replyTo: ClientSender,
-  ): Promise<void> {
-    const result =
-      cmd.type === "new_session"
-        ? await this.runtime.newSession()
-        : await this.runtime.switchSession(cmd.path);
-    if (result.cancelled) {
-      this.respond(replyTo, {
-        type: "response",
-        id: cmd.id,
-        ok: false,
-        error: "cancelled by extension",
-      });
-      return;
-    }
-    this.rebind();
-    this.respond(replyTo, { type: "response", id: cmd.id, ok: true });
   }
 
   dispose(): void {
