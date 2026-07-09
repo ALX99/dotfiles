@@ -17,7 +17,7 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 - `home/.bash_profile` → `.profile` — login shells source the POSIX profile.
 - `home/.codex/AGENTS.md` → `../.claude/CLAUDE.md` — Codex reads Claude's persona file.
 
-`home/.pi/agent/` contains only: `APPEND_SYSTEM.md` (injected into system prompt), `extensions/`, `settings.json`, `skills/init/`. Subagent roles live at `extensions/subagents/agents/{default,scout,reviewer,worker}.md`; no top-level `agents/` and no `supervisor.md`.
+`home/.pi/agent/` contains only: `APPEND_SYSTEM.md` (injected into system prompt), `extensions/`, `settings.json`, `skills/init/`. Subagent roles live at `extensions/subagents/agents/{default,scout,worker}.md`; no top-level `agents/` and no `supervisor.md`.
 
 ## Setup invariants (init.sh 1)
 
@@ -38,7 +38,7 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 
 **Skill rules live in two places** by design:
 - `home/.pi/agent/skills/` — pi-only skills (currently only `init/`).
-- `home/.agents/skills/` — harness-agnostic skills mirrored to `~/.claude/skills/` for Claude Code by `init.sh`. Current set: `commit`, `create-pr`, `code-guidelines`, `architect-review`, `risk-review`, `go-code`, `go-testing`.
+- `home/.agents/skills/` — harness-agnostic skills mirrored to `~/.claude/skills/` for Claude Code by `init.sh`. Current set: `commit`, `create-pr`, `code-guidelines`, `comprehensive-review`, `go-code`, `go-testing`.
 
 New skills go under `home/.agents/skills/` — the mirror to `~/.claude/skills/` propagates via `init.sh`. Most skills listed in the available-skills block (firecrawl/*, codebase-design, domain-modeling, brainstorming, etc.) come from the **superpowers package** (`git:github.com/obra/superpowers`), not from local skill files.
 
@@ -54,7 +54,7 @@ Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/exten
 **No tests are checked into `home/.pi/agent/extensions/`** — `node --test '**/tests/*.test.ts'` matches zero files. The `tsc` and `eslint` steps still run; the test step is a no-op. Don't infer "tests passed" from a green `make check`. Tests live in `pi-web/tests/` (5 files: bridge, open-browser, protocol, runtime, server).
 
 Active extensions (each entry point is a file in `home/.pi/agent/extensions/`):
-- **`subagents/index.ts`** — `spawn_agent` tool. `agents/{default,scout,reviewer,worker}.md` define roles, `process.ts` runs the child as `pi --mode json --print --no-session` (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
+- **`subagents/index.ts`** — `spawn_agent` tool. `agents/{default,scout,worker}.md` define roles, `process.ts` runs the child as `pi --mode json --print --no-session` (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
 - **`memory/index.ts`** — `memory_save` tool + `/memory` and `/memory-capture` commands. Injects memory block into system prompt on `before_agent_start`. User must approve each `memory_save` via UI confirmation. Memory files: `global` at `$XDG_STATE_HOME/pi-agent/memory/global.md`, `repo` at `<git-root>/.pi/memory/repo.md`. 32 KB cap per file.
 - **`ask_question.ts`** — `ask_question` tool (multiple choice with auto-added "Ask AI for pros and cons" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
 - **`caffeinate.ts`** — Prevents macOS sleep during agent runs (spawns `/usr/bin/caffeinate` on `agent_start`, kills on `agent_end`).
