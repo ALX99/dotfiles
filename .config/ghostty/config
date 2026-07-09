@@ -41,6 +41,11 @@ keybind = ctrl+v=paste_from_clipboard
 # cmd+l -> ctrl+l
 keybind = cmd+l=text:\x0c
 
+# pi model shortcuts: Cmd+1/2/3 -> Alt+1/2/3
+keybind = cmd+1=text:\x1b1
+keybind = cmd+2=text:\x1b2
+keybind = cmd+3=text:\x1b3
+
 # for claude code shift+enter
 keybind = shift+enter=text:\x1b\r
 
