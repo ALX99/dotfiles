@@ -1,11 +1,11 @@
 {
-  "defaultProvider": "tokenrouter",
-  "defaultModel": "MiniMax-M3",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
   "defaultThinkingLevel": "high",
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": true,
-  "lastChangelogVersion": "0.79.8",
+  "lastChangelogVersion": "0.80.6",
   "retry": {
     "maxRetries": 10
   },
@@ -14,9 +14,12 @@
     "npm:@ff-labs/pi-fff"
   ],
   "enabledModels": [
-    "tokenrouter/MiniMax-M3",
-    "openai-codex/gpt-5.5",
+    "openai-codex/gpt-5.6-terra",
+    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-5.6-luna",
+    "opencode-go/glm-5.2",
     "openmodel/deepseek-v4-flash"
   ],
-  "theme": "dark"
+  "theme": "dark",
+  "showCacheMissNotices": true
 }
