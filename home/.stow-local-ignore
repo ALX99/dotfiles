@@ -1,2 +1,6 @@
 # Ignore npm package directories — tens of thousands of files
 node_modules
+
+# Codex follows skill-directory symlinks, but does not reliably discover a
+# real skill directory whose SKILL.md is a symlink. init.sh manages these.
+\.agents/skills.*

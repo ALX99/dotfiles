@@ -59,14 +59,19 @@ remove_broken_symlinks_direct() {
   shopt -u dotglob nullglob
 }
 
-# True if $1 is a broken symlink whose target resolves into the dotfiles repo.
+# True if $1 is a symlink whose target resolves into the dotfiles repo.
 # Matches both absolute paths ("/.../dotfiles/...") and stow-style relative
 # paths ("../../../dotfiles/...").
-is_stale_dotfile_link() {
-  [ -L "$1" ] && [ ! -e "$1" ] || return 1
+is_dotfile_repo_link() {
+  [ -L "$1" ] || return 1
   local target
   target=$(readlink "$1")
   [[ "$target" == *"$repo_dir/"* || "$target" == *"/dotfiles/"* ]]
+}
+
+# True if $1 is a broken dotfile-repo symlink.
+is_stale_dotfile_link() {
+  [ ! -e "$1" ] && is_dotfile_repo_link "$1"
 }
 
 # True if $1 is a directory whose entries are all stale dotfile symlinks
@@ -112,6 +117,35 @@ is_stale_dotfile_entry() {
   return 1
 }
 
+link_agents_skills() {
+  local skill_dir skill_name link_path link_target manifest_target
+
+  run_command mkdir -p "$HOME/.agents/skills"
+  for skill_dir in "$repo_dir"/home/.agents/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    link_path="$HOME/.agents/skills/$skill_name"
+    link_target="$skill_dir"
+
+    # Correct directory symlink: leave it alone.
+    if [ -L "$link_path" ] && [ "$(readlink "$link_path")" = "$link_target" ]; then
+      continue
+    fi
+
+    # Replace only the real directories Stow previously created for this
+    # repository. Never remove skills installed by another tool.
+    manifest_target="$link_path/SKILL.md"
+    if [ -d "$link_path" ] && is_dotfile_repo_link "$manifest_target"; then
+      rm -rf "$link_path"
+    elif [ -e "$link_path" ] || [ -L "$link_path" ]; then
+      echo -e "${YELLOW}Skipping ${skill_name}: ${link_path} is not managed by this dotfiles repository${NC}"
+      continue
+    fi
+
+    run_command ln -s "$link_target" "$link_path"
+  done
+}
+
 user_config() {
   run_command mkdir -p ~/.config ~/.local ~/.agents
 
@@ -129,6 +163,10 @@ user_config() {
   remove_broken_symlinks ~/.claude
   remove_broken_symlinks ~/.pi
   run_command stow --dir "$repo_dir" --target ~ --restow home
+
+  # Codex follows skill-directory symlinks, so use those rather than Stow's
+  # default per-file SKILL.md symlinks.
+  link_agents_skills
 
   # Share .agents/skills with Claude Code: per-skill symlinks from
   # ~/.claude/skills/<skill> to ../../.agents/skills/<skill>.
