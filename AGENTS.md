@@ -33,7 +33,7 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 |------|----------------|-------|
 | **pi** | `home/.pi/agent/` | Primary. `defaultProvider`: `openmodel`, `defaultModel`: `deepseek-v4-flash`, `defaultThinkingLevel`: `high`. `enabledModels`: `opencode-go/glm-5.2`, `tokenrouter/MiniMax-M3`, `openai-codex/gpt-5.5`, `openmodel/deepseek-v4-flash`. Packages: `git:github.com/obra/superpowers` + `npm:@ff-labs/pi-fff`. `APPEND_SYSTEM.md` injects persona. `retry`: `maxRetries: 10`. `hideThinkingBlock: true`. |
 | **pi-web** | `pi-web/` | Localhost browser UI for pi (drop-in TUI replacement, same sessions). **Separate Node project, not part of `home/.pi/agent/extensions/`.** Frontend is Preact + JSX/TypeScript built by Vite to `dist/` (served by the Node server). Dev: `npm run dev` runs Vite (`:5173`, HMR) + API (`:7878`) via `concurrently`, proxying `/ws` to the API; set `PI_WEB_OPEN=false` to skip auto-open. Prod: `npm start` = `vite build && tsx src/server.ts` → `http://127.0.0.1:7878`. See `pi-web/docs/smoke-test.md` for the manual verification checklist. |
-| **Claude Code** | `home/.claude/` + `home/.agents/skills/` | Model: `opusplan`, language: `japanese`. **Denies `Bash(find:*)` and `Bash(grep:*)`** — agents must use Glob/Grep tools. `alwaysThinkingEnabled: true`. Hooks: PermissionRequest → `claude-permission-dialog` (macOS), PostToolUse → `gofmt -w` on `.go` (skips `*gen.go`), Stop → macOS notification. Plugins: `superpowers@superpowers-marketplace`, `lsp@alx99-personal`. Agents at `home/.claude/agents/{critic,risk-reviewer}.md`. `status` script is the statusline. |
+| **Claude Code** | `home/.claude/` + `home/.agents/skills/` | Model: `opusplan`, language: `japanese`. **Denies `Bash(find:*)` and `Bash(grep:*)`** — agents must use Glob/Grep tools. `alwaysThinkingEnabled: true`. Hooks: PostToolUse → `gofmt -w` on `.go` (skips `*gen.go`), Stop → macOS notification. Plugins: `superpowers@superpowers-marketplace`, `lsp@alx99-personal`. Agents at `home/.claude/agents/{critic,risk-reviewer}.md`. `status` script is the statusline. |
 | **Codex** | `home/.codex/` | Just the symlink to Claude's CLAUDE.md. No other config. |
 
 **Skill rules live in two places** by design:
@@ -85,7 +85,6 @@ No tests run in CI. No formatter runs in CI.
 ## Local hooks (Claude Code)
 
 `home/.claude/settings.json` hooks:
-- `PermissionRequest` → `~/.local/bin/claude-permission-dialog` (interactive macOS prompt for non-trivial permission requests).
 - `PostToolUse` on `Write|Edit|MultiEdit` → `gofmt -w` on edited `.go` files (skips `*gen.go`).
 - `Stop` → macOS notification naming the cwd (`osascript -e "display notification …"`).
 
