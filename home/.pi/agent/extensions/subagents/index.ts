@@ -20,6 +20,7 @@ import { DEPTH_ENV, getFinalText, resolveEffectiveModel, runSubprocess, type Run
 import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
 
 const MAX_DEPTH = 3;
+const MAX_HANDOFF_CHARS = 8_000;
 
 export default function (_pi: ExtensionAPI) {
 	// Discover agents at registration time so the model sees the current
@@ -45,6 +46,7 @@ export default function (_pi: ExtensionAPI) {
 
 	const SpawnParams = Type.Object({
 		message: Type.String({ description: "The specific task for this spawn. The agent's role (its system prompt) defines how it works; this is the instance of work to do. Self-contained — the child has no parent history." }),
+		handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent that the child should not rediscover. Omit only when the task is genuinely self-contained." })),
 		task_name: Type.Optional(Type.String({ description: "Short label for UI and logs. Omit to derive from the message." })),
 		agent_type: Type.Optional(agentTypeSchema),
 		reasoning_effort: Type.Optional(Type.Union([
@@ -71,6 +73,7 @@ export default function (_pi: ExtensionAPI) {
 			"Use spawn_agent to delegate a self-contained task to an isolated subagent with its own context, model, and tools.",
 			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role (no overrides).`,
 			"Pass a self-contained message: the child has no parent history. Reference exact paths, file:line ranges, and the output shape you want.",
+			"When delegating work based on context learned in this session, populate spawn_agent.handoff with the known paths, facts, decisions, or small excerpts. Omit it only for genuinely self-contained tasks.",
 			"Prefer a single spawn_agent over multi-step orchestration. Depth is capped at 3.",
 		],
 		parameters: SpawnParams,
@@ -103,6 +106,7 @@ export default function (_pi: ExtensionAPI) {
 				agent,
 				model: effectiveModel,
 				message: params.message,
+				handoff: params.handoff?.trim() || undefined,
 				taskName: params.task_name?.trim() || clipAtWord(params.message, 60),
 				reasoningEffortOverride: params.reasoning_effort,
 				cwd: params.cwd,
