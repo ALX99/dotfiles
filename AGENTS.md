@@ -56,7 +56,7 @@ Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/exten
 Active extensions (each entry point is a file in `home/.pi/agent/extensions/`):
 - **`subagents/index.ts`** — `spawn_agent` tool. `agents/{default,scout,worker}.md` define roles, `process.ts` runs the child as `pi --mode json --print --no-session` (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
 - **`memory/index.ts`** — `memory_save` tool + `/memory` and `/memory-capture` commands. Injects memory block into system prompt on `before_agent_start`. User must approve each `memory_save` via UI confirmation. Memory files: `global` at `$XDG_STATE_HOME/pi-agent/memory/global.md`, `repo` at `<git-root>/.pi/memory/repo.md`. 32 KB cap per file.
-- **`ask_question.ts`** — `ask_question` tool (multiple choice with auto-added "Ask AI for pros and cons" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
+- **`ask_question.ts`** — `ask_question` tool (multiple choice with auto-added "Compare options" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
 - **`caffeinate.ts`** — Prevents macOS sleep during agent runs (spawns `/usr/bin/caffeinate` on `agent_start`, kills on `agent_end`).
 - **`cost-saver.ts`** — Intercepts read tool calls: blocks full-file reads > 50 KB (forces offset/limit), deduplicates repeated reads of unchanged files via SHA-256 hash.
 - **`cost-tracker.ts`** — `/analyze-cost` interactive dashboard (day/week/month breakdown by model and tool count). Reads JSONL session logs.
