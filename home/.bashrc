@@ -120,8 +120,15 @@ __prompt_render() {
   PS1="${segments[*]} ${dim}${slate}>${reset} "
 }
 
+# Use direnv when installed; otherwise provide the lightweight .env loader.
+if ! command -v direnv >/dev/null 2>&1 && [[ -r $HOME/.bashrc.d/envload.bash ]]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.bashrc.d/envload.bash"
+fi
+
 __prompt_command() {
   local exit_status=$?
+  [[ -n ${__dotenv_active_file+x} ]] && __dotenv_update
   history -a
   __prompt_render "$exit_status"
 }
