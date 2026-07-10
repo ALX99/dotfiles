@@ -2,5 +2,5 @@
 node_modules
 
 # Codex follows skill-directory symlinks, but does not reliably discover a
-# real skill directory whose SKILL.md is a symlink. init.sh manages these.
+# real skill directory whose SKILL.md is a symlink. Justfile manages these.
 \.agents/skills.*

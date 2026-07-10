@@ -5,10 +5,10 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 ## Repo shape
 
 - **Stow packages:** `home/` → `~`, `.config/` → `~/.config`, `.local/` → `~/.local`. `.stowrc` sets `--no-folding`. `home/.stow-local-ignore` skips `node_modules`.
-- `make user-cfg` → `./init.sh 1`. Full menu: `1` user config, `2` Linux (Arch), `3` Mac system.
+- **Setup:** `just user-config` for dotfiles, `just linux-system` for Arch system configuration, and `just mac-system` for the macOS keyboard layout. Run `just` to list recipes.
 - **Submodule:** `.config/mpv/scripts/subs2srs` → `Ajatt-Tools/mpvacious` (path name is misleading; it IS mpvacious).
 - `.gitignore` excludes `.worktrees/` and `worktrees/`.
-- **200 tracked files.** No top-level build system — only "build" is `make user-cfg`. CI: shellcheck via reviewdog.
+- Top-level setup and checks are exposed as Justfile recipes. CI runs shellcheck via reviewdog.
 - Layout: `.local/bin/` (scripts), `.config/` (program configs), `home/.claude/`, `home/.agents/skills/`, `home/.pi/agent/`, `pi-web/`, `misc/` (system-level configs: XKB, keyd, systemd, pacman hooks).
 
 ## Repo symlinks (not stow-created)
@@ -19,13 +19,13 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 
 `home/.pi/agent/` contains only: `APPEND_SYSTEM.md` (injected into system prompt), `extensions/`, `settings.json`, `skills/init/`. Subagent roles live at `extensions/subagents/agents/{default,scout,worker}.md`; no top-level `agents/` and no `supervisor.md`.
 
-## Setup invariants (init.sh 1)
+## Setup invariants (`just user-config`)
 
-- `init.sh` shares `~/.agents/skills/<skill>` with `~/.claude/skills/<skill>` via per-skill symlinks. Uses `is_stale_dotfile_entry` to avoid clobbering content from `npx agents` — never `rm -rf` a `~/.claude/skills/<x>` that the script flagged as "not a stale dotfile leftover."
-- Stow order matters: `.local` first, then `home`, then `.config`. `~/.config` and `~/.agents` must exist before stow runs. Broken dotfile-repo symlinks are cleaned up first via `remove_broken_symlinks`.
-- Linux: `init.sh 2` requires sudo for XKB/keyd/systemd units, enables `systemctl --user` ssh-agent, links `dash` to `/usr/bin/sh`.
-- Mac: `init.sh 3` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout`, prompts user to enable manually in System Settings. No auto-reboot.
-- After first `make user-cfg`, run `make pi` to install npm deps for pi extensions (stow does not manage `node_modules/`).
+- The `user-config` recipe shares `~/.agents/skills/<skill>` with `~/.claude/skills/<skill>` via per-skill symlinks. It creates only missing links, leaving content from `npx agents` and other tools untouched.
+- Stow order matters: `.local` first, then `home`, then `.config`. `~/.config` and `~/.agents` must exist before stow runs. Broken links into this repository and broken Claude-to-agent skill links are cleaned up first.
+- `just linux-system` requires sudo for XKB/keyd/systemd units, enables the user ssh-agent, and links `dash` to `/usr/bin/sh`.
+- `just mac-system` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout` and prompts the user to enable it manually in System Settings. No auto-reboot.
+- After the first `just user-config`, run `just pi` to install npm deps for pi extensions (stow does not manage `node_modules/`).
 
 ## Two AI ecosystems in parallel
 
@@ -38,20 +38,20 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 
 **Skill rules live in two places** by design:
 - `home/.pi/agent/skills/` — pi-only skills (currently only `init/`).
-- `home/.agents/skills/` — harness-agnostic skills mirrored to `~/.claude/skills/` for Claude Code by `init.sh`. Current set: `commit`, `create-pr`, `code-guidelines`, `comprehensive-review`, `go-code`, `go-testing`.
+- `home/.agents/skills/` — harness-agnostic skills mirrored to `~/.claude/skills/` for Claude Code by `just user-config`. Current set: `commit`, `create-pr`, `code-guidelines`, `comprehensive-review`, `go-code`, `go-testing`.
 
-New skills go under `home/.agents/skills/` — the mirror to `~/.claude/skills/` propagates via `init.sh`. Most skills listed in the available-skills block (firecrawl/*, codebase-design, domain-modeling, brainstorming, etc.) come from the **superpowers package** (`git:github.com/obra/superpowers`), not from local skill files.
+New skills go under `home/.agents/skills/` — the mirror to `~/.claude/skills/` propagates via `just user-config`. Most skills listed in the available-skills block (firecrawl/*, codebase-design, domain-modeling, brainstorming, etc.) come from the **superpowers package** (`git:github.com/obra/superpowers`), not from local skill files.
 
 ## pi extensions
 
 Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/extensions/`).
 
-- `make pi` — shortcut for `cd ~/.pi/agent/extensions && npm install`. Required after first `make user-cfg` or `package.json` changes.
-- `make check` — runs `cd home/.pi/agent/extensions && npm run check` → `tsc` → `eslint` → `node --test '**/tests/*.test.ts'`.
+- `just pi` — shortcut for `cd ~/.pi/agent/extensions && npm install`. Required after first `just user-config` or `package.json` changes.
+- `just check` — runs `cd home/.pi/agent/extensions && npm run check` → `tsc` → `eslint` → `node --test '**/tests/*.test.ts'`.
 
 **Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `memory/` and `subagents/` load via the subdirectory-`index.ts` pattern. `eslint.config.mjs` ends in `.mjs` so pi's loader skips it.
 
-**No tests are checked into `home/.pi/agent/extensions/`** — `node --test '**/tests/*.test.ts'` matches zero files. The `tsc` and `eslint` steps still run; the test step is a no-op. Don't infer "tests passed" from a green `make check`. Tests live in `pi-web/tests/` (5 files: bridge, open-browser, protocol, runtime, server).
+**No tests are checked into `home/.pi/agent/extensions/`** — `node --test '**/tests/*.test.ts'` matches zero files. The `tsc` and `eslint` steps still run; the test step is a no-op. Don't infer "tests passed" from a green `just check`. Tests live in `pi-web/tests/` (5 files: bridge, open-browser, protocol, runtime, server).
 
 Active extensions (each entry point is a file in `home/.pi/agent/extensions/`):
 - **`subagents/index.ts`** — `spawn_agent` tool. `agents/{default,scout,worker}.md` define roles, `process.ts` runs the child as `pi --mode json --print --no-session` (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
@@ -92,9 +92,9 @@ No tests run in CI. No formatter runs in CI.
 ## Verification gates (when changing things)
 
 No automated tests. Manual gates that catch real breakage:
-- `make user-cfg` — full stow restow. If this fails, the change is broken at the symlink level.
+- `just user-config` — full stow restow. If this fails, the change is broken at the symlink level.
 - `shellcheck $(git ls-files | xargs file | grep -i 'shell script' | cut -d: -f1)` — CI runs this; mirror it locally before pushing.
 - `bash -n home/.bashrc home/.profile` — syntax check the shell init.
-- `command -v stow` — `init.sh` hard-requires GNU stow (BSD `find` is patched for macOS compat, but stow itself is the package manager).
-- `make check` — typecheck, lint, and (no-op) test for the pi extensions.
+- `command -v just stow` — setup requires Just and GNU Stow (the recipe remains compatible with BSD `find` on macOS).
+- `just check` — typecheck, lint, and (no-op) test for the pi extensions.
 - `cd pi-web && npm run build && npm run typecheck && npm test` — verify the pi-web project after changes there (`build` runs Vite to confirm the frontend bundles; `typecheck` covers both `tsconfig.json` + `tsconfig.app.json`). Manual smoke checklist: `pi-web/docs/smoke-test.md`.
