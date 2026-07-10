@@ -60,13 +60,16 @@ function formatSessionLength(startedAt: number): string {
 /* ─── thinking level color ramp ─── */
 
 // Pi ships per-level theme colors. Map thinking level → theme color so
-// minimal reads cool/dim and xhigh reads hot, using the theme's palette.
+// minimal reads cool/dim and the strongest levels read hot, using the
+// theme's palette. `max` is newer than the bundled type definitions, so use
+// xhigh's color until the theme API exposes a dedicated thinkingMax token.
 const THINKING_COLOR: Record<string, "thinkingMinimal" | "thinkingLow" | "thinkingMedium" | "thinkingHigh" | "thinkingXhigh"> = {
   minimal: "thinkingMinimal",
   low: "thinkingLow",
   medium: "thinkingMedium",
   high: "thinkingHigh",
   xhigh: "thinkingXhigh",
+  max: "thinkingXhigh",
 };
 
 /* ─── context bar ─── */
