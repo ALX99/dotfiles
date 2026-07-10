@@ -19,6 +19,8 @@ import { z } from "zod";
 export const DEPTH_ENV = "PI_SUBAGENT_DEPTH";
 const UPDATE_THROTTLE_MS = 150;
 const MAX_RECENT_TOOLS = 50;
+const MAX_NESTED_RUNS = 8;
+const MAX_NESTED_TOOLS = 8;
 
 // ── trust boundary: the child's JSON event stream ───────────────────
 const UsageSchema = z.object({
@@ -42,10 +44,40 @@ const MessageSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
-const EventSchema = z.object({
+const MessageEndEventSchema = z.object({
   type: z.literal("message_end"),
   message: MessageSchema,
 });
+
+const ToolExecutionStartEventSchema = z.object({
+  type: z.literal("tool_execution_start"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  args: z.unknown(),
+});
+
+const ToolExecutionUpdateEventSchema = z.object({
+  type: z.literal("tool_execution_update"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  args: z.unknown(),
+  partialResult: z.unknown(),
+});
+
+const ToolExecutionEndEventSchema = z.object({
+  type: z.literal("tool_execution_end"),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  result: z.unknown(),
+  isError: z.boolean(),
+});
+
+const EventSchema = z.discriminatedUnion("type", [
+  MessageEndEventSchema,
+  ToolExecutionStartEventSchema,
+  ToolExecutionUpdateEventSchema,
+  ToolExecutionEndEventSchema,
+]);
 
 export interface RunUsage {
   input: number;
@@ -60,6 +92,21 @@ export interface RunUsage {
  * Mutable run state. Reused across the run: the JSON parser mutates it in
  * place and the render layer reads from it on every throttled update.
  */
+export type NestedRunStatus = "running" | "completed" | "failed" | "aborted";
+
+/** A compact, recursive view of a child spawned by this subagent. */
+export interface NestedRunDetails {
+  toolCallId: string;
+  agent: string;
+  taskName: string;
+  depth: number;
+  status: NestedRunStatus;
+  toolCount: number;
+  recentTools: Array<{ name: string; argsPreview: string }>;
+  lastMessage: string;
+  nestedRuns: NestedRunDetails[];
+}
+
 export interface RunDetails {
   agent: string;
   taskName: string;
@@ -74,6 +121,7 @@ export interface RunDetails {
   toolCount: number;
   recentTools: Array<{ name: string; argsPreview: string }>;
   lastMessage: string;
+  nestedRuns: NestedRunDetails[];
   tokens: number; // latest-turn snapshot for the context-window gauge
   usage: RunUsage;
   contextWindow?: number;
@@ -93,6 +141,7 @@ export interface RunParams {
   defaultCwd: string;
   agent: AgentConfig;
   message: string;
+  handoff?: string;
   taskName: string;
   model?: string;
   reasoningEffortOverride?: string;
@@ -108,6 +157,7 @@ export interface BuildPiArgsParams {
   tools?: string[];
   promptPath?: string;
   message: string;
+  handoff?: string;
 }
 
 /** Spawns the child and resolves ok=true on a clean (exit 0) run, ok=false otherwise. */
@@ -134,6 +184,7 @@ function initDetails(params: RunParams): RunDetails {
     toolCount: 0,
     recentTools: [],
     lastMessage: "",
+    nestedRuns: [],
     tokens: 0,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
   };
@@ -154,6 +205,7 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
     tools: params.agent.tools,
     promptPath,
     message: params.message,
+    handoff: params.handoff,
   });
 
   const env = { ...process.env, [DEPTH_ENV]: String(details.depth) };
@@ -214,8 +266,14 @@ export function buildPiArgs(params: BuildPiArgsParams): string[] {
   if (params.reasoningEffortOverride) args.push("--thinking", piThinkingLevel(params.reasoningEffortOverride));
   if (params.tools?.length) args.push("--tools", params.tools.join(","));
   if (params.promptPath) args.push("--append-system-prompt", params.promptPath);
-  args.push(`Task: ${params.message}`);
+  args.push(buildTaskPrompt(params.message, params.handoff));
   return args;
+}
+
+export function buildTaskPrompt(message: string, handoff?: string): string {
+  const trimmedHandoff = handoff?.trim();
+  if (!trimmedHandoff) return `Task: ${message}`;
+  return `Task: ${message}\n\nParent handoff (trusted context; verify if needed):\n${trimmedHandoff}`;
 }
 
 function piThinkingLevel(reasoningEffort: string): string {
@@ -223,7 +281,20 @@ function piThinkingLevel(reasoningEffort: string): string {
 }
 
 function toUpdateSnapshot(d: RunDetails): RunDetails {
-  return { ...d, messages: [], recentTools: [...d.recentTools] };
+  return {
+    ...d,
+    messages: [],
+    recentTools: [...d.recentTools],
+    nestedRuns: d.nestedRuns.map(copyNestedRun),
+  };
+}
+
+function copyNestedRun(run: NestedRunDetails): NestedRunDetails {
+  return {
+    ...run,
+    recentTools: [...run.recentTools],
+    nestedRuns: run.nestedRuns.map(copyNestedRun),
+  };
 }
 
 async function writeTempPrompt(agentName: string, systemPrompt: string): Promise<{ dir: string; path: string }> {
@@ -246,7 +317,28 @@ export function ingestLine(line: string, details: RunDetails): void {
 
   const parsed = EventSchema.safeParse(raw);
   if (!parsed.success) return; // unrelated event line — skip
-  const msg = parsed.data.message as Message;
+
+  switch (parsed.data.type) {
+    case "message_end":
+      ingestMessage(parsed.data.message as Message, details);
+      return;
+    case "tool_execution_start":
+      if (parsed.data.toolName === "spawn_agent") {
+        upsertNestedRun(details, nestedRunFromArgs(parsed.data.toolCallId, parsed.data.args, details.depth + 1));
+      }
+      return;
+    case "tool_execution_update":
+      if (parsed.data.toolName !== "spawn_agent") return;
+      updateNestedRun(details, parsed.data.toolCallId, parsed.data.partialResult, "running");
+      return;
+    case "tool_execution_end":
+      if (parsed.data.toolName !== "spawn_agent") return;
+      updateNestedRun(details, parsed.data.toolCallId, parsed.data.result, parsed.data.isError ? "failed" : "completed");
+      return;
+  }
+}
+
+function ingestMessage(msg: Message, details: RunDetails): void {
   details.messages.push(msg);
   if (msg.role !== "assistant") return;
 
@@ -274,6 +366,95 @@ export function ingestLine(line: string, details: RunDetails): void {
       if (prose) details.lastMessage = prose.trim();
     }
   }
+}
+
+function nestedRunFromArgs(toolCallId: string, args: unknown, depth: number): NestedRunDetails {
+  const input = isRecord(args) ? args : {};
+  const message = typeof input.message === "string" ? input.message : "(task unavailable)";
+  return {
+    toolCallId,
+    agent: typeof input.agent_type === "string" && input.agent_type.trim() ? input.agent_type : "default",
+    taskName: typeof input.task_name === "string" && input.task_name.trim() ? input.task_name : clipAtWord(message, 60),
+    depth,
+    status: "running",
+    toolCount: 0,
+    recentTools: [],
+    lastMessage: "",
+    nestedRuns: [],
+  };
+}
+
+function updateNestedRun(details: RunDetails, toolCallId: string, rawResult: unknown, fallbackStatus: NestedRunStatus): void {
+  const existing = details.nestedRuns.find((run) => run.toolCallId === toolCallId)
+    ?? nestedRunFromArgs(toolCallId, undefined, details.depth + 1);
+  const snapshot = nestedRunFromResult(rawResult, existing, fallbackStatus);
+  upsertNestedRun(details, snapshot);
+}
+
+function upsertNestedRun(details: RunDetails, run: NestedRunDetails): void {
+  const index = details.nestedRuns.findIndex((item) => item.toolCallId === run.toolCallId);
+  if (index >= 0) details.nestedRuns[index] = run;
+  else details.nestedRuns.push(run);
+
+  while (details.nestedRuns.length > MAX_NESTED_RUNS) {
+    const completedIndex = details.nestedRuns.findIndex((item) => item.status !== "running");
+    details.nestedRuns.splice(completedIndex >= 0 ? completedIndex : 0, 1);
+  }
+}
+
+function nestedRunFromResult(
+  rawResult: unknown,
+  fallback: NestedRunDetails,
+  fallbackStatus: NestedRunStatus,
+  remainingDepth = 3,
+): NestedRunDetails {
+  const rawDetails = isRecord(rawResult) && isRecord(rawResult.details) ? rawResult.details : rawResult;
+  if (!isRecord(rawDetails)) return { ...fallback, status: fallbackStatus };
+
+  const status = isNestedRunStatus(rawDetails.status)
+    ? rawDetails.status
+    : rawDetails.aborted === true
+      ? "aborted"
+      : typeof rawDetails.exitCode === "number" && rawDetails.exitCode !== 0
+        ? "failed"
+        : rawDetails.endTime !== undefined
+          ? "completed"
+          : fallbackStatus;
+  return {
+    toolCallId: fallback.toolCallId,
+    agent: typeof rawDetails.agent === "string" ? rawDetails.agent : fallback.agent,
+    taskName: typeof rawDetails.taskName === "string" ? rawDetails.taskName : fallback.taskName,
+    depth: typeof rawDetails.depth === "number" ? rawDetails.depth : fallback.depth,
+    status,
+    toolCount: typeof rawDetails.toolCount === "number" ? rawDetails.toolCount : fallback.toolCount,
+    recentTools: nestedTools(rawDetails.recentTools),
+    lastMessage: typeof rawDetails.lastMessage === "string" ? rawDetails.lastMessage : fallback.lastMessage,
+    nestedRuns: remainingDepth > 0 ? nestedRuns(rawDetails.nestedRuns, remainingDepth - 1) : [],
+  };
+}
+
+function nestedTools(raw: unknown): NestedRunDetails["recentTools"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    if (!isRecord(item) || typeof item.name !== "string" || typeof item.argsPreview !== "string") return [];
+    return [{ name: item.name, argsPreview: item.argsPreview }];
+  }).slice(-MAX_NESTED_TOOLS);
+}
+
+function nestedRuns(raw: unknown, remainingDepth: number): NestedRunDetails[] {
+  if (!Array.isArray(raw) || remainingDepth < 0) return [];
+  return raw.flatMap((item) => {
+    if (!isRecord(item) || typeof item.toolCallId !== "string") return [];
+    return [nestedRunFromResult(item, nestedRunFromArgs(item.toolCallId, undefined, 0), "running", remainingDepth)];
+  }).slice(-MAX_NESTED_RUNS);
+}
+
+function isNestedRunStatus(value: unknown): value is NestedRunStatus {
+  return value === "running" || value === "completed" || value === "failed" || value === "aborted";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 /** Last non-empty assistant text block. Used by the tool layer for the
@@ -306,6 +487,14 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 }
 
 // ── small helpers ─────────────────────────────────────────────────────
+
+function clipAtWord(s: string, max: number): string {
+  const one = s.replace(/\s+/g, " ").trim();
+  if (one.length <= max) return one;
+  const cut = one.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.5 ? one.slice(0, lastSpace) : cut) + "…";
+}
 
 export function argsPreview(args: unknown): string {
   if (!args || typeof args !== "object") return "";

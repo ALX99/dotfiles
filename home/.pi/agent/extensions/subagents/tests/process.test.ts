@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import type { Message } from "@earendil-works/pi-ai";
-import { argsPreview, buildPiArgs, getFinalText, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
+import { argsPreview, buildPiArgs, buildTaskPrompt, getFinalText, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
@@ -16,6 +16,7 @@ function fresh(): RunDetails {
 		toolCount: 0,
 		recentTools: [],
 		lastMessage: "",
+		nestedRuns: [],
 		tokens: 0,
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 	};
@@ -155,6 +156,77 @@ test("argsPreview falls back to compact JSON for unknown shapes", () => {
 	assert.equal(argsPreview(undefined), "");
 	assert.equal(argsPreview("str"), "");
 	assert.equal(argsPreview(null), "");
+});
+
+test("buildTaskPrompt adds a bounded parent handoff only when supplied", () => {
+	assert.equal(buildTaskPrompt("check this"), "Task: check this");
+	assert.equal(
+		buildTaskPrompt("check this", "  src/config.ts:10-20 contains the failing parser.  "),
+		"Task: check this\n\nParent handoff (trusted context; verify if needed):\nsrc/config.ts:10-20 contains the failing parser.",
+	);
+});
+
+test("ingestLine forwards two nested spawn_agent snapshots recursively", () => {
+	const d = fresh();
+	for (const [id, agent, task] of [["child-a", "scout", "locate parser"], ["child-b", "worker", "fix parser"]] as const) {
+		ingestLine(JSON.stringify({
+			type: "tool_execution_start",
+			toolCallId: id,
+			toolName: "spawn_agent",
+			args: { agent_type: agent, task_name: task },
+		}), d);
+		ingestLine(JSON.stringify({
+			type: "tool_execution_update",
+			toolCallId: id,
+			toolName: "spawn_agent",
+			args: {},
+			partialResult: {
+				details: {
+					agent,
+					taskName: task,
+					depth: 2,
+					toolCount: 1,
+					recentTools: [{ name: "read", argsPreview: `src/${agent}.ts` }],
+					lastMessage: "reading target",
+					nestedRuns: agent === "worker" ? [{
+						toolCallId: "grandchild",
+						agent: "scout",
+						taskName: "find tests",
+						depth: 3,
+						toolCount: 1,
+						recentTools: [{ name: "grep", argsPreview: "parser" }],
+						lastMessage: "",
+						nestedRuns: [],
+					}] : [],
+				},
+			},
+		}), d);
+	}
+
+	assert.equal(d.nestedRuns.length, 2);
+	assert.deepEqual(d.nestedRuns.map((run) => run.agent), ["scout", "worker"]);
+	assert.equal(d.nestedRuns[1]?.nestedRuns[0]?.agent, "scout");
+	assert.equal(d.nestedRuns[1]?.nestedRuns[0]?.recentTools[0]?.name, "grep");
+});
+
+test("ingestLine marks a completed nested spawn_agent", () => {
+	const d = fresh();
+	ingestLine(JSON.stringify({
+		type: "tool_execution_start",
+		toolCallId: "child",
+		toolName: "spawn_agent",
+		args: { agent_type: "scout", task_name: "find files" },
+	}), d);
+	ingestLine(JSON.stringify({
+		type: "tool_execution_end",
+		toolCallId: "child",
+		toolName: "spawn_agent",
+		result: { details: { agent: "scout", taskName: "find files", depth: 2, endTime: 1, toolCount: 2, recentTools: [], lastMessage: "done", nestedRuns: [] } },
+		isError: false,
+	}), d);
+
+	assert.equal(d.nestedRuns[0]?.status, "completed");
+	assert.equal(d.nestedRuns[0]?.lastMessage, "done");
 });
 
 test("buildPiArgs maps reasoning effort override to Pi's thinking flag", () => {
