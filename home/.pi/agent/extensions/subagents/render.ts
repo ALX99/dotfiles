@@ -6,7 +6,7 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import { DEPTH_ENV, getFinalText, type RunDetails } from "./process.ts";
+import { DEPTH_ENV, getFinalText, type NestedRunDetails, type RunDetails } from "./process.ts";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -41,7 +41,7 @@ function clipLine(s: string, max: number): string {
 
 export function renderCallHeader(
 	c: Container,
-	args: { message?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string },
+	args: { message?: string; handoff?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string },
 	expanded: boolean,
 	theme: Theme,
 ): void {
@@ -52,6 +52,7 @@ export function renderCallHeader(
 	if (args.reasoning_effort) meta.push(theme.fg("muted", `· effort=${args.reasoning_effort}`));
 	if (args.model) meta.push(theme.fg("muted", `· model=${args.model}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
+	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
 	c.addChild(new Text(`${theme.fg("toolTitle", theme.bold("spawn_agent"))}${agentLabel} ${meta.join(" ")}`, 0, 0));
 
 	if (args.message) {
@@ -104,6 +105,11 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 		c.addChild(new Text(theme.fg("muted", `  ${clipLine(body, 100)}`), 0, 0));
 	}
 
+	if (details.nestedRuns.length) {
+		c.addChild(new Spacer(1));
+		renderNestedRuns(c, details.nestedRuns, options.expanded, theme);
+	}
+
 	// Waiting indicator for the long first-turn gap before any tool event.
 	if (isRunning && details.toolCount === 0 && !details.lastMessage) {
 		c.addChild(new Spacer(1));
@@ -149,6 +155,36 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 	}
 
 	return c;
+}
+
+function renderNestedRuns(c: Container, runs: NestedRunDetails[], expanded: boolean, theme: Theme, indent = "  "): void {
+	const visible = expanded ? runs : runs.slice(-2);
+	if (runs.length > visible.length) {
+		c.addChild(new Text(theme.fg("dim", `${indent}… ${runs.length - visible.length} earlier subagents`), 0, 0));
+	}
+
+	for (const run of visible) {
+		const icon = run.status === "running"
+			? theme.fg("warning", "⟳")
+			: run.status === "completed"
+				? theme.fg("success", "✓")
+				: theme.fg("error", "✗");
+		c.addChild(new Text(
+			`${indent}${theme.fg("muted", "↳")} ${icon} ${theme.fg("accent", run.agent)} ${theme.fg("muted", `[d${run.depth}] · ${run.taskName}`)}`,
+			0,
+			0,
+		));
+
+		const tools = expanded ? run.recentTools : run.recentTools.slice(-2);
+		for (const tool of tools) {
+			const body = tool.argsPreview ? `${tool.name}: ${tool.argsPreview}` : tool.name;
+			c.addChild(new Text(theme.fg("dim", `${indent}    ${clipLine(body, 92)}`), 0, 0));
+		}
+		if (!tools.length && run.lastMessage) {
+			c.addChild(new Text(theme.fg("dim", `${indent}    ${clipLine(run.lastMessage, 92)}`), 0, 0));
+		}
+		if (run.nestedRuns.length) renderNestedRuns(c, run.nestedRuns, expanded, theme, `${indent}    `);
+	}
 }
 
 /** Set up (and tear down) a 1Hz invalidation tick while the result is partial.
