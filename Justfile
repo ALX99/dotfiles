@@ -49,6 +49,7 @@ install: clean-broken-links
 
     if [[ $(uname) == Linux ]] &&
        command -v systemctl >/dev/null 2>&1 &&
+       [[ -n ${XDG_RUNTIME_DIR:-} && -S "$XDG_RUNTIME_DIR/bus" ]] &&
        systemctl --user show-environment >/dev/null 2>&1; then
       systemctl --user enable --now ssh-agent
     fi
