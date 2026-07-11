@@ -1,6 +1,6 @@
 ---
 name: default
-description: Default codex role — no overrides, child uses the same model/tools as the parent.
+description: General-purpose autonomous subagent for self-contained tasks; follows parent-provided scope, constraints, and output requirements.
 model: openai-codex/gpt-5.terra:xhigh
 ---
 
