@@ -47,7 +47,9 @@ install: clean-broken-links
 
     stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
 
-    if [[ $(uname) == Linux ]]; then
+    if [[ $(uname) == Linux ]] &&
+       command -v systemctl >/dev/null 2>&1 &&
+       systemctl --user show-environment >/dev/null 2>&1; then
       systemctl --user enable --now ssh-agent
     fi
 
