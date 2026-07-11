@@ -258,18 +258,15 @@ test("buildPiArgs translates Codex reasoning effort none to Pi thinking off", ()
 
 test("resolveEffectiveModel prefers an explicit agent model", () => {
 	assert.equal(
-		resolveEffectiveModel("openai/gpt-5.5", { provider: "openmodel", id: "deepseek-v4-flash" }),
+		resolveEffectiveModel("openai/gpt-5.5"),
 		"openai/gpt-5.5",
 	);
 });
 
-test("resolveEffectiveModel inherits the current session model when agent model is omitted", () => {
-	assert.equal(
-		resolveEffectiveModel(undefined, { provider: "openmodel", id: "deepseek-v4-flash" }),
-		"openmodel/deepseek-v4-flash",
-	);
+test("resolveEffectiveModel leaves model unset when agent model is omitted", () => {
+	assert.equal(resolveEffectiveModel(undefined), undefined);
 });
 
 test("resolveEffectiveModel leaves model unset when neither source is available", () => {
-	assert.equal(resolveEffectiveModel(undefined, undefined), undefined);
+	assert.equal(resolveEffectiveModel(undefined), undefined);
 });
