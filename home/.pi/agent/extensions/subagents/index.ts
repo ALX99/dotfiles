@@ -94,7 +94,7 @@ export default function (_pi: ExtensionAPI) {
 				},
 			);
 
-			const effectiveModel = resolveEffectiveModel(agent.model, ctx.model);
+			const effectiveModel = resolveEffectiveModel(agent.model);
 			const [provider, modelId] = (effectiveModel ?? "").split("/");
 			const contextWindow = provider && modelId
 				? ctx.modelRegistry.find(provider, modelId)?.contextWindow
