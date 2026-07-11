@@ -29,6 +29,7 @@ RUN sed -i '/^#DisableSandboxSyscalls/s/^#//' /etc/pacman.conf \
     && pacman -Scc --noconfirm
 
 RUN useradd --create-home --shell /bin/bash codespace \
+    && rm -f /home/codespace/.bash_logout /home/codespace/.bash_profile /home/codespace/.bashrc \
     && usermod --append --groups wheel codespace \
     && printf '%s\n' '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/codespace \
     && chmod 0440 /etc/sudoers.d/codespace
