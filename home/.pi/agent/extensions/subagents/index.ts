@@ -72,8 +72,9 @@ export default function (_pi: ExtensionAPI) {
 		promptGuidelines: [
 			"Use spawn_agent to delegate a self-contained task to an isolated subagent with its own context, model, and tools.",
 			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role (no overrides).`,
-			"Pass a self-contained message: the child has no parent history. Reference exact paths, file:line ranges, and the output shape you want.",
-			"When delegating work based on context learned in this session, populate spawn_agent.handoff with the known paths, facts, decisions, or small excerpts. Omit it only for genuinely self-contained tasks.",
+			"When using spawn_agent, put the child's complete assignment in message: objective, scope, constraints or decisions, expected deliverable or output format, and required verification or evidence.",
+			"When using spawn_agent, reference exact paths, symbols, or line ranges when useful. Do not rely on parent conversation history; make the message self-contained.",
+			"When using spawn_agent after gathering context, put child-facing instructions in message and known facts, decisions, or small excerpts in handoff. The child receives no parent conversation history; omit handoff only when the task is genuinely self-contained.",
 			"Prefer a single spawn_agent over multi-step orchestration. Depth is capped at 3.",
 		],
 		parameters: SpawnParams,
