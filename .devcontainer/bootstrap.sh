@@ -5,8 +5,16 @@ repo_dir=$(git rev-parse --show-toplevel)
 cd "$repo_dir"
 
 just install
+
+if [[ -d "$HOME/.ssh" ]]; then
+  chmod 700 "$HOME/.ssh"
+  [[ ! -e "$HOME/.ssh/config" ]] || chmod 600 "$HOME/.ssh/config"
+fi
+
 just install-pi
 npm --prefix "$repo_dir/pi-web" ci
+
+gh config set git_protocol https --host github.com
 
 clone_repo() {
   local repo=$1
