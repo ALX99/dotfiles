@@ -254,10 +254,8 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
   return details;
 }
 
-export function resolveEffectiveModel(agentModel: string | undefined, currentModel: { provider: string; id: string } | undefined): string | undefined {
-  if (agentModel) return agentModel;
-  if (!currentModel) return undefined;
-  return `${currentModel.provider}/${currentModel.id}`;
+export function resolveEffectiveModel(agentModel: string | undefined): string | undefined {
+  return agentModel;
 }
 
 export function buildPiArgs(params: BuildPiArgsParams): string[] {
