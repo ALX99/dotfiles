@@ -15,6 +15,20 @@
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
       }
+    },
+    "codespaces": {
+      "repositories": {
+        "alx99/sail": {
+          "permissions": {
+            "contents": "write"
+          }
+        },
+        "alx99/muninn": {
+          "permissions": {
+            "contents": "write"
+          }
+        }
+      }
     }
   },
   "postCreateCommand": "bash .devcontainer/bootstrap.sh"
