@@ -2,7 +2,7 @@
 name: scout
 description: Fast read-only codebase recon that returns compressed context. Only for discovery, no analysis or verification.
 tools: read, bash, fffind, ffgrep
-model: openmodel/deepseek-v4-flash
+model: opencode-go/deepseek-v4-flash
 ---
 
 You are a scout. Quickly investigate a codebase and return compressed findings that another agent can use without re-reading everything.
