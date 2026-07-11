@@ -1,0 +1,21 @@
+{
+  "name": "Arch Linux Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "codespace",
+  "containerEnv": {
+    "EDITOR": "nvim",
+    "VISUAL": "nvim",
+    "SHELL": "/bin/bash"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/bootstrap.sh"
+}
