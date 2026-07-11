@@ -1,6 +1,7 @@
 FROM archlinux:base
 
-RUN pacman -Syu --noconfirm --needed \
+RUN sed -i '/^#DisableSandboxSyscalls/s/^#//' /etc/pacman.conf \
+    && pacman -Syu --noconfirm --needed \
       base-devel \
       bash \
       ca-certificates \
