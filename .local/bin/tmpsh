@@ -5,9 +5,9 @@
 # open shell in a temporary dir
 #
 
-dir=/tmp/$$.tmpsh
+tmp_root=${TMPDIR:-/tmp}
+dir=$(mktemp -d "$tmp_root/tmpsh.XXXXXX")
 
-mkdir -p "$dir"
 trap 'rm -rf -- "${dir:-?}"' EXIT INT TERM HUP
 
 cd "$dir"
