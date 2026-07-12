@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import type { Message } from "@earendil-works/pi-ai";
+import { discoverAgents } from "../agents.ts";
 import { argsPreview, buildPiArgs, buildTaskPrompt, getFinalText, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
@@ -80,6 +81,40 @@ test("ingestLine ignores non-JSON and unrelated event types", () => {
 	ingestLine("", d);
 	assert.deepEqual(d.messages, []);
 	assert.equal(d.toolCount, 0);
+});
+
+test("ingestLine captures an assistant provider error even when the child exits zero", () => {
+	const d = fresh();
+	ingestLine(msgEnd({
+		role: "assistant",
+		content: [],
+		stopReason: "error",
+		errorMessage: "Codex error: unsupported model",
+	}), d);
+
+	assert.equal(d.assistantError, "Codex error: unsupported model");
+});
+
+test("ingestLine clears a transient assistant error after a successful retry", () => {
+	const d = fresh();
+	ingestLine(msgEnd({
+		role: "assistant",
+		content: [],
+		stopReason: "error",
+		errorMessage: "temporary provider error",
+	}), d);
+	ingestLine(msgEnd({
+		role: "assistant",
+		content: [{ type: "text", text: "recovered" }],
+		stopReason: "stop",
+	}), d);
+
+	assert.equal(d.assistantError, undefined);
+});
+
+test("default agent uses the supported Terra model id", () => {
+	const agents = discoverAgents()._unsafeUnwrap();
+	assert.equal(agents.find((agent) => agent.name === "default")?.model, "openai-codex/gpt-5.6-terra");
 });
 
 test("ingestLine folds an assistant message_end into usage/tools/lastMessage", () => {

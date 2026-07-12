@@ -165,6 +165,7 @@ function discoveryErrorMessage(e: { kind: string; dir: string; cause?: NodeJS.Er
 function spawnErrorMessage(e: SpawnError): string {
 	const details = e.details;
 	if (e.kind === "aborted") return "spawn_agent aborted.";
+	if (e.kind === "assistant") return e.message;
 	const code = `Subagent exited with code ${details.exitCode}.`;
 	const stderr = details.stderr.trim();
 	const finalText = getFinalText(details.messages);
