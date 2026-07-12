@@ -42,6 +42,8 @@ const MessageSchema = z.object({
   role: z.string(),
   content: z.array(ContentPartSchema),
   usage: UsageSchema.optional(),
+  stopReason: z.string().optional(),
+  errorMessage: z.string().optional(),
 });
 
 const MessageEndEventSchema = z.object({
@@ -115,6 +117,7 @@ export interface RunDetails {
   exitCode: number;
   messages: Message[];
   stderr: string;
+  assistantError?: string;
   aborted: boolean;
   startTime: number;
   endTime?: number;
@@ -131,6 +134,7 @@ export interface RunDetails {
  * details are attached so the tool layer can still render what happened. */
 export type SpawnError =
   | { kind: "exit"; details: RunDetails }
+  | { kind: "assistant"; details: RunDetails; message: string }
   | { kind: "aborted"; details: RunDetails };
 
 export type RunResult =
@@ -166,6 +170,9 @@ export async function runSubprocess(params: RunParams): Promise<RunResult> {
   const finished = await runAndCollect(params, details);
   if (finished.aborted) return { ok: false, error: { kind: "aborted", details: finished } };
   if (finished.exitCode !== 0) return { ok: false, error: { kind: "exit", details: finished } };
+  if (finished.assistantError) {
+    return { ok: false, error: { kind: "assistant", details: finished, message: finished.assistantError } };
+  }
   return { ok: true, details: finished };
 }
 
@@ -317,9 +324,16 @@ export function ingestLine(line: string, details: RunDetails): void {
   if (!parsed.success) return; // unrelated event line — skip
 
   switch (parsed.data.type) {
-    case "message_end":
-      ingestMessage(parsed.data.message as Message, details);
+    case "message_end": {
+      const message = parsed.data.message;
+      if (message.role === "assistant") {
+        details.assistantError = message.stopReason === "error"
+          ? message.errorMessage?.trim() || "Subagent assistant stopped with an error."
+          : undefined;
+      }
+      ingestMessage(message as Message, details);
       return;
+    }
     case "tool_execution_start":
       if (parsed.data.toolName === "spawn_agent") {
         upsertNestedRun(details, nestedRunFromArgs(parsed.data.toolCallId, parsed.data.args, details.depth + 1));
