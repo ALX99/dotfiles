@@ -13,7 +13,9 @@ else
   nvim_position='+normal! Gzb'
 fi
 
-tmux new-window -n history "nvim '$nvim_position' '+nnoremap <buffer> q :quit<CR>' '$file'; rm -f '$file'"
+printf -v window_command 'nvim %q %q %q; rm -f -- %q' \
+  "$nvim_position" '+nnoremap <buffer> q :quit<CR>' "$file" "$file"
+tmux new-window -n history "$window_command"
 
 # keep the file for the tmux window; rely on the command above to clean up
 trap - EXIT
