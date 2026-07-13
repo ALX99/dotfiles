@@ -19,7 +19,7 @@ function details(): RunDetails {
 		taskName: "implement parser fix",
 		depth: 1,
 		exitCode: 0,
-		messages: [],
+		finalText: "",
 		stderr: "",
 		aborted: false,
 		startTime: 0,

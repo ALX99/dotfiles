@@ -6,7 +6,7 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import { DEPTH_ENV, getFinalText, type NestedRunDetails, type RunDetails } from "./process.ts";
+import { DEPTH_ENV, type NestedRunDetails, type RunDetails } from "./process.ts";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -141,7 +141,7 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 
 	// Final output, only when done. 8 lines collapsed, full expanded.
 	if (!isRunning) {
-		const finalText = getFinalText(details.messages);
+		const finalText = details.finalText;
 		if (finalText) {
 			c.addChild(new Spacer(1));
 			const preview = options.expanded ? finalText : finalText.split("\n").slice(0, 8).join("\n");
