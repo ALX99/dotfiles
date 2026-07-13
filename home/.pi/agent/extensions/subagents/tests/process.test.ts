@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import type { Message } from "@earendil-works/pi-ai";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { discoverAgents } from "../agents.ts";
-import { argsPreview, buildPiArgs, buildTaskPrompt, getFinalText, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
+import { argsPreview, buildPiArgs, buildTaskPrompt, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
@@ -10,7 +11,7 @@ function fresh(): RunDetails {
 		taskName: "test",
 		depth: 1,
 		exitCode: 0,
-		messages: [],
+		finalText: "",
 		stderr: "",
 		aborted: false,
 		startTime: 0,
@@ -33,53 +34,12 @@ const assistantWithUsage = (content: unknown, usage?: unknown): unknown => ({
 	...(usage ? { usage } : {}),
 });
 
-const msgs = (xs: unknown[]): Message[] => xs as unknown as Message[];
-
-test("getFinalText returns empty for no assistant messages", () => {
-	assert.equal(getFinalText([]), "");
-	assert.equal(getFinalText(msgs([{ role: "user", content: [{ type: "text", text: "hi" }] }])), "");
-});
-
-test("getFinalText returns last assistant text block, trimming whitespace", () => {
-	assert.equal(
-		getFinalText(msgs([
-			{ role: "assistant", content: [{ type: "text", text: "  first  " }] },
-			{ role: "toolResult", content: [{ type: "text", text: "output" }] },
-			{ role: "assistant", content: [{ type: "text", text: "  final answer  " }] },
-		])),
-		"final answer",
-	);
-});
-
-test("getFinalText returns the last text part within the final assistant message", () => {
-	assert.equal(
-		getFinalText(msgs([
-			{
-				role: "assistant",
-				content: [
-					{ type: "text", text: "draft answer" },
-					{ type: "toolCall", name: "read", arguments: { path: "README.md" } },
-					{ type: "text", text: "  final answer after tool  " },
-				],
-			},
-		])),
-		"final answer after tool",
-	);
-});
-
-test("getFinalText skips empty text parts", () => {
-	assert.equal(
-		getFinalText(msgs([{ role: "assistant", content: [{ type: "text", text: "   " }, { type: "text", text: "real" }] }])),
-		"real",
-	);
-});
-
 test("ingestLine ignores non-JSON and unrelated event types", () => {
 	const d = fresh();
 	ingestLine("not json", d);
 	ingestLine(JSON.stringify({ type: "turn_start" }), d);
 	ingestLine("", d);
-	assert.deepEqual(d.messages, []);
+	assert.equal(d.finalText, "");
 	assert.equal(d.toolCount, 0);
 });
 
@@ -131,7 +91,7 @@ test("ingestLine folds an assistant message_end into usage/tools/lastMessage", (
 		),
 		d,
 	);
-	assert.equal(d.messages.length, 1);
+	assert.equal(d.finalText, "Let me check.\n```code\nx\n```\nDone now");
 	assert.equal(d.toolCount, 1);
 	assert.deepEqual(d.recentTools, [{ name: "read", argsPreview: "/a/b.ts" }]);
 	assert.equal(d.usage.input, 10);
@@ -143,10 +103,28 @@ test("ingestLine folds an assistant message_end into usage/tools/lastMessage", (
 	assert.equal(d.lastMessage, "Let me check.");
 });
 
+test("ingestLine bounds large final text and preserves the full output in a private temp file", () => {
+	const d = fresh();
+	const full = "x".repeat(60 * 1024);
+	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: full }])), d);
+
+	assert.ok(Buffer.byteLength(d.finalText, "utf8") <= 50 * 1024);
+	assert.match(d.finalText, /Output truncated/);
+	assert.ok(d.outputFile);
+	assert.equal(fs.statSync(d.outputFile).mode & 0o777, 0o600);
+	assert.equal(fs.readFileSync(d.outputFile, "utf8"), full);
+
+	const outputDir = path.dirname(d.outputFile);
+	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "replacement" }])), d);
+	assert.equal(d.finalText, "replacement");
+	assert.equal(d.outputFile, undefined);
+	assert.equal(fs.existsSync(outputDir), false);
+});
+
 test("ingestLine: toolResult arrives via message_end (not tool_result_end)", () => {
 	const d = fresh();
 	ingestLine(msgEnd({ role: "toolResult", content: [{ type: "text", text: "result" }] }), d);
-	assert.equal(d.messages.length, 1);
+	assert.equal(d.finalText, "");
 	assert.equal(d.toolCount, 0);
 	assert.equal(d.lastMessage, "");
 });
@@ -154,7 +132,7 @@ test("ingestLine: toolResult arrives via message_end (not tool_result_end)", () 
 test("ingestLine ignores a tool_result_end event — pins the wire format", () => {
 	const d = fresh();
 	ingestLine(JSON.stringify({ type: "tool_result_end", message: { role: "toolResult", content: [] } }), d);
-	assert.deepEqual(d.messages, []);
+	assert.equal(d.finalText, "");
 });
 
 test("ingestLine: lastMessage skips blank lines and fence delimiters", () => {
