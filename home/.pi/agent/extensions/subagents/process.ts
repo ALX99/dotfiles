@@ -13,11 +13,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execa } from "execa";
 import type { Message } from "@earendil-works/pi-ai";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
 import { z } from "zod";
 
 export const DEPTH_ENV = "PI_SUBAGENT_DEPTH";
 const UPDATE_THROTTLE_MS = 150;
+const OUTPUT_NOTICE_RESERVE_BYTES = 2_048;
+const OUTPUT_NOTICE_RESERVE_LINES = 2;
 const MAX_RECENT_TOOLS = 50;
 const MAX_NESTED_RUNS = 8;
 const MAX_NESTED_TOOLS = 8;
@@ -115,7 +118,8 @@ export interface RunDetails {
   model?: string;
   depth: number;
   exitCode: number;
-  messages: Message[];
+  finalText: string;
+  outputFile?: string;
   stderr: string;
   assistantError?: string;
   aborted: boolean;
@@ -184,7 +188,7 @@ function initDetails(params: RunParams): RunDetails {
     model: params.model,
     depth: childDepth,
     exitCode: 0,
-    messages: [],
+    finalText: "",
     stderr: "",
     aborted: false,
     startTime: Date.now(),
@@ -231,8 +235,26 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
     stdout: "pipe",
     stderr: "pipe",
     lines: { stdout: true, stderr: false },
+    // Both streams are consumed incrementally below. Execa otherwise retains
+    // a second copy of each stream, up to its 100 MB default buffer.
+    buffer: false,
     reject: false,
     cancelSignal: params.signal,
+  });
+  let stderr = "";
+  let stderrBytes = 0;
+  let stderrTruncated = false;
+  subprocess.stderr?.setEncoding("utf8");
+  subprocess.stderr?.on("data", (chunk: string) => {
+    stderrBytes += Buffer.byteLength(chunk, "utf8");
+    if (stderrTruncated) return;
+    stderr += chunk;
+    const bounded = truncateHead(stderr, {
+      maxBytes: DEFAULT_MAX_BYTES - OUTPUT_NOTICE_RESERVE_BYTES,
+      maxLines: DEFAULT_MAX_LINES - OUTPUT_NOTICE_RESERVE_LINES,
+    });
+    stderr = bounded.content;
+    stderrTruncated = bounded.truncated;
   });
 
   try {
@@ -243,14 +265,16 @@ async function runAndCollect(params: RunParams, details: RunDetails): Promise<Ru
     }
     const result = await subprocess;
     details.exitCode = result.exitCode ?? 1;
-    const stderr = result.stderr;
-    details.stderr = typeof stderr === "string" ? stderr : "";
+    details.stderr = stderrTruncated
+      ? `${stderr}\n\n[stderr truncated: ${formatSize(stderrBytes)} produced.]`
+      : stderr;
     if (params.signal?.aborted) details.aborted = true;
   } catch (error) {
     // runAndCollect must never reject. Fold any execa/iterator error into
     // details so the tool layer still renders something.
     details.exitCode = 1;
-    details.stderr = String(error instanceof Error ? error.message : error);
+    const errorMessage = String(error instanceof Error ? error.message : error);
+    details.stderr = stderr ? `${stderr}\n${errorMessage}` : errorMessage;
     if (params.signal?.aborted) details.aborted = true;
   } finally {
     details.endTime = Date.now();
@@ -288,7 +312,6 @@ function piThinkingLevel(reasoningEffort: string): string {
 function toUpdateSnapshot(d: RunDetails): RunDetails {
   return {
     ...d,
-    messages: [],
     recentTools: [...d.recentTools],
     nestedRuns: d.nestedRuns.map(copyNestedRun),
   };
@@ -351,7 +374,6 @@ export function ingestLine(line: string, details: RunDetails): void {
 }
 
 function ingestMessage(msg: Message, details: RunDetails): void {
-  details.messages.push(msg);
   if (msg.role !== "assistant") return;
 
   const u = msg.usage;
@@ -374,9 +396,41 @@ function ingestMessage(msg: Message, details: RunDetails): void {
       details.recentTools.push({ name: part.name, argsPreview: argsPreview(part.arguments) });
       if (details.recentTools.length > MAX_RECENT_TOOLS) details.recentTools.shift();
     } else if (part.type === "text" && part.text.trim()) {
+      retainFinalText(part.text.trim(), details);
       const prose = part.text.split("\n").find((l) => l.trim() && !l.trimStart().startsWith("```"));
       if (prose) details.lastMessage = prose.trim();
     }
+  }
+}
+
+/** Keep only the latest assistant text. Large handoffs are truncated for the
+ * parent context and written to a private temp file for explicit follow-up. */
+function retainFinalText(text: string, details: RunDetails): void {
+  removePreviousOutputFile(details);
+  const truncated = truncateHead(text, {
+    maxBytes: DEFAULT_MAX_BYTES - OUTPUT_NOTICE_RESERVE_BYTES,
+    maxLines: DEFAULT_MAX_LINES - OUTPUT_NOTICE_RESERVE_LINES,
+  });
+  if (!truncated.truncated) {
+    details.finalText = text;
+    return;
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-output-"));
+  const outputFile = path.join(dir, "final.md");
+  fs.writeFileSync(outputFile, text, { encoding: "utf8", mode: 0o600 });
+  details.outputFile = outputFile;
+  details.finalText = `${truncated.content}\n\n[Output truncated: ${truncated.outputLines} of ${truncated.totalLines} lines (${formatSize(truncated.outputBytes)} of ${formatSize(truncated.totalBytes)}). Full output saved to: ${outputFile}]`;
+}
+
+function removePreviousOutputFile(details: RunDetails): void {
+  if (!details.outputFile) return;
+  const outputFile = details.outputFile;
+  details.outputFile = undefined;
+  try {
+    fs.rmSync(path.dirname(outputFile), { force: true, recursive: true });
+  } catch {
+    // A stale temp file is preferable to failing an otherwise valid run.
   }
 }
 
@@ -467,20 +521,6 @@ function isNestedRunStatus(value: unknown): value is NestedRunStatus {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-/** Last non-empty assistant text block. Used by the tool layer for the
- * return content and by render.ts for the final output preview. */
-export function getFinalText(messages: RunDetails["messages"]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    for (let j = message.content.length - 1; j >= 0; j--) {
-      const part = message.content[j];
-      if (part.type === "text" && part.text.trim()) return part.text.trim();
-    }
-  }
-  return "";
 }
 
 /** Pick the runtime: re-exec the current script if it's a real file, else `pi`. */

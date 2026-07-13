@@ -16,7 +16,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
-import { DEPTH_ENV, getFinalText, resolveEffectiveModel, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
+import { DEPTH_ENV, resolveEffectiveModel, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
 import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
 
 const MAX_DEPTH = 3;
@@ -127,8 +127,7 @@ export default function (_pi: ExtensionAPI) {
 			}
 
 			const details = result.details;
-			const finalText = getFinalText(details.messages);
-			return { content: [{ type: "text" as const, text: finalText || "(no output)" }], details };
+			return { content: [{ type: "text" as const, text: details.finalText || "(no output)" }], details };
 		},
 
 		renderCall(args, theme, context) {
@@ -142,6 +141,9 @@ export default function (_pi: ExtensionAPI) {
 		renderResult(result, options, theme, context) {
 			const details = result.details as RunDetails | undefined;
 			if (!details) {
+				// A failed execution throws, so Pi's final error result does not carry
+				// our details. Clear any interval created by an earlier partial update.
+				if (!options.isPartial) manageTick(ticks, context.toolCallId, false, () => context.invalidate());
 				const t = result.content[0];
 				return new Text(t?.type === "text" ? t.text : "(no output)", 0, 0);
 			}
@@ -168,7 +170,7 @@ function spawnErrorMessage(e: SpawnError): string {
 	if (e.kind === "assistant") return e.message;
 	const code = `Subagent exited with code ${details.exitCode}.`;
 	const stderr = details.stderr.trim();
-	const finalText = getFinalText(details.messages);
+	const finalText = details.finalText;
 	const body = stderr ? (finalText ? `${stderr}\n${finalText}` : stderr) : finalText;
 	return body ? `${code} ${body}` : code;
 }
