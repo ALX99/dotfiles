@@ -1,9 +1,9 @@
 /**
  * Caffeinate Extension — Prevents macOS sleep while an agent is running.
  *
- * Spawns `caffeinate` when a user prompt begins processing, kills it when
- * the agent finishes. Includes a session_shutdown safety net and guards
- * against orphaned processes from rapid successive prompts.
+ * Spawns `caffeinate` when a user prompt begins processing and kills it when
+ * the agent finishes. The assertion is also tied to Pi's PID so abnormal exits
+ * cannot leave an orphaned caffeinate process behind.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -13,25 +13,26 @@ export default function (pi: ExtensionAPI) {
   let proc: ReturnType<typeof spawn> | null = null;
 
   function killCaffeinate() {
-    if (proc) {
-      proc.kill();
-      proc = null;
-    }
+    const child = proc;
+    proc = null;
+    child?.kill();
   }
 
   function startCaffeinate() {
-    // Kill any existing instance before starting a new one.
-    killCaffeinate();
-    proc = spawn("/usr/bin/caffeinate", ["-i"], {
-      stdio: "ignore",
-      detached: false,
-    });
-    proc.on("error", () => {
-      proc = null;
-    });
-    proc.on("exit", () => {
-      proc = null;
-    });
+    if (proc) return;
+
+    const child = spawn(
+      "/usr/bin/caffeinate",
+      ["-i", "-w", String(process.pid)],
+      { stdio: "ignore" },
+    );
+    proc = child;
+
+    const clearProcess = () => {
+      if (proc === child) proc = null;
+    };
+    child.once("error", clearProcess);
+    child.once("exit", clearProcess);
   }
 
   // Start caffeinate when the agent begins processing a user prompt.
@@ -42,6 +43,4 @@ export default function (pi: ExtensionAPI) {
 
   // Safety net: clean up on session shutdown (quit, reload, switch, fork).
   pi.on("session_shutdown", killCaffeinate);
-
-  process.on("exit", killCaffeinate);
 }
