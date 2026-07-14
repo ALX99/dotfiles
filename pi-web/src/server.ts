@@ -139,7 +139,17 @@ async function handleHttp(
   webRoot: string,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
-  const pathname = decodeURIComponent(url.pathname);
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch (err) {
+    if (err instanceof URIError) {
+      res.statusCode = 400;
+      res.end("Bad Request");
+      return;
+    }
+    throw err;
+  }
 
   const rel = pathname === "/" ? "/index.html" : pathname;
   const root = resolve(webRoot);
