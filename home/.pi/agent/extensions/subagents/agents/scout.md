@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Fast read-only codebase recon that returns compressed context. Only for discovery, no analysis or verification.
+description: Fast read-only codebase recon that returns compressed context. Only for discovery, no analysis, verification or review.
 tools: read, bash, find, grep
 model: opencode-go/deepseek-v4-flash
 ---

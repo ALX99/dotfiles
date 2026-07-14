@@ -3,7 +3,7 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { discoverAgents } from "../agents.ts";
-import { argsPreview, buildPiArgs, buildTaskPrompt, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
+import { argsPreview, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
@@ -103,6 +103,20 @@ test("ingestLine folds an assistant message_end into usage/tools/lastMessage", (
 	assert.equal(d.lastMessage, "Let me check.");
 });
 
+test("ingestLine retains assistant text across messages in one generation", () => {
+	const d = fresh();
+	ingestLine(msgEnd(assistantWithUsage([
+		{ type: "text", text: "First section." },
+		{ type: "toolCall", name: "read", arguments: { path: "notes.md" } },
+		{ type: "text", text: "Second section." },
+	])), d);
+	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "Final conclusion." }])), d);
+
+	assert.equal(d.finalText, "First section.\n\nSecond section.\n\nFinal conclusion.");
+	assert.equal(d.toolCount, 1);
+	assert.equal(d.lastMessage, "Final conclusion.");
+});
+
 test("ingestLine bounds large final text and preserves the full output in a private temp file", () => {
 	const d = fresh();
 	const full = "x".repeat(60 * 1024);
@@ -116,9 +130,11 @@ test("ingestLine bounds large final text and preserves the full output in a priv
 
 	const outputDir = path.dirname(d.outputFile);
 	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "replacement" }])), d);
-	assert.equal(d.finalText, "replacement");
-	assert.equal(d.outputFile, undefined);
+	assert.match(d.finalText, /Output truncated/);
+	assert.ok(d.outputFile);
 	assert.equal(fs.existsSync(outputDir), false);
+	assert.match(fs.readFileSync(d.outputFile, "utf8"), /replacement$/);
+	fs.rmSync(path.dirname(d.outputFile), { recursive: true, force: true });
 });
 
 test("ingestLine: toolResult arrives via message_end (not tool_result_end)", () => {
@@ -169,14 +185,6 @@ test("argsPreview falls back to compact JSON for unknown shapes", () => {
 	assert.equal(argsPreview(undefined), "");
 	assert.equal(argsPreview("str"), "");
 	assert.equal(argsPreview(null), "");
-});
-
-test("buildTaskPrompt adds a bounded parent handoff only when supplied", () => {
-	assert.equal(buildTaskPrompt("check this"), "Task: check this");
-	assert.equal(
-		buildTaskPrompt("check this", "  src/config.ts:10-20 contains the failing parser.  "),
-		"Task: check this\n\nParent handoff (trusted context; verify if needed):\nsrc/config.ts:10-20 contains the failing parser.",
-	);
 });
 
 test("ingestLine forwards two nested spawn_agent snapshots recursively", () => {
@@ -240,33 +248,6 @@ test("ingestLine marks a completed nested spawn_agent", () => {
 
 	assert.equal(d.nestedRuns[0]?.status, "completed");
 	assert.equal(d.nestedRuns[0]?.lastMessage, "done");
-});
-
-test("buildPiArgs maps reasoning effort override to Pi's thinking flag", () => {
-	const args = buildPiArgs({
-		model: "openai/gpt-5.5",
-		reasoningEffortOverride: "high",
-		tools: ["read", "grep"],
-		message: "check this",
-	});
-
-	assert.deepEqual(args, [
-		"--mode", "json",
-		"--print",
-		"--no-session",
-		"--model", "openai/gpt-5.5",
-		"--thinking", "high",
-		"--tools", "read,grep",
-		"Task: check this",
-	]);
-	assert.equal(args.includes("--reasoning-effort"), false);
-});
-
-test("buildPiArgs translates Codex reasoning effort none to Pi thinking off", () => {
-	assert.deepEqual(
-		buildPiArgs({ reasoningEffortOverride: "none", message: "quiet" }),
-		["--mode", "json", "--print", "--no-session", "--thinking", "off", "Task: quiet"],
-	);
 });
 
 test("resolveEffectiveModel prefers an explicit agent model", () => {
