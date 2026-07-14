@@ -41,7 +41,7 @@ function clipLine(s: string, max: number): string {
 
 export function renderCallHeader(
 	c: Container,
-	args: { message?: string; handoff?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string },
+	args: { message?: string; handoff?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string; background?: boolean },
 	expanded: boolean,
 	theme: Theme,
 ): void {
@@ -53,6 +53,7 @@ export function renderCallHeader(
 	if (args.model) meta.push(theme.fg("muted", `· model=${args.model}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
+	if (args.background) meta.push(theme.fg("muted", "· background"));
 	c.addChild(new Text(`${theme.fg("toolTitle", theme.bold("spawn_agent"))}${agentLabel} ${meta.join(" ")}`, 0, 0));
 
 	if (args.message) {
@@ -74,8 +75,8 @@ export interface RenderOptions {
 
 export function renderResultBlock(details: RunDetails, options: RenderOptions, theme: Theme): Container {
 	const c = new Container();
-	const failed = details.aborted || details.exitCode !== 0;
-	const isRunning = options.isPartial && !failed;
+	const failed = details.aborted || details.exitCode !== 0 || details.status === "failed" || details.status === "aborted";
+	const isRunning = !failed && (options.isPartial || details.status === "starting" || details.status === "running");
 	const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
 
 	const icon = isRunning
@@ -89,6 +90,7 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 		theme.fg("muted", `[d${details.depth}]`),
 		theme.fg("muted", `· ${details.taskName}`),
 	];
+	if (details.agentId) headerParts.push(theme.fg("muted", `· ${details.agentId.slice(0, 8)}`));
 	if (details.model) headerParts.push(theme.fg("muted", `(${details.model})`));
 	headerParts.push(theme.fg("dim", `· ${details.toolCount} tools · ${elapsed}${isRunning ? " running" : ""}`));
 	c.addChild(new Text(headerParts.join(" "), 0, 0));

@@ -1,24 +1,14 @@
-/**
- * Child subprocess management for spawn_agent.
- *
- * Runs the spawned agent as an isolated `pi --mode json --print --no-session`
- * subprocess — same pattern as pi's built-in bash tool. Streams JSON events
- * off stdout, aggregates usage/tool/text state, and emits throttled UI
- * updates. The run returns a small discriminated result so the tool boundary
- * can turn failed child runs into thrown pi tool errors.
- */
+/** Shared run state and event folding for persistent RPC subagents. */
 
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { execa } from "execa";
 import type { Message } from "@earendil-works/pi-ai";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
 import { z } from "zod";
 
 export const DEPTH_ENV = "PI_SUBAGENT_DEPTH";
-const UPDATE_THROTTLE_MS = 150;
 const OUTPUT_NOTICE_RESERVE_BYTES = 2_048;
 const OUTPUT_NOTICE_RESERVE_LINES = 2;
 const MAX_RECENT_TOOLS = 50;
@@ -113,6 +103,9 @@ export interface NestedRunDetails {
 }
 
 export interface RunDetails {
+  agentId?: string;
+  generation?: number;
+  status?: string;
   agent: string;
   taskName: string;
   model?: string;
@@ -134,53 +127,14 @@ export interface RunDetails {
   contextWindow?: number;
 }
 
-/** Why a run could fail. Non-zero exit / abort become SpawnError; the run
- * details are attached so the tool layer can still render what happened. */
-export type SpawnError =
-  | { kind: "exit"; details: RunDetails }
-  | { kind: "assistant"; details: RunDetails; message: string }
-  | { kind: "aborted"; details: RunDetails };
-
-export type RunResult =
-  | { ok: true; details: RunDetails }
-  | { ok: false; error: SpawnError };
-
-export interface RunParams {
-  defaultCwd: string;
+export interface InitRunDetailsParams {
   agent: AgentConfig;
-  message: string;
-  handoff?: string;
   taskName: string;
   model?: string;
-  reasoningEffortOverride?: string;
-  cwd?: string;
   parentDepth: number;
-  signal?: AbortSignal;
-  onUpdate?: (details: RunDetails) => void;
 }
 
-export interface BuildPiArgsParams {
-  model?: string;
-  reasoningEffortOverride?: string;
-  tools?: string[];
-  promptPath?: string;
-  message: string;
-  handoff?: string;
-}
-
-/** Spawns the child and resolves ok=true on a clean (exit 0) run, ok=false otherwise. */
-export async function runSubprocess(params: RunParams): Promise<RunResult> {
-  const details = initDetails(params);
-  const finished = await runAndCollect(params, details);
-  if (finished.aborted) return { ok: false, error: { kind: "aborted", details: finished } };
-  if (finished.exitCode !== 0) return { ok: false, error: { kind: "exit", details: finished } };
-  if (finished.assistantError) {
-    return { ok: false, error: { kind: "assistant", details: finished, message: finished.assistantError } };
-  }
-  return { ok: true, details: finished };
-}
-
-function initDetails(params: RunParams): RunDetails {
+export function initDetails(params: InitRunDetailsParams): RunDetails {
   const childDepth = params.parentDepth + 1;
   return {
     agent: params.agent.name,
@@ -201,131 +155,11 @@ function initDetails(params: RunParams): RunDetails {
   };
 }
 
-async function runAndCollect(params: RunParams, details: RunDetails): Promise<RunDetails> {
-  let tempDir: string | undefined;
-  let promptPath: string | undefined;
-  if (params.agent.systemPrompt) {
-    const written = await writeTempPrompt(params.agent.name, params.agent.systemPrompt);
-    tempDir = written.dir;
-    promptPath = written.path;
-  }
-
-  const args = buildPiArgs({
-    model: details.model,
-    reasoningEffortOverride: params.reasoningEffortOverride,
-    tools: params.agent.tools,
-    promptPath,
-    message: params.message,
-    handoff: params.handoff,
-  });
-
-  const env = { ...process.env, [DEPTH_ENV]: String(details.depth) };
-  const throttle = createThrottle(UPDATE_THROTTLE_MS);
-  const emit = () => params.onUpdate?.(toUpdateSnapshot(details));
-
-  const invocation = getPiInvocation(args);
-
-  // execa handles the abort→SIGTERM→SIGKILL(5s) escalation, env merge,
-  // spawn-error capture, and parent-exit cleanup for us. We just iterate
-  // stdout lines (lines: stdout-only) and read exitCode/stderr at the end.
-  const subprocess = execa(invocation.command, invocation.args, {
-    cwd: params.cwd ?? params.defaultCwd,
-    env: env as Record<string, string>,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-    lines: { stdout: true, stderr: false },
-    // Both streams are consumed incrementally below. Execa otherwise retains
-    // a second copy of each stream, up to its 100 MB default buffer.
-    buffer: false,
-    reject: false,
-    cancelSignal: params.signal,
-  });
-  let stderr = "";
-  let stderrBytes = 0;
-  let stderrTruncated = false;
-  subprocess.stderr?.setEncoding("utf8");
-  subprocess.stderr?.on("data", (chunk: string) => {
-    stderrBytes += Buffer.byteLength(chunk, "utf8");
-    if (stderrTruncated) return;
-    stderr += chunk;
-    const bounded = truncateHead(stderr, {
-      maxBytes: DEFAULT_MAX_BYTES - OUTPUT_NOTICE_RESERVE_BYTES,
-      maxLines: DEFAULT_MAX_LINES - OUTPUT_NOTICE_RESERVE_LINES,
-    });
-    stderr = bounded.content;
-    stderrTruncated = bounded.truncated;
-  });
-
-  try {
-    emit();
-    for await (const line of subprocess) {
-      ingestLine(line, details);
-      throttle.schedule(emit);
-    }
-    const result = await subprocess;
-    details.exitCode = result.exitCode ?? 1;
-    details.stderr = stderrTruncated
-      ? `${stderr}\n\n[stderr truncated: ${formatSize(stderrBytes)} produced.]`
-      : stderr;
-    if (params.signal?.aborted) details.aborted = true;
-  } catch (error) {
-    // runAndCollect must never reject. Fold any execa/iterator error into
-    // details so the tool layer still renders something.
-    details.exitCode = 1;
-    const errorMessage = String(error instanceof Error ? error.message : error);
-    details.stderr = stderr ? `${stderr}\n${errorMessage}` : errorMessage;
-    if (params.signal?.aborted) details.aborted = true;
-  } finally {
-    details.endTime = Date.now();
-    throttle.flush(emit);
-    if (tempDir) await fs.promises.rm(tempDir, { force: true, recursive: true });
-  }
-
-  return details;
-}
-
 export function resolveEffectiveModel(agentModel: string | undefined): string | undefined {
   return agentModel;
 }
 
-export function buildPiArgs(params: BuildPiArgsParams): string[] {
-  const args = ["--mode", "json", "--print", "--no-session"];
-  if (params.model) args.push("--model", params.model);
-  if (params.reasoningEffortOverride) args.push("--thinking", piThinkingLevel(params.reasoningEffortOverride));
-  if (params.tools?.length) args.push("--tools", params.tools.join(","));
-  if (params.promptPath) args.push("--append-system-prompt", params.promptPath);
-  args.push(buildTaskPrompt(params.message, params.handoff));
-  return args;
-}
-
-export function buildTaskPrompt(message: string, handoff?: string): string {
-  const trimmedHandoff = handoff?.trim();
-  if (!trimmedHandoff) return `Task: ${message}`;
-  return `Task: ${message}\n\nParent handoff (trusted context; verify if needed):\n${trimmedHandoff}`;
-}
-
-function piThinkingLevel(reasoningEffort: string): string {
-  return reasoningEffort === "none" ? "off" : reasoningEffort;
-}
-
-function toUpdateSnapshot(d: RunDetails): RunDetails {
-  return {
-    ...d,
-    recentTools: [...d.recentTools],
-    nestedRuns: d.nestedRuns.map(copyNestedRun),
-  };
-}
-
-function copyNestedRun(run: NestedRunDetails): NestedRunDetails {
-  return {
-    ...run,
-    recentTools: [...run.recentTools],
-    nestedRuns: run.nestedRuns.map(copyNestedRun),
-  };
-}
-
-async function writeTempPrompt(agentName: string, systemPrompt: string): Promise<{ dir: string; path: string }> {
+export async function writeTempPrompt(agentName: string, systemPrompt: string): Promise<{ dir: string; path: string }> {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "subagent-"));
   const safeName = agentName.replace(/[^\w.-]+/g, "_");
   const filePath = path.join(dir, `${safeName}.md`);
@@ -390,37 +224,50 @@ function ingestMessage(msg: Message, details: RunDetails): void {
     details.tokens = u.totalTokens ?? (u.input ?? 0) + (u.output ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0);
   }
 
+  const textParts: string[] = [];
   for (const part of msg.content) {
     if (part.type === "toolCall") {
       details.toolCount++;
       details.recentTools.push({ name: part.name, argsPreview: argsPreview(part.arguments) });
       if (details.recentTools.length > MAX_RECENT_TOOLS) details.recentTools.shift();
     } else if (part.type === "text" && part.text.trim()) {
-      retainFinalText(part.text.trim(), details);
-      const prose = part.text.split("\n").find((l) => l.trim() && !l.trimStart().startsWith("```"));
+      textParts.push(part.text.trim());
+      const prose = part.text.split("\n").find((line) => line.trim() && !line.trimStart().startsWith("```"));
       if (prose) details.lastMessage = prose.trim();
     }
   }
+  if (textParts.length) retainFinalText(textParts.join("\n\n"), details);
 }
 
-/** Keep only the latest assistant text. Large handoffs are truncated for the
- * parent context and written to a private temp file for explicit follow-up. */
+/** Retain assistant text across every turn in this generation. Large handoffs
+ * are truncated for parent context and written to a private temp file. */
 function retainFinalText(text: string, details: RunDetails): void {
+  const previous = fullRetainedText(details);
   removePreviousOutputFile(details);
-  const truncated = truncateHead(text, {
+  const combined = previous ? `${previous}\n\n${text}` : text;
+  const truncated = truncateHead(combined, {
     maxBytes: DEFAULT_MAX_BYTES - OUTPUT_NOTICE_RESERVE_BYTES,
     maxLines: DEFAULT_MAX_LINES - OUTPUT_NOTICE_RESERVE_LINES,
   });
   if (!truncated.truncated) {
-    details.finalText = text;
+    details.finalText = combined;
     return;
   }
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-output-"));
   const outputFile = path.join(dir, "final.md");
-  fs.writeFileSync(outputFile, text, { encoding: "utf8", mode: 0o600 });
+  fs.writeFileSync(outputFile, combined, { encoding: "utf8", mode: 0o600 });
   details.outputFile = outputFile;
   details.finalText = `${truncated.content}\n\n[Output truncated: ${truncated.outputLines} of ${truncated.totalLines} lines (${formatSize(truncated.outputBytes)} of ${formatSize(truncated.totalBytes)}). Full output saved to: ${outputFile}]`;
+}
+
+function fullRetainedText(details: RunDetails): string {
+  if (!details.outputFile) return details.finalText;
+  try {
+    return fs.readFileSync(details.outputFile, "utf8");
+  } catch {
+    return details.finalText;
+  }
 }
 
 function removePreviousOutputFile(details: RunDetails): void {
@@ -524,7 +371,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Pick the runtime: re-exec the current script if it's a real file, else `pi`. */
-function getPiInvocation(args: string[]): { command: string; args: string[] } {
+export function getPiInvocation(args: string[]): { command: string; args: string[] } {
   const currentScript = process.argv[1];
   const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
   if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
@@ -556,43 +403,4 @@ export function argsPreview(args: unknown): string {
     if (typeof v === "string") return v.replace(/\s+/g, " ").trim();
   }
   return JSON.stringify(args).replace(/\s+/g, " ").trim();
-}
-
-// Leading-edge throttle. Loses a trailing update scheduled before fire — same
-// trade-off as the original. flush() forces one out so the final state renders.
-function createThrottle(intervalMs: number) {
-  let pending = false;
-  let lastFire = 0;
-  let timer: NodeJS.Timeout | undefined;
-  return {
-    schedule(fn: () => void) {
-      pending = true;
-      const delay = intervalMs - (Date.now() - lastFire);
-      if (delay <= 0) {
-        if (timer) clearTimeout(timer);
-        timer = undefined;
-        pending = false;
-        lastFire = Date.now();
-        fn();
-      } else if (!timer) {
-        timer = setTimeout(() => {
-          timer = undefined;
-          if (pending) {
-            pending = false;
-            lastFire = Date.now();
-            fn();
-          }
-        }, delay);
-      }
-    },
-    flush(fn: () => void) {
-      if (timer) clearTimeout(timer);
-      timer = undefined;
-      if (pending) {
-        pending = false;
-        lastFire = Date.now();
-        fn();
-      }
-    },
-  };
 }

@@ -51,10 +51,10 @@ Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/exten
 
 **Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `memory/` and `subagents/` load via the subdirectory-`index.ts` pattern. `eslint.config.mjs` ends in `.mjs` so pi's loader skips it.
 
-**No tests are checked into `home/.pi/agent/extensions/`** — `node --test '**/tests/*.test.ts'` matches zero files. The `tsc` and `eslint` steps still run; the test step is a no-op. Don't infer "tests passed" from a green `just check`. Tests live in `pi-web/tests/` (5 files: bridge, open-browser, protocol, runtime, server).
+Tests for the subagent and other Pi extensions live under `home/.pi/agent/extensions/**/tests/`. `just check` runs them after typechecking and linting. Pi-web has its own tests under `pi-web/tests/`.
 
 Active extensions (each entry point is a file in `home/.pi/agent/extensions/`):
-- **`subagents/index.ts`** — `spawn_agent` tool. `agents/{default,scout,worker}.md` define roles, `process.ts` runs the child as `pi --mode json --print --no-session` (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
+- **`subagents/index.ts`** — persistent RPC-backed subagent tool family: `spawn_agent`, `send_agent`, `followup_agent`, `wait_agent`, `list_agents`, `interrupt_agent`, and `close_agent`. `agents/{default,scout,worker}.md` define roles; `host.ts` owns stable session-runtime IDs and lifecycle, `rpc.ts` manages `pi --mode rpc --no-session` children, and `process.ts` folds bounded event state (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
 - **`memory/index.ts`** — `memory_save` tool + `/memory` and `/memory-capture` commands. Injects memory block into system prompt on `before_agent_start`. User must approve each `memory_save` via UI confirmation. Memory files: `global` at `$XDG_STATE_HOME/pi-agent/memory/global.md`, `repo` at `<git-root>/.pi/memory/repo.md`. 32 KB cap per file.
 - **`ask_question.ts`** — `ask_question` tool (multiple choice with auto-added "Compare options" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
 - **`caffeinate.ts`** — Prevents macOS sleep during agent runs (spawns `/usr/bin/caffeinate` on `agent_start`, kills on `agent_end`).
