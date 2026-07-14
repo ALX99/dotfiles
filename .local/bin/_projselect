@@ -4,7 +4,7 @@ set -euo pipefail
 
 PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 
-find_cmd=find
+find_cmd='find'
 [ "$(uname -s)" = "Darwin" ] && command -v gfind >/dev/null 2>&1 && find_cmd=gfind
 
 printf "$PROJ_DIR/%s\n" \
