@@ -23,6 +23,7 @@ emit_picker_rows() {
   for d in $PROJ_DIR; do
     [[ -d $d ]] || continue
     for sub in "$d"/*/; do
+      [[ -d $sub ]] || continue
       sub="${sub%/}"
       paths+=("$sub")
       bases+=("${sub##*/}")
