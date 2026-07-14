@@ -1,184 +1,322 @@
-/**
- * spawn_agent — delegate a self-contained task to an isolated subagent.
- *
- * Runs the spawned agent as a `pi --mode json --print --no-session` child
- * process with its own context, model, and tools, and returns the child's
- * final text. Codex-compatible arg shape. Depth capped at 3 (tracked across
- * the process tree via PI_SUBAGENT_DEPTH).
- *
- * Architecture: this is the only module that crosses into pi's tool world.
- * It composes agent/process helpers and converts failed child runs into throws
- * at the boundary (pi's runtime marks `isError: true` only on thrown errors;
- * a returned `isError` field is silently dropped — see agent-loop.js).
- */
+/** Persistent RPC-backed subagents with stable, session-runtime IDs. */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
-import { DEPTH_ENV, resolveEffectiveModel, runSubprocess, type RunDetails, type SpawnError } from "./process.ts";
+import { formatAgentCounts, sanitizeTerminalText, showAgentDashboard } from "./dashboard.ts";
+import { AgentRegistry, ManagedAgent, type AgentSummary } from "./host.ts";
+import { DEPTH_ENV, resolveEffectiveModel, type RunDetails } from "./process.ts";
 import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
 
 const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
+const MAX_WAIT_MS = 30 * 60 * 1_000;
 
-export default function (_pi: ExtensionAPI) {
-	// Discover agents at registration time so the model sees the current
-	// name+description list, not a hand-written hint that drifts the moment
-	// someone adds a new agents/*.md. A broken agents dir fails loud at load
-	// — a silently registered tool that always errors is worse than no tool.
+export default function (pi: ExtensionAPI) {
 	const agents = discoverAgents().match(
 		(list) => list,
-		(e) => {
-			throw new Error(discoveryErrorMessage(e));
-		},
+		(error) => { throw new Error(discoveryErrorMessage(error)); },
 	);
-	const agentList = agents
-		.map((a) => `- **${a.name}** — ${a.description}`)
-		.join("\n");
-
-	// Build agent_type as an enum of the discovered names so the model gets a
-	// hard constraint instead of free text that round-trips as an error.
-	const agentLiterals = agents.map((a) => Type.Literal(a.name));
+	const registry = new AgentRegistry();
+	const ticks = new Map<string, NodeJS.Timeout>();
+	const pendingCompletions = new Map<string, AgentSummary>();
+	let shuttingDown = false;
+	let activeContext: ExtensionContext | undefined;
+	let unsubscribeRegistry: (() => void) | undefined;
+	const agentList = agents.map((agent) => `- **${agent.name}** — ${agent.description}`).join("\n");
+	const agentLiterals = agents.map((agent) => Type.Literal(agent.name));
 	const agentTypeSchema = agentLiterals.length
-		? Type.Union(agentLiterals, { description: "Name of the subagent role to use. Omit for the default role." })
-		: Type.String({ description: "Name of the subagent role to use. Omit for the default role." });
+		? Type.Union(agentLiterals, { description: "Name of the subagent role. Omit for default." })
+		: Type.String({ description: "Name of the subagent role. Omit for default." });
+	const reasoningSchema = Type.Union([
+		Type.Literal("none"), Type.Literal("minimal"), Type.Literal("low"), Type.Literal("medium"),
+		Type.Literal("high"), Type.Literal("xhigh"),
+	]);
 
-	const SpawnParams = Type.Object({
-		message: Type.String({ description: "The specific task for this spawn. The agent's role (its system prompt) defines how it works; this is the instance of work to do. Self-contained — the child has no parent history." }),
-		handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent that the child should not rediscover. Omit only when the task is genuinely self-contained." })),
-		task_name: Type.Optional(Type.String({ description: "Short label for UI and logs. Omit to derive from the message." })),
-		agent_type: Type.Optional(agentTypeSchema),
-		reasoning_effort: Type.Optional(Type.Union([
-			Type.Literal("none"),
-			Type.Literal("minimal"),
-			Type.Literal("low"),
-			Type.Literal("medium"),
-			Type.Literal("high"),
-			Type.Literal("xhigh"),
-		], { description: "Override reasoning effort for the child." })),
-		cwd: Type.Optional(Type.String({ description: "Working directory for the child agent. Defaults to current cwd." })),
+	pi.on("session_start", (_event, ctx) => {
+		activeContext = ctx;
+		unsubscribeRegistry?.();
+		const syncRegistryUi = () => {
+			updateAgentStatus(ctx, registry);
+			discardSupersededCompletions(pendingCompletions, registry);
+		};
+		unsubscribeRegistry = registry.subscribe(syncRegistryUi);
+		syncRegistryUi();
 	});
 
-	// Per-row tick intervals, keyed by toolCallId. A single shared slot would
-	// let two concurrent spawns clobber each other's interval.
-	const ticks = new Map<string, NodeJS.Timeout>();
+	pi.on("agent_end", () => {
+		const completions = [...pendingCompletions.values()];
+		pendingCompletions.clear();
+		for (const summary of completions) sendCompletion(pi, summary);
+	});
 
-	_pi.registerTool({
+	pi.on("session_shutdown", async () => {
+		shuttingDown = true;
+		pendingCompletions.clear();
+		unsubscribeRegistry?.();
+		unsubscribeRegistry = undefined;
+		activeContext?.ui.setStatus("subagents", undefined);
+		activeContext = undefined;
+		for (const tick of ticks.values()) clearInterval(tick);
+		ticks.clear();
+		await registry.closeAll();
+	});
+
+	pi.registerCommand("agents", {
+		description: "Inspect and manage subagents owned by this session",
+		handler: async (_args, ctx) => showAgentDashboard(ctx, registry),
+	});
+
+	pi.registerTool({
 		name: "spawn_agent",
 		label: "Spawn Agent",
-		description: "Spawn an isolated subagent with its own context, model, and tools. Returns the child's final text. Depth capped at 3.",
-		promptSnippet: "Delegate a self-contained task to an isolated subagent with its own context, model, and tool surface",
+		description: "Spawn an isolated persistent subagent. Foreground by default; background calls return an agent ID immediately. Depth capped at 3.",
+		promptSnippet: "Spawn an isolated persistent subagent with its own context, model, and tools",
 		promptGuidelines: [
-			"Use spawn_agent to delegate a self-contained task to an isolated subagent with its own context, model, and tools.",
-			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role (no overrides).`,
-			"When using spawn_agent, put the child's complete assignment in message: objective, scope, constraints or decisions, expected deliverable or output format, and required verification or evidence.",
-			"When using spawn_agent, reference exact paths, symbols, or line ranges when useful. Do not rely on parent conversation history; make the message self-contained.",
-			"When using spawn_agent after gathering context, put child-facing instructions in message and known facts, decisions, or small excerpts in handoff. The child receives no parent conversation history; omit handoff only when the task is genuinely self-contained.",
-			"Prefer a single spawn_agent over multi-step orchestration. Depth is capped at 3.",
+			"Use spawn_agent to delegate a self-contained task to an isolated subagent.",
+			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role.`,
+			"When using spawn_agent, provide a complete assignment: objective, scope, constraints, expected output, and verification.",
+			"Use background=true only when independent work can continue; completion is delivered automatically.",
+			"Use followup_agent to reuse a completed agent's context, send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
+			"Subagents are non-interactive: they cannot open user dialogs and must report questions in text.",
 		],
-		parameters: SpawnParams,
-
+		parameters: Type.Object({
+			message: Type.String({ description: "Complete self-contained assignment for the child." }),
+			handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent." })),
+			task_name: Type.Optional(Type.String({ description: "Short UI label; derived from message when omitted." })),
+			agent_type: Type.Optional(agentTypeSchema),
+			reasoning_effort: Type.Optional(reasoningSchema),
+			cwd: Type.Optional(Type.String({ description: "Working directory; defaults to current cwd." })),
+			background: Type.Optional(Type.Boolean({ description: "Return after launch and notify on completion. Default false." })),
+		}),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			// ── validate the request (pre-spawn) ──
-			// Each check throws a targeted message; pi catches and marks isError.
 			const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
-			if (parentDepth >= MAX_DEPTH) {
-				throw new Error(`spawn_agent capped at depth ${MAX_DEPTH}. Do not spawn a further child — perform this work in your current session instead.`);
-			}
-
+			if (parentDepth >= MAX_DEPTH) throw new Error(`spawn_agent capped at depth ${MAX_DEPTH}. Perform this work in the current session.`);
 			const requestedType = params.agent_type?.trim() || "default";
-			const agent = resolveAgent(agents, requestedType).match(
-				(a) => a,
-				(e) => {
-					throw new Error(`Unknown agent_type '${e.requested}'. Available: ${formatAgentList(e.available)}.`);
-				},
+			const agentConfig = resolveAgent(agents, requestedType).match(
+				(value) => value,
+				(error) => { throw new Error(`Unknown agent_type '${error.requested}'. Available: ${formatAgentList(error.available)}.`); },
 			);
-
-			const effectiveModel = resolveEffectiveModel(agent.model);
-			const [provider, modelId] = (effectiveModel ?? "").split("/");
-			const contextWindow = provider && modelId
-				? ctx.modelRegistry.find(provider, modelId)?.contextWindow
-				: undefined;
-
-			// ── run ──
-			const result = await runSubprocess({
+			const model = resolveEffectiveModel(agentConfig.model);
+			const [provider, modelId] = (model ?? "").split("/");
+			const contextWindow = provider && modelId ? ctx.modelRegistry.find(provider, modelId)?.contextWindow : undefined;
+			const background = params.background === true;
+			const managed = new ManagedAgent({
 				defaultCwd: ctx.cwd,
-				agent,
-				model: effectiveModel,
-				message: params.message,
-				handoff: params.handoff?.trim() || undefined,
-				taskName: params.task_name?.trim() || clipAtWord(params.message, 60),
-				reasoningEffortOverride: params.reasoning_effort,
 				cwd: params.cwd,
+				agent: agentConfig,
+				model,
+				contextWindow,
+				reasoningEffort: params.reasoning_effort,
 				parentDepth,
-				signal,
-				onUpdate: onUpdate
-					? (d) => {
-						d.contextWindow = contextWindow;
-						onUpdate({ content: [{ type: "text", text: "(running…)" }], details: d });
-					}
-					: undefined,
+				onUpdate: onUpdate ? (details) => {
+					details.contextWindow = contextWindow;
+					onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
+				} : undefined,
+				onBackgroundComplete: (summary) => {
+					if (shuttingDown || (summary.status !== "idle" && summary.status !== "failed")) return;
+					notifyCompletion(activeContext, summary);
+					if (activeContext?.isIdle()) sendCompletion(pi, summary);
+					else pendingCompletions.set(summary.agent_id, summary);
+				},
 			});
-
-			// ── resolve (failed child run → throw, so pi marks isError) ──
-			if (!result.ok) {
-				throw new Error(spawnErrorMessage(result.error));
+			registry.add(managed);
+			try {
+				const details = await managed.start(
+					params.message,
+					params.handoff?.trim() || undefined,
+					params.task_name?.trim() || clipAtWord(params.message, 60),
+					background,
+					background ? undefined : signal,
+				);
+				details.contextWindow = contextWindow;
+				const summary = managed.summary();
+				return {
+					content: [{ type: "text" as const, text: background ? formatLaunch(summary) : formatCompletion(summary) }],
+					details,
+				};
+			} catch (error) {
+				if (!managed.isAvailable()) registry.delete(managed.id);
+				throw new Error(`Agent ${managed.id} failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 			}
-
-			const details = result.details;
-			return { content: [{ type: "text" as const, text: details.finalText || "(no output)" }], details };
 		},
-
 		renderCall(args, theme, context) {
-			const c = context.lastComponent instanceof Container
+			const container = context.lastComponent instanceof Container
 				? (context.lastComponent.clear(), context.lastComponent)
 				: new Container();
-			renderCallHeader(c, args, context.expanded, theme);
-			return c;
+			renderCallHeader(container, args, context.expanded, theme);
+			return container;
 		},
-
 		renderResult(result, options, theme, context) {
 			const details = result.details as RunDetails | undefined;
 			if (!details) {
-				// A failed execution throws, so Pi's final error result does not carry
-				// our details. Clear any interval created by an earlier partial update.
 				if (!options.isPartial) manageTick(ticks, context.toolCallId, false, () => context.invalidate());
-				const t = result.content[0];
-				return new Text(t?.type === "text" ? t.text : "(no output)", 0, 0);
+				const text = result.content[0];
+				return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
 			}
-
-			// Live tick: while partial, kick a 1Hz interval so the elapsed
-			// counter advances even with no new tool events.
 			manageTick(ticks, context.toolCallId, options.isPartial, () => context.invalidate());
-
 			return renderResultBlock(details, options, theme);
+		},
+	});
+
+	pi.registerTool({
+		name: "send_agent",
+		label: "Send Agent",
+		description: "Steer a currently running subagent at the next message boundary.",
+		parameters: Type.Object({ agent_id: Type.String(), message: Type.String() }),
+		async execute(_id, params) {
+			await registry.get(params.agent_id).steer(params.message);
+			return textResult(`Steering message accepted by ${params.agent_id}.`);
+		},
+	});
+
+	pi.registerTool({
+		name: "followup_agent",
+		label: "Follow Up Agent",
+		description: "Give an existing subagent another task using its retained context. Foreground by default.",
+		parameters: Type.Object({
+			agent_id: Type.String(),
+			message: Type.String(),
+			task_name: Type.Optional(Type.String()),
+			background: Type.Optional(Type.Boolean()),
+		}),
+		async execute(_id, params, signal, onUpdate) {
+			const agent = registry.get(params.agent_id);
+			agent.setOnUpdate(onUpdate ? (details) => onUpdate({ content: [{ type: "text", text: "(running…)" }], details }) : undefined);
+			const background = params.background === true;
+			const details = await agent.followUp(params.message, params.task_name?.trim() || clipAtWord(params.message, 60), background, background ? undefined : signal);
+			const summary = agent.summary();
+			return { content: [{ type: "text" as const, text: background ? formatLaunch(summary) : formatCompletion(summary) }], details };
+		},
+	});
+
+	pi.registerTool({
+		name: "wait_agent",
+		label: "Wait Agent",
+		description: "Wait for specified subagents to settle or until the timeout expires.",
+		parameters: Type.Object({
+			agent_ids: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+			timeout_ms: Type.Optional(Type.Number({ minimum: 0, maximum: MAX_WAIT_MS })),
+		}),
+		async execute(_id, params, signal) {
+			const requested = [...new Set(params.agent_ids)];
+			const targets = requested.map((id) => registry.get(id));
+			await Promise.allSettled(targets.map((agent) => agent.wait(params.timeout_ms, signal)));
+			return jsonResult(targets.map((agent) => agent.summary()));
+		},
+	});
+
+	pi.registerTool({
+		name: "list_agents",
+		label: "List Agents",
+		description: "List subagents owned by this session and their current status.",
+		parameters: Type.Object({}),
+		async execute() { return jsonResult(registry.list()); },
+	});
+
+	pi.registerTool({
+		name: "interrupt_agent",
+		label: "Interrupt Agent",
+		description: "Abort a subagent's current run while retaining it for follow-up work.",
+		parameters: Type.Object({ agent_id: Type.String() }),
+		async execute(_id, params) {
+			const agent = registry.get(params.agent_id);
+			await agent.interrupt();
+			return jsonResult(agent.summary());
+		},
+	});
+
+	pi.registerTool({
+		name: "close_agent",
+		label: "Close Agent",
+		description: "Terminate a subagent process. Closed agents cannot be resumed.",
+		parameters: Type.Object({ agent_id: Type.String() }),
+		async execute(_id, params) {
+			await registry.close(params.agent_id);
+			return jsonResult(registry.get(params.agent_id).summary());
 		},
 	});
 }
 
-function discoveryErrorMessage(e: { kind: string; dir: string; cause?: NodeJS.ErrnoException }): string {
-	if (e.kind === "read_dir") {
-		return `Could not read agents dir ${e.dir}: ${e.cause?.message ?? e.cause?.code ?? "unknown error"}.`;
+function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSummary): void {
+	const label = sanitizeTerminalText(summary.task_name || summary.agent_type);
+	ctx?.ui.notify(
+		summary.status === "failed" ? `Subagent failed: ${label}` : `Subagent complete: ${label}`,
+		summary.status === "failed" ? "error" : "info",
+	);
+}
+
+function sendCompletion(pi: ExtensionAPI, summary: AgentSummary): void {
+	const output = escapeXml(summary.final_text || summary.error || "(no output)");
+	pi.sendMessage({
+		customType: "subagent-completion",
+		content: `<subagent_completion agent_id="${summary.agent_id}" generation="${summary.generation}" status="${summary.status}">\n${output}\n</subagent_completion>`,
+		display: true,
+		details: summary,
+	}, { deliverAs: "followUp", triggerTurn: true });
+}
+
+function escapeXml(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function discardSupersededCompletions(pending: Map<string, AgentSummary>, registry: AgentRegistry): void {
+	for (const current of registry.list()) {
+		const queued = pending.get(current.agent_id);
+		if (queued && isCompletionSuperseded(queued, current)) {
+			pending.delete(current.agent_id);
+		}
 	}
-	return `No agent files found in ${e.dir}. Create one as <name>.md with frontmatter name + description.`;
 }
 
-function spawnErrorMessage(e: SpawnError): string {
-	const details = e.details;
-	if (e.kind === "aborted") return "spawn_agent aborted.";
-	if (e.kind === "assistant") return e.message;
-	const code = `Subagent exited with code ${details.exitCode}.`;
-	const stderr = details.stderr.trim();
-	const finalText = details.finalText;
-	const body = stderr ? (finalText ? `${stderr}\n${finalText}` : stderr) : finalText;
-	return body ? `${code} ${body}` : code;
+export function isCompletionSuperseded(queued: AgentSummary, current: AgentSummary): boolean {
+	return queued.agent_id === current.agent_id
+		&& (current.generation > queued.generation || current.status === "closed");
 }
 
-function clipAtWord(s: string, max: number): string {
-	const one = s.replace(/\s+/g, " ").trim();
-	if (one.length <= max) return one;
-	const cut = one.slice(0, max);
-	const lastSpace = cut.lastIndexOf(" ");
-	return (lastSpace > max * 0.5 ? one.slice(0, lastSpace) : cut) + "…";
+function updateAgentStatus(ctx: ExtensionContext, registry: AgentRegistry): void {
+	const views = registry.views();
+	if (!views.length) {
+		ctx.ui.setStatus("subagents", undefined);
+		return;
+	}
+	const active = views.some((view) => view.summary.status === "starting" || view.summary.status === "running");
+	const failed = views.some((view) => view.summary.status === "failed");
+	const color = failed ? "error" : active ? "warning" : "success";
+	ctx.ui.setStatus("subagents", ctx.ui.theme.fg(color, `agents ${formatAgentCounts(views)}`));
+}
+
+function formatLaunch(summary: AgentSummary): string {
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\nCompletion will be delivered automatically. Use send_agent, followup_agent, wait_agent, interrupt_agent, or close_agent with this agent_id.`;
+}
+
+function formatCompletion(summary: AgentSummary): string {
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`;
+}
+
+function textResult(text: string, details: unknown = {}) {
+	const bounded = truncateHead(text, { maxBytes: DEFAULT_MAX_BYTES - 512, maxLines: DEFAULT_MAX_LINES - 2 });
+	const output = bounded.truncated ? `${bounded.content}\n\n[Management output truncated; query fewer agents.]` : bounded.content;
+	return { content: [{ type: "text" as const, text: output }], details };
+}
+
+function jsonResult(value: unknown) {
+	return textResult(JSON.stringify(value, null, 2));
+}
+
+function discoveryErrorMessage(error: { kind: string; dir: string; cause?: NodeJS.ErrnoException }): string {
+	if (error.kind === "read_dir") return `Could not read agents dir ${error.dir}: ${error.cause?.message ?? error.cause?.code ?? "unknown error"}.`;
+	return `No agent files found in ${error.dir}.`;
+}
+
+function clipAtWord(value: string, max: number): string {
+	const oneLine = value.replace(/\s+/g, " ").trim();
+	if (oneLine.length <= max) return oneLine;
+	const cut = oneLine.slice(0, max);
+	const space = cut.lastIndexOf(" ");
+	return `${space > max * 0.5 ? oneLine.slice(0, space) : cut}…`;
 }
