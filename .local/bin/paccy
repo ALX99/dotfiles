@@ -111,6 +111,8 @@ get_untracked() {
 preview=(fzf --preview 'pacman -Qil {}')
 
 main() {
+  local -a pkgs=()
+
   case "${1-}" in
   -h | --help)
     echo "$usage"
@@ -207,6 +209,8 @@ main() {
     while IFS= read -r pkg; do
       pkgs+=("$pkg")
     done < <(yay -Slq | fzf -m --preview 'yay -Si {1}')
+    [ ${#pkgs[@]} -eq 0 ] && exit
+
     yay -S "${pkgs[@]}"
     install_pkgs "${pkgs[@]}"
     exit 0
