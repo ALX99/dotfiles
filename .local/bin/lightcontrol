@@ -27,6 +27,13 @@ delta_change() {
   set_brightness "$((curr_brightness + $1))"
 }
 
+require_value() {
+  if [[ $# -lt 1 ]]; then
+    echo "$usage" >&2
+    exit 1
+  fi
+}
+
 main() {
   [[ -z ${1:-} ]] && return
   case "$1" in
@@ -41,11 +48,13 @@ main() {
     ;;
   -d)
     shift
+    require_value "$@"
     delta_change "$1"
     exit 0
     ;;
   -s)
     shift
+    require_value "$@"
     set_brightness "$1"
     exit 0
     ;;
