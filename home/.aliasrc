@@ -165,9 +165,10 @@ yoink() {
   local p=${1#https://github.com/} dest=$2
   local repo=${p%%/tree/*} spec=${p#*/tree/}
   local branch subpath=""
-  [[ $spec != $p ]] && { branch=${spec%%/*}; subpath=${spec#*/}; [[ $subpath == $spec ]] && subpath=""; }
+  [[ $spec != "$p" ]] && { branch=${spec%%/*}; subpath=${spec#*/}; [[ $subpath == "$spec" ]] && subpath=""; }
   [[ -e $dest ]] && { echo "yoink: $dest exists" >&2; return 1; }
-  local tmp=$(mktemp -d)
+  local tmp
+  tmp=$(mktemp -d) || return
   gh repo clone "$repo" "$tmp/r" -- --depth 1 --filter=blob:none --sparse ${branch:+--branch "$branch"} &&
     (cd "$tmp/r" && git sparse-checkout set "$subpath") &&
     mkdir -p "$dest" && cp -r "$tmp/r/${subpath:-.}"/. "$dest/"
