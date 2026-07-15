@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
-import { createSpawnAgentSchema, DEFAULT_WAIT_MS, resolveWaitTimeout } from "../index.ts";
+import { createSpawnAgentSchema, createWaitAgentSchema, DEFAULT_WAIT_MS } from "../index.ts";
 import {
 	parseAndValidateProfiles,
 	parseProfilesJson,
@@ -119,10 +119,14 @@ test("resolveRun permits allowed profile overrides and rejects disallowed overri
 	assert.throws(() => resolveRun({ config, agent: "scout", requestedThinking: "high", modelRegistry: registry }), /exceeds/);
 });
 
-test("wait timeout defaults to ten minutes and preserves overrides", () => {
+test("wait uses a fixed ten-minute timeout without exposing an override", () => {
 	assert.equal(DEFAULT_WAIT_MS, 600_000);
-	assert.equal(resolveWaitTimeout(), 600_000);
-	assert.equal(resolveWaitTimeout(5_000), 5_000);
+	const schema = createWaitAgentSchema() as unknown as {
+		properties: Record<string, unknown>;
+		required?: string[];
+	};
+	assert.deepEqual(Object.keys(schema.properties), ["agent_ids"]);
+	assert.deepEqual(schema.required, ["agent_ids"]);
 });
 
 test("spawn schema requires agent and exposes only profile-based execution overrides", () => {
