@@ -78,6 +78,25 @@ test("renderResultBlock shows concurrent nested subagents and their child", () =
 	assert.match(rendered, /testdata\/fixture\.json/);
 });
 
+test("renderResultBlock keeps collapsed rows compact and expanded rows complete", () => {
+	const run = details();
+	run.status = "idle";
+	run.finalText = "one\ntwo\nthree\nfour";
+	run.recentTools = [{ name: "read", argsPreview: "src/parser.ts" }];
+	const collapsed = renderResultBlock(run, { expanded: false, isPartial: false }, theme as never).render(120).join("\n");
+	const expanded = renderResultBlock(run, { expanded: true, isPartial: false }, theme as never).render(120).join("\n");
+
+	assert.match(collapsed, /implement parser fix · worker · balanced/);
+	assert.match(collapsed, /one/);
+	assert.match(collapsed, /two/);
+	assert.match(collapsed, /three/);
+	assert.doesNotMatch(collapsed, /four/);
+	assert.doesNotMatch(collapsed, /src\/parser\.ts/);
+	assert.match(expanded, /opencode-go\/glm-5\.2/);
+	assert.match(expanded, /src\/parser\.ts/);
+	assert.match(expanded, /four/);
+});
+
 test("management renderers identify targets and replace raw summary JSON", () => {
 	const summaries = [{
 		agent_id: "agent-12345678",

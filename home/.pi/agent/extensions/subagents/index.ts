@@ -1,15 +1,16 @@
 /** Persistent RPC-backed subagents with stable, session-runtime IDs. */
 
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent, type AgentConfig } from "./agents.ts";
 import { formatAgentCounts, sanitizeTerminalText, showAgentDashboard } from "./dashboard.ts";
-import { AgentRegistry, ManagedAgent, type AgentSummary } from "./host.ts";
+import { AgentRegistry, ManagedAgent, type AgentSummary, type AgentView } from "./host.ts";
 import { DEPTH_ENV, type RunDetails } from "./process.ts";
 import { loadProfiles, resolveRun, type ProfilesConfig } from "./profiles.ts";
 import {
+	formatDuration,
 	manageTick,
 	renderAgentSummaries,
 	renderCallHeader,
@@ -50,6 +51,7 @@ export default function (pi: ExtensionAPI) {
 	let shuttingDown = false;
 	let activeContext: ExtensionContext | undefined;
 	let unsubscribeRegistry: (() => void) | undefined;
+	let uiTick: NodeJS.Timeout | undefined;
 	const agentList = agents.map((agent) => {
 		const policy = profiles.agentPolicies[agent.name]!;
 		return `- **${agent.name}** — ${agent.description} Default profile: \`${policy.defaultProfile}\`; allowed: ${policy.allowedProfiles.map((name) => `\`${name}\``).join(", ")}.`;
@@ -59,9 +61,17 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
 		activeContext = ctx;
 		unsubscribeRegistry?.();
+		if (uiTick) clearInterval(uiTick);
+		uiTick = undefined;
 		const syncRegistryUi = () => {
-			updateAgentStatus(ctx, registry);
+			updateAgentUi(ctx, registry);
 			discardSupersededCompletions(pendingCompletions, registry);
+			const active = registry.views().some((view) => isActiveAgent(view));
+			if (active && !uiTick) uiTick = setInterval(() => updateAgentUi(ctx, registry), 1_000).unref();
+			else if (!active && uiTick) {
+				clearInterval(uiTick);
+				uiTick = undefined;
+			}
 		};
 		unsubscribeRegistry = registry.subscribe(syncRegistryUi);
 		syncRegistryUi();
@@ -79,7 +89,10 @@ export default function (pi: ExtensionAPI) {
 		unsubscribeRegistry?.();
 		unsubscribeRegistry = undefined;
 		activeContext?.ui.setStatus("subagents", undefined);
+		activeContext?.ui.setWidget("subagents", undefined);
 		activeContext = undefined;
+		if (uiTick) clearInterval(uiTick);
+		uiTick = undefined;
 		for (const tick of ticks.values()) clearInterval(tick);
 		ticks.clear();
 		await registry.closeAll();
@@ -385,16 +398,50 @@ export function isCompletionSuperseded(queued: AgentSummary, current: AgentSumma
 		&& (current.generation > queued.generation || current.status === "closed");
 }
 
-function updateAgentStatus(ctx: ExtensionContext, registry: AgentRegistry): void {
-	const views = registry.views();
+function updateAgentUi(ctx: ExtensionContext, registry: AgentRegistry): void {
+	const views = registry.views().filter((view) => view.summary.status !== "closed");
 	if (!views.length) {
 		ctx.ui.setStatus("subagents", undefined);
+		ctx.ui.setWidget("subagents", undefined);
 		return;
 	}
-	const active = views.some((view) => view.summary.status === "starting" || view.summary.status === "running");
-	const failed = views.some((view) => view.summary.status === "failed");
+	const active = views.some((view) => isActiveAgent(view));
+	const failed = views.some((view) => view.summary.status === "failed" || view.summary.status === "aborted");
 	const color = failed ? "error" : active ? "warning" : "success";
 	ctx.ui.setStatus("subagents", ctx.ui.theme.fg(color, `agents ${formatAgentCounts(views)}`));
+
+	const visible = views.filter((view) => isActiveAgent(view) || view.summary.status === "failed" || view.summary.status === "aborted");
+	if (!visible.length) {
+		ctx.ui.setWidget("subagents", undefined);
+		return;
+	}
+	ctx.ui.setWidget("subagents", (_tui, theme) => ({
+		render(width: number): string[] {
+			const lines = [theme.fg("muted", "SUBAGENTS")];
+			for (const view of visible.slice(0, 3)) lines.push(renderAgentWidgetRow(view, width, theme));
+			if (visible.length > 3) lines.push(theme.fg("dim", `  +${visible.length - 3} more`));
+			return lines.map((line) => truncateToWidth(line, width, ""));
+		},
+		invalidate() {},
+	}), { placement: "belowEditor" });
+}
+
+function isActiveAgent(view: AgentView): boolean {
+	return view.summary.status === "starting" || view.summary.status === "running";
+}
+
+function renderAgentWidgetRow(view: AgentView, width: number, theme: Theme): string {
+	const { summary, details } = view;
+	const failed = summary.status === "failed" || summary.status === "aborted";
+	const icon = failed ? theme.fg("error", "✗") : theme.fg("warning", "⟳");
+	const task = sanitizeTerminalText(summary.task_name || summary.agent);
+	const latest = details.recentTools.at(-1);
+	const activity = latest
+		? `${sanitizeTerminalText(latest.name)}${latest.argsPreview ? ` ${sanitizeTerminalText(latest.argsPreview)}` : ""}`
+		: sanitizeTerminalText(details.lastMessage || (failed ? summary.status : "starting…"));
+	const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
+	const text = `${icon} ${task} · ${summary.agent}/${summary.profile} · ${activity} · ${elapsed}`;
+	return truncateToWidth(text, width, "…");
 }
 
 function formatLaunch(summary: AgentSummary): string {

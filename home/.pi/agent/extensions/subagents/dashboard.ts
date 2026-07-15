@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import * as fs from "node:fs";
 import { stripVTControlCharacters } from "node:util";
 import type { AgentRegistry, AgentStatus, AgentView } from "./host.ts";
 import { formatContextUsage, formatDuration } from "./render.ts";
@@ -10,9 +11,10 @@ type DashboardAction =
 	| { kind: "followUp"; agentId: string }
 	| { kind: "interrupt"; agentId: string }
 	| { kind: "close"; agentId: string }
+	| { kind: "jump"; agentId: string }
 	| { kind: "dismiss" };
 
-type DashboardScreen = "list" | "detail" | "transcript" | "diagnostics";
+type DashboardScreen = "list" | "detail" | "transcript" | "output" | "diagnostics";
 
 const MAX_VISIBLE_AGENTS = 5;
 
@@ -42,18 +44,9 @@ export async function showAgentDashboard(ctx: ExtensionCommandContext, registry:
 				screen,
 				(next) => { screen = next; },
 				() => tui.requestRender(),
-				() => Math.max(0, Math.min(Math.floor(tui.terminal.rows * 0.65), tui.terminal.rows - 5)),
+				() => Math.max(4, Math.min(16, tui.terminal.rows - 4)),
 			);
 			return dashboard;
-		}, {
-			overlay: true,
-			overlayOptions: {
-				anchor: "bottom-center",
-				width: "70%",
-				minWidth: 60,
-				maxHeight: "65%",
-				margin: { top: 1, right: 1, bottom: 4, left: 1 },
-			},
 		});
 
 		if (!action || action.kind === "dismiss") return;
@@ -95,6 +88,20 @@ export async function showAgentDashboard(ctx: ExtensionCommandContext, registry:
 					if (ok) await registry.close(agent.id);
 					break;
 				}
+				case "jump": {
+					const summary = agent.summary();
+					if (isActive(summary.status)) throw new Error("Interrupt the subagent before taking over its session.");
+					if (!summary.session_file) throw new Error("This subagent has no session file.");
+					const ok = await ctx.ui.confirm(
+						"Take over subagent session?",
+						"This leaves the parent session and closes every retained subagent.",
+					);
+					if (!ok) break;
+					const sessionFile = summary.session_file;
+					await registry.close(agent.id);
+					await ctx.switchSession(sessionFile);
+					return;
+				}
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -108,6 +115,7 @@ class AgentDashboard {
 	private screen: DashboardScreen;
 	private listOffset = 0;
 	private transcriptOffset = 0;
+	private outputOffset = 0;
 	private showClosed = false;
 	private readonly registry: AgentRegistry;
 	private readonly theme: Theme;
@@ -154,7 +162,7 @@ class AgentDashboard {
 			return;
 		}
 		if (matchesKey(data, Key.escape)) {
-			if (this.screen === "transcript" || this.screen === "diagnostics") this.setScreen("detail");
+			if (this.screen === "transcript" || this.screen === "output" || this.screen === "diagnostics") this.setScreen("detail");
 			else if (this.screen === "detail") this.setScreen("list");
 			else this.done({ kind: "dismiss" });
 			return;
@@ -175,7 +183,8 @@ class AgentDashboard {
 				const transcript = this.transcripts.get(selected.summary.agent_id);
 				if (transcript?.generation === selected.summary.generation) this.setScreen("transcript");
 				else this.done({ kind: "inspect", agentId: selected.summary.agent_id });
-			} else if (matchesKey(data, "i")) this.setScreen("diagnostics");
+			} else if (matchesKey(data, "o")) this.setScreen("output");
+			else if (matchesKey(data, "i")) this.setScreen("diagnostics");
 			else this.handleAction(data, selected);
 			return;
 		}
@@ -184,6 +193,12 @@ class AgentDashboard {
 			else if (matchesKey(data, Key.down)) this.transcriptOffset = Math.max(0, this.transcriptOffset - 1);
 			else if (matchesKey(data, "s") && isActive(selected.summary.status)) this.done({ kind: "steer", agentId: selected.summary.agent_id });
 			this.requestRender();
+		} else if (this.screen === "output") {
+			if (matchesKey(data, Key.up)) this.outputOffset++;
+			else if (matchesKey(data, Key.down)) this.outputOffset = Math.max(0, this.outputOffset - 1);
+			this.requestRender();
+		} else if (this.screen === "diagnostics" && matchesKey(data, "j") && canJump(selected.summary)) {
+			this.done({ kind: "jump", agentId: selected.summary.agent_id });
 		}
 	}
 
@@ -192,13 +207,13 @@ class AgentDashboard {
 		const allViews = this.registry.views();
 		const views = this.listViews(allViews);
 		const selected = this.selected(this.screen === "list" ? views : allViews);
-		const innerWidth = Math.max(1, width - 2);
-		const border = (text: string) => this.theme.fg("border", text);
-		const row = (text = "") => border("│") + padToWidth(text, innerWidth) + border("│");
+		const innerWidth = Math.max(1, width);
+		const border = (text: string) => this.theme.fg("border", truncateToWidth(text, width, ""));
+		const row = (text = "") => padToWidth(text, innerWidth);
 		const lines = this.screen === "list"
 			? this.renderList(allViews, views, selected, innerWidth, row, border)
 			: this.renderAgentScreen(selected, innerWidth, row, border);
-		return fitDashboardHeight(lines, this.maxRows());
+		return fitDockedPanel(lines, this.maxRows(), width);
 	}
 
 	invalidate(): void {}
@@ -227,8 +242,8 @@ class AgentDashboard {
 			}
 		}
 		const hasClosed = allViews.some((view) => view.summary.status === "closed");
-		lines.push(row(this.theme.fg("dim", ` ↑↓ · ↵ open${selected ? actionHints(selected.summary.status, true) : ""}${hasClosed ? ` · a ${this.showClosed ? "hide" : "closed"}` : ""} · esc`)));
-		lines.push(border(`╰${"─".repeat(width)}╯`));
+		lines.push(row(this.theme.fg("dim", ` ↑↓ · ↵ open${selected ? actionHints(selected.summary, true) : ""}${hasClosed ? ` · a ${this.showClosed ? "hide" : "closed"}` : ""} · esc`)));
+		lines.push(border("─".repeat(width)));
 		return lines;
 	}
 
@@ -238,8 +253,9 @@ class AgentDashboard {
 		row: (text?: string) => string,
 		border: (text: string) => string,
 	): string[] {
-		if (!view) return [topBorder(" Agent ", width, border), row(this.theme.fg("dim", " Agent is no longer available.")), border(`╰${"─".repeat(width)}╯`)];
+		if (!view) return [topBorder(" Agent ", width, border), row(this.theme.fg("dim", " Agent is no longer available.")), border("─".repeat(width))];
 		if (this.screen === "transcript") return this.renderTranscript(view, width, row, border);
+		if (this.screen === "output") return this.renderOutput(view, width, row, border);
 		if (this.screen === "diagnostics") return this.renderDiagnostics(view, width, row, border);
 
 		const { summary, details } = view;
@@ -259,8 +275,8 @@ class AgentDashboard {
 		} else {
 			lines.push(row(this.theme.fg("dim", " No tool activity yet.")));
 		}
-		lines.push(row(this.theme.fg("dim", ` esc back · t transcript · i info${actionHints(summary.status)}`)));
-		lines.push(border(`╰${"─".repeat(width)}╯`));
+		lines.push(row(this.theme.fg("dim", ` esc back · t transcript · o output · i info${actionHints(summary)}`)));
+		lines.push(border("─".repeat(width)));
 		return lines;
 	}
 
@@ -278,7 +294,24 @@ class AgentDashboard {
 			for (const line of visible) lines.push(row(` ${truncateToWidth(line, Math.max(1, width - 1))}`));
 		} else lines.push(row(this.theme.fg("dim", " No transcript messages yet.")));
 		lines.push(row(this.theme.fg("dim", ` ↑↓ scroll${isActive(view.summary.status) ? " · s steer" : ""} · esc back`)));
-		lines.push(border(`╰${"─".repeat(width)}╯`));
+		lines.push(border("─".repeat(width)));
+		return lines;
+	}
+
+	private renderOutput(view: AgentView, width: number, row: (text?: string) => string, border: (text: string) => string): string[] {
+		const task = sanitizeTerminalText(view.summary.task_name || view.summary.agent);
+		const source = fullOutputLines(view);
+		const available = Math.max(1, this.maxRows() - 3);
+		const maxOffset = Math.max(0, source.length - available);
+		this.outputOffset = Math.min(this.outputOffset, maxOffset);
+		const end = source.length - this.outputOffset;
+		const visible = source.slice(Math.max(0, end - available), end);
+		const lines = [topBorder(` ${task} / Output `, width, border)];
+		if (visible.length) {
+			for (const line of visible) lines.push(row(` ${truncateToWidth(line, Math.max(1, width - 1))}`));
+		} else lines.push(row(this.theme.fg("dim", " No return output yet.")));
+		lines.push(row(this.theme.fg("dim", " ↑↓ scroll · esc back")));
+		lines.push(border("─".repeat(width)));
 		return lines;
 	}
 
@@ -294,8 +327,8 @@ class AgentDashboard {
 			["Nested", nested.total ? `${nested.running}/${nested.total} running` : "none"],
 		];
 		for (const [label, value] of values) lines.push(row(` ${this.theme.fg("muted", `${label}:`)} ${truncateToWidth(sanitizeTerminalText(value), Math.max(1, width - label.length - 3))}`));
-		lines.push(row(this.theme.fg("dim", " esc back")));
-		lines.push(border(`╰${"─".repeat(width)}╯`));
+		lines.push(row(this.theme.fg("dim", ` esc back${canJump(summary) ? " · j take over session" : ""}`)));
+		lines.push(border("─".repeat(width)));
 		return lines;
 	}
 
@@ -305,6 +338,7 @@ class AgentDashboard {
 		else if (matchesKey(data, "f") && isFollowUpAvailable(status)) this.done({ kind: "followUp", agentId });
 		else if (matchesKey(data, "x") && isActive(status)) this.done({ kind: "interrupt", agentId });
 		else if (matchesKey(data, "d") && status !== "closed") this.done({ kind: "close", agentId });
+		else if (matchesKey(data, "j") && canJump(view.summary)) this.done({ kind: "jump", agentId });
 	}
 
 	private listViews(views: AgentView[]): AgentView[] {
@@ -400,12 +434,17 @@ function currentActivity(view: AgentView): string {
 	return statusLabel(summary.status);
 }
 
-function actionHints(status: AgentStatus, compact = false): string {
+function actionHints(summary: AgentView["summary"], compact = false): string {
 	const actions: string[] = [];
-	if (isActive(status)) actions.push("s steer", "x stop");
-	else if (isFollowUpAvailable(status)) actions.push("f follow-up");
-	if (!compact && status !== "closed") actions.push("d close");
+	if (isActive(summary.status)) actions.push("s steer", "x stop");
+	else if (isFollowUpAvailable(summary.status)) actions.push("f follow-up");
+	if (!compact && summary.status !== "closed") actions.push("d close");
+	if (!compact && canJump(summary)) actions.push("j take over");
 	return actions.length ? ` · ${actions.join(" · ")}` : "";
+}
+
+function canJump(summary: AgentView["summary"]): boolean {
+	return !isActive(summary.status) && Boolean(summary.session_file);
 }
 
 function statusLabel(status: AgentStatus): string {
@@ -415,8 +454,8 @@ function statusLabel(status: AgentStatus): string {
 }
 
 function topBorder(title: string, width: number, border: (text: string) => string): string {
-	const label = truncateToWidth(title, width, "");
-	return border(`╭${label}${"─".repeat(Math.max(0, width - visibleWidth(label)))}╮`);
+	const label = truncateToWidth(title.trim().toUpperCase(), width, "");
+	return border(`${label}${"─".repeat(Math.max(0, width - visibleWidth(label)))}`);
 }
 
 function statusIcon(status: AgentStatus, theme: Theme): string {
@@ -445,6 +484,36 @@ function countNested(runs: AgentView["details"]["nestedRuns"]): { total: number;
 		running += child.running;
 	}
 	return { total, running };
+}
+
+function fullOutputLines(view: AgentView): string[] {
+	let output = view.details.finalText;
+	if (view.details.outputFile) {
+		try {
+			output = fs.readFileSync(view.details.outputFile, "utf8");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			output = `[Could not read full output: ${message}]\n${output}`;
+		}
+	}
+	return output ? output.split(/\r?\n/).map(sanitizeTerminalLine) : [];
+}
+
+function sanitizeTerminalLine(value: string): string {
+	let safe = "";
+	for (const character of stripVTControlCharacters(value)) {
+		const code = character.codePointAt(0) ?? 0;
+		if (character === "\t") safe += "    ";
+		else safe += code < 32 || (code >= 127 && code <= 159) ? " " : character;
+	}
+	return safe;
+}
+
+export function fitDockedPanel(lines: string[], maxRows: number, width: number): string[] {
+	const fitted = fitDashboardHeight(lines, maxRows);
+	if (fitted.length >= maxRows) return fitted;
+	const padding = Array.from({ length: maxRows - fitted.length }, () => " ".repeat(Math.max(0, width)));
+	return [...fitted.slice(0, -2), ...padding, ...fitted.slice(-2)];
 }
 
 export function fitDashboardHeight(lines: string[], maxRows: number): string[] {
