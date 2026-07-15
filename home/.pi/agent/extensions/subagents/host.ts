@@ -1,6 +1,9 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
+import type { ResolvedRun } from "./profiles.ts";
 import {
 	DEPTH_ENV,
 	getPiInvocation,
@@ -15,9 +18,12 @@ export type AgentStatus = "starting" | "running" | "idle" | "failed" | "aborted"
 
 export interface AgentSummary {
 	agent_id: string;
-	agent_type: string;
+	agent: string;
 	task_name: string;
-	model?: string;
+	profile: string;
+	model: string;
+	effective_thinking: string;
+	session_file?: string;
 	depth: number;
 	generation: number;
 	status: AgentStatus;
@@ -38,9 +44,7 @@ export interface ManagedAgentOptions {
 	defaultCwd: string;
 	cwd?: string;
 	agent: AgentConfig;
-	model?: string;
-	contextWindow?: number;
-	reasoningEffort?: string;
+	resolvedRun: ResolvedRun;
 	parentDepth: number;
 	spawnProcess?: SpawnRpcProcess;
 	onUpdate?: (details: RunDetails) => void;
@@ -80,9 +84,14 @@ export class ManagedAgent {
 			this.promptDir = written.dir;
 			promptPath = written.path;
 		}
-		const args = ["--mode", "rpc", "--no-session"];
-		if (this.options.model) args.push("--model", this.options.model);
-		if (this.options.reasoningEffort) args.push("--thinking", this.options.reasoningEffort === "none" ? "off" : this.options.reasoningEffort);
+		const sessionDir = path.join(getAgentDir(), "subagent-sessions");
+		await fs.promises.mkdir(sessionDir, { recursive: true });
+		const args = [
+			"--mode", "rpc",
+			"--model", this.options.resolvedRun.model,
+			"--thinking", this.options.resolvedRun.effectiveThinking,
+			"--session-dir", sessionDir,
+		];
 		if (this.options.agent.tools?.length) args.push("--tools", this.options.agent.tools.join(","));
 		else args.push("--exclude-tools", "ask_question");
 		if (promptPath) args.push("--append-system-prompt", promptPath);
@@ -99,6 +108,11 @@ export class ManagedAgent {
 		let run: Deferred;
 		try {
 			await this.transport.start();
+			const state = await this.transport.request({ type: "get_state" });
+			if (!isRecord(state) || typeof state.sessionFile !== "string" || !state.sessionFile.trim()) {
+				throw new Error(`Agent ${this.id} returned an invalid session state.`);
+			}
+			this.details.sessionFile = state.sessionFile;
 			const task = handoff?.trim()
 				? `Task: ${message}\n\nParent handoff (trusted context; verify if needed):\n${handoff.trim()}`
 				: `Task: ${message}`;
@@ -186,9 +200,12 @@ export class ManagedAgent {
 	summary(): AgentSummary {
 		return {
 			agent_id: this.id,
-			agent_type: this.options.agent.name,
+			agent: this.options.resolvedRun.agent,
 			task_name: this.taskName,
-			...(this.options.model ? { model: this.options.model } : {}),
+			profile: this.options.resolvedRun.profile,
+			model: this.options.resolvedRun.model,
+			effective_thinking: this.options.resolvedRun.effectiveThinking,
+			...(this.details.sessionFile ? { session_file: this.details.sessionFile } : {}),
 			depth: this.depth,
 			generation: this.generation,
 			status: this.status,
@@ -231,6 +248,7 @@ export class ManagedAgent {
 	}
 
 	private onEvent(event: RpcEvent): void {
+		if (this.closing) return;
 		ingestLine(JSON.stringify(event), this.details);
 		if (event.type === "agent_start" && this.status !== "aborted") this.status = "running";
 		if (event.type === "agent_settled") {
@@ -268,13 +286,16 @@ export class ManagedAgent {
 		const details = initDetails({
 			agent: this.options.agent,
 			taskName: this.taskName,
-			model: this.options.model,
+			profile: this.options.resolvedRun.profile,
+			model: this.options.resolvedRun.model,
+			effectiveThinking: this.options.resolvedRun.effectiveThinking,
+			sessionFile: this.details?.sessionFile,
 			parentDepth: this.options.parentDepth,
 		});
 		details.agentId = this.id;
 		details.generation = this.generation;
 		details.status = status;
-		details.contextWindow = this.options.contextWindow;
+		details.contextWindow = this.options.resolvedRun.contextWindow;
 		return details;
 	}
 

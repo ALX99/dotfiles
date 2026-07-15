@@ -1,0 +1,37 @@
+{
+  "profiles": {
+    "fast": {
+      "description": "Fast, economical work",
+      "models": [
+        { "id": "opencode-go/deepseek-v4-flash", "maxThinking": "high" }
+      ]
+    },
+    "balanced": {
+      "description": "Routine implementation and analysis with moderate cost",
+      "models": [
+        { "id": "openai-codex/gpt-5.6-terra", "maxThinking": "high" },
+        { "id": "opencode-go/glm-5.2", "maxThinking": "high" }
+      ]
+    },
+    "deep-thinker": {
+      "description": "Careful work for consequential tasks",
+      "models": [
+        { "id": "openai-codex/gpt-5.6-sol", "maxThinking": "high" }
+      ]
+    }
+  },
+  "agentPolicies": {
+    "scout": {
+      "defaultProfile": "fast",
+      "allowedProfiles": ["fast"]
+    },
+    "worker": {
+      "defaultProfile": "balanced",
+      "allowedProfiles": ["fast", "balanced", "deep-thinker"]
+    },
+    "general": {
+      "defaultProfile": "balanced",
+      "allowedProfiles": ["fast", "balanced", "deep-thinker"]
+    }
+  }
+}

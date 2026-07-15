@@ -108,7 +108,10 @@ export interface RunDetails {
   status?: string;
   agent: string;
   taskName: string;
-  model?: string;
+  profile: string;
+  model: string;
+  effectiveThinking: string;
+  sessionFile?: string;
   depth: number;
   exitCode: number;
   finalText: string;
@@ -130,7 +133,10 @@ export interface RunDetails {
 export interface InitRunDetailsParams {
   agent: AgentConfig;
   taskName: string;
-  model?: string;
+  profile: string;
+  model: string;
+  effectiveThinking: string;
+  sessionFile?: string;
   parentDepth: number;
 }
 
@@ -139,7 +145,10 @@ export function initDetails(params: InitRunDetailsParams): RunDetails {
   return {
     agent: params.agent.name,
     taskName: params.taskName,
+    profile: params.profile,
     model: params.model,
+    effectiveThinking: params.effectiveThinking,
+    sessionFile: params.sessionFile,
     depth: childDepth,
     exitCode: 0,
     finalText: "",
@@ -153,10 +162,6 @@ export function initDetails(params: InitRunDetailsParams): RunDetails {
     tokens: 0,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
   };
-}
-
-export function resolveEffectiveModel(agentModel: string | undefined): string | undefined {
-  return agentModel;
 }
 
 export async function writeTempPrompt(agentName: string, systemPrompt: string): Promise<{ dir: string; path: string }> {
@@ -286,7 +291,7 @@ function nestedRunFromArgs(toolCallId: string, args: unknown, depth: number): Ne
   const message = typeof input.message === "string" ? input.message : "(task unavailable)";
   return {
     toolCallId,
-    agent: typeof input.agent_type === "string" && input.agent_type.trim() ? input.agent_type : "default",
+    agent: typeof input.agent === "string" && input.agent.trim() ? input.agent : "general",
     taskName: typeof input.task_name === "string" && input.task_name.trim() ? input.task_name : clipAtWord(message, 60),
     depth,
     status: "running",
