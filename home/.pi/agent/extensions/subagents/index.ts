@@ -24,6 +24,7 @@ import {
 
 const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
+export const DEFAULT_WAIT_MS = 10 * 60 * 1_000;
 const MAX_WAIT_MS = 30 * 60 * 1_000;
 
 export default function (pi: ExtensionAPI) {
@@ -252,13 +253,18 @@ export default function (pi: ExtensionAPI) {
 		description: "Wait for specified subagents to settle or until the timeout expires. Settled results are consumed, preventing redundant automatic follow-up turns.",
 		parameters: Type.Object({
 			agent_ids: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
-			timeout_ms: Type.Optional(Type.Number({ minimum: 0, maximum: MAX_WAIT_MS })),
+			timeout_ms: Type.Optional(Type.Number({
+				minimum: 0,
+				maximum: MAX_WAIT_MS,
+				description: "Maximum wait in milliseconds. Defaults to 10 minutes.",
+			})),
 		}),
 		async execute(_id, params, signal) {
 			const requested = [...new Set(params.agent_ids)];
 			const targets = requested.map((id) => registry.get(id));
 			const startTime = Date.now();
-			await Promise.allSettled(targets.map((agent) => agent.wait(params.timeout_ms, signal)));
+			const timeoutMs = resolveWaitTimeout(params.timeout_ms);
+			await Promise.allSettled(targets.map((agent) => agent.wait(timeoutMs, signal)));
 			const summaries = targets.map((agent) => agent.summary());
 			for (const summary of summaries) {
 				if (summary.status !== "idle" && summary.status !== "failed") continue;
@@ -268,11 +274,11 @@ export default function (pi: ExtensionAPI) {
 			return jsonResult(summaries, {
 				summaries,
 				elapsedMs: Date.now() - startTime,
-				...(params.timeout_ms === undefined ? {} : { timeoutMs: params.timeout_ms }),
+				timeoutMs,
 			} satisfies WaitDetails);
 		},
 		renderCall(args, theme) {
-			return renderWaitCall(args.agent_ids, args.timeout_ms, registry.list(), theme);
+			return renderWaitCall(args.agent_ids, resolveWaitTimeout(args.timeout_ms), registry.list(), theme);
 		},
 		renderResult(result, options, theme) {
 			const details = result.details as WaitDetails | undefined;
@@ -336,6 +342,10 @@ export default function (pi: ExtensionAPI) {
 			return details?.summaries ? renderAgentSummaries("close_agent", details.summaries, options.expanded, theme) : resultText(result);
 		},
 	});
+}
+
+export function resolveWaitTimeout(timeoutMs?: number): number {
+	return timeoutMs ?? DEFAULT_WAIT_MS;
 }
 
 export function createSpawnAgentSchema(agents: AgentConfig[], profiles: ProfilesConfig) {
