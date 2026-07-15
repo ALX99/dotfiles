@@ -6,8 +6,11 @@ import { isCompletionSuperseded } from "../index.ts";
 function summary(generation: number, status: AgentSummary["status"] = "idle"): AgentSummary {
 	return {
 		agent_id: "agent-1",
-		agent_type: "scout",
+		agent: "scout",
 		task_name: "test",
+		profile: "fast",
+		model: "opencode-go/deepseek-v4-flash",
+		effective_thinking: "low",
 		depth: 1,
 		generation,
 		status,

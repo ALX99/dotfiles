@@ -7,8 +7,11 @@ function view(status: AgentView["summary"]["status"]): AgentView {
 	return {
 		summary: {
 			agent_id: status,
-			agent_type: "scout",
+			agent: "scout",
 			task_name: "test",
+			profile: "fast",
+			model: "opencode-go/deepseek-v4-flash",
+			effective_thinking: "low",
 			depth: 1,
 			generation: 1,
 			status,
@@ -16,6 +19,9 @@ function view(status: AgentView["summary"]["status"]): AgentView {
 		details: {
 			agent: "scout",
 			taskName: "test",
+			profile: "fast",
+			model: "opencode-go/deepseek-v4-flash",
+			effectiveThinking: "low",
 			depth: 1,
 			exitCode: 0,
 			finalText: "",

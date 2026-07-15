@@ -6,9 +6,9 @@
     "check": "tsc -p tsconfig.json && eslint && node --test '**/tests/*.test.ts'"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.2",
-    "@earendil-works/pi-coding-agent": "^0.80.2",
-    "@earendil-works/pi-tui": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.80.6",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-tui": "^0.80.6",
     "execa": "^9.6.1",
     "neverthrow": "^8.2.0",
     "typebox": "^1.2.17",

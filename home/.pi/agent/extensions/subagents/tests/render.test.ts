@@ -17,6 +17,10 @@ function details(): RunDetails {
 	return {
 		agent: "worker",
 		taskName: "implement parser fix",
+		profile: "balanced",
+		model: "opencode-go/glm-5.2",
+		effectiveThinking: "medium",
+		sessionFile: "/tmp/subagent.jsonl",
 		depth: 1,
 		exitCode: 0,
 		finalText: "",
@@ -77,8 +81,12 @@ test("renderResultBlock shows concurrent nested subagents and their child", () =
 test("management renderers identify targets and replace raw summary JSON", () => {
 	const summaries = [{
 		agent_id: "agent-12345678",
-		agent_type: "scout",
+		agent: "scout",
 		task_name: "inspect parser",
+		profile: "fast",
+		model: "opencode-go/deepseek-v4-flash",
+		effective_thinking: "low",
+		session_file: "/tmp/scout.jsonl",
 		depth: 1,
 		generation: 1,
 		status: "running" as const,
@@ -89,14 +97,17 @@ test("management renderers identify targets and replace raw summary JSON", () =>
 	assert.match(call, /send_agent · inspect parser · agent-1/);
 	assert.match(call, /check errors/);
 	assert.match(result, /list_agents · 1 agent/);
-	assert.match(result, /inspect parser · scout · agent-12 · running/);
+	assert.match(result, /inspect parser · scout · fast · opencode-go\/deepseek-v4-flash · low · agent-12 · running/);
 });
 
 test("renderWaitCall names the tasks, count, and timeout", () => {
 	const summaries = [{
 		agent_id: "agent-12345678",
-		agent_type: "scout",
+		agent: "scout",
 		task_name: "inspect parser",
+		profile: "fast",
+		model: "opencode-go/deepseek-v4-flash",
+		effective_thinking: "low",
 		depth: 1,
 		generation: 1,
 		status: "running" as const,
@@ -114,8 +125,11 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 		summaries: [
 			{
 				agent_id: "done-12345678",
-				agent_type: "scout",
+				agent: "scout",
 				task_name: "inspect parser",
+				profile: "fast",
+				model: "opencode-go/deepseek-v4-flash",
+				effective_thinking: "low",
 				depth: 1,
 				generation: 1,
 				status: "idle",
@@ -123,8 +137,11 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 			},
 			{
 				agent_id: "running-12345678",
-				agent_type: "worker",
+				agent: "worker",
 				task_name: "fix parser",
+				profile: "balanced",
+				model: "opencode-go/glm-5.2",
+				effective_thinking: "medium",
 				depth: 1,
 				generation: 1,
 				status: "running",
@@ -133,7 +150,7 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 	}, false, theme as never).render(120).join("\n");
 
 	assert.match(rendered, /1\/2 settled · 1 still running/);
-	assert.match(rendered, /inspect parser · scout · done-123/);
-	assert.match(rendered, /fix parser · worker · running-/);
+	assert.match(rendered, /inspect parser · scout · fast · done-123/);
+	assert.match(rendered, /fix parser · worker · balanced · running-/);
 	assert.doesNotMatch(rendered, /Parser finding/);
 });

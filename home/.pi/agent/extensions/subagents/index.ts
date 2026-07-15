@@ -1,12 +1,14 @@
 /** Persistent RPC-backed subagents with stable, session-runtime IDs. */
 
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
+import { discoverAgents, formatAgentList, resolveAgent, type AgentConfig } from "./agents.ts";
 import { formatAgentCounts, sanitizeTerminalText, showAgentDashboard } from "./dashboard.ts";
 import { AgentRegistry, ManagedAgent, type AgentSummary } from "./host.ts";
-import { DEPTH_ENV, resolveEffectiveModel, type RunDetails } from "./process.ts";
+import { DEPTH_ENV, type RunDetails } from "./process.ts";
+import { loadProfiles, resolveRun, type ProfilesConfig } from "./profiles.ts";
 import {
 	manageTick,
 	renderAgentSummaries,
@@ -24,25 +26,35 @@ const MAX_HANDOFF_CHARS = 8_000;
 const MAX_WAIT_MS = 30 * 60 * 1_000;
 
 export default function (pi: ExtensionAPI) {
-	const agents = discoverAgents().match(
-		(list) => list,
-		(error) => { throw new Error(discoveryErrorMessage(error)); },
-	);
+	const discovered = discoverAgents();
+	let agents: AgentConfig[];
+	let agentErrors: string[] = [];
+	if (discovered.isOk()) {
+		agents = discovered.value;
+	} else if (discovered.error.kind === "configuration") {
+		agents = discovered.error.agents;
+		agentErrors = discovered.error.errors;
+	} else {
+		throw new Error(discoveryErrorMessage(discovered.error));
+	}
+	const profileResult = loadProfiles(agents);
+	const configurationErrors = [
+		...agentErrors,
+		...(profileResult.isErr() ? profileResult.error.errors : []),
+	];
+	if (configurationErrors.length) throw new Error(configurationErrors.join("\n"));
+	const profiles = profileResult._unsafeUnwrap();
 	const registry = new AgentRegistry();
 	const ticks = new Map<string, NodeJS.Timeout>();
 	const pendingCompletions = new Map<string, AgentSummary>();
 	let shuttingDown = false;
 	let activeContext: ExtensionContext | undefined;
 	let unsubscribeRegistry: (() => void) | undefined;
-	const agentList = agents.map((agent) => `- **${agent.name}** — ${agent.description}`).join("\n");
-	const agentLiterals = agents.map((agent) => Type.Literal(agent.name));
-	const agentTypeSchema = agentLiterals.length
-		? Type.Union(agentLiterals, { description: "Name of the subagent role. Omit for default." })
-		: Type.String({ description: "Name of the subagent role. Omit for default." });
-	const reasoningSchema = Type.Union([
-		Type.Literal("none"), Type.Literal("minimal"), Type.Literal("low"), Type.Literal("medium"),
-		Type.Literal("high"), Type.Literal("xhigh"),
-	]);
+	const agentList = agents.map((agent) => {
+		const policy = profiles.agentPolicies[agent.name]!;
+		return `- **${agent.name}** — ${agent.description} Default profile: \`${policy.defaultProfile}\`; allowed: ${policy.allowedProfiles.map((name) => `\`${name}\``).join(", ")}.`;
+	}).join("\n");
+	const spawnParameters = createSpawnAgentSchema(agents, profiles);
 
 	pi.on("session_start", (_event, ctx) => {
 		activeContext = ctx;
@@ -85,7 +97,8 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Spawn an isolated persistent subagent with its own context, model, and tools",
 		promptGuidelines: [
 			"Use spawn_agent to delegate a self-contained task to an isolated subagent.",
-			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role.`,
+			`Available agents and execution policies:\n${agentList}`,
+			"Normally choose only an agent. Use profile only as an explicit allowed override; never select an individual model.",
 			"When using spawn_agent, provide a complete assignment: objective, scope, constraints, expected output, and verification.",
 			"Use background=true only when independent work can continue; completion is delivered automatically.",
 			"When the current response needs background results, call wait_agent once with all relevant IDs before answering; consumed results will not trigger redundant follow-up turns.",
@@ -93,34 +106,29 @@ export default function (pi: ExtensionAPI) {
 			"Use followup_agent to reuse a completed agent's context, send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
 			"Subagents are non-interactive: they cannot open user dialogs and must report questions in text.",
 		],
-		parameters: Type.Object({
-			message: Type.String({ description: "Complete self-contained assignment for the child." }),
-			handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent." })),
-			task_name: Type.Optional(Type.String({ description: "Short UI label; derived from message when omitted." })),
-			agent_type: Type.Optional(agentTypeSchema),
-			reasoning_effort: Type.Optional(reasoningSchema),
-			cwd: Type.Optional(Type.String({ description: "Working directory; defaults to current cwd." })),
-			background: Type.Optional(Type.Boolean({ description: "Return after launch and notify on completion. Default false." })),
-		}),
+		parameters: spawnParameters,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
 			if (parentDepth >= MAX_DEPTH) throw new Error(`spawn_agent capped at depth ${MAX_DEPTH}. Perform this work in the current session.`);
-			const requestedType = params.agent_type?.trim() || "default";
-			const agentConfig = resolveAgent(agents, requestedType).match(
+			const requestedAgent = params.agent.trim();
+			const agentConfig = resolveAgent(agents, requestedAgent).match(
 				(value) => value,
-				(error) => { throw new Error(`Unknown agent_type '${error.requested}'. Available: ${formatAgentList(error.available)}.`); },
+				(error) => { throw new Error(`Unknown agent '${error.requested}'. Available: ${formatAgentList(error.available)}.`); },
 			);
-			const model = resolveEffectiveModel(agentConfig.model);
-			const [provider, modelId] = (model ?? "").split("/");
-			const contextWindow = provider && modelId ? ctx.modelRegistry.find(provider, modelId)?.contextWindow : undefined;
+			const resolvedRun = resolveRun({
+				config: profiles,
+				modelRegistry: ctx.modelRegistry,
+				agent: agentConfig,
+				profile: params.profile,
+				requestedThinking: params.thinking,
+			});
+			const contextWindow = resolvedRun.contextWindow;
 			const background = params.background === true;
 			const managed = new ManagedAgent({
 				defaultCwd: ctx.cwd,
 				cwd: params.cwd,
 				agent: agentConfig,
-				model,
-				contextWindow,
-				reasoningEffort: params.reasoning_effort,
+				resolvedRun,
 				parentDepth,
 				onUpdate: onUpdate ? (details) => {
 					details.contextWindow = contextWindow;
@@ -317,8 +325,26 @@ export default function (pi: ExtensionAPI) {
 	});
 }
 
+export function createSpawnAgentSchema(agents: AgentConfig[], profiles: ProfilesConfig) {
+	const agentSchema = StringEnum(agents.map((agent) => agent.name), { description: "Name of the subagent." });
+	const profileSchema = StringEnum(Object.keys(profiles.profiles), { description: "Allowed execution-profile override for the selected agent." });
+	const thinkingSchema = StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
+		description: "Optional thinking request; must not exceed the selected profile candidate's cap.",
+	});
+	return Type.Object({
+		message: Type.String({ description: "Complete self-contained assignment for the child." }),
+		handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent." })),
+		task_name: Type.Optional(Type.String({ description: "Short UI label; derived from message when omitted." })),
+		agent: agentSchema,
+		profile: Type.Optional(profileSchema),
+		thinking: Type.Optional(thinkingSchema),
+		cwd: Type.Optional(Type.String({ description: "Working directory; defaults to current cwd." })),
+		background: Type.Optional(Type.Boolean({ description: "Return after launch and notify on completion. Default false." })),
+	});
+}
+
 function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSummary): void {
-	const label = sanitizeTerminalText(summary.task_name || summary.agent_type);
+	const label = sanitizeTerminalText(summary.task_name || summary.agent);
 	ctx?.ui.notify(
 		summary.status === "failed" ? `Subagent failed: ${label}` : `Subagent complete: ${label}`,
 		summary.status === "failed" ? "error" : "info",
@@ -394,8 +420,9 @@ function jsonResult(value: unknown, details: unknown = {}) {
 	return textResult(JSON.stringify(value, null, 2), details);
 }
 
-function discoveryErrorMessage(error: { kind: string; dir: string; cause?: NodeJS.ErrnoException }): string {
+function discoveryErrorMessage(error: { kind: string; dir: string; cause?: NodeJS.ErrnoException; errors?: string[] }): string {
 	if (error.kind === "read_dir") return `Could not read agents dir ${error.dir}: ${error.cause?.message ?? error.cause?.code ?? "unknown error"}.`;
+	if (error.kind === "configuration") return error.errors?.join("\n") || `Invalid agent configuration in ${error.dir}.`;
 	return `No agent files found in ${error.dir}.`;
 }
 
