@@ -221,69 +221,74 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 			: theme.fg("success", "✓");
 
 	const headerParts = [
-		`${icon} ${theme.fg("toolTitle", theme.bold(details.agent))}`,
-		theme.fg("muted", `[d${details.depth}]`),
-		theme.fg("muted", `· ${details.taskName}`),
+		`${icon} ${theme.fg("toolTitle", theme.bold(details.taskName || details.agent))}`,
+		theme.fg("muted", `· ${details.agent}`),
 	];
-	if (details.agentId) headerParts.push(theme.fg("muted", `· ${details.agentId.slice(0, 8)}`));
-	headerParts.push(theme.fg("muted", `· ${details.profile} · ${details.model} · thinking=${details.effectiveThinking}`));
-	headerParts.push(theme.fg("dim", `· ${details.toolCount} tools · ${elapsed}${isRunning ? " running" : ""}`));
+	if (options.expanded) {
+		headerParts.push(theme.fg("muted", `[d${details.depth}]`));
+		if (details.agentId) headerParts.push(theme.fg("muted", `· ${details.agentId.slice(0, 8)}`));
+		headerParts.push(theme.fg("muted", `· ${details.profile} · ${details.model} · thinking=${details.effectiveThinking}`));
+		headerParts.push(theme.fg("dim", `· ${details.toolCount} tools · ${elapsed}${isRunning ? " running" : ""}`));
+	} else {
+		headerParts.push(theme.fg("muted", `· ${details.profile}`));
+		headerParts.push(theme.fg("dim", `· ${elapsed}${isRunning ? " running" : ""}`));
+	}
 	c.addChild(new Text(headerParts.join(" "), 0, 0));
 
-	// Tool log: last 8 collapsed, all expanded; earlier entries summarized.
 	const tools = details.recentTools;
-	const visibleCount = options.expanded ? tools.length : Math.min(tools.length, 8);
-	if (details.toolCount > visibleCount) {
-		c.addChild(new Text(theme.fg("dim", `… ${details.toolCount - visibleCount} earlier actions`), 0, 0));
-	}
-	for (let i = tools.length - visibleCount; i < tools.length; i++) {
-		const t = tools[i];
-		const body = t.argsPreview ? `${t.name}: ${t.argsPreview}` : t.name;
-		c.addChild(new Text(theme.fg("muted", `  ${clipLine(body, 100)}`), 0, 0));
+	if (options.expanded) {
+		if (details.toolCount > tools.length) {
+			c.addChild(new Text(theme.fg("dim", `… ${details.toolCount - tools.length} earlier actions`), 0, 0));
+		}
+		for (const tool of tools) {
+			const body = tool.argsPreview ? `${tool.name}: ${tool.argsPreview}` : tool.name;
+			c.addChild(new Text(theme.fg("muted", `  ${clipLine(body, 100)}`), 0, 0));
+		}
+	} else if (isRunning) {
+		const latest = tools.at(-1);
+		const activity = latest
+			? `${latest.name}${latest.argsPreview ? `: ${latest.argsPreview}` : ""}`
+			: details.lastMessage || "waiting for first response…";
+		c.addChild(new Text(theme.fg("dim", `  ${clipLine(activity, 100)}`), 0, 0));
 	}
 
 	if (details.nestedRuns.length) {
-		c.addChild(new Spacer(1));
-		renderNestedRuns(c, details.nestedRuns, options.expanded, theme);
+		if (options.expanded) {
+			c.addChild(new Spacer(1));
+			renderNestedRuns(c, details.nestedRuns, true, theme);
+		} else {
+			const nested = countNestedRuns(details.nestedRuns);
+			c.addChild(new Text(theme.fg("dim", `  ↳ ${nested.total} subagent${nested.total === 1 ? "" : "s"}${nested.running ? ` · ${nested.running} running` : ""}`), 0, 0));
+		}
 	}
 
-	// Waiting indicator for the long first-turn gap before any tool event.
-	if (isRunning && details.toolCount === 0 && !details.lastMessage) {
-		c.addChild(new Spacer(1));
-		c.addChild(new Text(theme.fg("dim", "waiting for first response…"), 0, 0));
-	}
-
-	// Latest thinking line. Skip when the tool log is empty — nothing to think about yet.
-	if (details.lastMessage && tools.length > 0) {
+	if (options.expanded && details.lastMessage && tools.length > 0) {
 		c.addChild(new Spacer(1));
 		c.addChild(new Text(theme.fg("text", details.lastMessage), 0, 0));
 	}
 
-	// Usage line — meaningful only after the first turn, or with a context gauge.
-	const usageParts: string[] = [];
-	if (details.usage.input) usageParts.push(theme.fg("dim", `↑${formatTokens(details.usage.input)}`));
-	if (details.usage.output) usageParts.push(theme.fg("dim", `↓${formatTokens(details.usage.output)}`));
-	if (details.usage.cacheRead) usageParts.push(theme.fg("dim", `R${formatTokens(details.usage.cacheRead)}`));
-	if (details.usage.cacheWrite) usageParts.push(theme.fg("dim", `W${formatTokens(details.usage.cacheWrite)}`));
-	if (details.usage.cost) usageParts.push(theme.fg("dim", `$${details.usage.cost.toFixed(3)}`));
-	if (details.tokens > 0) {
-		const pct = details.contextWindow ? (details.tokens / details.contextWindow) * 100 : 0;
-		const color = pct > 90 ? "error" : pct > 70 ? "warning" : "dim";
-		usageParts.push(theme.fg(color, formatContextUsage(details.tokens, details.contextWindow)));
-	}
-	if (usageParts.length) {
-		c.addChild(new Spacer(1));
-		c.addChild(new Text(usageParts.join(" "), 0, 0));
+	if (options.expanded) {
+		const usageParts: string[] = [];
+		if (details.usage.input) usageParts.push(theme.fg("dim", `↑${formatTokens(details.usage.input)}`));
+		if (details.usage.output) usageParts.push(theme.fg("dim", `↓${formatTokens(details.usage.output)}`));
+		if (details.usage.cacheRead) usageParts.push(theme.fg("dim", `R${formatTokens(details.usage.cacheRead)}`));
+		if (details.usage.cacheWrite) usageParts.push(theme.fg("dim", `W${formatTokens(details.usage.cacheWrite)}`));
+		if (details.usage.cost) usageParts.push(theme.fg("dim", `$${details.usage.cost.toFixed(3)}`));
+		if (details.tokens > 0) {
+			const pct = details.contextWindow ? (details.tokens / details.contextWindow) * 100 : 0;
+			const color = pct > 90 ? "error" : pct > 70 ? "warning" : "dim";
+			usageParts.push(theme.fg(color, formatContextUsage(details.tokens, details.contextWindow)));
+		}
+		if (usageParts.length) {
+			c.addChild(new Spacer(1));
+			c.addChild(new Text(usageParts.join(" "), 0, 0));
+		}
 	}
 
-	// Final output, only when done. 8 lines collapsed, full expanded.
-	if (!isRunning) {
-		const finalText = details.finalText;
-		if (finalText) {
-			c.addChild(new Spacer(1));
-			const preview = options.expanded ? finalText : finalText.split("\n").slice(0, 8).join("\n");
-			c.addChild(new Text(theme.fg("toolOutput", preview), 0, 0));
-		}
+	if (!isRunning && details.finalText) {
+		c.addChild(new Spacer(1));
+		const preview = options.expanded ? details.finalText : details.finalText.split("\n").slice(0, 3).join("\n");
+		c.addChild(new Text(theme.fg("toolOutput", preview), 0, 0));
 	}
 
 	if (options.expanded && details.sessionFile) {
@@ -297,6 +302,19 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 	}
 
 	return c;
+}
+
+function countNestedRuns(runs: NestedRunDetails[]): { total: number; running: number } {
+	let total = 0;
+	let running = 0;
+	for (const run of runs) {
+		total++;
+		if (run.status === "running") running++;
+		const children = countNestedRuns(run.nestedRuns);
+		total += children.total;
+		running += children.running;
+	}
+	return { total, running };
 }
 
 function renderNestedRuns(c: Container, runs: NestedRunDetails[], expanded: boolean, theme: Theme, indent = "  "): void {

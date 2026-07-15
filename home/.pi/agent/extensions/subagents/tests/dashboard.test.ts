@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import { fitDashboardHeight, formatAgentCounts, formatTranscript, sanitizeTerminalText } from "../dashboard.ts";
+import { fitDashboardHeight, fitDockedPanel, formatAgentCounts, formatTranscript, sanitizeTerminalText } from "../dashboard.ts";
 import type { AgentView } from "../host.ts";
 
 function view(status: AgentView["summary"]["status"]): AgentView {
@@ -53,6 +53,12 @@ test("fitDashboardHeight preserves the frame and controls on short terminals", (
 	assert.deepEqual(fitDashboardHeight(lines, 2), ["help", "bottom"]);
 	assert.deepEqual(fitDashboardHeight(lines, 0), []);
 	assert.equal(fitDashboardHeight(lines, 10), lines);
+});
+
+test("fitDockedPanel keeps every inspector screen at a stable height", () => {
+	const lines = ["title", "body", "help", "divider"];
+	assert.deepEqual(fitDockedPanel(lines, 6, 8), ["title", "body", "        ", "        ", "help", "divider"]);
+	assert.equal(fitDockedPanel([...lines, "extra", "more"], 4, 8).length, 4);
 });
 
 test("sanitizeTerminalText removes terminal controls and flattens rows", () => {
