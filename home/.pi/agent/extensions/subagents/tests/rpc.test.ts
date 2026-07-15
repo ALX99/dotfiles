@@ -27,7 +27,10 @@ process.stdin.on('data', chunk => {
     const command = JSON.parse(line);
     if (command.type === 'extension_ui_response') { send({ type: 'ui_cancelled', value: command.cancelled }); continue; }
     if (command.type === 'never') { setTimeout(() => process.exit(9), 5); continue; }
-    send({ type: 'response', id: command.id, command: command.type, success: true, data: command.type === 'get_messages' ? { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'transcript' }] }] } : undefined });
+    const data = command.type === 'get_messages'
+      ? { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'transcript' }] }] }
+      : command.type === 'get_state' ? { sessionFile: '/tmp/subagent-session.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, command: command.type, success: true, data });
     if (command.type === 'prompt') complete('done:' + command.message);
     if (command.type === 'follow_up') complete('follow:' + command.message);
     if (command.type === 'abort') setTimeout(() => send({ type: 'agent_settled' }), 1);
@@ -37,9 +40,19 @@ send({ type: 'unicode_event', text: 'left\u2028right' });
 send({ type: 'extension_ui_request', id: 'ui-1', method: 'confirm' });
 `;
 
-function spawnFake(_command: string, _args: readonly string[], options: SpawnOptionsWithoutStdio) {
+const spawnedArgs: string[][] = [];
+function spawnFake(_command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) {
+	spawnedArgs.push([...args]);
 	return spawn(process.execPath, ["-e", rpcScript], options);
 }
+
+const resolvedRun = {
+	agent: "general",
+	profile: "balanced",
+	model: "opencode-go/glm-5.2",
+	effectiveThinking: "medium" as const,
+	contextWindow: 128_000,
+};
 
 function transport(events: RpcEvent[], onExit: (error: Error | undefined) => void = () => {}): RpcTransport {
 	return new RpcTransport({
@@ -93,28 +106,44 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 
 test("ManagedAgent retains its ID and increments generation across follow-ups", async (t) => {
 	const config: AgentConfig = {
-		name: "default",
+		name: "general",
 		description: "test",
 		systemPrompt: "",
-		filePath: "default.md",
+		filePath: "general.md",
 	};
 	const completions: string[] = [];
 	const agent = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: config,
+		resolvedRun,
 		parentDepth: 0,
 		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
 		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? ""),
 	});
 	t.after(() => agent.close());
 
+	spawnedArgs.length = 0;
 	const first = await agent.start("first", undefined, "first task", false);
 	const id = agent.id;
+	const invocation = spawnedArgs[0] ?? [];
+	assert.equal(invocation.filter((arg) => arg === "--model").length, 1);
+	assert.equal(invocation.filter((arg) => arg === "--thinking").length, 1);
+	assert.equal(invocation.filter((arg) => arg === "--session-dir").length, 1);
+	assert.equal(invocation.includes("--no-session"), false);
+	assert.deepEqual(invocation.slice(invocation.indexOf("--model"), invocation.indexOf("--model") + 4), [
+		"--model", resolvedRun.model, "--thinking", resolvedRun.effectiveThinking,
+	]);
+	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
+	assert.equal(first.sessionFile, "/tmp/subagent-session.jsonl");
 	assert.equal(first.finalText, "done:Task: first");
 	assert.deepEqual(agent.summary(), {
 		agent_id: id,
-		agent_type: "default",
+		agent: "general",
 		task_name: "first task",
+		profile: "balanced",
+		model: "opencode-go/glm-5.2",
+		effective_thinking: "medium",
+		session_file: "/tmp/subagent-session.jsonl",
 		depth: 1,
 		generation: 1,
 		status: "idle",
@@ -123,6 +152,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 
 	const second = await agent.followUp("second", "second task", false);
 	assert.equal(agent.id, id);
+	assert.equal(spawnedArgs.length, 1, "follow-ups must reuse the same configured child process");
 	assert.equal(second.finalText, "done:second");
 	assert.equal(agent.summary().generation, 2);
 	assert.deepEqual(await agent.getMessages(), [
@@ -145,8 +175,12 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	await assert.rejects(agent.followUp("assistant-error", "failing task", false), /provider exploded/);
 	assert.deepEqual(agent.summary(), {
 		agent_id: id,
-		agent_type: "default",
+		agent: "general",
 		task_name: "failing task",
+		profile: "balanced",
+		model: "opencode-go/glm-5.2",
+		effective_thinking: "medium",
+		session_file: "/tmp/subagent-session.jsonl",
 		depth: 1,
 		generation: 6,
 		status: "failed",
@@ -170,8 +204,8 @@ test("AgentRegistry publishes lifecycle changes and immutable views", async (t) 
 	const agent = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: config,
+		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
 		parentDepth: 0,
-		contextWindow: 128_000,
 		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
 	});
 	const registry = new AgentRegistry();
@@ -204,6 +238,7 @@ test("ManagedAgent cleans temporary prompts after startup failure", async () => 
 	const agent = new ManagedAgent({
 		defaultCwd: path.join(os.tmpdir(), `missing-subagent-cwd-${Date.now()}`),
 		agent: config,
+		resolvedRun: { ...resolvedRun, agent: config.name },
 		parentDepth: 0,
 	});
 

@@ -3,12 +3,15 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { discoverAgents } from "../agents.ts";
-import { argsPreview, ingestLine, resolveEffectiveModel, type RunDetails } from "../process.ts";
+import { argsPreview, ingestLine, type RunDetails } from "../process.ts";
 
 function fresh(): RunDetails {
 	return {
 		agent: "test",
 		taskName: "test",
+		profile: "balanced",
+		model: "provider/model",
+		effectiveThinking: "medium",
 		depth: 1,
 		exitCode: 0,
 		finalText: "",
@@ -72,9 +75,10 @@ test("ingestLine clears a transient assistant error after a successful retry", (
 	assert.equal(d.assistantError, undefined);
 });
 
-test("default agent uses the supported Terra model id", () => {
-	const agents = discoverAgents()._unsafeUnwrap();
-	assert.equal(agents.find((agent) => agent.name === "default")?.model, "openai-codex/gpt-5.6-terra");
+test("agent identity files do not select models", () => {
+	const agents = discoverAgents(path.join(import.meta.dirname, "..", "agents"))._unsafeUnwrap();
+	assert.ok(agents.some((agent) => agent.name === "general"));
+	assert.equal("model" in agents[0]!, false);
 });
 
 test("ingestLine folds an assistant message_end into usage/tools/lastMessage", () => {
@@ -194,7 +198,7 @@ test("ingestLine forwards two nested spawn_agent snapshots recursively", () => {
 			type: "tool_execution_start",
 			toolCallId: id,
 			toolName: "spawn_agent",
-			args: { agent_type: agent, task_name: task },
+			args: { agent, task_name: task },
 		}), d);
 		ingestLine(JSON.stringify({
 			type: "tool_execution_update",
@@ -236,7 +240,7 @@ test("ingestLine marks a completed nested spawn_agent", () => {
 		type: "tool_execution_start",
 		toolCallId: "child",
 		toolName: "spawn_agent",
-		args: { agent_type: "scout", task_name: "find files" },
+		args: { agent: "scout", task_name: "find files" },
 	}), d);
 	ingestLine(JSON.stringify({
 		type: "tool_execution_end",
@@ -248,19 +252,4 @@ test("ingestLine marks a completed nested spawn_agent", () => {
 
 	assert.equal(d.nestedRuns[0]?.status, "completed");
 	assert.equal(d.nestedRuns[0]?.lastMessage, "done");
-});
-
-test("resolveEffectiveModel prefers an explicit agent model", () => {
-	assert.equal(
-		resolveEffectiveModel("openai/gpt-5.5"),
-		"openai/gpt-5.5",
-	);
-});
-
-test("resolveEffectiveModel leaves model unset when agent model is omitted", () => {
-	assert.equal(resolveEffectiveModel(undefined), undefined);
-});
-
-test("resolveEffectiveModel leaves model unset when neither source is available", () => {
-	assert.equal(resolveEffectiveModel(undefined), undefined);
 });

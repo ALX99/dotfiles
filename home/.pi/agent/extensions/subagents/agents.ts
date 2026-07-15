@@ -1,18 +1,4 @@
-/**
- * Subagent role discovery.
- *
- * Agents live in ~/.pi/agent/extensions/subagents/agents/*.md and use the
- * same YAML frontmatter as the user's other pi agents:
- *
- * ---
- * name: scout
- * description: Fast read-only codebase recon
- * tools: read, grep, find, ls, bash
- * model: optional-model-id
- * ---
- *
- * "name" is the value the parent model passes to spawn_agent(agent_type=...).
- */
+/** Subagent identity and capability discovery. */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -24,24 +10,20 @@ export interface AgentConfig {
 	name: string;
 	description: string;
 	tools?: string[];
-	model?: string;
 	systemPrompt: string;
 	filePath: string;
 }
 
-// ── trust boundary: agent frontmatter ──────────────────────────────
-// name + description are required; tools is a comma-list, model is optional.
-export const AgentFrontmatterSchema = z.object({
-	name: z.string().min(1),
-	description: z.string().min(1),
+export const AgentFrontmatterSchema = z.strictObject({
+	name: z.string().trim().min(1),
+	description: z.string().trim().min(1),
 	tools: z.string().optional(),
-	model: z.string().optional(),
 });
 
-/** Why discovery could fail. Surfaced to the caller; never silently []. */
 export type DiscoverError =
 	| { kind: "read_dir"; dir: string; cause: NodeJS.ErrnoException }
-	| { kind: "empty"; dir: string };
+	| { kind: "empty"; dir: string }
+	| { kind: "configuration"; dir: string; errors: string[]; agents: AgentConfig[] };
 
 const AGENTS_DIR = path.join(getAgentDir(), "extensions", "subagents", "agents");
 
@@ -49,76 +31,90 @@ export function agentsDir(): string {
 	return AGENTS_DIR;
 }
 
-/**
- * Read every `*.md` in the agents dir, parse frontmatter, and return the
- * valid ones sorted by name. Returns Err on an unreadable dir (permission,
- * IO) or when no usable agent was found at all (so the caller can give a
- * useful error instead of a confusing "unknown type" on the first spawn).
- */
-export function discoverAgents(): Result<AgentConfig[], DiscoverError> {
+/** Read and validate every Markdown agent. Invalid files are startup errors. */
+export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], DiscoverError> {
 	let entries: fs.Dirent[];
 	try {
-		entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true });
+		entries = fs.readdirSync(dir, { withFileTypes: true });
 	} catch (cause) {
-		return err({ kind: "read_dir", dir: AGENTS_DIR, cause: cause as NodeJS.ErrnoException });
+		return err({ kind: "read_dir", dir, cause: cause as NodeJS.ErrnoException });
 	}
 
 	const agents: AgentConfig[] = [];
+	const errors: string[] = [];
 	for (const entry of entries) {
 		if (!entry.name.endsWith(".md")) continue;
 		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-
-		const filePath = path.join(AGENTS_DIR, entry.name);
-		// Per-file read/parse errors skip the file, not the whole dir — one
-		// broken agent file shouldn't hide the rest.
+		const filePath = path.join(dir, entry.name);
 		let content: string;
 		try {
 			content = fs.readFileSync(filePath, "utf8");
-		} catch {
+		} catch (cause) {
+			errors.push(`${filePath}: could not read file: ${cause instanceof Error ? cause.message : String(cause)}`);
 			continue;
 		}
-
 		const parsed = parseAgentFile(filePath, content);
-		if (parsed) agents.push(parsed);
+		if (parsed.success) agents.push(parsed.agent);
+		else errors.push(...parsed.errors);
 	}
 
-	if (agents.length === 0) return err({ kind: "empty", dir: AGENTS_DIR });
-
+	const filesByName = new Map<string, string[]>();
+	for (const agent of agents) {
+		const files = filesByName.get(agent.name) ?? [];
+		files.push(agent.filePath);
+		filesByName.set(agent.name, files);
+	}
+	for (const [name, files] of filesByName) {
+		if (files.length > 1) errors.push(`agents.${name}: duplicate agent name in ${files.join(", ")}`);
+	}
+	if (errors.length) return err({ kind: "configuration", dir, errors, agents });
+	if (agents.length === 0) return err({ kind: "empty", dir });
 	agents.sort((a, b) => a.name.localeCompare(b.name));
 	return ok(agents);
 }
 
-function parseAgentFile(filePath: string, content: string): AgentConfig | undefined {
-	const { frontmatter, body } = parseFrontmatter(content);
+export function parseAgentFile(filePath: string, content: string):
+	| { success: true; agent: AgentConfig }
+	| { success: false; errors: string[] } {
+	let frontmatter: Record<string, unknown>;
+	let body: string;
+	try {
+		({ frontmatter, body } = parseFrontmatter(content));
+	} catch (cause) {
+		return { success: false, errors: [`${filePath}: invalid frontmatter: ${cause instanceof Error ? cause.message : String(cause)}`] };
+	}
 	const parsed = AgentFrontmatterSchema.safeParse(frontmatter);
-	if (!parsed.success) return undefined;
-
-	const fm = parsed.data;
-	const tools = fm.tools
-		?.split(",")
-		.map((t) => t.trim())
-		.filter(Boolean);
-
+	if (!parsed.success) {
+		return {
+			success: false,
+			errors: parsed.error.issues.map((issue) => `${filePath}:${issue.path.length ? ` ${issue.path.join(".")}:` : ""} ${issue.message}`),
+		};
+	}
+	if (!body.trim()) return { success: false, errors: [`${filePath}: system prompt must not be empty`] };
+	const tools = parsed.data.tools?.split(",").map((tool) => tool.trim()).filter(Boolean);
+	if (parsed.data.tools !== undefined && !tools?.length) {
+		return { success: false, errors: [`${filePath}: tools must contain at least one tool when present`] };
+	}
 	return {
-		name: fm.name.trim(),
-		description: fm.description.trim(),
-		tools: tools?.length ? tools : undefined,
-		model: fm.model?.trim() || undefined,
-		systemPrompt: body.trim(),
-		filePath,
+		success: true,
+		agent: {
+			name: parsed.data.name,
+			description: parsed.data.description,
+			tools,
+			systemPrompt: body.trim(),
+			filePath,
+		},
 	};
 }
 
-/** One-line "name: description" list for error messages. */
 export function formatAgentList(agents: AgentConfig[]): string {
-	return agents.map((a) => `${a.name}: ${a.description}`).join("; ") || "none";
+	return agents.map((agent) => `${agent.name}: ${agent.description}`).join("; ") || "none";
 }
 
-/** Find a role by name. Err carries the full list so callers can render it. */
 export function resolveAgent(
 	agents: AgentConfig[],
 	name: string,
 ): Result<AgentConfig, { requested: string; available: AgentConfig[] }> {
-	const found = agents.find((a) => a.name === name);
+	const found = agents.find((agent) => agent.name === name);
 	return found ? ok(found) : err({ requested: name, available: agents });
 }
