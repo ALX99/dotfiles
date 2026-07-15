@@ -25,7 +25,6 @@ import {
 const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
 export const DEFAULT_WAIT_MS = 10 * 60 * 1_000;
-const MAX_WAIT_MS = 30 * 60 * 1_000;
 
 export default function (pi: ExtensionAPI) {
 	const discovered = discoverAgents();
@@ -250,20 +249,13 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "wait_agent",
 		label: "Wait Agent",
-		description: "Wait for specified subagents to settle or until the timeout expires. Settled results are consumed, preventing redundant automatic follow-up turns.",
-		parameters: Type.Object({
-			agent_ids: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
-			timeout_ms: Type.Optional(Type.Number({
-				minimum: 0,
-				maximum: MAX_WAIT_MS,
-				description: "Maximum wait in milliseconds. Defaults to 10 minutes.",
-			})),
-		}),
+		description: "Wait up to ten minutes for specified subagents to settle. Settled results are consumed, preventing redundant automatic follow-up turns.",
+		parameters: createWaitAgentSchema(),
 		async execute(_id, params, signal) {
 			const requested = [...new Set(params.agent_ids)];
 			const targets = requested.map((id) => registry.get(id));
 			const startTime = Date.now();
-			const timeoutMs = resolveWaitTimeout(params.timeout_ms);
+			const timeoutMs = DEFAULT_WAIT_MS;
 			await Promise.allSettled(targets.map((agent) => agent.wait(timeoutMs, signal)));
 			const summaries = targets.map((agent) => agent.summary());
 			for (const summary of summaries) {
@@ -278,7 +270,7 @@ export default function (pi: ExtensionAPI) {
 			} satisfies WaitDetails);
 		},
 		renderCall(args, theme) {
-			return renderWaitCall(args.agent_ids, resolveWaitTimeout(args.timeout_ms), registry.list(), theme);
+			return renderWaitCall(args.agent_ids, DEFAULT_WAIT_MS, registry.list(), theme);
 		},
 		renderResult(result, options, theme) {
 			const details = result.details as WaitDetails | undefined;
@@ -344,8 +336,10 @@ export default function (pi: ExtensionAPI) {
 	});
 }
 
-export function resolveWaitTimeout(timeoutMs?: number): number {
-	return timeoutMs ?? DEFAULT_WAIT_MS;
+export function createWaitAgentSchema() {
+	return Type.Object({
+		agent_ids: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+	});
 }
 
 export function createSpawnAgentSchema(agents: AgentConfig[], profiles: ProfilesConfig) {
