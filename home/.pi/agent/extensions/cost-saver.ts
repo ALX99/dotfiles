@@ -59,9 +59,9 @@ export default function(pi: ExtensionAPI) {
       return {
         block: true,
         reason:
-          `File size is ${(fileStats.size / 1024).toFixed(0)}KB, which exceeds the ${MAX_FULL_READ_BYTES / 1024}KB limit for full file reads. ` +
-          `Reading this file will likely flood the context window. ` +
-          `Please use more surgical means or specify offset/limit parameters.`,
+          `File size is ${(fileStats.size / 1024).toFixed(0)}KB, which exceeds the ${MAX_FULL_READ_BYTES / 1024}KB limit for full-file reads. ` +
+          `Do not retry a full read. First, use grep to find concrete words, symbols, or error text relevant to your task. ` +
+          `Then read only the matching ranges and their surrounding context with offset/limit.`,
       };
     }
 
