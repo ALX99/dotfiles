@@ -6,6 +6,7 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import type { AgentSummary } from "./host.ts";
 import { DEPTH_ENV, type NestedRunDetails, type RunDetails } from "./process.ts";
 
 const TICK_INTERVAL_MS = 1000;
@@ -66,6 +67,140 @@ export function renderCallHeader(
 	}
 }
 
+// ── management tools ──────────────────────────────────────────────────
+
+export interface AgentSummaryDetails {
+	summaries: AgentSummary[];
+}
+
+export function renderManagementCall(
+	toolName: string,
+	agentId: string | undefined,
+	message: string | undefined,
+	expanded: boolean,
+	summaries: AgentSummary[],
+	theme: Theme,
+): Container {
+	const c = new Container();
+	const summary = agentId ? summaries.find((candidate) => candidate.agent_id === agentId) : undefined;
+	const target = summary
+		? ` · ${summary.task_name || summary.agent_type} · ${summary.agent_id.slice(0, 8)}`
+		: agentId
+			? ` · ${agentId.slice(0, 8)}`
+			: " · all session agents";
+	c.addChild(new Text(
+		`${theme.fg("toolTitle", theme.bold(toolName))}${theme.fg("muted", target)}`,
+		0,
+		0,
+	));
+	if (message) {
+		const body = expanded ? message : taskPreview(message);
+		c.addChild(new Text(theme.fg(expanded ? "text" : "dim", `  ${body}`), 0, 0));
+	}
+	return c;
+}
+
+export function renderAgentSummaries(toolName: string, summaries: AgentSummary[], expanded: boolean, theme: Theme): Container {
+	const c = new Container();
+	const failed = summaries.some((summary) => summary.status === "failed");
+	const icon = failed ? theme.fg("error", "✗") : theme.fg("success", "✓");
+	const showCount = summaries.length !== 1 || toolName === "list_agents";
+	const count = showCount ? theme.fg("muted", ` · ${summaries.length} agent${summaries.length === 1 ? "" : "s"}`) : "";
+	c.addChild(new Text(`${icon} ${theme.fg("toolTitle", theme.bold(toolName))}${count}`, 0, 0));
+	if (!summaries.length) {
+		c.addChild(new Text(theme.fg("dim", "  No subagents in this session."), 0, 0));
+		return c;
+	}
+	for (const summary of summaries) {
+		const running = summary.status === "starting" || summary.status === "running";
+		const statusIcon = summary.status === "failed"
+			? theme.fg("error", "✗")
+			: running
+				? theme.fg("warning", "⟳")
+				: summary.status === "idle"
+					? theme.fg("success", "✓")
+					: theme.fg("dim", "–");
+		c.addChild(new Text(
+			`  ${statusIcon} ${theme.fg("text", summary.task_name || summary.agent_type)} ${theme.fg("dim", `· ${summary.agent_type} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
+			0,
+			0,
+		));
+		if (expanded) {
+			const output = summary.final_text || summary.error;
+			if (output) c.addChild(new Text(theme.fg(summary.status === "failed" ? "error" : "toolOutput", output), 2, 0));
+		}
+	}
+	return c;
+}
+
+// ── wait tool ─────────────────────────────────────────────────────────
+
+export interface WaitDetails {
+	summaries: AgentSummary[];
+	elapsedMs: number;
+	timeoutMs?: number;
+}
+
+export function renderWaitCall(agentIds: string[], timeoutMs: number | undefined, summaries: AgentSummary[], theme: Theme): Container {
+	const c = new Container();
+	const summaryById = new Map(summaries.map((summary) => [summary.agent_id, summary]));
+	const count = agentIds.length;
+	const deadline = timeoutMs === undefined ? "" : ` · up to ${formatDuration(timeoutMs)}`;
+	c.addChild(new Text(
+		`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${count} agent${count === 1 ? "" : "s"} to settle${deadline}`)}`,
+		0,
+		0,
+	));
+	for (const id of agentIds) {
+		const summary = summaryById.get(id);
+		const label = summary?.task_name || summary?.agent_type || id.slice(0, 8);
+		c.addChild(new Text(
+			`${theme.fg("warning", "  ⟳")} ${theme.fg("text", label)} ${theme.fg("dim", `· ${id.slice(0, 8)}`)}`,
+			0,
+			0,
+		));
+	}
+	return c;
+}
+
+export function renderWaitResult(details: WaitDetails, expanded: boolean, theme: Theme): Container {
+	const c = new Container();
+	const settled = details.summaries.filter((summary) => summary.status !== "starting" && summary.status !== "running").length;
+	const allSettled = settled === details.summaries.length;
+	const icon = allSettled ? theme.fg("success", "✓") : theme.fg("warning", "!");
+	const suffix = allSettled
+		? `${settled}/${details.summaries.length} settled`
+		: `${settled}/${details.summaries.length} settled · ${details.summaries.length - settled} still running`;
+	c.addChild(new Text(
+		`${icon} ${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· ${suffix} · ${formatDuration(details.elapsedMs)}`)}`,
+		0,
+		0,
+	));
+
+	for (const summary of details.summaries) {
+		const failed = summary.status === "failed";
+		const running = summary.status === "starting" || summary.status === "running";
+		const statusIcon = failed
+			? theme.fg("error", "✗")
+			: running
+				? theme.fg("warning", "⟳")
+				: summary.status === "idle"
+					? theme.fg("success", "✓")
+					: theme.fg("dim", "–");
+		const label = summary.task_name || summary.agent_type;
+		c.addChild(new Text(
+			`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${summary.agent_type} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
+			0,
+			0,
+		));
+		if (expanded) {
+			const output = summary.final_text || summary.error;
+			if (output) c.addChild(new Text(theme.fg(failed ? "error" : "toolOutput", output), 2, 0));
+		}
+	}
+	return c;
+}
+
 // ── result block ──────────────────────────────────────────────────────
 
 export interface RenderOptions {
@@ -76,7 +211,7 @@ export interface RenderOptions {
 export function renderResultBlock(details: RunDetails, options: RenderOptions, theme: Theme): Container {
 	const c = new Container();
 	const failed = details.aborted || details.exitCode !== 0 || details.status === "failed" || details.status === "aborted";
-	const isRunning = !failed && (options.isPartial || details.status === "starting" || details.status === "running");
+	const isRunning = !failed && (options.isPartial || details.status === "launched" || details.status === "starting" || details.status === "running");
 	const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
 
 	const icon = isRunning
