@@ -7,7 +7,17 @@ import { discoverAgents, formatAgentList, resolveAgent } from "./agents.ts";
 import { formatAgentCounts, sanitizeTerminalText, showAgentDashboard } from "./dashboard.ts";
 import { AgentRegistry, ManagedAgent, type AgentSummary } from "./host.ts";
 import { DEPTH_ENV, resolveEffectiveModel, type RunDetails } from "./process.ts";
-import { manageTick, renderCallHeader, renderResultBlock } from "./render.ts";
+import {
+	manageTick,
+	renderAgentSummaries,
+	renderCallHeader,
+	renderManagementCall,
+	renderResultBlock,
+	renderWaitCall,
+	renderWaitResult,
+	type AgentSummaryDetails,
+	type WaitDetails,
+} from "./render.ts";
 
 const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
@@ -48,7 +58,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_end", () => {
 		const completions = [...pendingCompletions.values()];
 		pendingCompletions.clear();
-		for (const summary of completions) sendCompletion(pi, summary);
+		if (completions.length) sendCompletions(pi, completions);
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -78,6 +88,8 @@ export default function (pi: ExtensionAPI) {
 			`Available agent types:\n${agentList}\n\nOmit \`agent_type\` for the default role.`,
 			"When using spawn_agent, provide a complete assignment: objective, scope, constraints, expected output, and verification.",
 			"Use background=true only when independent work can continue; completion is delivered automatically.",
+			"When the current response needs background results, call wait_agent once with all relevant IDs before answering; consumed results will not trigger redundant follow-up turns.",
+			"For parallel reviews, give agents non-overlapping scopes and ask for the evidence and uncertainty the task requires; synthesize and deduplicate findings in the parent.",
 			"Use followup_agent to reuse a completed agent's context, send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
 			"Subagents are non-interactive: they cannot open user dialogs and must report questions in text.",
 		],
@@ -117,7 +129,7 @@ export default function (pi: ExtensionAPI) {
 				onBackgroundComplete: (summary) => {
 					if (shuttingDown || (summary.status !== "idle" && summary.status !== "failed")) return;
 					notifyCompletion(activeContext, summary);
-					if (activeContext?.isIdle()) sendCompletion(pi, summary);
+					if (activeContext?.isIdle()) sendCompletions(pi, [summary]);
 					else pendingCompletions.set(summary.agent_id, summary);
 				},
 			});
@@ -166,8 +178,18 @@ export default function (pi: ExtensionAPI) {
 		description: "Steer a currently running subagent at the next message boundary.",
 		parameters: Type.Object({ agent_id: Type.String(), message: Type.String() }),
 		async execute(_id, params) {
-			await registry.get(params.agent_id).steer(params.message);
-			return textResult(`Steering message accepted by ${params.agent_id}.`);
+			const agent = registry.get(params.agent_id);
+			await agent.steer(params.message);
+			return textResult(`Steering message accepted by ${params.agent_id}.`, { summaries: [agent.summary()] } satisfies AgentSummaryDetails);
+		},
+		renderCall(args, theme, context) {
+			return renderManagementCall("send_agent", args.agent_id, args.message, context.expanded, registry.list(), theme);
+		},
+		renderResult(result, options, theme) {
+			const details = result.details as AgentSummaryDetails | undefined;
+			return details?.summaries
+				? renderAgentSummaries("send_agent · steering accepted", details.summaries, options.expanded, theme)
+				: resultText(result);
 		},
 	});
 
@@ -189,12 +211,24 @@ export default function (pi: ExtensionAPI) {
 			const summary = agent.summary();
 			return { content: [{ type: "text" as const, text: background ? formatLaunch(summary) : formatCompletion(summary) }], details };
 		},
+		renderCall(args, theme, context) {
+			return renderManagementCall("followup_agent", args.agent_id, args.message, context.expanded, registry.list(), theme);
+		},
+		renderResult(result, options, theme, context) {
+			const details = result.details as RunDetails | undefined;
+			if (!details) {
+				if (!options.isPartial) manageTick(ticks, context.toolCallId, false, () => context.invalidate());
+				return resultText(result);
+			}
+			manageTick(ticks, context.toolCallId, options.isPartial, () => context.invalidate());
+			return renderResultBlock(details, options, theme);
+		},
 	});
 
 	pi.registerTool({
 		name: "wait_agent",
 		label: "Wait Agent",
-		description: "Wait for specified subagents to settle or until the timeout expires.",
+		description: "Wait for specified subagents to settle or until the timeout expires. Settled results are consumed, preventing redundant automatic follow-up turns.",
 		parameters: Type.Object({
 			agent_ids: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
 			timeout_ms: Type.Optional(Type.Number({ minimum: 0, maximum: MAX_WAIT_MS })),
@@ -202,8 +236,26 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params, signal) {
 			const requested = [...new Set(params.agent_ids)];
 			const targets = requested.map((id) => registry.get(id));
+			const startTime = Date.now();
 			await Promise.allSettled(targets.map((agent) => agent.wait(params.timeout_ms, signal)));
-			return jsonResult(targets.map((agent) => agent.summary()));
+			const summaries = targets.map((agent) => agent.summary());
+			for (const summary of summaries) {
+				if (summary.status !== "idle" && summary.status !== "failed") continue;
+				const pending = pendingCompletions.get(summary.agent_id);
+				if (pending?.generation === summary.generation) pendingCompletions.delete(summary.agent_id);
+			}
+			return jsonResult(summaries, {
+				summaries,
+				elapsedMs: Date.now() - startTime,
+				...(params.timeout_ms === undefined ? {} : { timeoutMs: params.timeout_ms }),
+			} satisfies WaitDetails);
+		},
+		renderCall(args, theme) {
+			return renderWaitCall(args.agent_ids, args.timeout_ms, registry.list(), theme);
+		},
+		renderResult(result, options, theme) {
+			const details = result.details as WaitDetails | undefined;
+			return details?.summaries ? renderWaitResult(details, options.expanded, theme) : resultText(result);
 		},
 	});
 
@@ -212,7 +264,17 @@ export default function (pi: ExtensionAPI) {
 		label: "List Agents",
 		description: "List subagents owned by this session and their current status.",
 		parameters: Type.Object({}),
-		async execute() { return jsonResult(registry.list()); },
+		async execute() {
+			const summaries = registry.list();
+			return jsonResult(summaries, { summaries } satisfies AgentSummaryDetails);
+		},
+		renderCall(_args, theme, context) {
+			return renderManagementCall("list_agents", undefined, undefined, context.expanded, registry.list(), theme);
+		},
+		renderResult(result, options, theme) {
+			const details = result.details as AgentSummaryDetails | undefined;
+			return details?.summaries ? renderAgentSummaries("list_agents", details.summaries, options.expanded, theme) : resultText(result);
+		},
 	});
 
 	pi.registerTool({
@@ -223,7 +285,15 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params) {
 			const agent = registry.get(params.agent_id);
 			await agent.interrupt();
-			return jsonResult(agent.summary());
+			const summary = agent.summary();
+			return jsonResult(summary, { summaries: [summary] } satisfies AgentSummaryDetails);
+		},
+		renderCall(args, theme, context) {
+			return renderManagementCall("interrupt_agent", args.agent_id, undefined, context.expanded, registry.list(), theme);
+		},
+		renderResult(result, options, theme) {
+			const details = result.details as AgentSummaryDetails | undefined;
+			return details?.summaries ? renderAgentSummaries("interrupt_agent", details.summaries, options.expanded, theme) : resultText(result);
 		},
 	});
 
@@ -234,7 +304,15 @@ export default function (pi: ExtensionAPI) {
 		parameters: Type.Object({ agent_id: Type.String() }),
 		async execute(_id, params) {
 			await registry.close(params.agent_id);
-			return jsonResult(registry.get(params.agent_id).summary());
+			const summary = registry.get(params.agent_id).summary();
+			return jsonResult(summary, { summaries: [summary] } satisfies AgentSummaryDetails);
+		},
+		renderCall(args, theme, context) {
+			return renderManagementCall("close_agent", args.agent_id, undefined, context.expanded, registry.list(), theme);
+		},
+		renderResult(result, options, theme) {
+			const details = result.details as AgentSummaryDetails | undefined;
+			return details?.summaries ? renderAgentSummaries("close_agent", details.summaries, options.expanded, theme) : resultText(result);
 		},
 	});
 }
@@ -247,13 +325,16 @@ function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSumma
 	);
 }
 
-function sendCompletion(pi: ExtensionAPI, summary: AgentSummary): void {
-	const output = escapeXml(summary.final_text || summary.error || "(no output)");
+function sendCompletions(pi: ExtensionAPI, summaries: AgentSummary[]): void {
+	const completions = summaries.map((summary) => {
+		const output = escapeXml(summary.final_text || summary.error || "(no output)");
+		return `<subagent_completion agent_id="${summary.agent_id}" generation="${summary.generation}" status="${summary.status}">\n${output}\n</subagent_completion>`;
+	});
 	pi.sendMessage({
 		customType: "subagent-completion",
-		content: `<subagent_completion agent_id="${summary.agent_id}" generation="${summary.generation}" status="${summary.status}">\n${output}\n</subagent_completion>`,
+		content: completions.length === 1 ? completions[0] : `<subagent_completions>\n${completions.join("\n")}\n</subagent_completions>`,
 		display: true,
-		details: summary,
+		details: summaries.length === 1 ? summaries[0] : summaries,
 	}, { deliverAs: "followUp", triggerTurn: true });
 }
 
@@ -298,14 +379,19 @@ function formatCompletion(summary: AgentSummary): string {
 	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`;
 }
 
+function resultText(result: { content: Array<{ type: string; text?: string }> }): Text {
+	const text = result.content[0];
+	return new Text(text?.type === "text" ? text.text ?? "" : "(no output)", 0, 0);
+}
+
 function textResult(text: string, details: unknown = {}) {
 	const bounded = truncateHead(text, { maxBytes: DEFAULT_MAX_BYTES - 512, maxLines: DEFAULT_MAX_LINES - 2 });
 	const output = bounded.truncated ? `${bounded.content}\n\n[Management output truncated; query fewer agents.]` : bounded.content;
 	return { content: [{ type: "text" as const, text: output }], details };
 }
 
-function jsonResult(value: unknown) {
-	return textResult(JSON.stringify(value, null, 2));
+function jsonResult(value: unknown, details: unknown = {}) {
+	return textResult(JSON.stringify(value, null, 2), details);
 }
 
 function discoveryErrorMessage(error: { kind: string; dir: string; cause?: NodeJS.ErrnoException }): string {
