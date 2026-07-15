@@ -244,7 +244,7 @@ class AgentDashboard {
 
 		const { summary, details } = view;
 		const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
-		const task = sanitizeTerminalText(summary.task_name || summary.agent_type);
+		const task = sanitizeTerminalText(summary.task_name || summary.agent);
 		const lines = [topBorder(` ${task} ─ ${statusLabel(summary.status)} · ${elapsed} `, width, border)];
 		lines.push(row(this.theme.fg("muted", " CURRENT")));
 		lines.push(row(` ${truncateToWidth(currentActivity(view), Math.max(1, width - 1))}`));
@@ -265,7 +265,7 @@ class AgentDashboard {
 	}
 
 	private renderTranscript(view: AgentView, width: number, row: (text?: string) => string, border: (text: string) => string): string[] {
-		const task = sanitizeTerminalText(view.summary.task_name || view.summary.agent_type);
+		const task = sanitizeTerminalText(view.summary.task_name || view.summary.agent);
 		const transcript = this.transcripts.get(view.summary.agent_id);
 		const source = transcript?.generation === view.summary.generation ? transcript.lines : [];
 		const available = Math.max(1, this.maxRows() - 3);
@@ -287,7 +287,8 @@ class AgentDashboard {
 		const nested = countNested(details.nestedRuns);
 		const lines = [topBorder(" Agent info ", width, border)];
 		const values = [
-			["Role", summary.agent_type], ["Model", summary.model ?? details.model ?? "default"],
+			["Agent", summary.agent], ["Profile", summary.profile], ["Model", summary.model],
+			["Thinking", summary.effective_thinking], ["Session", summary.session_file ?? details.sessionFile ?? "unavailable"],
 			["ID", summary.agent_id], ["Generation", String(summary.generation)], ["Depth", String(summary.depth)],
 			["Usage", `${details.toolCount} tools · ${details.usage.turns} turns${details.tokens ? ` · context ${formatContextUsage(details.tokens, details.contextWindow)}` : ""}`],
 			["Nested", nested.total ? `${nested.running}/${nested.total} running` : "none"],
@@ -375,7 +376,7 @@ function renderAgentRow(view: AgentView, selected: boolean, theme: Theme, width:
 	const { summary, details } = view;
 	const cursor = selected ? theme.fg("accent", "›") : " ";
 	const icon = statusIcon(summary.status, theme);
-	const task = sanitizeTerminalText(summary.task_name || summary.agent_type);
+	const task = sanitizeTerminalText(summary.task_name || summary.agent);
 	const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
 	const right = `${currentActivity(view)}  ${elapsed}`;
 	const rightWidth = width >= 30 ? Math.min(Math.floor(width * 0.48), visibleWidth(right), width - 12) : 0;

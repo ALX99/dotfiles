@@ -1,7 +1,6 @@
 ---
 name: worker
 description: General-purpose worker for scoped coding tasks; requires careful supervisor review of all changes and verification before acceptance
-model: openai-codex/gpt-5.6-terra:high
 ---
 
 You are a worker dispatched by a supervisor. Complete the assigned scoped task.

@@ -42,16 +42,16 @@ function clipLine(s: string, max: number): string {
 
 export function renderCallHeader(
 	c: Container,
-	args: { message?: string; handoff?: string; agent_type?: string; task_name?: string; reasoning_effort?: string; model?: string; cwd?: string; background?: boolean },
+	args: { message?: string; handoff?: string; agent?: string; task_name?: string; profile?: string; thinking?: string; cwd?: string; background?: boolean },
 	expanded: boolean,
 	theme: Theme,
 ): void {
-	const agentLabel = args.agent_type ? ` ${theme.fg("accent", args.agent_type)}` : "";
+	const agentLabel = args.agent ? ` ${theme.fg("accent", args.agent)}` : "";
 	const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
 	const meta: string[] = [theme.fg("muted", `[d${parentDepth + 1}]`)];
 	if (args.task_name) meta.push(theme.fg("muted", `· ${args.task_name}`));
-	if (args.reasoning_effort) meta.push(theme.fg("muted", `· effort=${args.reasoning_effort}`));
-	if (args.model) meta.push(theme.fg("muted", `· model=${args.model}`));
+	if (args.profile) meta.push(theme.fg("muted", `· profile=${args.profile}`));
+	if (args.thinking) meta.push(theme.fg("muted", `· thinking=${args.thinking}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
 	if (args.background) meta.push(theme.fg("muted", "· background"));
@@ -84,7 +84,7 @@ export function renderManagementCall(
 	const c = new Container();
 	const summary = agentId ? summaries.find((candidate) => candidate.agent_id === agentId) : undefined;
 	const target = summary
-		? ` · ${summary.task_name || summary.agent_type} · ${summary.agent_id.slice(0, 8)}`
+		? ` · ${summary.task_name || summary.agent} · ${summary.agent_id.slice(0, 8)}`
 		: agentId
 			? ` · ${agentId.slice(0, 8)}`
 			: " · all session agents";
@@ -121,7 +121,7 @@ export function renderAgentSummaries(toolName: string, summaries: AgentSummary[]
 					? theme.fg("success", "✓")
 					: theme.fg("dim", "–");
 		c.addChild(new Text(
-			`  ${statusIcon} ${theme.fg("text", summary.task_name || summary.agent_type)} ${theme.fg("dim", `· ${summary.agent_type} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
+			`  ${statusIcon} ${theme.fg("text", summary.task_name || summary.agent)} ${theme.fg("dim", `· ${summary.agent} · ${summary.profile} · ${summary.model} · ${summary.effective_thinking} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
 			0,
 			0,
 		));
@@ -153,7 +153,7 @@ export function renderWaitCall(agentIds: string[], timeoutMs: number | undefined
 	));
 	for (const id of agentIds) {
 		const summary = summaryById.get(id);
-		const label = summary?.task_name || summary?.agent_type || id.slice(0, 8);
+		const label = summary?.task_name || summary?.agent || id.slice(0, 8);
 		c.addChild(new Text(
 			`${theme.fg("warning", "  ⟳")} ${theme.fg("text", label)} ${theme.fg("dim", `· ${id.slice(0, 8)}`)}`,
 			0,
@@ -187,9 +187,9 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 				: summary.status === "idle"
 					? theme.fg("success", "✓")
 					: theme.fg("dim", "–");
-		const label = summary.task_name || summary.agent_type;
+		const label = summary.task_name || summary.agent;
 		c.addChild(new Text(
-			`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${summary.agent_type} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
+			`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${summary.agent} · ${summary.profile} · ${summary.agent_id.slice(0, 8)} · ${summary.status}`)}`,
 			0,
 			0,
 		));
@@ -226,7 +226,7 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 		theme.fg("muted", `· ${details.taskName}`),
 	];
 	if (details.agentId) headerParts.push(theme.fg("muted", `· ${details.agentId.slice(0, 8)}`));
-	if (details.model) headerParts.push(theme.fg("muted", `(${details.model})`));
+	headerParts.push(theme.fg("muted", `· ${details.profile} · ${details.model} · thinking=${details.effectiveThinking}`));
 	headerParts.push(theme.fg("dim", `· ${details.toolCount} tools · ${elapsed}${isRunning ? " running" : ""}`));
 	c.addChild(new Text(headerParts.join(" "), 0, 0));
 
@@ -284,6 +284,11 @@ export function renderResultBlock(details: RunDetails, options: RenderOptions, t
 			const preview = options.expanded ? finalText : finalText.split("\n").slice(0, 8).join("\n");
 			c.addChild(new Text(theme.fg("toolOutput", preview), 0, 0));
 		}
+	}
+
+	if (options.expanded && details.sessionFile) {
+		c.addChild(new Spacer(1));
+		c.addChild(new Text(theme.fg("dim", `session: ${details.sessionFile}`), 0, 0));
 	}
 
 	if (failed && details.stderr.trim()) {
