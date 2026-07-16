@@ -25,6 +25,7 @@ while (("$#")); do
     ;;
   --) # end argument parsing
     shift
+    PARAMS+=("$@")
     break
     ;;
   -*) # unsupported flags
