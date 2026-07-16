@@ -45,10 +45,6 @@ export type DiscoverError =
 
 const AGENTS_DIR = path.join(getAgentDir(), "extensions", "subagents", "agents");
 
-export function agentsDir(): string {
-	return AGENTS_DIR;
-}
-
 /**
  * Read every `*.md` in the agents dir, parse frontmatter, and return the
  * valid ones sorted by name. Returns Err on an unreadable dir (permission,
