@@ -27,10 +27,6 @@ export type DiscoverError =
 
 const AGENTS_DIR = path.join(getAgentDir(), "extensions", "subagents", "agents");
 
-export function agentsDir(): string {
-	return AGENTS_DIR;
-}
-
 /** Read and validate every Markdown agent. Invalid files are startup errors. */
 export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], DiscoverError> {
 	let entries: fs.Dirent[];
