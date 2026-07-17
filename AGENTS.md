@@ -47,9 +47,9 @@ New skills go under `home/.agents/skills/` — the mirror to `~/.claude/skills/`
 Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/extensions/`).
 
 - `just pi` — shortcut for `cd ~/.pi/agent/extensions && npm install`. Required after first `just user-config` or `package.json` changes.
-- `just check` — runs `cd home/.pi/agent/extensions && npm run check` → `tsc` → `eslint` → `node --test '**/tests/*.test.ts'`.
+- `just check` — runs `cd home/.pi/agent/extensions && npm run check` → `tsc` → `oxlint` → `node --test '**/tests/*.test.ts'`.
 
-**Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `memory/` and `subagents/` load via the subdirectory-`index.ts` pattern. `eslint.config.mjs` ends in `.mjs` so pi's loader skips it.
+**Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `memory/` and `subagents/` load via the subdirectory-`index.ts` pattern.
 
 Tests for the subagent and other Pi extensions live under `home/.pi/agent/extensions/**/tests/`. `just check` runs them after typechecking and linting. Pi-web has its own tests under `pi-web/tests/`.
 
