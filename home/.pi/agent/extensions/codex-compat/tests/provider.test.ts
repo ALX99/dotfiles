@@ -41,14 +41,19 @@ test("apply_patch preflights, locks sorted paths, and applies without confirmati
 			return run();
 		};
 		const result = await createApplyPatchTool({ mutationQueue: queue }).execute(
-			"tool_1", { patch }, undefined, undefined,
+			"tool_1",
+			{ patch },
+			undefined,
+			undefined,
+			// The tool adapter reads only cwd and hasUI from this focused test context.
 			{ cwd: root, hasUI: false } as ExtensionContext,
 		);
 		const canonicalRoot = await realpath(root);
 		assert.deepEqual(locks, [path.join(canonicalRoot, "a.txt"), path.join(canonicalRoot, "z.txt")]);
 		assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "a\n");
 		assert.equal(await readFile(path.join(root, "z.txt"), "utf8"), "z\n");
-		assert.match(result.content[0].type === "text" ? result.content[0].text : "", /Applied patch successfully/);
+		const text = result.content.find((content) => content.type === "text");
+		assert.match(text?.text ?? "", /Applied patch successfully/);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
@@ -88,8 +93,11 @@ test("oversized patches are rejected before locking or preflight", async () => {
 		},
 	});
 	await assert.rejects(
-		tool.execute("tool_oversized", { patch: "x".repeat(MAX_APPLY_PATCH_BYTES + 1) }, undefined, undefined,
-			{ cwd: process.cwd(), hasUI: false } as ExtensionContext),
+		tool.execute("tool_oversized", { patch: "x".repeat(MAX_APPLY_PATCH_BYTES + 1) }, undefined, undefined, {
+			cwd: process.cwd(),
+			hasUI: false,
+			// The tool rejects size before reading any other context member.
+		} as ExtensionContext),
 		(error) => error instanceof RangeError,
 	);
 	assert.equal(queueCalls, 0);
@@ -100,22 +108,40 @@ function registerActivationFixture(initialActive: string[]) {
 	let registeredTool: ToolDefinition | undefined;
 	let providerRegistered = false;
 	const handlers = new Map<string, (...args: never[]) => unknown>();
+	// registerCodexCompat uses only the API methods implemented by this activation harness.
 	const pi = {
-		registerTool(tool: ToolDefinition) { registeredTool = tool; },
-		registerProvider() { providerRegistered = true; },
-		getActiveTools() { return [...active]; },
-		setActiveTools(names: string[]) { active = [...names]; },
-		on(name: string, handler: (...args: never[]) => unknown) { handlers.set(name, handler); },
+		registerTool(tool: ToolDefinition) {
+			registeredTool = tool;
+		},
+		registerProvider() {
+			providerRegistered = true;
+		},
+		getActiveTools() {
+			return [...active];
+		},
+		setActiveTools(names: string[]) {
+			active = [...names];
+		},
+		on(name: string, handler: (...args: never[]) => unknown) {
+			handlers.set(name, handler);
+		},
 	} as unknown as ExtensionAPI;
 	registerCodexCompat(pi);
+	// Registration fixes these event names and handler shapes; the harness invokes only those shapes.
 	const sessionStart = handlers.get("session_start") as unknown as (_event: object, ctx: { model: Model<Api> }) => void;
 	const modelSelect = handlers.get("model_select") as unknown as (event: { model: Model<Api> }) => void;
 	return {
-		get active() { return [...active]; },
+		get active() {
+			return [...active];
+		},
 		registeredTool,
 		providerRegistered,
-		start(selectedModel: Model<Api>) { sessionStart({}, { model: selectedModel }); },
-		select(selectedModel: Model<Api>) { modelSelect({ model: selectedModel }); },
+		start(selectedModel: Model<Api>) {
+			sessionStart({}, { model: selectedModel });
+		},
+		select(selectedModel: Model<Api>) {
+			modelSelect({ model: selectedModel });
+		},
 	};
 }
 

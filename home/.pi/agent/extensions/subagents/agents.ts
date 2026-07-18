@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
+import { toError } from "../_shared/errors.ts";
 
 export interface AgentConfig {
 	name: string;
@@ -33,7 +34,7 @@ export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], Discover
 	try {
 		entries = fs.readdirSync(dir, { withFileTypes: true });
 	} catch (cause) {
-		return err({ kind: "read_dir", dir, cause: cause as NodeJS.ErrnoException });
+		return err({ kind: "read_dir", dir, cause: toError(cause) });
 	}
 
 	const agents: AgentConfig[] = [];
@@ -46,7 +47,7 @@ export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], Discover
 		try {
 			content = fs.readFileSync(filePath, "utf8");
 		} catch (cause) {
-			errors.push(`${filePath}: could not read file: ${cause instanceof Error ? cause.message : String(cause)}`);
+			errors.push(`${filePath}: could not read file: ${toError(cause).message}`);
 			continue;
 		}
 		const parsed = parseAgentFile(filePath, content);
@@ -69,25 +70,31 @@ export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], Discover
 	return ok(agents);
 }
 
-export function parseAgentFile(filePath: string, content: string):
-	| { success: true; agent: AgentConfig }
-	| { success: false; errors: string[] } {
+export function parseAgentFile(
+	filePath: string,
+	content: string,
+): { success: true; agent: AgentConfig } | { success: false; errors: string[] } {
 	let frontmatter: Record<string, unknown>;
 	let body: string;
 	try {
 		({ frontmatter, body } = parseFrontmatter(content));
 	} catch (cause) {
-		return { success: false, errors: [`${filePath}: invalid frontmatter: ${cause instanceof Error ? cause.message : String(cause)}`] };
+		return { success: false, errors: [`${filePath}: invalid frontmatter: ${toError(cause).message}`] };
 	}
 	const parsed = AgentFrontmatterSchema.safeParse(frontmatter);
 	if (!parsed.success) {
 		return {
 			success: false,
-			errors: parsed.error.issues.map((issue) => `${filePath}:${issue.path.length ? ` ${issue.path.join(".")}:` : ""} ${issue.message}`),
+			errors: parsed.error.issues.map(
+				(issue) => `${filePath}:${issue.path.length ? ` ${issue.path.join(".")}:` : ""} ${issue.message}`,
+			),
 		};
 	}
 	if (!body.trim()) return { success: false, errors: [`${filePath}: system prompt must not be empty`] };
-	const tools = parsed.data.tools?.split(",").map((tool) => tool.trim()).filter(Boolean);
+	const tools = parsed.data.tools
+		?.split(",")
+		.map((tool) => tool.trim())
+		.filter(Boolean);
 	if (parsed.data.tools !== undefined && !tools?.length) {
 		return { success: false, errors: [`${filePath}: tools must contain at least one tool when present`] };
 	}
@@ -96,7 +103,7 @@ export function parseAgentFile(filePath: string, content: string):
 		agent: {
 			name: parsed.data.name,
 			description: parsed.data.description,
-			tools,
+			...(tools === undefined ? {} : { tools }),
 			systemPrompt: body.trim(),
 			filePath,
 		},

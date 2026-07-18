@@ -6,13 +6,16 @@ import { test } from "node:test";
 import { discoverAgents, parseAgentFile } from "../agents.ts";
 
 test("parseAgentFile rejects model policy and malformed identity frontmatter", () => {
-	const parsed = parseAgentFile("scout.md", `---
+	const parsed = parseAgentFile(
+		"scout.md",
+		`---
 name: scout
 description: Scout
 model: provider/model
 ---
 Prompt.
-`);
+`,
+	);
 	assert.equal(parsed.success, false);
 	if (parsed.success) return;
 	assert.ok(parsed.errors.some((error) => error.includes("Unrecognized key")));

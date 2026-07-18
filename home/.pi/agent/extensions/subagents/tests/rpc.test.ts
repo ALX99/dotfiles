@@ -37,7 +37,7 @@ process.stdin.on('data', chunk => {
   }
 });
 send({ type: 'unicode_event', text: 'left\u2028right' });
-send({ type: 'extension_ui_request', id: 'ui-1', method: 'confirm' });
+send({ type: 'extension_ui_request', id: 'ui-1', method: 'confirm', title: 'Question', message: 'Continue?' });
 `;
 
 const spawnedArgs: string[][] = [];
@@ -47,6 +47,13 @@ function spawnFake(_command: string, args: readonly string[], options: SpawnOpti
 	spawnedContexts.push(JSON.parse(String(options.env?.PI_SUBAGENT_CONTEXT)));
 	return spawn(process.execPath, ["-e", rpcScript], options);
 }
+// ManagedAgent always calls the stdio-pipe overload implemented by spawnFake;
+// the full Node spawn overload set is intentionally unnecessary in this fixture.
+const spawnRpcFake = spawnFake as unknown as SpawnRpcProcess;
+
+const testEnv: Record<string, string> = Object.fromEntries(
+	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+);
 
 const resolvedRun = {
 	agent: "general",
@@ -69,7 +76,7 @@ function transport(events: RpcEvent[], onExit: (error: Error | undefined) => voi
 		command: process.execPath,
 		args: ["-e", rpcScript],
 		cwd: process.cwd(),
-		env: process.env as Record<string, string>,
+		env: testEnv,
 		onEvent: (event) => events.push(event),
 		onExit,
 	});
@@ -83,8 +90,14 @@ test("RpcTransport correlates responses, preserves Unicode separators, and cance
 	await new Promise((resolve) => setTimeout(resolve, 20));
 
 	assert.equal(events.find((event) => event.type === "unicode_event")?.text, "left\u2028right");
-	assert.equal(events.some((event) => event.type === "ui_cancelled" && event.value === true), true);
-	assert.equal(events.some((event) => event.type === "agent_settled"), true);
+	assert.equal(
+		events.some((event) => event.type === "ui_cancelled" && event.value === true),
+		true,
+	);
+	assert.equal(
+		events.some((event) => event.type === "agent_settled"),
+		true,
+	);
 	await client.close();
 });
 
@@ -100,7 +113,7 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 		command: process.execPath,
 		args: ["-e", script],
 		cwd: process.cwd(),
-		env: process.env as Record<string, string>,
+		env: testEnv,
 		onEvent: () => {},
 		onExit: () => {},
 	});
@@ -108,7 +121,7 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 	await client.start();
 	await new Promise((resolve) => setTimeout(resolve, 50));
 	await assert.rejects(
-		client.request({ type: "prompt", message: "x".repeat(1024 * 1024) }),
+		client.request({ type: "prompt", message: "x".repeat(512 * 1024) }),
 		/stdin failed|EPIPE|not available/,
 	);
 	await client.close();
@@ -154,7 +167,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		resolvedRun,
 		childContext,
 		subagentToolsEnabled: false,
-		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+		spawnProcess: spawnRpcFake,
 		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? ""),
 	});
 	t.after(() => agent.close());
@@ -169,11 +182,22 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(invocation.filter((arg) => arg === "--session-dir").length, 1);
 	assert.equal(invocation.includes("--no-session"), false);
 	assert.deepEqual(invocation.slice(invocation.indexOf("--model"), invocation.indexOf("--model") + 4), [
-		"--model", resolvedRun.model, "--thinking", resolvedRun.effectiveThinking,
+		"--model",
+		resolvedRun.model,
+		"--thinking",
+		resolvedRun.effectiveThinking,
 	]);
 	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
 	const excludedTools = invocation[invocation.indexOf("--exclude-tools") + 1] ?? "";
-	for (const tool of ["spawn_agent", "send_agent", "followup_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"]) {
+	for (const tool of [
+		"spawn_agent",
+		"send_agent",
+		"followup_agent",
+		"wait_agent",
+		"list_agents",
+		"interrupt_agent",
+		"close_agent",
+	]) {
 		assert.match(excludedTools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
 	}
 	assert.deepEqual(spawnedContexts, [childContext]);
@@ -198,9 +222,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(spawnedArgs.length, 1, "follow-ups must reuse the same configured child process");
 	assert.equal(second.finalText, "done:second");
 	assert.equal(agent.summary().generation, 2);
-	assert.deepEqual(await agent.getMessages(), [
-		{ role: "assistant", content: [{ type: "text", text: "transcript" }] },
-	]);
+	assert.deepEqual(await agent.getMessages(), [{ role: "assistant", content: [{ type: "text", text: "transcript" }] }]);
 
 	const launched = await agent.followUp("third", "third task", true);
 	assert.equal(launched.status, "launched");
@@ -250,7 +272,7 @@ test("wait timeout stops only the waiter and leaves the child running", async (t
 		resolvedRun: { ...resolvedRun, agent: "worker" },
 		childContext: { ...childContext, agent: "worker" },
 		subagentToolsEnabled: false,
-		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
 
@@ -279,7 +301,7 @@ test("cancelling a foreground waiter does not automatically interrupt its child"
 		resolvedRun,
 		childContext,
 		subagentToolsEnabled: false,
-		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
 	const waiter = new AbortController();
@@ -305,7 +327,7 @@ test("AgentRegistry publishes lifecycle changes and immutable views", async (t) 
 		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
 		childContext: { ...childContext, agent: "scout", profile: "fast" },
 		subagentToolsEnabled: false,
-		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+		spawnProcess: spawnRpcFake,
 	});
 	const registry = new AgentRegistry();
 	let updates = 0;
@@ -322,8 +344,14 @@ test("AgentRegistry publishes lifecycle changes and immutable views", async (t) 
 	assert.equal(view?.details.contextWindow, 128_000);
 	assert.ok(updates >= 3);
 
-	view!.details.recentTools.push({ name: "fake", argsPreview: "mutation" });
-	assert.equal(registry.views()[0]?.details.recentTools.some((tool) => tool.name === "fake"), false);
+	assert.ok(view);
+	const exposedTools: unknown = view.details.recentTools;
+	assert.ok(Array.isArray(exposedTools));
+	exposedTools.push({ name: "fake", argsPreview: "mutation" });
+	assert.equal(
+		registry.views()[0]?.details.recentTools.some((tool) => tool.name === "fake"),
+		false,
+	);
 });
 
 test("ManagedAgent cleans temporary prompts after startup failure", async () => {
@@ -344,6 +372,8 @@ test("ManagedAgent cleans temporary prompts after startup failure", async () => 
 
 	await assert.rejects(agent.start("fail", undefined, "failed startup", false), /Could not start|ENOENT/);
 	assert.equal(agent.isAvailable(), false);
-	const after = (await fs.promises.readdir(os.tmpdir())).filter((name) => name.startsWith("subagent-") && !before.has(name));
+	const after = (await fs.promises.readdir(os.tmpdir())).filter(
+		(name) => name.startsWith("subagent-") && !before.has(name),
+	);
 	assert.deepEqual(after, []);
 });
