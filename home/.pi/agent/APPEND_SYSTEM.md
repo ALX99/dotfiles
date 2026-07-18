@@ -108,28 +108,3 @@ For completed change work, report only what is useful:
 * Material decisions or assumptions
 * Validation performed
 * Remaining risks or unverified items
-
-# Tool Use
-
-* Trust the write tool's response; do not re-read files to verify writes.
-
-## grep — content search (repo at CWD)
-
-* `path` MUST be repo-relative; absolute paths error. Outside-repo → `cd <dir> && rg ...`.
-* Smart-case: all-lowercase pattern = case-insensitive; mixed-case or `caseSensitive: true` = exact.
-* Use bare identifiers (e.g. `spawn_agent`, not `.*spawn.*`). Wildcard patterns (`.*`, `*`, `.`, `.+`) are **rejected** — use a concrete substring. Regex is auto-detected only when metacharacters are present; don't add anchors unless you mean them.
-* Multi-word = AND-narrow (each word narrows), not OR-wide.
-* `exclude`: comma/array of prefixes, filenames, globs (`test/,*.min.js`). Leading `!` optional.
-* On 0 exact matches it retries fuzzy and prepends "**[0 exact matches. Maybe you meant this?]**" — a discovery hint, **not** an actionable result. Treat 0 exact = 0 results and refine the query.
-* `context: N` adds N lines before+after each match. Raise `limit` for broad sweeps.
-
-## find — fuzzy path search
-
-* Matches the **whole repo-relative path**, not just filename: `pattern: "profile"` hits `chrome/browser/profiles/x.cc`.
-* `pattern` = fuzzy concept (`"spawn_agent"`); `path` = glob (`"src/**/*.ts"`), prefix (`"src/"`), or bare filename (`"main.rs"`).
-* Weak matches cap at **5 samples with a notice** — don't treat a weak top score as exhaustive. Use a glob `path` (e.g. `"**/profile.h"`) when you need exact/exhaustive listing.
-
-## Both
-
-* First call at session start may block ~15s while the index builds; instant after that.
-* Safe to call both in parallel.

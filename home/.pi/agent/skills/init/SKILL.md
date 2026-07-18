@@ -5,7 +5,7 @@ description: Generate AGENTS.md — a contributor guide for this repository
 
 Generate a file named AGENTS.md that serves as a contributor guide for this repository.
 
-Before writing, check whether AGENTS.md already exists in the current working directory. If it does, do not overwrite or modify it.
+Before writing, check whether AGENTS.md already exists in the current working directory. If it does, verify its contents against the repository, correct inaccurate or outdated information, and add any important information that is missing. Preserve existing accurate guidance and avoid unnecessary rewrites.
 
 Your goal is to produce a clear, concise, and well-structured document with descriptive headings and actionable explanations for each section. Follow the outline below, but adapt as needed — add sections if relevant, and omit those that do not apply to this project.
 
