@@ -1,0 +1,20 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "error"
+	},
+	"rules": {
+		"typescript/no-floating-promises": "error",
+		"typescript/no-misused-promises": "error",
+		"typescript/switch-exhaustiveness-check": "error"
+	},
+	"overrides": [
+		{
+			"files": ["**/tests/**"],
+			"rules": {
+				"typescript/no-floating-promises": "off"
+			}
+		}
+	],
+	"ignorePatterns": ["node_modules/**"]
+}

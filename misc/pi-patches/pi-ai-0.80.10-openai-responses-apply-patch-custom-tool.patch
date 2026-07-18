@@ -1,0 +1,362 @@
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -148,13 +148,24 @@
+                     if (isDifferentModel && itemId?.startsWith("fc_")) {
+                         itemId = undefined;
+                     }
+-                    output.push({
+-                        type: "function_call",
+-                        id: itemId,
+-                        call_id: callId,
+-                        name: toolCall.name,
+-                        arguments: JSON.stringify(toolCall.arguments),
+-                    });
++                    if (options?.customToolNames?.has(toolCall.name)) {
++                        output.push({
++                            type: "custom_tool_call",
++                            id: itemId,
++                            call_id: callId,
++                            name: toolCall.name,
++                            input: toolCall.arguments.patch,
++                        });
++                    }
++                    else {
++                        output.push({
++                            type: "function_call",
++                            id: itemId,
++                            call_id: callId,
++                            name: toolCall.name,
++                            arguments: JSON.stringify(toolCall.arguments),
++                        });
++                    }
+                 }
+             }
+             if (output.length === 0)
+@@ -193,7 +204,7 @@
+                 output = sanitizeSurrogates(hasText ? textResult : hasImages ? "(see attached image)" : "(no tool output)");
+             }
+             messages.push({
+-                type: "function_call_output",
++                type: options?.customToolNames?.has(msg.toolName) ? "custom_tool_call_output" : "function_call_output",
+                 call_id: callId,
+                 output,
+             });
+@@ -220,7 +231,10 @@
+                     call_id: searchCallId,
+                     execution: "client",
+                     status: "completed",
+-                    tools: convertResponsesTools(deferredTools, { deferLoading: true }),
++                    tools: convertResponsesTools(deferredTools, {
++                        deferLoading: true,
++                        customToolNames: options?.customToolNames,
++                    }),
+                 });
+             }
+         }
+@@ -233,66 +247,209 @@
+ // =============================================================================
+ export function convertResponsesTools(tools, options) {
+     const strict = options?.strict === undefined ? false : options.strict;
+-    return tools.map((tool) => ({
+-        type: "function",
+-        name: tool.name,
+-        description: tool.description,
+-        parameters: tool.parameters, // TypeBox already generates JSON Schema
+-        strict,
+-        ...(options?.deferLoading ? { defer_loading: true } : {}),
+-    }));
++    return tools.map((tool) => options?.customToolNames?.has(tool.name)
++        ? {
++            type: "custom",
++            name: tool.name,
++            description: tool.description,
++            format: { type: "text" },
++            ...(options?.deferLoading ? { defer_loading: true } : {}),
++        }
++        : {
++            type: "function",
++            name: tool.name,
++            description: tool.description,
++            parameters: tool.parameters, // TypeBox already generates JSON Schema
++            strict,
++            ...(options?.deferLoading ? { defer_loading: true } : {}),
++        });
+ }
+ export async function processResponsesStream(openaiStream, output, stream, model, options) {
+     let sawTerminalResponseEvent = false;
+     const outputSlots = new Map();
++    const outputSlotsByItemId = new Map();
++    const outputSlotsByCallId = new Map();
++    const activeOutputSlots = new Set();
+     const reasoningBlocksById = new Map();
+     const getSlot = (outputIndex, type) => {
+         const slot = outputSlots.get(outputIndex);
+         return slot?.type === type ? slot : undefined;
+     };
++    const bindSlot = (slot, event) => {
++        const outputIndex = event.output_index;
++        if (outputIndex !== undefined) {
++            const existing = outputSlots.get(outputIndex);
++            if (existing && existing !== slot) {
++                throw new Error(`Conflicting Responses output slot for output_index ${outputIndex}`);
++            }
++            outputSlots.set(outputIndex, slot);
++            slot.outputIndex = outputIndex;
++        }
++        const item = event.item;
++        const itemId = event.item_id ?? item?.id;
++        if (itemId) {
++            const existing = outputSlotsByItemId.get(itemId);
++            if (existing && existing !== slot) {
++                throw new Error(`Conflicting Responses output slot for item_id ${itemId}`);
++            }
++            outputSlotsByItemId.set(itemId, slot);
++            slot.itemId = itemId;
++        }
++        const callId = event.call_id ?? item?.call_id;
++        if (callId) {
++            const existing = outputSlotsByCallId.get(callId);
++            if (existing && existing !== slot) {
++                throw new Error(`Conflicting Responses output slot for call_id ${callId}`);
++            }
++            outputSlotsByCallId.set(callId, slot);
++            slot.callId = callId;
++        }
++    };
++    const findSlot = (event, type, customOnly = false) => {
++        const candidates = [
++            event.output_index === undefined ? undefined : outputSlots.get(event.output_index),
++            event.item_id ? outputSlotsByItemId.get(event.item_id) : undefined,
++            event.item?.id ? outputSlotsByItemId.get(event.item.id) : undefined,
++            event.call_id ? outputSlotsByCallId.get(event.call_id) : undefined,
++            event.item?.call_id ? outputSlotsByCallId.get(event.item.call_id) : undefined,
++        ].filter((slot) => slot?.type === type && (!customOnly || slot.isCustomToolCall));
++        const uniqueCandidates = [...new Set(candidates)];
++        let slot;
++        if (uniqueCandidates.length === 1) {
++            [slot] = uniqueCandidates;
++        }
++        else if (uniqueCandidates.length > 1) {
++            throw new Error(`Ambiguous Responses ${type} event correlation`);
++        }
++        else {
++            const compatible = [...activeOutputSlots]
++                .filter((candidate) => candidate.type === type && (!customOnly || candidate.isCustomToolCall));
++            if (compatible.length === 1) {
++                [slot] = compatible;
++            }
++            else if (compatible.length > 1 && customOnly) {
++                throw new Error("Ambiguous custom tool stream event without output_index, item_id, or call_id");
++            }
++        }
++        if (slot)
++            bindSlot(slot, event);
++        return slot;
++    };
++    const forgetSlot = (slot) => {
++        activeOutputSlots.delete(slot);
++        for (const [key, candidate] of outputSlots) {
++            if (candidate === slot)
++                outputSlots.delete(key);
++        }
++        for (const [key, candidate] of outputSlotsByItemId) {
++            if (candidate === slot)
++                outputSlotsByItemId.delete(key);
++        }
++        for (const [key, candidate] of outputSlotsByCallId) {
++            if (candidate === slot)
++                outputSlotsByCallId.delete(key);
++        }
++    };
+     const createSlot = (outputIndex, item) => {
++        let slot;
+         if (item.type === "reasoning") {
+             const block = { type: "thinking", thinking: "" };
+             output.content.push(block);
+-            const slot = {
++            slot = {
+                 type: "thinking",
+                 block,
+                 contentIndex: output.content.length - 1,
+             };
+-            outputSlots.set(outputIndex, slot);
+             stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
+-            return slot;
+         }
+-        if (item.type === "message") {
++        else if (item.type === "message") {
+             const block = { type: "text", text: "" };
+             output.content.push(block);
+-            const slot = { type: "text", block, contentIndex: output.content.length - 1 };
+-            outputSlots.set(outputIndex, slot);
++            slot = { type: "text", block, contentIndex: output.content.length - 1 };
+             stream.push({ type: "text_start", contentIndex: slot.contentIndex, partial: output });
+-            return slot;
+         }
+-        if (item.type === "function_call") {
++        else if (item.type === "function_call" || item.type === "custom_tool_call") {
++            const isCustomToolCall = item.type === "custom_tool_call";
++            const partialInput = isCustomToolCall ? item.input || "" : item.arguments || "";
++            if (!item.call_id) {
++                throw new Error(`${item.type} is missing call_id`);
++            }
+             const block = {
+                 type: "toolCall",
+-                id: `${item.call_id}|${item.id}`,
++                id: item.id ? `${item.call_id}|${item.id}` : item.call_id,
+                 name: item.name,
+-                arguments: {},
+-                partialJson: item.arguments || "",
++                arguments: isCustomToolCall ? { patch: partialInput } : {},
++                partialJson: isCustomToolCall ? "" : partialInput,
+             };
+             output.content.push(block);
+-            const slot = {
++            slot = {
+                 type: "toolCall",
+                 block,
+                 contentIndex: output.content.length - 1,
++                isCustomToolCall,
++                ...(isCustomToolCall ? { partialInput, customInputFinalized: false } : {}),
+             };
+-            outputSlots.set(outputIndex, slot);
+             stream.push({ type: "toolcall_start", contentIndex: slot.contentIndex, partial: output });
+-            return slot;
+         }
+-        return undefined;
++        if (!slot)
++            return undefined;
++        activeOutputSlots.add(slot);
++        bindSlot(slot, { output_index: outputIndex, item });
++        return slot;
+     };
+-    const getOrCreateSlot = (outputIndex, item) => {
+-        return outputSlots.get(outputIndex) ?? createSlot(outputIndex, item);
++    const getOrCreateSlot = (event) => {
++        return findSlot(event, event.item.type === "reasoning"
++            ? "thinking"
++            : event.item.type === "message"
++                ? "text"
++                : "toolCall") ?? createSlot(event.output_index, event.item);
++    };
++    const appendCustomInput = (slot, inputDelta) => {
++        if (slot.customInputFinalized) {
++            throw new Error("Custom tool input delta arrived after finalization");
++        }
++        slot.partialInput += inputDelta;
++        slot.block.arguments = { patch: slot.partialInput };
++        const inputChunk = slot.block.partialJson.length === 0 ? slot.partialInput : inputDelta;
++        const encodedChunk = JSON.stringify(inputChunk).slice(1, -1);
++        const jsonDelta = slot.block.partialJson.length === 0 ? `{"patch":"${encodedChunk}` : encodedChunk;
++        slot.block.partialJson += jsonDelta;
++        stream.push({
++            type: "toolcall_delta",
++            contentIndex: slot.contentIndex,
++            delta: jsonDelta,
++            partial: output,
++        });
++    };
++    const finalizeCustomInput = (slot, finalInput) => {
++        if (slot.customInputFinalized) {
++            if (finalInput !== slot.partialInput) {
++                throw new Error("Custom tool final input changed after finalization");
++            }
++            return;
++        }
++        if (!finalInput.startsWith(slot.partialInput)) {
++            throw new Error("Custom tool final input did not match the streamed input prefix");
++        }
++        const remainingInput = finalInput.slice(slot.partialInput.length);
++        const encodedRemainder = JSON.stringify(remainingInput).slice(1, -1);
++        const jsonDelta = slot.block.partialJson.length === 0
++            ? JSON.stringify({ patch: finalInput })
++            : `${encodedRemainder}"}`;
++        slot.partialInput = finalInput;
++        slot.block.partialJson += jsonDelta;
++        slot.block.arguments = { patch: finalInput };
++        slot.customInputFinalized = true;
++        stream.push({
++            type: "toolcall_delta",
++            contentIndex: slot.contentIndex,
++            delta: jsonDelta,
++            partial: output,
++        });
++        const parsed = JSON.parse(slot.block.partialJson);
++        if (parsed.patch !== finalInput) {
++            throw new Error("Custom tool streamed JSON did not round-trip");
++        }
+     };
+     // Azure OpenAI can omit reasoning.encrypted_content from response.output_item.done
+     // and provide it only in response.completed.response.output. Backfill the
+@@ -427,6 +584,12 @@
+                 delta: event.delta,
+                 partial: output,
+             });
++        }
++        else if (event.type === "response.custom_tool_call_input.delta") {
++            const slot = findSlot(event, "toolCall", true);
++            if (!slot)
++                continue;
++            appendCustomInput(slot, event.delta);
+         }
+         else if (event.type === "response.function_call_arguments.done") {
+             const slot = getSlot(event.output_index, "toolCall");
+@@ -447,9 +610,15 @@
+                 }
+             }
+         }
++        else if (event.type === "response.custom_tool_call_input.done") {
++            const slot = findSlot(event, "toolCall", true);
++            if (!slot)
++                continue;
++            finalizeCustomInput(slot, event.input);
++        }
+         else if (event.type === "response.output_item.done") {
+             const item = event.item;
+-            const slot = getOrCreateSlot(event.output_index, item);
++            const slot = getOrCreateSlot(event);
+             if (item.type === "reasoning" && slot?.type === "thinking") {
+                 const summaryText = item.summary?.map((s) => s.text).join("\n\n") || "";
+                 const contentText = item.content?.map((c) => c.text).join("\n\n") || "";
+@@ -462,7 +631,7 @@
+                     content: slot.block.thinking,
+                     partial: output,
+                 });
+-                outputSlots.delete(event.output_index);
++                forgetSlot(slot);
+             }
+             else if (item.type === "message" && slot?.type === "text") {
+                 slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
+@@ -473,10 +642,20 @@
+                     content: slot.block.text,
+                     partial: output,
+                 });
+-                outputSlots.delete(event.output_index);
++                forgetSlot(slot);
+             }
+-            else if (item.type === "function_call" && slot?.type === "toolCall") {
+-                slot.block.arguments = parseStreamingJson(item.arguments || slot.block.partialJson || "{}");
++            else if ((item.type === "function_call" || item.type === "custom_tool_call") && slot?.type === "toolCall") {
++                if (item.call_id) {
++                    slot.block.id = item.id ? `${item.call_id}|${item.id}` : item.call_id;
++                }
++                if (item.name)
++                    slot.block.name = item.name;
++                if (item.type === "custom_tool_call") {
++                    finalizeCustomInput(slot, item.input ?? slot.partialInput ?? "");
++                }
++                else {
++                    slot.block.arguments = parseStreamingJson(item.arguments || slot.block.partialJson || "{}");
++                }
+                 // Finalize in-place and strip the scratch buffer so replay only
+                 // carries parsed arguments.
+                 delete slot.block.partialJson;
+@@ -486,7 +665,7 @@
+                     toolCall: slot.block,
+                     partial: output,
+                 });
+-                outputSlots.delete(event.output_index);
++                forgetSlot(slot);
+             }
+         }
+         else if (event.type === "response.completed" || event.type === "response.incomplete") {
