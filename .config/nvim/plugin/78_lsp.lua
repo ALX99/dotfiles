@@ -2,14 +2,9 @@
 -- Depends on: blink_cmp.lua (get_lsp_capabilities called eagerly at load time)
 if vim.g.vscode then return end
 
-vim.pack.add({
-  { src = 'https://github.com/neovim/nvim-lspconfig', version = vim.version.range('*') },
+vim.lsp.config('*', {
+  capabilities = require('blink.cmp').get_lsp_capabilities(),
 })
-
-local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
-
-vim.lsp.config('*', { capabilities = capabilities })
 
 vim.lsp.handlers["window/showMessage"] = function(_, result, ctx)
   if not (result and result.message) then return end
@@ -36,21 +31,4 @@ local enabled_lsps = {
 }
 
 vim.lsp.enable(enabled_lsps)
-vim.lsp.inline_completion.enable(true)
 vim.lsp.codelens.enable(true)
-
-_G.Config.new_autocmd('LspProgress', {
-  callback = function(ev)
-    local value = ev.data.params.value
-    if type(value) ~= 'table' or not value.kind then return end
-    local token = ev.data.params and ev.data.params.token
-    vim.api.nvim_echo({ { value.message or 'done' } }, false, {
-      id = 'lsp.' .. ev.data.client_id .. (token and ('.' .. token) or ''),
-      kind = 'progress',
-      source = 'vim.lsp',
-      title = value.title,
-      status = value.kind ~= 'end' and 'running' or 'success',
-      percent = value.percentage,
-    })
-  end,
-})

@@ -110,6 +110,6 @@ map({ "n", "x" }, "<leader>ca", function()
   vscode.action("editor.action.codeAction")
 end, { desc = "Code action" })
 
-map({ "n", "x" }, "=", function()
+map("n", "<leader>cf", function()
   vscode.action("editor.action.formatDocument")
 end, { desc = "Format file" })
