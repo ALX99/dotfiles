@@ -80,10 +80,10 @@ function M.send_file_to_popup()
     return
   end
 
-  local rel = vim.fs.relpath(vim.fn.getcwd(), file) or file
-  if send_to_pane(pane_id, rel) then
+  local absolute_file = vim.fn.fnamemodify(file, ':p')
+  if send_to_pane(pane_id, absolute_file) then
     focus_popup(tool)
-    vim.notify("Sent " .. rel .. " to " .. tool, vim.log.levels.INFO)
+    vim.notify("Sent " .. absolute_file .. " to " .. tool, vim.log.levels.INFO)
   end
 end
 

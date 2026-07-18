@@ -10,11 +10,7 @@ local M = {
 ---
 ---@param opts? vim.keymap.set.Opts
 function M.map(mode, lhs, rhs, opts)
-  local options = { noremap = true }
-  if opts then
-    options = vim.tbl_extend("force", options, opts)
-  end
-  vim.keymap.set(mode, lhs, rhs, options)
+  vim.keymap.set(mode, lhs, rhs, opts)
 end
 
 --- Copy the selected code block to clipboard
@@ -25,8 +21,8 @@ function M.copy_code_block(opts)
   -- strip leading spaces: smallest indent wins, empty lines ignored
   local min = math.huge
   for _, line in ipairs(lines) do
-    if line ~= "" then
-      local n = #line:match("^%s*")
+    if line:find('%S') then
+      local n = #(line:match("^%s*") or "")
       if n < min then min = n end
     end
   end

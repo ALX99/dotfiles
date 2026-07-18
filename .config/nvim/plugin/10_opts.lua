@@ -6,36 +6,31 @@ end
 
 -- General ====================================================================
 vim.o.winborder               = 'rounded'     -- Consistent borders on all floats (0.11+)
-vim.o.shell                   = 'bash'
 vim.o.mousescroll             = 'ver:6,hor:6' -- Customize mouse scroll
 vim.o.undofile                = true          -- Enable persistent undo
 vim.o.clipboard               = 'unnamedplus' -- Copy paste between vim and everything else
-vim.o.fileencoding            = "UTF-8"       -- The encoding written to file
 vim.opt.updatetime            = 250           -- Faster CursorHold triggers (diagnostics, references)
-vim.opt.sessionoptions        = { "curdir", "help", "winsize", "terminal" }
+vim.opt.sessionoptions        = { "curdir", "help", "winsize" }
 vim.opt.spelllang             = 'en,cjk'
 
 -- UI =========================================================================
 vim.o.title                   = true       -- Set terminal title to the filename
 vim.o.showmatch               = true       -- highlight matching [{()}]
-vim.o.breakindent             = true       -- Indent wrapped lines to match line start
-vim.o.breakindentopt          = 'list:-1'  -- Add padding for lists (if 'wrap' is set)
 vim.o.colorcolumn             = '+1'
 vim.o.cursorline              = true       -- Enable current line highlighting
-vim.o.linebreak               = true       -- Wrap lines at 'breakat' (if 'wrap' is set)
 vim.o.list                    = false      -- Show helpful text indicators
 vim.o.number                  = true       -- Show line numbers
 vim.o.pumheight               = 10         -- Make popup menu smaller
 vim.o.pumborder               = 'none'     -- Border around completion popup (0.12+)
 vim.o.ruler                   = false      -- Don't show cursor coordinates
-vim.o.shortmess               = 'CFOSWaco' -- Disable some built-in completion messages
+vim.o.showcmd                 = false      -- Don't briefly echo expanded Colemak mapping RHS keys
+vim.opt.shortmess:append('CFOSW')
 vim.o.showmode                = false      -- Don't show mode in command line
 vim.o.signcolumn              = 'yes'      -- Always show signcolumn (less flicker)
 vim.o.splitbelow              = true       -- Horizontal splits will be below
 vim.o.splitkeep               = 'screen'   -- Reduce scroll during window split
 vim.o.splitright              = true       -- Vertical splits will be to the right
 vim.o.wrap                    = false      -- Don't visually wrap lines (toggle with \w)
-vim.o.smoothscroll            = true       -- Scroll by screen line when wrap is set (0.11+)
 vim.o.numberwidth             = 2
 vim.o.scrolloff               = 2          -- Leave x spaces when scrolling
 vim.o.helpheight              = 25
@@ -70,12 +65,9 @@ vim.o.infercase     = true                  -- Infer case in built-in completion
 vim.o.textwidth     = 80                    -- Soft wrap target
 vim.o.shiftwidth    = 2                     -- Use this number of spaces for indentation
 vim.o.smartcase     = true                  -- Respect case if search pattern has upper case
-vim.o.smartindent   = true                  -- Make indenting smart
 vim.o.spelloptions  = 'camel'               -- Treat camelCase word parts as separate words
 vim.o.tabstop       = 2                     -- Show tab as this number of spaces
 vim.o.virtualedit   = 'block'               -- Allow going past end of line in blockwise mode
-
-vim.o.iskeyword     = '@,48-57,_,192-255,-' -- Treat dash as `word` textobject part
 
 -- Pattern for a start of numbered list (used in `gw`). This reads as
 -- "Start of list item is: at least one special character (digit, -, +, *)

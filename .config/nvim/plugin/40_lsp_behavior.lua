@@ -35,7 +35,6 @@ local function mappings(client, buf)
     map(mode, lhs, rhs, options)
   end
 
-  -- See `:help vim.lsp.*` for documentation on any of the below functions ()
   bmap('n', 'gri', function()
     local pattern = vim.bo.filetype == "go" and "!_test.go" or nil
     Snacks.picker.lsp_implementations({ layout = lsp_picker_layout, focus = "list", pattern = pattern })
@@ -58,12 +57,10 @@ local function mappings(client, buf)
     Snacks.picker.lsp_outgoing_calls({ layout = lsp_picker_layout, focus = "list" })
   end, { desc = "C[a]lls Outgoing" })
 
-  -- map('n', 'gs', vim.lsp.buf.signature_help, { desc = "Signature help" })
-  bmap('i', '<C-k>', vim.lsp.buf.signature_help, { desc = "Signature help" })
-
   if client:supports_method(Methods.textDocument_inlayHint) then
     bmap('n', '<leader>th', function()
-      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({}))
+      local filter = { bufnr = buf }
+      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled(filter), filter)
     end, { desc = 'Toggle inlay hints' })
   end
 
@@ -80,20 +77,19 @@ local function mappings(client, buf)
 
   --- toggle diagnostics
   bmap('n', '<leader>td', function()
-    vim.diagnostic.enable(not vim.diagnostic.is_enabled({}))
+    local filter = { bufnr = buf }
+    vim.diagnostic.enable(not vim.diagnostic.is_enabled(filter), filter)
   end, { desc = 'Toggle diagnostics' })
 end
-
 
 ---@param client vim.lsp.Client
 ---@param buf number
 local function highlight_references(client, buf)
   if not client:supports_method(Methods.textDocument_documentHighlight) then return end
-  vim.b[buf].lsp_highlight_setup = vim.b[buf].lsp_highlight_setup or {}
-  if vim.b[buf].lsp_highlight_setup[client.id] then return end
-  vim.b[buf].lsp_highlight_setup[client.id] = true
+  if vim.b[buf].lsp_highlight_setup then return end
+  vim.b[buf].lsp_highlight_setup = true
 
-  local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf .. '.' .. client.id, { clear = true })
+  local group = vim.api.nvim_create_augroup('lsp-highlight-' .. buf, { clear = true })
   _G.Config.new_autocmd('CursorHold', {
     desc = "Document Highlight",
     buffer = buf,
@@ -108,64 +104,6 @@ local function highlight_references(client, buf)
     callback = vim.lsp.buf.clear_references,
   })
 
-  _G.Config.new_autocmd('LspDetach', {
-    desc = "Remove highlight autocmds",
-    group = group,
-    buffer = buf,
-    callback = function(ev)
-      if not (ev.data and ev.data.client_id == client.id) then return end
-      vim.lsp.buf.clear_references()
-      pcall(vim.api.nvim_del_augroup_by_name, 'lsp-highlight-' .. buf .. '.' .. client.id)
-      if type(vim.b[buf].lsp_highlight_setup) == 'table' then
-        vim.b[buf].lsp_highlight_setup[client.id] = nil
-      end
-      if next(vim.b[buf].lsp_highlight_setup or {}) == nil then
-        vim.b[buf].lsp_highlight_setup = nil
-      end
-      return true
-    end,
-  })
-end
-
----@param client vim.lsp.Client
----@param buf number
-local function show_diagnostics(client, buf)
-  vim.b[buf].lsp_diagnostics_float_setup = vim.b[buf].lsp_diagnostics_float_setup or {}
-  if vim.b[buf].lsp_diagnostics_float_setup[client.id] then return end
-  vim.b[buf].lsp_diagnostics_float_setup[client.id] = true
-
-  local group = vim.api.nvim_create_augroup('lsp-diag-hold-' .. buf .. '.' .. client.id, { clear = true })
-  _G.Config.new_autocmd("CursorHold", {
-    group = group,
-    buffer = buf,
-    callback = function()
-      vim.diagnostic.open_float(nil, {
-        focusable = false,
-        close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
-        border = 'rounded',
-        source = 'if_many',
-        prefix = ' ',
-        scope = 'cursor',
-      })
-    end
-  })
-
-  _G.Config.new_autocmd('LspDetach', {
-    desc = "Remove diagnostics float autocmd",
-    group = group,
-    buffer = buf,
-    callback = function(ev)
-      if not (ev.data and ev.data.client_id == client.id) then return end
-      pcall(vim.api.nvim_del_augroup_by_name, 'lsp-diag-hold-' .. buf .. '.' .. client.id)
-      if type(vim.b[buf].lsp_diagnostics_float_setup) == 'table' then
-        vim.b[buf].lsp_diagnostics_float_setup[client.id] = nil
-      end
-      if next(vim.b[buf].lsp_diagnostics_float_setup or {}) == nil then
-        vim.b[buf].lsp_diagnostics_float_setup = nil
-      end
-      return true
-    end,
-  })
 end
 
 _G.Config.new_autocmd('LspAttach', {
@@ -176,25 +114,8 @@ _G.Config.new_autocmd('LspAttach', {
       vim.notify("LspAttach: client " .. args.data.client_id .. " not found", vim.log.levels.INFO)
       return
     end
-
-
-
-    -- Taken from https://neovim.io/doc/user/lsp.html :h lsp
-    -- Only set the LSP funcs when the option is empty/default; otherwise
-    -- we'd clobber a user-customized tagfunc/formatexpr every time a
-    -- client attaches. server_capabilities is optional on the client type
-    -- (it's nil pre-initialize) so guard that too.
-    local caps = client.server_capabilities or {}
-    if caps.definitionProvider and vim.bo[args.buf].tagfunc == '' then
-      vim.bo[args.buf].tagfunc = "v:lua.vim.lsp.tagfunc"
-    end
-    if caps.documentFormattingProvider and vim.bo[args.buf].formatexpr == '' then
-      vim.bo[args.buf].formatexpr = "v:lua.vim.lsp.formatexpr()"
-    end
-
     mappings(client, args.buf)
     highlight_references(client, args.buf)
-    show_diagnostics(client, args.buf)
   end,
   group = UserLspConfig,
 })

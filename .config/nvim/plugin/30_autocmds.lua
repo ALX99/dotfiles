@@ -12,7 +12,7 @@ end
 
 
 -- Check if we need to reload the file when it changed
-_G.Config.new_autocmd({ "FocusGained", "TermClose", "TermLeave", "CursorHold" }, {
+_G.Config.new_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   command = "checktime",
 })
 
@@ -43,31 +43,9 @@ _G.Config.new_autocmd({ "InsertEnter", "WinLeave" }, {
   command = "set nocursorline",
 })
 
-
--- Format shell scripts on save without re-triggering write
-local function shfmt_on_save(buf)
-  if not vim.fn.executable('shfmt') then return end
-
-  local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, true), "\n")
-  local output = vim.fn.systemlist({ "shfmt", "-i", "2", "-s" }, input)
-  if vim.v.shell_error ~= 0 then
-    vim.notify("shfmt failed: " .. table.concat(output, "\n"), vim.log.levels.ERROR)
-    return
-  end
-
-  if #output > 0 and output[#output] ~= "" then
-    output[#output + 1] = ""
-  end
-
-  local view = vim.fn.winsaveview()
-  vim.api.nvim_buf_set_lines(buf, 0, -1, true, output)
-  vim.fn.winrestview(view)
-end
-
-_G.Config.new_autocmd("BufWritePre", {
-  callback = function(info)
-    if vim.bo[info.buf].filetype == "sh" then shfmt_on_save(info.buf) end
+_G.Config.new_autocmd('FileType', {
+  pattern = { 'css', 'scss', 'html', 'svelte' },
+  callback = function()
+    vim.opt_local.iskeyword:append('-')
   end,
 })
-
--- Go organize-imports on save is handled in 41_lsp_format.lua (combined with auto-format to avoid race conditions)
