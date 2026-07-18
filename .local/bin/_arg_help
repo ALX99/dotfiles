@@ -17,6 +17,7 @@ show_help() {
 
 #shellcheck disable=SC2206
 args=($READLINE_LINE)
+((${#args[@]})) || exit 0
 
 if bash -ic "alias ${args[0]}" &>/dev/null; then
   expanded="$(bash -ic "alias ${args[0]}" | sed "s/^alias [^=]*='//; s/'$//")"

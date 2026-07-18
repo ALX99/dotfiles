@@ -1,10 +1,8 @@
 #!/bin/sh -eu
 
-d=/tmp/$$.tmpsh
-mkdir -p "$d"
+d=$(mktemp -d "${TMPDIR:-/tmp}/gloc.XXXXXX")
 trap 'rm -rf -- "${d:-?}"' EXIT INT TERM HUP
 cd "$d"
 git clone "$1" ./a
 tokei .
 (${SHELL:-/bin/sh})
-
