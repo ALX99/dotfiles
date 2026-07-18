@@ -11,26 +11,41 @@ import {
 } from "../profiles.ts";
 
 const config: ProfilesConfig = {
+	rootPolicy: {
+		maxDirectAgents: 4,
+		maxDeepAgents: 1,
+		maxDelegationGrant: 2,
+	},
 	profiles: {
 		fast: {
 			description: "Fast work",
+			delegationEnabled: true,
+			countsTowardDeepAgentCap: false,
 			models: [
-				{ id: "provider/first/model", maxThinking: "low" },
-				{ id: "provider/second", maxThinking: "high" },
+				{ id: "provider/first/model", defaultThinking: "low", maxThinking: "low" },
+				{ id: "provider/second", defaultThinking: "medium", maxThinking: "high" },
 			],
 		},
 		deep: {
 			description: "Deep work",
-			models: [{ id: "provider/deep", maxThinking: "high" }],
+			delegationEnabled: false,
+			countsTowardDeepAgentCap: true,
+			models: [{ id: "provider/deep", defaultThinking: "high", maxThinking: "xhigh" }],
 		},
 	},
 	agentPolicies: {
-		scout: { defaultProfile: "fast", allowedProfiles: ["fast"] },
-		worker: { defaultProfile: "fast", allowedProfiles: ["fast", "deep"] },
+		scout: { defaultProfile: "fast", allowedProfiles: ["fast"], delegation: { mode: "leaf" } },
+		worker: { defaultProfile: "fast", allowedProfiles: ["fast", "deep"], delegation: { mode: "leaf" } },
 	},
 };
 
-function model(provider: string, id: string, contextWindow = 128_000, reasoning = true, thinkingLevelMap?: Model<Api>["thinkingLevelMap"]): Model<Api> {
+function model(
+	provider: string,
+	id: string,
+	contextWindow = 128_000,
+	reasoning = true,
+	thinkingLevelMap?: Model<Api>["thinkingLevelMap"],
+): Model<Api> {
 	return {
 		id,
 		name: id,
@@ -47,13 +62,16 @@ function model(provider: string, id: string, contextWindow = 128_000, reasoning 
 }
 
 test("parseProfilesJson reports every strict Zod error with a precise path", () => {
-	const result = parseProfilesJson({
-		profiles: {
-			fast: { description: "", models: [{ id: "missing-slash", maxThinking: "nope", extra: true }] },
+	const result = parseProfilesJson(
+		{
+			profiles: {
+				fast: { description: "", models: [{ id: "missing-slash", maxThinking: "nope", extra: true }] },
+			},
+			agentPolicies: {},
+			extra: true,
 		},
-		agentPolicies: {},
-		extra: true,
-	}, "fixture.json");
+		"fixture.json",
+	);
 
 	assert.equal(result.success, false);
 	if (result.success) return;
@@ -64,14 +82,33 @@ test("parseProfilesJson reports every strict Zod error with a precise path", () 
 	assert.ok(result.errors.some((error) => error.includes("profiles.fast.models.0.maxThinking")));
 });
 
+test("profile parsing rejects defaultThinking above maxThinking", () => {
+	const invalid = structuredClone(config);
+	const fast = invalid.profiles.fast;
+	assert.ok(fast);
+	const candidate = fast.models[0];
+	assert.ok(candidate);
+	candidate.defaultThinking = "high";
+	candidate.maxThinking = "low";
+	const result = parseProfilesJson(invalid, "fixture.json");
+	assert.equal(result.success, false);
+	if (result.success) return;
+	assert.ok(
+		result.errors.some((error) => error.includes("models.0.defaultThinking") && error.includes("must not exceed")),
+	);
+});
+
 test("validateProfiles aggregates duplicate and cross-reference errors", () => {
 	const invalid: ProfilesConfig = structuredClone(config);
-	invalid.profiles.fast.models.push({ id: "provider/first/model", maxThinking: "low" });
+	const fast = invalid.profiles.fast;
+	assert.ok(fast);
+	fast.models.push({ id: "provider/first/model", defaultThinking: "low", maxThinking: "low" });
 	invalid.agentPolicies.scout = {
 		defaultProfile: "missing",
 		allowedProfiles: ["deep", "deep"],
+		delegation: { mode: "leaf" },
 	};
-	invalid.agentPolicies.unknown = { defaultProfile: "fast", allowedProfiles: ["fast"] };
+	invalid.agentPolicies.unknown = { defaultProfile: "fast", allowedProfiles: ["fast"], delegation: { mode: "leaf" } };
 
 	const errors = validateProfiles(invalid, ["scout", "worker", "general"], "fixture.json");
 	assert.ok(errors.some((error) => error.includes("models.2.id: duplicate candidate model id")));
@@ -112,32 +149,53 @@ test("resolveRun uses the default profile, authenticated candidate order, and a 
 	assert.ok(Object.isFrozen(run));
 });
 
+test("resolveRun uses defaultThinking when thinking is omitted", () => {
+	const run = resolveRun({
+		config,
+		agent: "scout",
+		modelRegistry: { getAvailable: () => [model("provider", "first/model")] },
+	});
+	assert.equal(run.effectiveThinking, "low");
+});
+
 test("resolveRun permits allowed profile overrides and rejects disallowed overrides or requests above a cap", () => {
-	const registry = { getAvailable: () => [model("provider", "deep"), model("provider", "first/model")] };
+	const registry = {
+		getAvailable: () => [
+			model("provider", "deep", 128_000, true, { high: "high", xhigh: "xhigh", max: null }),
+			model("provider", "first/model"),
+		],
+	};
 	assert.equal(resolveRun({ config, agent: "worker", profile: "deep", modelRegistry: registry }).profile, "deep");
+	assert.equal(
+		resolveRun({ config, agent: "worker", profile: "deep", modelRegistry: registry }).effectiveThinking,
+		"high",
+	);
+	assert.equal(
+		resolveRun({ config, agent: "worker", profile: "deep", requestedThinking: "xhigh", modelRegistry: registry })
+			.effectiveThinking,
+		"xhigh",
+	);
 	assert.throws(() => resolveRun({ config, agent: "scout", profile: "deep", modelRegistry: registry }), /not allowed/);
-	assert.throws(() => resolveRun({ config, agent: "scout", requestedThinking: "high", modelRegistry: registry }), /exceeds/);
+	assert.throws(
+		() => resolveRun({ config, agent: "scout", requestedThinking: "high", modelRegistry: registry }),
+		/exceeds/,
+	);
 });
 
 test("wait uses a fixed fifteen-minute timeout without exposing an override", () => {
 	assert.equal(DEFAULT_WAIT_MS, 900_000);
-	const schema = createWaitAgentSchema() as unknown as {
-		properties: Record<string, unknown>;
-		required?: string[];
-	};
+	const schema = createWaitAgentSchema();
 	assert.deepEqual(Object.keys(schema.properties), ["agent_ids"]);
 	assert.deepEqual(schema.required, ["agent_ids"]);
 });
 
-test("spawn schema requires agent and exposes only profile-based execution overrides", () => {
-	const schema = createSpawnAgentSchema([
-		{ name: "scout", description: "Scout", systemPrompt: "Scout", filePath: "scout.md" },
-		{ name: "worker", description: "Worker", systemPrompt: "Worker", filePath: "worker.md" },
-	], config);
+test("spawn schema requires structural inputs and leaves discovered membership to runtime", () => {
+	const schema = createSpawnAgentSchema(config.rootPolicy.maxDelegationGrant);
 	assert.ok(schema.required?.includes("agent"));
 	assert.ok(schema.required?.includes("message"));
 	assert.ok(Object.hasOwn(schema.properties, "profile"));
 	assert.ok(Object.hasOwn(schema.properties, "thinking"));
+	assert.ok(Object.hasOwn(schema.properties, "delegation_credits"));
 	assert.equal(Object.hasOwn(schema.properties, "agent_type"), false);
 	assert.equal(Object.hasOwn(schema.properties, "reasoning_effort"), false);
 	assert.equal(Object.hasOwn(schema.properties, "model"), false);
@@ -149,15 +207,24 @@ test("resolveRun requires an authenticated exact match and never clamps upward",
 		/No authenticated model is available/,
 	);
 	assert.throws(
-		() => resolveRun({
-			config,
-			agent: "scout",
-			modelRegistry: {
-				getAvailable: () => [model("provider", "first/model", 100, true, {
-					off: null, minimal: null, low: null, medium: null, high: null, xhigh: null, max: null,
-				})],
-			},
-		}),
+		() =>
+			resolveRun({
+				config,
+				agent: "scout",
+				modelRegistry: {
+					getAvailable: () => [
+						model("provider", "first/model", 100, true, {
+							off: null,
+							minimal: null,
+							low: null,
+							medium: null,
+							high: null,
+							xhigh: null,
+							max: null,
+						}),
+					],
+				},
+			}),
 		/supports no thinking level at or below/,
 	);
 });

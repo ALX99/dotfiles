@@ -6,41 +6,75 @@
  * cannot leave an orphaned caffeinate process behind.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { toError } from "./_shared/errors.ts";
 
-export default function (pi: ExtensionAPI) {
-  let proc: ReturnType<typeof spawn> | null = null;
+type CaffeinateProcess = {
+	kill(): boolean | undefined;
+	once(event: "error" | "exit", listener: (error?: Error) => void): unknown;
+};
 
-  function killCaffeinate() {
-    const child = proc;
-    proc = null;
-    child?.kill();
-  }
+type SpawnCaffeinate = (
+	command: string,
+	args: readonly string[],
+	options: { readonly stdio: "ignore" },
+) => CaffeinateProcess;
 
-  function startCaffeinate() {
-    if (proc) return;
+export function createCaffeinate(
+	platform: NodeJS.Platform,
+	pid: number,
+	spawnProcess: SpawnCaffeinate,
+	onError: (error: Error) => void,
+): { start(): void; stop(): void } {
+	let child: CaffeinateProcess | undefined;
 
-    const child = spawn(
-      "/usr/bin/caffeinate",
-      ["-i", "-w", String(process.pid)],
-      { stdio: "ignore" },
-    );
-    proc = child;
+	function start(): void {
+		if (platform !== "darwin" || child) return;
 
-    const clearProcess = () => {
-      if (proc === child) proc = null;
-    };
-    child.once("error", clearProcess);
-    child.once("exit", clearProcess);
-  }
+		let spawned: CaffeinateProcess;
+		try {
+			spawned = spawnProcess("/usr/bin/caffeinate", ["-i", "-w", String(pid)], { stdio: "ignore" });
+		} catch (error) {
+			onError(toError(error));
+			return;
+		}
+		child = spawned;
+		const clearProcess = () => {
+			if (child === spawned) child = undefined;
+		};
+		spawned.once("error", (error) => {
+			clearProcess();
+			onError(error ?? new Error("caffeinate emitted an error without details"));
+		});
+		spawned.once("exit", clearProcess);
+	}
 
-  // Start caffeinate when the agent begins processing a user prompt.
-  pi.on("agent_start", startCaffeinate);
+	function stop(): void {
+		const activeChild = child;
+		child = undefined;
+		if (!activeChild) return;
+		try {
+			activeChild.kill();
+		} catch (error) {
+			onError(toError(error));
+		}
+	}
 
-  // Stop caffeinate when the agent finishes.
-  pi.on("agent_end", killCaffeinate);
+	return { start, stop };
+}
 
-  // Safety net: clean up on session shutdown (quit, reload, switch, fork).
-  pi.on("session_shutdown", killCaffeinate);
+export default function caffeinate(pi: ExtensionAPI): void {
+	const controller = createCaffeinate(process.platform, process.pid, spawn, (error) =>
+		process.emitWarning(error, { type: "CaffeinateError" }),
+	);
+
+	// Start caffeinate when the agent begins processing a user prompt.
+	pi.on("agent_start", () => controller.start());
+
+	// Stop caffeinate when the agent finishes.
+	pi.on("agent_end", () => controller.stop());
+
+	// Safety net: clean up on session shutdown (quit, reload, switch, fork).
+	pi.on("session_shutdown", () => controller.stop());
 }
