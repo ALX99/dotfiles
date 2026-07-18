@@ -2,13 +2,15 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
-import type { ResolvedRun } from "./profiles.ts";
+import type { ProfilesConfig, ResolvedRun } from "./profiles.ts";
 import {
-	DEPTH_ENV,
+	CHILD_CONTEXT_ENV,
 	getPiInvocation,
 	ingestLine,
 	initDetails,
+	serializeChildExecutionContext,
 	writeTempPrompt,
+	type ChildExecutionContext,
 	type RunDetails,
 } from "./process.ts";
 import { RpcTransport, type RpcEvent, type SpawnRpcProcess } from "./rpc.ts";
@@ -16,6 +18,15 @@ import { RpcTransport, type RpcEvent, type SpawnRpcProcess } from "./rpc.ts";
 export type AgentStatus = "starting" | "running" | "idle" | "failed" | "aborted" | "closed";
 
 let nextAgentId = 1;
+const SUBAGENT_TOOL_NAMES = [
+	"spawn_agent",
+	"send_agent",
+	"followup_agent",
+	"wait_agent",
+	"list_agents",
+	"interrupt_agent",
+	"close_agent",
+] as const;
 
 export interface AgentSummary {
 	agent_id: string;
@@ -46,7 +57,8 @@ export interface ManagedAgentOptions {
 	cwd?: string;
 	agent: AgentConfig;
 	resolvedRun: ResolvedRun;
-	parentDepth: number;
+	childContext: ChildExecutionContext;
+	subagentToolsEnabled: boolean;
 	spawnProcess?: SpawnRpcProcess;
 	onUpdate?: (details: RunDetails) => void;
 	onBackgroundComplete?: (summary: AgentSummary) => void;
@@ -72,7 +84,7 @@ export class ManagedAgent {
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
 		this.id = options.id ?? `agent-${nextAgentId++}`;
-		this.depth = options.parentDepth + 1;
+		this.depth = options.childContext.depth;
 		this.onUpdate = options.onUpdate;
 		this.details = this.freshDetails("starting");
 	}
@@ -81,7 +93,10 @@ export class ManagedAgent {
 		if (this.transport) throw new Error("Subagent already started.");
 		let promptPath: string | undefined;
 		if (this.options.agent.systemPrompt) {
-			const written = await writeTempPrompt(this.options.agent.name, this.options.agent.systemPrompt);
+			const written = await writeTempPrompt(
+				this.options.agent.name,
+				buildAgentSystemPrompt(this.options.agent.systemPrompt, this.options.childContext),
+			);
 			this.promptDir = written.dir;
 			promptPath = written.path;
 		}
@@ -94,14 +109,21 @@ export class ManagedAgent {
 			"--session-dir", sessionDir,
 		];
 		if (this.options.agent.tools?.length) args.push("--tools", this.options.agent.tools.join(","));
-		else args.push("--exclude-tools", "ask_question");
+		else {
+			const excluded = ["ask_question"];
+			if (!this.options.subagentToolsEnabled) excluded.push(...SUBAGENT_TOOL_NAMES);
+			args.push("--exclude-tools", excluded.join(","));
+		}
 		if (promptPath) args.push("--append-system-prompt", promptPath);
 		const invocation = getPiInvocation(args);
 		this.transport = new RpcTransport({
 			command: invocation.command,
 			args: invocation.args,
 			cwd: this.options.cwd ?? this.options.defaultCwd,
-			env: { ...process.env, [DEPTH_ENV]: String(this.depth) } as Record<string, string>,
+			env: {
+				...process.env,
+				[CHILD_CONTEXT_ENV]: serializeChildExecutionContext(this.options.childContext),
+			} as Record<string, string>,
 			spawnProcess: this.options.spawnProcess,
 			onEvent: (event) => this.onEvent(event),
 			onExit: (error) => this.onExit(error),
@@ -173,7 +195,7 @@ export class ManagedAgent {
 
 	async wait(timeoutMs?: number, signal?: AbortSignal): Promise<RunDetails> {
 		if (!this.deferred || this.deferred.settled) return this.details;
-		return this.waitForGeneration(this.deferred.generation, signal, timeoutMs, false);
+		return this.waitForGeneration(this.deferred.generation, signal, timeoutMs);
 	}
 
 	async interrupt(): Promise<void> {
@@ -291,7 +313,7 @@ export class ManagedAgent {
 			model: this.options.resolvedRun.model,
 			effectiveThinking: this.options.resolvedRun.effectiveThinking,
 			sessionFile: this.details?.sessionFile,
-			parentDepth: this.options.parentDepth,
+			parentDepth: this.options.childContext.depth - 1,
 		});
 		details.agentId = this.id;
 		details.generation = this.generation;
@@ -348,7 +370,7 @@ export class ManagedAgent {
 		this.deferred.reject(error);
 	}
 
-	private async waitForGeneration(generation: number, signal?: AbortSignal, timeoutMs?: number, abortRunOnSignal = true): Promise<RunDetails> {
+	private async waitForGeneration(generation: number, signal?: AbortSignal, timeoutMs?: number): Promise<RunDetails> {
 		const deferred = this.deferred;
 		if (!deferred || deferred.generation !== generation) return this.details;
 		let timeout: NodeJS.Timeout | undefined;
@@ -357,7 +379,6 @@ export class ManagedAgent {
 			if (timeoutMs !== undefined) timeout = setTimeout(() => reject(new Error(`Timed out waiting for agent ${this.id}.`)), timeoutMs);
 			if (signal) {
 				abortHandler = () => {
-					if (abortRunOnSignal) void this.interrupt().catch(() => {});
 					reject(new Error(`Waiting for agent ${this.id} was aborted.`));
 				};
 				if (signal.aborted) abortHandler();
@@ -386,6 +407,132 @@ export class ManagedAgent {
 export interface AgentView {
 	summary: AgentSummary;
 	details: RunDetails;
+}
+
+export interface SpawnAdmissionRequest {
+	agent: string;
+	profile: string;
+	delegationCredits?: number;
+}
+
+/**
+ * Stateful launch-time admission for one process. Its counters deliberately
+ * survive follow-up generations and never inspect usage or elapsed time.
+ */
+export class SpawnAdmissionController {
+	private remainingCredits: number;
+	private createdChildren = 0;
+	private readonly config: ProfilesConfig;
+	private readonly registry: AgentRegistry;
+	private readonly treeId: string;
+	private readonly executionContext?: ChildExecutionContext;
+
+	constructor(
+		config: ProfilesConfig,
+		registry: AgentRegistry,
+		treeId: string,
+		executionContext?: ChildExecutionContext,
+	) {
+		this.config = config;
+		this.registry = registry;
+		this.treeId = treeId;
+		this.executionContext = executionContext;
+		this.remainingCredits = executionContext?.delegationCredits ?? 0;
+	}
+
+	canExposeSubagentTools(): boolean {
+		return this.executionContext === undefined || executionCanDelegate(this.config, this.executionContext);
+	}
+
+	remainingDelegationCredits(): number {
+		return this.remainingCredits;
+	}
+
+	admit(request: SpawnAdmissionRequest): ChildExecutionContext {
+		const policy = this.config.agentPolicies[request.agent];
+		const profile = this.config.profiles[request.profile];
+		if (!policy) throw new Error(`No agent policy is configured for '${request.agent}'.`);
+		if (!profile) throw new Error(`No profile policy is configured for '${request.profile}'.`);
+
+		if (!this.executionContext) {
+			const grant = request.delegationCredits ?? 0;
+			assertGrant(grant, this.config.rootPolicy.maxDelegationGrant);
+			if (grant > 0 && policy.delegation.mode !== "grant-required") {
+				throw new Error(`Agent '${request.agent}' is a leaf and cannot receive delegation credits. Omit delegation_credits.`);
+			}
+			if (grant > 0 && !profile.delegationEnabled) {
+				throw new Error(`Profile '${request.profile}' disables delegation and cannot receive delegation credits. Omit delegation_credits or choose a delegation-enabled profile.`);
+			}
+
+			const nonClosed = this.registry.list().filter((agent) => agent.status !== "closed");
+			if (nonClosed.length >= this.config.rootPolicy.maxDirectAgents) {
+				throw new Error(
+					`Direct-agent cap (${this.config.rootPolicy.maxDirectAgents}) reached. Use followup_agent with an existing agent, close an agent that is no longer needed, or perform the remaining work in the current session.`,
+				);
+			}
+			if (profile.countsTowardDeepAgentCap) {
+				const existingDeep = nonClosed.filter((agent) => this.config.profiles[agent.profile]?.countsTowardDeepAgentCap);
+				if (existingDeep.length >= this.config.rootPolicy.maxDeepAgents) {
+					throw new Error(`Deep-agent cap (${this.config.rootPolicy.maxDeepAgents}) reached. Use followup_agent with the existing deep agent (${existingDeep.map((agent) => agent.agent_id).join(", ")}) instead of creating another one.`);
+				}
+			}
+			return Object.freeze({
+				treeId: this.treeId,
+				depth: 1,
+				agent: request.agent,
+				profile: request.profile,
+				delegationCredits: grant,
+			});
+		}
+
+		if (request.delegationCredits !== undefined) {
+			throw new Error("Nested agents cannot transfer or re-grant delegation credits; remove delegation_credits.");
+		}
+		const parent = this.executionContext;
+		if (!executionCanDelegate(this.config, parent)) {
+			throw new Error("This execution is a leaf and cannot spawn subagents. Perform the work in the current process.");
+		}
+		const parentPolicy = this.config.agentPolicies[parent.agent]!.delegation;
+		if (parentPolicy.mode !== "grant-required") {
+			throw new Error("This execution's agent policy does not permit nested delegation.");
+		}
+		if (!parentPolicy.allowedChildAgents.includes(request.agent)) {
+			throw new Error(`Nested delegation may spawn only: ${parentPolicy.allowedChildAgents.join(", ")}.`);
+		}
+		if (!parentPolicy.allowedChildProfiles.includes(request.profile)) {
+			throw new Error(`Nested delegation may use only profiles: ${parentPolicy.allowedChildProfiles.join(", ")}.`);
+		}
+		if (this.createdChildren >= parentPolicy.maxDirectChildren) {
+			throw new Error(`Nested direct-agent cap (${parentPolicy.maxDirectChildren}) reached. Reuse an existing scout with followup_agent or perform the remaining reconnaissance here.`);
+		}
+		if (this.remainingCredits <= 0) {
+			throw new Error("No delegation credits remain. Reuse an existing scout with followup_agent or perform the remaining reconnaissance here.");
+		}
+
+		// Accepted nested launches spend their grant before ManagedAgent starts.
+		this.remainingCredits -= 1;
+		this.createdChildren += 1;
+		return Object.freeze({
+			treeId: parent.treeId,
+			depth: parent.depth + 1,
+			agent: request.agent,
+			profile: request.profile,
+			delegationCredits: 0,
+		});
+	}
+}
+
+export function executionCanDelegate(config: ProfilesConfig, context: ChildExecutionContext): boolean {
+	if (context.depth >= 2 || context.delegationCredits <= 0) return false;
+	const agentPolicy = config.agentPolicies[context.agent];
+	const profile = config.profiles[context.profile];
+	return agentPolicy?.delegation.mode === "grant-required" && profile?.delegationEnabled === true;
+}
+
+export function buildAgentSystemPrompt(basePrompt: string, context: ChildExecutionContext): string {
+	const credits = context.delegationCredits;
+	if (credits <= 0) return basePrompt;
+	return `${basePrompt}\n\nThis execution was explicitly granted ${credits} delegation credit${credits === 1 ? "" : "s"}. Each accepted nested spawn permanently spends one credit; credits do not replenish when a child settles or closes.`;
 }
 
 export class AgentRegistry {
@@ -446,4 +593,10 @@ export class AgentRegistry {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+function assertGrant(grant: number, maximum: number): void {
+	if (!Number.isInteger(grant) || grant < 0 || grant > maximum) {
+		throw new Error(`delegation_credits must be an integer from 0 to ${maximum}.`);
+	}
 }

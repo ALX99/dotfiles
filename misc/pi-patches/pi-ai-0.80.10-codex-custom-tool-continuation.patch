@@ -1,0 +1,59 @@
+--- a/dist/api/openai-codex-responses.js
++++ b/dist/api/openai-codex-responses.js
+@@ -31,6 +31,10 @@
+ // endpoint (the same endpoint the official Codex client compresses against).
+ const REQUEST_COMPRESSION_ZSTD_LEVEL = 3;
+ const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
++const CODEX_CUSTOM_TOOL_NAMES = new Set(["apply_patch"]);
++function getCodexCustomToolNames(model) {
++    return model.provider === "openai-codex" ? CODEX_CUSTOM_TOOL_NAMES : undefined;
++}
+ const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
+ const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
+ const CODEX_RESPONSE_STATUSES = new Set([
+@@ -339,9 +343,11 @@
+ // ============================================================================
+ function buildRequestBody(model, context, options) {
+     const toolPlacement = splitDeferredTools(context, model.compat?.supportsToolSearch ?? false);
++    const customToolNames = getCodexCustomToolNames(model);
+     const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
+         includeSystemPrompt: false,
+         deferredTools: toolPlacement.deferred,
++        customToolNames,
+     });
+     const body = {
+         model: model.id,
+@@ -353,7 +359,7 @@
+         include: ["reasoning.encrypted_content"],
+         prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
+         tool_choice: options?.toolChoice ?? "auto",
+-        parallel_tool_calls: true,
++        parallel_tool_calls: false,
+     };
+     if (options?.temperature !== undefined) {
+         body.temperature = options.temperature;
+@@ -362,7 +368,10 @@
+         body.service_tier = options.serviceTier;
+     }
+     if (toolPlacement.immediate.length > 0) {
+-        body.tools = convertResponsesTools(toolPlacement.immediate, { strict: null });
++        body.tools = convertResponsesTools(toolPlacement.immediate, {
++            strict: null,
++            customToolNames,
++        });
+     }
+     if (options?.reasoningEffort !== undefined) {
+         const effort = options.reasoningEffort === "none"
+@@ -1114,9 +1123,11 @@
+             keepConnection = false;
+         }
+         else if (useCachedContext && entry && output.responseId) {
++            const customToolNames = getCodexCustomToolNames(model);
+             const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
+                 includeSystemPrompt: false,
+-            }).filter((item) => item.type !== "function_call_output");
++                customToolNames,
++            }).filter((item) => item.type !== "function_call_output" && item.type !== "custom_tool_call_output");
+             entry.continuation = {
+                 lastRequestBody: fullBody,
+                 lastResponseId: output.responseId,

@@ -8,12 +8,45 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "
 import type { AgentConfig } from "./agents.ts";
 import { z } from "zod";
 
-export const DEPTH_ENV = "PI_SUBAGENT_DEPTH";
+export const CHILD_CONTEXT_ENV = "PI_SUBAGENT_CONTEXT";
+export const MAX_DELEGATION_DEPTH = 2;
 const OUTPUT_NOTICE_RESERVE_BYTES = 2_048;
 const OUTPUT_NOTICE_RESERVE_LINES = 2;
 const MAX_RECENT_TOOLS = 50;
 const MAX_NESTED_RUNS = 8;
 const MAX_NESTED_TOOLS = 8;
+
+const ChildExecutionContextSchema = z.strictObject({
+  treeId: z.string().trim().min(1),
+  depth: z.number().int().min(1).max(MAX_DELEGATION_DEPTH),
+  agent: z.string().trim().min(1),
+  profile: z.string().trim().min(1),
+  delegationCredits: z.number().int().min(0),
+});
+
+export type ChildExecutionContext = Readonly<z.infer<typeof ChildExecutionContextSchema>>;
+
+/** The sole parser for the child-process trust boundary. Absence identifies root. */
+export function parseChildExecutionContext(value = process.env[CHILD_CONTEXT_ENV]): ChildExecutionContext | undefined {
+  if (value === undefined) return undefined;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(value);
+  } catch (cause) {
+    throw new Error(`Invalid ${CHILD_CONTEXT_ENV}: ${cause instanceof Error ? cause.message : String(cause)}.`);
+  }
+  const parsed = ChildExecutionContextSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`).join("; ");
+    throw new Error(`Invalid ${CHILD_CONTEXT_ENV}: ${issues}.`);
+  }
+  return Object.freeze(parsed.data);
+}
+
+export function serializeChildExecutionContext(context: ChildExecutionContext): string {
+  const parsed = ChildExecutionContextSchema.parse(context);
+  return JSON.stringify(parsed);
+}
 
 // ── trust boundary: the child's JSON event stream ───────────────────
 const UsageSchema = z.object({

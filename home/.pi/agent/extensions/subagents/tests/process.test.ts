@@ -178,6 +178,29 @@ test("recentTools is capped to a rolling window of the most recent calls", () =>
 	assert.equal(d.recentTools.at(-1)?.argsPreview, "cmd 59");
 });
 
+test("elapsed time, usage, tool count, and reported cost remain observational", () => {
+	const d = fresh();
+	d.startTime = Date.now() - 365 * 24 * 60 * 60 * 1_000;
+	for (let index = 0; index < 100; index++) {
+		ingestLine(msgEnd(assistantWithUsage(
+			[{ type: "toolCall", name: "read", arguments: { path: `file-${index}` } }],
+			{
+				input: 1_000_000,
+				output: 1_000_000,
+				cacheRead: 1_000_000,
+				cacheWrite: 1_000_000,
+				totalTokens: 4_000_000,
+				cost: { total: 1_000_000 },
+			},
+		)), d);
+	}
+	assert.equal(d.aborted, false);
+	assert.equal(d.endTime, undefined);
+	assert.equal(d.exitCode, 0);
+	assert.equal(d.toolCount, 100);
+	assert.equal(d.usage.turns, 100);
+});
+
 test("argsPreview picks known keys", () => {
 	assert.equal(argsPreview({ path: "/x" }), "/x");
 	assert.equal(argsPreview({ command: "ls -la" }), "ls -la");
