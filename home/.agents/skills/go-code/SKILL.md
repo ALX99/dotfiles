@@ -285,6 +285,7 @@ Only use when the module targets Go 1.27+; the release notes remain draft until 
 func (r Result[T]) Map[U any](f func(T) U) Result[U] { ... } // generic method
 
 cfg := Config{MinVersion: tls.VersionTLS13} // promoted embedded field
+func handle[T any](T) {}
 handlers := []func(int){handle}             // infers handle[int]
 
 json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true))
