@@ -104,6 +104,30 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 	await client.close();
 });
 
+test("ManagedAgent assigns readable sequential IDs", () => {
+	const config: AgentConfig = {
+		name: "general",
+		description: "test",
+		systemPrompt: "",
+		filePath: "general.md",
+	};
+	const first = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		parentDepth: 0,
+	});
+	const second = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		parentDepth: 0,
+	});
+
+	assert.match(first.id, /^agent-\d+$/);
+	assert.equal(second.id, `agent-${Number(first.id.slice("agent-".length)) + 1}`);
+});
+
 test("ManagedAgent retains its ID and increments generation across follow-ups", async (t) => {
 	const config: AgentConfig = {
 		name: "general",
