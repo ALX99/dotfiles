@@ -10,12 +10,12 @@
       "version": "1.0.0 - 2.0.0"
     },
     "fff.nvim": {
-      "rev": "28321da22836b0e11da81e30f40f7a043b8f8fb4",
+      "rev": "073698c8e7dad9f6106d23ef588f5ebc7f98b326",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
       "version": ">=0.0.0"
     },
     "flash.nvim": {
-      "rev": "fcea7ff883235d9024dc41e638f164a450c14ca2",
+      "rev": "b6346946d10d07998efee029fb0f7a593806d0cd",
       "src": "https://github.com/folke/flash.nvim"
     },
     "kanagawa.nvim": {
@@ -54,10 +54,6 @@
       "rev": "e6fd58c82f2f3fcddd3fe81703d47d6d48fc7b9f",
       "src": "https://github.com/folke/snacks.nvim",
       "version": ">=0.0.0"
-    },
-    "tokyonight.nvim": {
-      "rev": "cdc07ac78467a233fd62c493de29a17e0cf2b2b6",
-      "src": "https://github.com/folke/tokyonight.nvim"
     }
   }
 }

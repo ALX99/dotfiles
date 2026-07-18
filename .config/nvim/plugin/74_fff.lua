@@ -1,23 +1,6 @@
 -- fff.nvim: fast file search and grep (replaces snacks picker for files/grep)
 if vim.g.vscode then return end
 
-vim.pack.add({
-  {
-    src = 'https://github.com/dmtrKovalenko/fff.nvim',
-    version = vim.version.range('*'),
-  },
-})
-
-vim.api.nvim_create_autocmd('PackChanged', {
-  callback = function(ev)
-    local name, kind = ev.data.spec.name, ev.data.kind
-    if name == 'fff.nvim' and (kind == 'install' or kind == 'update') then
-      if not ev.data.active then vim.cmd.packadd('fff.nvim') end
-      require('fff.download').download_or_build_binary()
-    end
-  end,
-})
-
 require('fff').setup({
   prompt = '❯ ',
   keymaps = {

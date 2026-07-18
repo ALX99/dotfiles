@@ -1,18 +1,4 @@
--- nvim-treesitter + treesitter-context
-vim.pack.add({
-  'https://github.com/nvim-treesitter/nvim-treesitter',
-  'https://github.com/nvim-treesitter/nvim-treesitter-context',
-})
-
-_G.Config.new_autocmd('PackChanged', {
-  callback = function(ev)
-    local name, kind = ev.data.spec.name, ev.data.kind
-    if name == 'nvim-treesitter' and kind == 'update' then
-      if not ev.data.active then vim.cmd.packadd('nvim-treesitter') end
-      vim.cmd('TSUpdate')
-    end
-  end
-})
+if vim.g.vscode then return end
 
 vim.schedule(function()
   require('nvim-treesitter').install({
@@ -39,8 +25,6 @@ vim.schedule(function()
     "svelte",
   })
 end)
-
-if vim.g.vscode then return end
 
 local group = vim.api.nvim_create_augroup('treesitter_filetypes', { clear = true })
 

@@ -14,22 +14,12 @@ return {
       },
       fileWatcher = "poll",
       gofumpt = true,
-      usePlaceholders = false,
-      semanticTokens = true,
-      directoryFilters = { "-.git", "-.vscode", "-.idea", "-.vscode-test", "-node_modules" },
-      codelenses = {
-        gc_details = true,
-        generate = true,
-        regenerate_cgo = true,
-        run_govulncheck = true,
-        test = true,
-        tidy = true,
-        upgrade_dependency = true,
-        vendor = true,
-      },
-      -- https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md
-      analyses = {
-        staticcheck = true,
+      staticcheck = true,
+      directoryFilters = {
+        "-**/.git",
+        "-**/.idea",
+        "-**/.vscode",
+        "-**/.vscode-test",
       },
     },
   },
