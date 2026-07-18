@@ -5,17 +5,14 @@ import { test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import {
 	AgentRegistry,
+	DEFAULT_MAX_CLOSED_AGENT_HISTORY,
 	ManagedAgent,
 	SpawnAdmissionController,
 	buildAgentSystemPrompt,
 	executionCanDelegate,
 } from "../host.ts";
 import { createSpawnAgentSchema } from "../index.ts";
-import {
-	CHILD_CONTEXT_ENV,
-	parseChildExecutionContext,
-	type ChildExecutionContext,
-} from "../process.ts";
+import { CHILD_CONTEXT_ENV, parseChildExecutionContext, type ChildExecutionContext } from "../process.ts";
 import { parseAndValidateProfiles, type ProfilesConfig } from "../profiles.ts";
 
 const agentNames = ["scout", "worker", "general"];
@@ -33,12 +30,7 @@ const agents: AgentConfig[] = agentNames.map((name) => ({
 	filePath: `${name}.md`,
 }));
 
-function context(
-	agent = "general",
-	profile = "balanced",
-	delegationCredits = 0,
-	depth = 1,
-): ChildExecutionContext {
+function context(agent = "general", profile = "balanced", delegationCredits = 0, depth = 1): ChildExecutionContext {
 	return { treeId: "tree-1", depth, agent, profile, delegationCredits };
 }
 
@@ -100,10 +92,7 @@ test("scout, worker, deep-profile, zero-credit general, and depth-2 executions a
 	]) {
 		assert.equal(executionCanDelegate(config, leaf), false);
 		assert.equal(controller(leaf).canExposeSubagentTools(), false);
-		assert.throws(
-			() => controller(leaf).admit({ agent: "scout", profile: "fast" }),
-			/leaf|cannot spawn/,
-		);
+		assert.throws(() => controller(leaf).admit({ agent: "scout", profile: "fast" }), /leaf|cannot spawn/);
 	}
 });
 
@@ -126,12 +115,11 @@ test("root grants one or two credits only to delegation-enabled general executio
 	}
 });
 
-test("nested schema and runtime allow only scout/fast and never another grant", () => {
+test("nested runtime allows only scout/fast and never another grant", () => {
 	const parent = context("general", "balanced", 2);
-	const schemaText = JSON.stringify(createSpawnAgentSchema(agents, config, parent));
-	assert.match(schemaText, /scout/);
-	assert.match(schemaText, /fast/);
-	assert.doesNotMatch(schemaText, /worker|deep-thinker|delegation_credits/);
+	const schemaText = JSON.stringify(createSpawnAgentSchema(config.rootPolicy.maxDelegationGrant));
+	assert.match(schemaText, /Discovered subagent name/);
+	assert.match(schemaText, /delegation_credits/);
 
 	const admission = controller(parent);
 	assert.throws(() => admission.admit({ agent: "worker", profile: "fast" }), /only: scout/);
@@ -153,10 +141,7 @@ test("two credits permit exactly two nested scouts and never replenish", async (
 
 	admission.admit({ agent: "scout", profile: "fast" });
 	assert.equal(admission.remainingDelegationCredits(), 0);
-	assert.throws(
-		() => admission.admit({ agent: "scout", profile: "fast" }),
-		/cap|No delegation credits/,
-	);
+	assert.throws(() => admission.admit({ agent: "scout", profile: "fast" }), /cap|No delegation credits/);
 	// Follow-up generations do not call admission and therefore cannot reset it.
 	assert.equal(admission.remainingDelegationCredits(), 0);
 });
@@ -178,7 +163,22 @@ test("root admits four non-closed direct children, rejects the fifth, and closin
 	);
 	assert.deepEqual(registry.list(), before, "rejected admission must not mutate existing agents");
 
-	await existing[0]!.close();
+	const firstAgent = existing[0];
+	assert.ok(firstAgent);
+	await firstAgent.close();
+	assert.equal(admission.admit({ agent: "scout", profile: "fast" }).depth, 1);
+	await registry.closeAll();
+});
+
+test("bounded closed history never consumes root admission slots", async () => {
+	const registry = new AgentRegistry();
+	const admission = controller(undefined, registry);
+	for (let index = 0; index <= DEFAULT_MAX_CLOSED_AGENT_HISTORY; index++) {
+		const child = managed(admission.admit({ agent: "scout", profile: "fast" }));
+		await registry.add(child);
+		await registry.close(child.id);
+	}
+	assert.equal(registry.list().length, DEFAULT_MAX_CLOSED_AGENT_HISTORY);
 	assert.equal(admission.admit({ agent: "scout", profile: "fast" }).depth, 1);
 	await registry.closeAll();
 });

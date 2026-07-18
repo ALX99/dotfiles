@@ -4,7 +4,7 @@ import {
 	link,
 	lstat,
 	mkdir,
-	readFile,
+	open,
 	realpath,
 	rename,
 	rmdir,
@@ -15,162 +15,103 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { Stats } from "node:fs";
+import { toError } from "../_shared/errors.ts";
+import {
+	PatchEngineError,
+	nodeErrorCode,
+	type AppliedChange,
+	type PatchRollbackFailure,
+	type PatchWriteFailureState,
+} from "./errors.ts";
 import { parsePatch } from "./parser.ts";
 import type { ParsedPatch, PatchChunk, PatchOperation } from "./patch-types.ts";
+import { inspectPatchPath, isWithinRoot, sameDirectoryEntry, type InspectedPath } from "./path-policy.ts";
 
-export type PatchEngineErrorCode =
-	| "cancelled"
-	| "invalid_plan"
-	| "invalid_workspace"
-	| "unsafe_path"
-	| "symlink_path"
-	| "outside_workspace"
-	| "path_conflict"
-	| "missing_file"
-	| "not_a_file"
-	| "invalid_utf8"
-	| "patch_mismatch"
-	| "stale_source"
-	| "target_exists"
-	| "write_failed";
+export { PatchEngineError } from "./errors.ts";
+export type { AppliedChange, PatchEngineErrorCode, PatchRollbackFailure, PatchWriteFailureState } from "./errors.ts";
 
-export class PatchEngineError extends Error {
-	readonly code: PatchEngineErrorCode;
-	readonly operationIndex?: number;
-	readonly patchPath?: string;
-	readonly cause?: unknown;
-	readonly writeState?: PatchWriteFailureState;
+/** Maximum file size read by the patch engine, including sources and journals (10 MiB). */
+export const MAX_PATCH_SOURCE_BYTES = 10 * 1024 * 1024;
 
-	constructor(
-		code: PatchEngineErrorCode,
-		message: string,
-		details: {
-			operationIndex?: number;
-			patchPath?: string;
-			cause?: unknown;
-			writeState?: PatchWriteFailureState;
-		} = {},
-	) {
-		super(message);
-		this.name = "PatchEngineError";
-		this.code = code;
-		this.operationIndex = details.operationIndex;
-		this.patchPath = details.patchPath;
-		this.cause = details.cause;
-		this.writeState = details.writeState;
-	}
-}
-
-export interface SourceSnapshot {
-	path: string;
-	absolutePath: string;
-	state: "missing" | "file";
-	hash?: string;
-	mode?: number;
-}
+export type SourceSnapshot =
+	| { readonly path: string; readonly absolutePath: string; readonly state: "missing" }
+	| {
+			readonly path: string;
+			readonly absolutePath: string;
+			readonly state: "file";
+			readonly hash: string;
+			readonly mode: number;
+	  };
 
 interface PlannedChangeBase {
-	operationIndex: number;
-	kind: PatchOperation["kind"];
-	path: string;
-	absolutePath: string;
-	beforeContent: string | null;
-	afterContent: string | null;
-	beforeHash?: string;
-	afterHash?: string;
+	readonly operationIndex: number;
+	readonly kind: PatchOperation["kind"];
+	readonly path: string;
+	readonly absolutePath: string;
+	readonly beforeContent: string | null;
+	readonly afterContent: string | null;
+	readonly beforeHash?: string;
+	readonly afterHash?: string;
 }
 
 export interface PlannedAddChange extends PlannedChangeBase {
-	kind: "add";
+	readonly kind: "add";
 }
 
 export interface PlannedDeleteChange extends PlannedChangeBase {
-	kind: "delete";
-	beforeContent: string;
-	afterContent: null;
+	readonly kind: "delete";
+	readonly beforeContent: string;
+	readonly afterContent: null;
 }
 
 export interface PlannedUpdateChange extends PlannedChangeBase {
-	kind: "update";
-	beforeContent: string;
-	afterContent: string;
-	moveTo?: string;
-	moveAbsolutePath?: string;
-	overwrittenContent?: string;
-	overwrittenHash?: string;
+	readonly kind: "update";
+	readonly beforeContent: string;
+	readonly afterContent: string;
+	readonly moveTo?: string;
+	readonly moveAbsolutePath?: string;
+	readonly overwrittenContent?: string;
+	readonly overwrittenHash?: string;
 }
 
 export type PlannedChange = PlannedAddChange | PlannedDeleteChange | PlannedUpdateChange;
 
 export interface PatchPlan {
-	workspaceRoot: string;
-	patch: ParsedPatch;
-	changes: PlannedChange[];
-	snapshots: SourceSnapshot[];
-	summary: {
-		added: string[];
-		updated: string[];
-		deleted: string[];
-		moved: Array<{ from: string; to: string }>;
+	readonly workspaceRoot: string;
+	readonly patch: ParsedPatch;
+	readonly changes: readonly PlannedChange[];
+	readonly snapshots: readonly SourceSnapshot[];
+	readonly summary: {
+		readonly added: readonly string[];
+		readonly updated: readonly string[];
+		readonly deleted: readonly string[];
+		readonly moved: readonly { readonly from: string; readonly to: string }[];
 	};
 }
 
 export interface AppliedPatchResult {
-	workspaceRoot: string;
-	changes: AppliedChange[];
+	readonly workspaceRoot: string;
+	readonly changes: readonly AppliedChange[];
 	/** Backup files retained only when post-commit cleanup could not remove them. */
-	journalArtifacts: string[];
-}
-
-export interface AppliedChange {
-	operationIndex: number;
-	kind: PatchOperation["kind"];
-	path: string;
-	moveTo?: string;
-	beforeHash?: string;
-	afterHash?: string;
-}
-
-export interface PatchRollbackFailure {
-	operationIndex?: number;
-	path: string;
-	action: string;
-	message: string;
-}
-
-export interface PatchWriteFailureState {
-	phase: "staging" | "commit" | "rollback";
-	failedOperationIndex?: number;
-	applied: AppliedChange[];
-	rolledBack: AppliedChange[];
-	rollbackFailures: PatchRollbackFailure[];
-	journalArtifacts: string[];
-	createdDirectoriesRemaining: string[];
+	readonly journalArtifacts: readonly string[];
 }
 
 export type SourceHasher = (content: string, absolutePath: string) => string | Promise<string>;
-export type SourceRevalidator = (
-	expected: SourceSnapshot,
-	actual: SourceSnapshot,
-) => boolean | Promise<boolean>;
+export type SourceRevalidator = (expected: SourceSnapshot, actual: SourceSnapshot) => boolean | Promise<boolean>;
 
 export interface PreflightPatchOptions {
-	workspaceRoot: string;
-	signal?: AbortSignal;
-	hashSource?: SourceHasher;
+	readonly workspaceRoot: string;
+	readonly signal?: AbortSignal;
+	readonly hashSource?: SourceHasher;
+	readonly revalidateSource?: SourceRevalidator;
 }
 
 export interface ApplyPatchOptions {
-	signal?: AbortSignal;
-	/** Must be the same hashing scheme used during preflight. */
-	hashSource?: SourceHasher;
-	revalidateSource?: SourceRevalidator;
-}
-
-interface InspectedPath {
-	patchPath: string;
-	absolutePath: string;
-	stats?: Stats;
+	readonly signal?: AbortSignal;
+	/** @deprecated Strategies are bound to the preflight plan; a different value is rejected. */
+	readonly hashSource?: SourceHasher;
+	/** @deprecated Strategies are bound to the preflight plan; a different value is rejected. */
+	readonly revalidateSource?: SourceRevalidator;
 }
 
 interface PathClaim {
@@ -186,113 +127,54 @@ interface Replacement {
 	newLines: string[];
 }
 
+/**
+ * Test-only seam for deterministic filesystem failure characterization.  It is
+ * deliberately process-local and unset in production; callers must never use
+ * it to change patch semantics.
+ */
+export type PatchEngineFailurePoint =
+	| "source_read"
+	| "hash"
+	| "parent_creation"
+	| "temporary_write"
+	| "chmod"
+	| "guard_capture"
+	| "guard_revalidation"
+	| "backup_hard_link"
+	| "backup_verification"
+	| "destination_publication"
+	| "source_unlink"
+	| "installed_output_verification"
+	| "rollback_unlink"
+	| "rollback_restore"
+	| "journal_cleanup"
+	| "created_directory_cleanup"
+	| "operation_committed";
+
+let testFailureInjector: ((point: PatchEngineFailurePoint) => void | Promise<void>) | undefined;
+
+/** @internal Tests only. Reset this hook in a finally block. */
+export function setPatchEngineFailureInjectorForTests(
+	injector: ((point: PatchEngineFailurePoint) => void | Promise<void>) | undefined,
+): void {
+	testFailureInjector = injector;
+}
+
+async function atFailurePoint(point: PatchEngineFailurePoint): Promise<void> {
+	await testFailureInjector?.(point);
+}
+
 function sha256(content: string): string {
 	return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
+async function hashSourceContent(hashSource: SourceHasher, content: string, absolutePath: string): Promise<string> {
+	await atFailurePoint("hash");
+	return hashSource(content, absolutePath);
+}
+
 function checkCancelled(signal: AbortSignal | undefined): void {
 	if (signal?.aborted) throw new PatchEngineError("cancelled", "Patch operation was cancelled");
-}
-
-function errorCode(error: unknown): string | undefined {
-	return typeof error === "object" && error !== null && "code" in error
-		? String((error as { code?: unknown }).code)
-		: undefined;
-}
-
-function isWithinRoot(root: string, candidate: string): boolean {
-	const relative = path.relative(root, candidate);
-	return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
-}
-
-function validatePatchPath(patchPath: string, operationIndex: number): string[] {
-	if (patchPath.length === 0 || patchPath.includes("\0")) {
-		throw new PatchEngineError("unsafe_path", "Patch path is empty or contains NUL", { operationIndex, patchPath });
-	}
-	if (path.isAbsolute(patchPath) || path.win32.isAbsolute(patchPath)) {
-		throw new PatchEngineError("unsafe_path", `Absolute patch path is not allowed: ${patchPath}`, { operationIndex, patchPath });
-	}
-	if (patchPath.includes("\\")) {
-		throw new PatchEngineError("unsafe_path", `Backslashes are not allowed in patch paths: ${patchPath}`, { operationIndex, patchPath });
-	}
-	// The patch wire format always uses "/" regardless of the host platform.
-	const parts = patchPath.split("/");
-	if (parts.some((part) => part === "" || part === "." || part === "..")) {
-		throw new PatchEngineError("unsafe_path", `Patch path contains an unsafe component: ${patchPath}`, { operationIndex, patchPath });
-	}
-	return parts;
-}
-
-function sameDirectoryEntry(left: Stats, right: Stats): boolean {
-	return left.dev === right.dev && left.ino === right.ino;
-}
-
-async function inspectPath(root: string, patchPath: string, operationIndex: number): Promise<InspectedPath> {
-	const parts = validatePatchPath(patchPath, operationIndex);
-	const requestedAbsolutePath = path.resolve(root, ...parts);
-	if (!isWithinRoot(root, requestedAbsolutePath)) {
-		throw new PatchEngineError("outside_workspace", `Patch path escapes the workspace: ${patchPath}`, {
-			operationIndex,
-			patchPath,
-		});
-	}
-
-	let current = root;
-	for (let partIndex = 0; partIndex < parts.length; partIndex++) {
-		const candidate = path.join(current, parts[partIndex]);
-		let beforeStats: Stats;
-		try {
-			beforeStats = await lstat(candidate);
-		} catch (error) {
-			if (errorCode(error) === "ENOENT") {
-				return {
-					patchPath,
-					absolutePath: path.join(current, ...parts.slice(partIndex)),
-				};
-			}
-			throw error;
-		}
-		if (beforeStats.isSymbolicLink()) {
-			throw new PatchEngineError("symlink_path", `Symlink paths are not allowed: ${patchPath}`, {
-				operationIndex,
-				patchPath,
-			});
-		}
-		if (partIndex < parts.length - 1 && !beforeStats.isDirectory()) {
-			throw new PatchEngineError("not_a_file", `A parent component is not a directory: ${patchPath}`, {
-				operationIndex,
-				patchPath,
-			});
-		}
-
-		let canonical: string;
-		let afterStats: Stats;
-		try {
-			canonical = await realpath(candidate);
-			afterStats = await lstat(candidate);
-		} catch (cause) {
-			throw new PatchEngineError("stale_source", `Path changed while it was being validated: ${patchPath}`, {
-				operationIndex,
-				patchPath,
-				cause,
-			});
-		}
-		if (afterStats.isSymbolicLink() || !sameDirectoryEntry(beforeStats, afterStats)) {
-			throw new PatchEngineError("stale_source", `Path changed while it was being validated: ${patchPath}`, {
-				operationIndex,
-				patchPath,
-			});
-		}
-		if (!isWithinRoot(root, canonical)) {
-			throw new PatchEngineError("outside_workspace", `Patch path resolves outside the workspace: ${patchPath}`, {
-				operationIndex,
-				patchPath,
-			});
-		}
-		current = canonical;
-		if (partIndex === parts.length - 1) return { patchPath, absolutePath: canonical, stats: afterStats };
-	}
-	return { patchPath, absolutePath: requestedAbsolutePath };
 }
 
 async function readUtf8File(inspected: InspectedPath, operationIndex: number): Promise<string> {
@@ -308,7 +190,25 @@ async function readUtf8File(inspected: InspectedPath, operationIndex: number): P
 			patchPath: inspected.patchPath,
 		});
 	}
-	const bytes = await readFile(inspected.absolutePath);
+	await atFailurePoint("source_read");
+	const handle = await open(inspected.absolutePath, "r");
+	let bytes: Buffer;
+	try {
+		// Read at most the limit plus one byte. Unlike readFile this remains
+		// bounded even if a concurrently modified file grows after lstat.
+		const buffer = Buffer.allocUnsafe(MAX_PATCH_SOURCE_BYTES + 1);
+		const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+		if (bytesRead > MAX_PATCH_SOURCE_BYTES) {
+			throw new PatchEngineError(
+				"source_too_large",
+				`File exceeds the ${MAX_PATCH_SOURCE_BYTES}-byte patch source limit: ${inspected.patchPath}`,
+				{ operationIndex, patchPath: inspected.patchPath },
+			);
+		}
+		bytes = buffer.subarray(0, bytesRead);
+	} finally {
+		await handle.close();
+	}
 	try {
 		return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 	} catch (cause) {
@@ -323,7 +223,7 @@ async function readUtf8File(inspected: InspectedPath, operationIndex: number): P
 function sourceLines(content: string): string[] {
 	if (content.length === 0) return [];
 	const withoutFinalNewline = content.endsWith("\n") ? content.slice(0, -1) : content;
-	return withoutFinalNewline.split("\n").map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+	return withoutFinalNewline.split("\n").map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
 }
 
 function findSequence(lines: readonly string[], wanted: readonly string[], from: number, eof: boolean): number {
@@ -386,11 +286,15 @@ export function applyPatchChunks(content: string, chunks: readonly PatchChunk[],
 	return output.length === 0 ? "" : `${output.join("\n")}\n`;
 }
 
+type SnapshotCapture =
+	| { snapshot: Extract<SourceSnapshot, { state: "missing" }>; content: null }
+	| { snapshot: Extract<SourceSnapshot, { state: "file" }>; content: string };
+
 async function makeSnapshot(
 	inspected: InspectedPath,
 	operationIndex: number,
 	hashSource: SourceHasher,
-): Promise<{ snapshot: SourceSnapshot; content: string | null }> {
+): Promise<SnapshotCapture> {
 	if (inspected.stats === undefined) {
 		return {
 			snapshot: { path: inspected.patchPath, absolutePath: inspected.absolutePath, state: "missing" },
@@ -403,7 +307,7 @@ async function makeSnapshot(
 			path: inspected.patchPath,
 			absolutePath: inspected.absolutePath,
 			state: "file",
-			hash: await hashSource(content, inspected.absolutePath),
+			hash: await hashSourceContent(hashSource, content, inspected.absolutePath),
 			mode: inspected.stats.mode,
 		},
 		content,
@@ -413,9 +317,8 @@ async function makeSnapshot(
 function claimPath(claims: PathClaim[], inspected: InspectedPath, operationIndex: number): void {
 	for (const claim of claims) {
 		const samePath = claim.absolutePath === inspected.absolutePath;
-		const sameExistingEntry = claim.stats !== undefined
-			&& inspected.stats !== undefined
-			&& sameDirectoryEntry(claim.stats, inspected.stats);
+		const sameExistingEntry =
+			claim.stats !== undefined && inspected.stats !== undefined && sameDirectoryEntry(claim.stats, inspected.stats);
 		const claimedIsParent = inspected.absolutePath.startsWith(`${claim.absolutePath}${path.sep}`);
 		const inspectedIsParent = claim.absolutePath.startsWith(`${inspected.absolutePath}${path.sep}`);
 		if (samePath || sameExistingEntry || claimedIsParent || inspectedIsParent) {
@@ -430,7 +333,7 @@ function claimPath(claims: PathClaim[], inspected: InspectedPath, operationIndex
 		absolutePath: inspected.absolutePath,
 		operationIndex,
 		patchPath: inspected.patchPath,
-		stats: inspected.stats,
+		...(inspected.stats === undefined ? {} : { stats: inspected.stats }),
 	});
 }
 
@@ -441,12 +344,14 @@ function deepFreeze<T>(value: T): T {
 }
 
 const issuedPlans = new WeakSet<PatchPlan>();
+interface PlanStrategy {
+	readonly hashSource: SourceHasher;
+	readonly revalidateSource: SourceRevalidator;
+}
+const issuedPlanStrategies = new WeakMap<PatchPlan, PlanStrategy>();
 
 /** Parse and validate every operation without writing anything. */
-export async function preflightPatch(
-	patchInput: string,
-	options: PreflightPatchOptions,
-): Promise<PatchPlan> {
+export async function preflightPatch(patchInput: string, options: PreflightPatchOptions): Promise<PatchPlan> {
 	checkCancelled(options.signal);
 	if (typeof options.workspaceRoot !== "string" || options.workspaceRoot.length === 0) {
 		throw new PatchEngineError("invalid_workspace", "workspaceRoot must be a non-empty path");
@@ -456,19 +361,26 @@ export async function preflightPatch(
 		workspaceRoot = await realpath(path.resolve(options.workspaceRoot));
 		if (!(await stat(workspaceRoot)).isDirectory()) throw new Error("not a directory");
 	} catch (cause) {
-		throw new PatchEngineError("invalid_workspace", `Workspace root is unavailable: ${options.workspaceRoot}`, { cause });
+		throw new PatchEngineError("invalid_workspace", `Workspace root is unavailable: ${options.workspaceRoot}`, {
+			cause,
+		});
 	}
 	const patch = parsePatch(patchInput);
 	const hashSource = options.hashSource ?? ((content: string) => sha256(content));
+	const revalidateSource = options.revalidateSource ?? defaultRevalidator;
 	const claims: PathClaim[] = [];
 	const changes: PlannedChange[] = [];
 	const snapshots: SourceSnapshot[] = [];
-	const summary: PatchPlan["summary"] = { added: [], updated: [], deleted: [], moved: [] };
+	const summary: {
+		added: string[];
+		updated: string[];
+		deleted: string[];
+		moved: Array<{ from: string; to: string }>;
+	} = { added: [], updated: [], deleted: [], moved: [] };
 
-	for (let operationIndex = 0; operationIndex < patch.operations.length; operationIndex++) {
+	for (const [operationIndex, operation] of patch.operations.entries()) {
 		checkCancelled(options.signal);
-		const operation = patch.operations[operationIndex];
-		const source = await inspectPath(workspaceRoot, operation.path, operationIndex);
+		const source = await inspectPatchPath(workspaceRoot, operation.path, operationIndex);
 		claimPath(claims, source, operationIndex);
 
 		if (operation.kind === "add") {
@@ -487,7 +399,7 @@ export async function preflightPatch(
 				absolutePath: source.absolutePath,
 				beforeContent: null,
 				afterContent: operation.content,
-				afterHash: await hashSource(operation.content, source.absolutePath),
+				afterHash: await hashSourceContent(hashSource, operation.content, source.absolutePath),
 			};
 			changes.push(change);
 			summary.added.push(operation.path);
@@ -517,17 +429,11 @@ export async function preflightPatch(
 		}
 
 		const afterContent = applyPatchChunks(before.content, operation.chunks, operation.path);
-		const update: PlannedUpdateChange = {
-			operationIndex,
-			kind: "update",
-			path: operation.path,
-			absolutePath: source.absolutePath,
-			beforeContent: before.content,
-			afterContent,
-			beforeHash: before.snapshot.hash,
-		};
+		let moveTo: string | undefined;
+		let moveAbsolutePath: string | undefined;
+		let afterHash: string;
 		if (operation.moveTo !== undefined) {
-			const destination = await inspectPath(workspaceRoot, operation.moveTo, operationIndex);
+			const destination = await inspectPatchPath(workspaceRoot, operation.moveTo, operationIndex);
 			claimPath(claims, destination, operationIndex);
 			if (destination.stats !== undefined) {
 				throw new PatchEngineError("target_exists", `Move destination already exists: ${operation.moveTo}`, {
@@ -537,20 +443,32 @@ export async function preflightPatch(
 			}
 			const destinationSnapshot = await makeSnapshot(destination, operationIndex, hashSource);
 			snapshots.push(destinationSnapshot.snapshot);
-			update.moveTo = operation.moveTo;
-			update.moveAbsolutePath = destination.absolutePath;
-			update.afterHash = await hashSource(afterContent, destination.absolutePath);
+			moveTo = operation.moveTo;
+			moveAbsolutePath = destination.absolutePath;
+			afterHash = await hashSourceContent(hashSource, afterContent, destination.absolutePath);
 			summary.moved.push({ from: operation.path, to: operation.moveTo });
 		} else {
-			update.afterHash = await hashSource(afterContent, source.absolutePath);
+			afterHash = await hashSourceContent(hashSource, afterContent, source.absolutePath);
 			summary.updated.push(operation.path);
 		}
-		changes.push(update);
+		const moveFields = moveTo === undefined || moveAbsolutePath === undefined ? {} : { moveTo, moveAbsolutePath };
+		changes.push({
+			operationIndex,
+			kind: "update",
+			path: operation.path,
+			absolutePath: source.absolutePath,
+			beforeContent: before.content,
+			afterContent,
+			beforeHash: before.snapshot.hash,
+			afterHash,
+			...moveFields,
+		});
 	}
 
 	checkCancelled(options.signal);
 	const plan = deepFreeze({ workspaceRoot, patch, changes, snapshots, summary });
 	issuedPlans.add(plan);
+	issuedPlanStrategies.set(plan, { hashSource, revalidateSource });
 	return plan;
 }
 
@@ -560,15 +478,14 @@ async function currentSnapshot(
 	operationIndex: number,
 	hashSource: SourceHasher,
 ): Promise<SourceSnapshot> {
-	const inspected = await inspectPath(root, expected.path, operationIndex);
+	const inspected = await inspectPatchPath(root, expected.path, operationIndex);
 	return (await makeSnapshot(inspected, operationIndex, hashSource)).snapshot;
 }
 
 function defaultRevalidator(expected: SourceSnapshot, actual: SourceSnapshot): boolean {
-	return expected.absolutePath === actual.absolutePath
-		&& expected.state === actual.state
-		&& expected.hash === actual.hash
-		&& permissionMode(expected.mode) === permissionMode(actual.mode);
+	if (expected.absolutePath !== actual.absolutePath || expected.state !== actual.state) return false;
+	if (expected.state === "missing" || actual.state === "missing") return true;
+	return expected.hash === actual.hash && permissionMode(expected.mode) === permissionMode(actual.mode);
 }
 
 let temporaryCounter = 0;
@@ -584,12 +501,16 @@ function temporaryPath(absolutePath: string): string {
 
 async function writeTemporary(temporary: string, content: string, mode?: number): Promise<void> {
 	const permissions = permissionMode(mode);
+	await atFailurePoint("temporary_write");
 	await writeFile(temporary, content, {
 		encoding: "utf8",
 		flag: "wx",
 		...(permissions === undefined ? {} : { mode: permissions }),
 	});
-	if (permissions !== undefined) await chmod(temporary, permissions);
+	if (permissions !== undefined) {
+		await atFailurePoint("chmod");
+		await chmod(temporary, permissions);
+	}
 }
 
 async function ensureParentDirectories(
@@ -611,12 +532,13 @@ async function ensureParentDirectories(
 		try {
 			before = await lstat(candidate);
 		} catch (error) {
-			if (errorCode(error) !== "ENOENT") throw error;
+			if (nodeErrorCode(error) !== "ENOENT") throw error;
 			try {
+				await atFailurePoint("parent_creation");
 				await mkdir(candidate);
 				createdDirectories.push(candidate);
 			} catch (mkdirError) {
-				if (errorCode(mkdirError) !== "EEXIST") throw mkdirError;
+				if (nodeErrorCode(mkdirError) !== "EEXIST") throw mkdirError;
 			}
 			before = await lstat(candidate);
 		}
@@ -647,8 +569,8 @@ function changeResult(change: PlannedChange): AppliedChange {
 }
 
 function snapshotsForChange(plan: PatchPlan, change: PlannedChange): SourceSnapshot[] {
-	return plan.snapshots.filter((snapshot) =>
-		snapshot.path === change.path || (change.kind === "update" && change.moveTo === snapshot.path)
+	return plan.snapshots.filter(
+		(snapshot) => snapshot.path === change.path || (change.kind === "update" && change.moveTo === snapshot.path),
 	);
 }
 
@@ -686,7 +608,7 @@ async function verifyBackup(
 	hashSource: SourceHasher,
 ): Promise<void> {
 	const content = await readJournalContent(backupPath, expected.path, operationIndex);
-	const hash = await hashSource(content, expected.absolutePath);
+	const hash = await hashSourceContent(hashSource, content, expected.absolutePath);
 	if (expected.state !== "file" || hash !== expected.hash) {
 		throw new PatchEngineError("stale_source", `Source changed during commit: ${expected.path}`, {
 			operationIndex,
@@ -700,7 +622,7 @@ async function pathState(absolutePath: string): Promise<"missing" | "present"> {
 		await lstat(absolutePath);
 		return "present";
 	} catch (error) {
-		if (errorCode(error) === "ENOENT") return "missing";
+		if (nodeErrorCode(error) === "ENOENT") return "missing";
 		throw error;
 	}
 }
@@ -735,6 +657,7 @@ async function captureDirectoryGuard(
 	let canonical: string;
 	let after: Stats;
 	try {
+		await atFailurePoint("guard_capture");
 		before = await lstat(parent);
 		if (before.isSymbolicLink() || !before.isDirectory()) throw new Error("parent is not a real directory");
 		canonical = await realpath(parent);
@@ -761,6 +684,7 @@ async function assertDirectoryGuard(
 	operationIndex: number,
 	patchPath: string,
 ): Promise<void> {
+	await atFailurePoint("guard_revalidation");
 	const actual = await captureDirectoryGuard(root, path.join(guard.path, "__guard__"), operationIndex, patchPath);
 	if (actual.path !== guard.path || actual.dev !== guard.dev || actual.ino !== guard.ino) {
 		throw new PatchEngineError("stale_source", `Parent directory changed after staging: ${patchPath}`, {
@@ -774,9 +698,10 @@ async function removeCreatedDirectories(createdDirectories: readonly string[]): 
 	const remaining: string[] = [];
 	for (const directory of createdDirectories.toReversed()) {
 		try {
+			await atFailurePoint("created_directory_cleanup");
 			await rmdir(directory);
 		} catch (error) {
-			if (errorCode(error) !== "ENOENT") remaining.push(directory);
+			if (nodeErrorCode(error) !== "ENOENT") remaining.push(directory);
 		}
 	}
 	return remaining;
@@ -789,7 +714,7 @@ async function collectArtifacts(entries: readonly CommitJournalEntry[]): Promise
 	]);
 	const artifacts: string[] = [];
 	for (const candidate of new Set(candidates)) {
-		if (await pathState(candidate) === "present") artifacts.push(candidate);
+		if ((await pathState(candidate)) === "present") artifacts.push(candidate);
 	}
 	return artifacts;
 }
@@ -799,8 +724,9 @@ async function rollbackCommit(
 	root: string,
 	hashSource: SourceHasher,
 	createdDirectories: readonly string[],
-): Promise<Pick<PatchWriteFailureState,
-	"rolledBack" | "rollbackFailures" | "journalArtifacts" | "createdDirectoriesRemaining">> {
+): Promise<
+	Pick<PatchWriteFailureState, "rolledBack" | "rollbackFailures" | "journalArtifacts" | "createdDirectoriesRemaining">
+> {
 	const rolledBack: AppliedChange[] = [];
 	const rollbackFailures: PatchRollbackFailure[] = [];
 
@@ -816,27 +742,27 @@ async function rollbackCommit(
 				if (entry.sourceParentGuard !== undefined) {
 					await assertDirectoryGuard(root, entry.sourceParentGuard, change.operationIndex, change.path);
 				}
-				if (entry.backupPath === undefined || await pathState(entry.backupPath) !== "present") {
+				if (entry.backupPath === undefined || (await pathState(entry.backupPath)) !== "present") {
 					throw new Error("original backup is unavailable");
 				}
 				const content = await readJournalContent(entry.installedPath, change.path, change.operationIndex);
-				const hash = await hashSource(content, entry.installedPath);
+				const hash = await hashSourceContent(hashSource, content, entry.installedPath);
 				if (hash !== change.afterHash) {
 					throw new Error("installed file changed after commit; refusing to replace it");
 				}
+				await atFailurePoint("rollback_restore");
 				await rename(entry.backupPath, change.absolutePath);
-				entry.backupPath = undefined;
+				delete entry.backupPath;
 			} catch (error) {
 				restored = false;
 				rollbackFailures.push({
 					operationIndex: change.operationIndex,
 					path: entry.installedPath,
 					action: "atomically restore original",
-					message: error instanceof Error ? error.message : String(error),
+					message: toError(error).message,
 				});
 			}
-		}
-		else if (entry.installedPath !== undefined && await pathState(entry.installedPath) === "present") {
+		} else if (entry.installedPath !== undefined && (await pathState(entry.installedPath)) === "present") {
 			try {
 				if (entry.outputParentGuard !== undefined) {
 					await assertDirectoryGuard(
@@ -848,10 +774,11 @@ async function rollbackCommit(
 				}
 				const displayPath = change.kind === "update" ? (change.moveTo ?? change.path) : change.path;
 				const content = await readJournalContent(entry.installedPath, displayPath, change.operationIndex);
-				const hash = await hashSource(content, entry.installedPath);
+				const hash = await hashSourceContent(hashSource, content, entry.installedPath);
 				if (hash !== change.afterHash) {
 					throw new Error("installed file changed after commit; refusing to remove it");
 				}
+				await atFailurePoint("rollback_unlink");
 				await unlink(entry.installedPath);
 			} catch (error) {
 				restored = false;
@@ -859,34 +786,35 @@ async function rollbackCommit(
 					operationIndex: change.operationIndex,
 					path: entry.installedPath,
 					action: "remove installed file",
-					message: error instanceof Error ? error.message : String(error),
+					message: toError(error).message,
 				});
 			}
 		}
 
-		if (!isInPlaceUpdate && originalBackupPath !== undefined && await pathState(originalBackupPath) === "present") {
+		if (!isInPlaceUpdate && originalBackupPath !== undefined && (await pathState(originalBackupPath)) === "present") {
 			if (entry.sourceRemoved === true) {
 				try {
 					if (entry.sourceParentGuard !== undefined) {
 						await assertDirectoryGuard(root, entry.sourceParentGuard, change.operationIndex, change.path);
 					}
-					if (await pathState(change.absolutePath) === "present") {
+					if ((await pathState(change.absolutePath)) === "present") {
 						throw new Error("target is occupied");
 					}
+					await atFailurePoint("rollback_restore");
 					await link(originalBackupPath, change.absolutePath);
+					await atFailurePoint("rollback_unlink");
 					await unlink(originalBackupPath);
-					entry.backupPath = undefined;
+					delete entry.backupPath;
 				} catch (error) {
 					restored = false;
 					rollbackFailures.push({
 						operationIndex: change.operationIndex,
 						path: originalBackupPath,
 						action: "restore original",
-						message: error instanceof Error ? error.message : String(error),
+						message: toError(error).message,
 					});
 				}
-			}
-			else {
+			} else {
 				try {
 					if (entry.sourceParentGuard !== undefined) {
 						await assertDirectoryGuard(root, entry.sourceParentGuard, change.operationIndex, change.path);
@@ -896,20 +824,20 @@ async function rollbackCommit(
 					if (!sameDirectoryEntry(sourceStats, backupStats)) {
 						throw new Error("source no longer matches its backup hardlink");
 					}
+					await atFailurePoint("rollback_unlink");
 					await unlink(originalBackupPath);
-					entry.backupPath = undefined;
+					delete entry.backupPath;
 				} catch (error) {
 					restored = false;
 					rollbackFailures.push({
 						operationIndex: change.operationIndex,
 						path: originalBackupPath,
 						action: "remove unused backup",
-						message: error instanceof Error ? error.message : String(error),
+						message: toError(error).message,
 					});
 				}
 			}
-		}
-		else if (isInPlaceUpdate && entry.installedPath === undefined && originalBackupPath !== undefined) {
+		} else if (isInPlaceUpdate && entry.installedPath === undefined && originalBackupPath !== undefined) {
 			try {
 				if (entry.sourceParentGuard !== undefined) {
 					await assertDirectoryGuard(root, entry.sourceParentGuard, change.operationIndex, change.path);
@@ -919,15 +847,16 @@ async function rollbackCommit(
 				if (!sameDirectoryEntry(sourceStats, backupStats)) {
 					throw new Error("source no longer matches its backup hardlink");
 				}
+				await atFailurePoint("rollback_unlink");
 				await unlink(originalBackupPath);
-				entry.backupPath = undefined;
+				delete entry.backupPath;
 			} catch (error) {
 				restored = false;
 				rollbackFailures.push({
 					operationIndex: change.operationIndex,
 					path: originalBackupPath,
 					action: "remove unused backup",
-					message: error instanceof Error ? error.message : String(error),
+					message: toError(error).message,
 				});
 			}
 		}
@@ -935,15 +864,16 @@ async function rollbackCommit(
 		if (entry.temporaryPath !== undefined) {
 			try {
 				const stagedPath = entry.temporaryPath;
+				await atFailurePoint("rollback_unlink");
 				await rm(stagedPath, { force: true });
-				entry.temporaryPath = undefined;
+				delete entry.temporaryPath;
 			} catch (error) {
 				const stagedPath = entry.temporaryPath;
 				rollbackFailures.push({
 					operationIndex: change.operationIndex,
 					path: stagedPath ?? change.absolutePath,
 					action: "remove staged file",
-					message: error instanceof Error ? error.message : String(error),
+					message: toError(error).message,
 				});
 			}
 		}
@@ -977,6 +907,15 @@ export async function applyPreflightedPatch(
 	if (!issuedPlans.has(plan)) {
 		throw new PatchEngineError("invalid_plan", "Patch plan was not issued by preflightPatch");
 	}
+	const strategy = issuedPlanStrategies.get(plan);
+	if (strategy === undefined)
+		throw new PatchEngineError("invalid_plan", "Patch plan has no bound revalidation strategy");
+	if (options.hashSource !== undefined && options.hashSource !== strategy.hashSource) {
+		throw new PatchEngineError("invalid_plan", "Apply hasher does not match the preflight plan");
+	}
+	if (options.revalidateSource !== undefined && options.revalidateSource !== strategy.revalidateSource) {
+		throw new PatchEngineError("invalid_plan", "Apply revalidator does not match the preflight plan");
+	}
 	let actualRoot: string;
 	try {
 		actualRoot = await realpath(plan.workspaceRoot);
@@ -988,24 +927,24 @@ export async function applyPreflightedPatch(
 	}
 
 	for (const change of plan.changes) {
-		const source = await inspectPath(actualRoot, change.path, change.operationIndex);
+		const source = await inspectPatchPath(actualRoot, change.path, change.operationIndex);
 		if (source.absolutePath !== change.absolutePath) {
 			throw new PatchEngineError("invalid_plan", `Planned path changed: ${change.path}`);
 		}
 		if (change.kind === "update" && change.moveTo !== undefined) {
-			const destination = await inspectPath(actualRoot, change.moveTo, change.operationIndex);
+			const destination = await inspectPatchPath(actualRoot, change.moveTo, change.operationIndex);
 			if (destination.absolutePath !== change.moveAbsolutePath) {
 				throw new PatchEngineError("invalid_plan", `Planned move path changed: ${change.moveTo}`);
 			}
 		}
 	}
 
-	const hashSource = options.hashSource ?? ((content: string) => sha256(content));
-	const revalidate = options.revalidateSource ?? defaultRevalidator;
+	const { hashSource, revalidateSource: revalidate } = strategy;
 	for (const expected of plan.snapshots) {
 		checkCancelled(options.signal);
-		const change = plan.changes.find((candidate) =>
-			candidate.path === expected.path || (candidate.kind === "update" && candidate.moveTo === expected.path)
+		const change = plan.changes.find(
+			(candidate) =>
+				candidate.path === expected.path || (candidate.kind === "update" && candidate.moveTo === expected.path),
 		);
 		await assertSnapshotCurrent(actualRoot, expected, change?.operationIndex ?? 0, hashSource, revalidate);
 	}
@@ -1017,9 +956,10 @@ export async function applyPreflightedPatch(
 		for (const change of plan.changes) {
 			checkCancelled(options.signal);
 			const sourceSnapshot = plan.snapshots.find((snapshot) => snapshot.path === change.path);
-			const outputPath = change.kind === "update" && change.moveAbsolutePath !== undefined
-				? change.moveAbsolutePath
-				: change.absolutePath;
+			const outputPath =
+				change.kind === "update" && change.moveAbsolutePath !== undefined
+					? change.moveAbsolutePath
+					: change.absolutePath;
 			const entry: CommitJournalEntry = { change };
 			staged.push(entry);
 			if (change.afterContent !== null) {
@@ -1031,7 +971,8 @@ export async function applyPreflightedPatch(
 					change.kind === "update" && change.moveTo !== undefined ? change.moveTo : change.path,
 				);
 				entry.temporaryPath = temporaryPath(outputPath);
-				await writeTemporary(entry.temporaryPath, change.afterContent, sourceSnapshot?.mode);
+				const sourceMode = sourceSnapshot?.state === "file" ? sourceSnapshot.mode : undefined;
+				await writeTemporary(entry.temporaryPath, change.afterContent, sourceMode);
 			}
 			if (change.kind !== "add") {
 				entry.sourceParentGuard = await captureDirectoryGuard(
@@ -1041,17 +982,39 @@ export async function applyPreflightedPatch(
 					change.path,
 				);
 			}
+			checkCancelled(options.signal);
 		}
 	} catch (cause) {
+		const rollbackFailures: PatchRollbackFailure[] = [];
 		for (const entry of staged) {
-			if (entry.temporaryPath !== undefined) await rm(entry.temporaryPath, { force: true }).catch(() => undefined);
+			if (entry.temporaryPath === undefined) continue;
+			const stagedPath = entry.temporaryPath;
+			try {
+				await atFailurePoint("rollback_unlink");
+				await rm(stagedPath, { force: true });
+				delete entry.temporaryPath;
+			} catch (cleanupError) {
+				rollbackFailures.push({
+					operationIndex: entry.change.operationIndex,
+					path: stagedPath,
+					action: "remove staged file",
+					message: toError(cleanupError).message,
+				});
+			}
 		}
 		const createdDirectoriesRemaining = await removeCreatedDirectories(createdDirectories);
+		for (const directory of createdDirectoriesRemaining) {
+			rollbackFailures.push({
+				path: directory,
+				action: "remove created directory",
+				message: "directory is not empty or could not be removed",
+			});
+		}
 		const writeState: PatchWriteFailureState = {
 			phase: "staging",
 			applied: [],
 			rolledBack: [],
-			rollbackFailures: [],
+			rollbackFailures,
 			journalArtifacts: await collectArtifacts(staged),
 			createdDirectoriesRemaining,
 		};
@@ -1086,8 +1049,10 @@ export async function applyPreflightedPatch(
 					throw new PatchEngineError("invalid_plan", `Missing source snapshot for ${change.path}`);
 				}
 				const backupPath = temporaryPath(change.absolutePath);
+				await atFailurePoint("backup_hard_link");
 				await link(change.absolutePath, backupPath);
 				entry.backupPath = backupPath;
+				await atFailurePoint("backup_verification");
 				await verifyBackup(entry.backupPath, sourceSnapshot, change.operationIndex, hashSource);
 				if (entry.sourceParentGuard !== undefined) {
 					await assertDirectoryGuard(actualRoot, entry.sourceParentGuard, change.operationIndex, change.path);
@@ -1095,19 +1060,20 @@ export async function applyPreflightedPatch(
 			}
 
 			if (change.kind === "delete") {
+				await atFailurePoint("source_unlink");
 				await unlink(change.absolutePath);
 				entry.sourceRemoved = true;
 				if (entry.sourceParentGuard !== undefined) {
 					await assertDirectoryGuard(actualRoot, entry.sourceParentGuard, change.operationIndex, change.path);
 				}
-			}
-			else if (change.afterContent !== null) {
+			} else if (change.afterContent !== null) {
 				if (entry.temporaryPath === undefined) {
 					throw new PatchEngineError("invalid_plan", `Missing staged output for ${change.path}`);
 				}
-				const outputPath = change.kind === "update" && change.moveAbsolutePath !== undefined
-					? change.moveAbsolutePath
-					: change.absolutePath;
+				const outputPath =
+					change.kind === "update" && change.moveAbsolutePath !== undefined
+						? change.moveAbsolutePath
+						: change.absolutePath;
 				if (entry.outputParentGuard !== undefined) {
 					await assertDirectoryGuard(
 						actualRoot,
@@ -1117,15 +1083,17 @@ export async function applyPreflightedPatch(
 					);
 				}
 				if (change.kind === "update" && change.moveAbsolutePath === undefined) {
+					await atFailurePoint("destination_publication");
 					await rename(entry.temporaryPath, outputPath);
 					entry.installedPath = outputPath;
-				}
-				else {
+				} else {
+					await atFailurePoint("destination_publication");
 					await link(entry.temporaryPath, outputPath);
 					entry.installedPath = outputPath;
+					await atFailurePoint("source_unlink");
 					await unlink(entry.temporaryPath);
 				}
-				entry.temporaryPath = undefined;
+				delete entry.temporaryPath;
 				if (entry.outputParentGuard !== undefined) {
 					await assertDirectoryGuard(
 						actualRoot,
@@ -1139,7 +1107,8 @@ export async function applyPreflightedPatch(
 					change.kind === "update" && change.moveTo !== undefined ? change.moveTo : change.path,
 					change.operationIndex,
 				);
-				if (await hashSource(installedContent, outputPath) !== change.afterHash) {
+				await atFailurePoint("installed_output_verification");
+				if ((await hashSourceContent(hashSource, installedContent, outputPath)) !== change.afterHash) {
 					throw new PatchEngineError("write_failed", `Installed output verification failed: ${change.path}`, {
 						operationIndex: change.operationIndex,
 						patchPath: change.path,
@@ -1149,6 +1118,7 @@ export async function applyPreflightedPatch(
 					if (entry.sourceParentGuard !== undefined) {
 						await assertDirectoryGuard(actualRoot, entry.sourceParentGuard, change.operationIndex, change.path);
 					}
+					await atFailurePoint("source_unlink");
 					await unlink(change.absolutePath);
 					entry.sourceRemoved = true;
 					if (entry.sourceParentGuard !== undefined) {
@@ -1157,6 +1127,8 @@ export async function applyPreflightedPatch(
 				}
 			}
 			applied.push(changeResult(change));
+			await atFailurePoint("operation_committed");
+			checkCancelled(options.signal);
 			failedChange = undefined;
 		}
 	} catch (cause) {
@@ -1167,15 +1139,20 @@ export async function applyPreflightedPatch(
 			applied,
 			...rollback,
 		};
-		const rollbackSummary = rollback.rollbackFailures.length === 0
-			? `rollback restored ${rollback.rolledBack.length} change(s)`
-			: `rollback incomplete with ${rollback.rollbackFailures.length} failure(s); recoverable artifacts: ${rollback.journalArtifacts.join(", ") || "none"}`;
+		const rollbackSummary =
+			rollback.rollbackFailures.length === 0
+				? `rollback restored ${rollback.rolledBack.length} change(s)`
+				: `rollback incomplete with ${rollback.rollbackFailures.length} failure(s); recoverable artifacts: ${rollback.journalArtifacts.join(", ") || "none"}`;
 		throw new PatchEngineError(
 			"write_failed",
 			`Patch commit failed after ${applied.length} change(s); ${rollbackSummary}`,
 			{
-				operationIndex: failedChange?.operationIndex,
-				patchPath: failedChange?.path,
+				...(failedChange === undefined
+					? {}
+					: {
+							operationIndex: failedChange.operationIndex,
+							patchPath: failedChange.path,
+						}),
 				cause,
 				writeState,
 			},
@@ -1187,8 +1164,9 @@ export async function applyPreflightedPatch(
 		if (entry.backupPath === undefined) continue;
 		const backupPath = entry.backupPath;
 		try {
+			await atFailurePoint("journal_cleanup");
 			await unlink(backupPath);
-			entry.backupPath = undefined;
+			delete entry.backupPath;
 		} catch {
 			journalArtifacts.push(backupPath);
 		}

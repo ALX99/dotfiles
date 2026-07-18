@@ -2,46 +2,41 @@
 
 export interface PatchChunk {
 	/** Optional `@@ context` line used to begin the search after a landmark. */
-	context?: string;
-	oldLines: string[];
-	newLines: string[];
-	endOfFile: boolean;
-	line: number;
+	readonly context?: string;
+	readonly oldLines: readonly string[];
+	readonly newLines: readonly string[];
+	readonly endOfFile: boolean;
+	readonly line: number;
 }
 
 interface PatchOperationBase {
-	path: string;
-	line: number;
+	readonly path: string;
+	readonly line: number;
 }
 
 export interface AddPatchOperation extends PatchOperationBase {
-	kind: "add";
-	content: string;
+	readonly kind: "add";
+	readonly content: string;
 }
 
 export interface DeletePatchOperation extends PatchOperationBase {
-	kind: "delete";
+	readonly kind: "delete";
 }
 
 export interface UpdatePatchOperation extends PatchOperationBase {
-	kind: "update";
-	moveTo?: string;
-	chunks: PatchChunk[];
+	readonly kind: "update";
+	readonly moveTo?: string;
+	readonly chunks: readonly PatchChunk[];
 }
 
 export type PatchOperation = AddPatchOperation | DeletePatchOperation | UpdatePatchOperation;
 
 export interface ParsedPatch {
-	raw: string;
-	operations: PatchOperation[];
+	readonly raw: string;
+	readonly operations: readonly PatchOperation[];
 }
 
-export type PatchParseErrorCode =
-	| "invalid_envelope"
-	| "empty_patch"
-	| "invalid_header"
-	| "invalid_hunk"
-	| "empty_path";
+export type PatchParseErrorCode = "invalid_envelope" | "empty_patch" | "invalid_header" | "invalid_hunk" | "empty_path";
 
 export class PatchParseError extends Error {
 	readonly code: PatchParseErrorCode;

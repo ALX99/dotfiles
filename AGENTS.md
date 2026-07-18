@@ -17,7 +17,7 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 - `home/.bash_profile` → `.profile` — login shells source the POSIX profile.
 - `home/.codex/AGENTS.md` → `../.claude/CLAUDE.md` — Codex reads Claude's persona file.
 
-`home/.pi/agent/` contains only: `APPEND_SYSTEM.md` (injected into system prompt), `extensions/`, `settings.json`, `skills/init/`. Subagent roles live at `extensions/subagents/agents/{default,scout,worker}.md`; no top-level `agents/` and no `supervisor.md`.
+`home/.pi/agent/` contains only: `APPEND_SYSTEM.md` (injected into system prompt), `extensions/`, `settings.json`, `skills/init/`. Subagent roles live at `extensions/subagents/agents/{general,scout,worker}.md`; no top-level `agents/` and no `supervisor.md`.
 
 ## Setup invariants (`just user-config`)
 
@@ -25,7 +25,7 @@ Stow-managed personal dotfiles. GitHub: `github.com/alx99/dotfiles`.
 - Stow order matters: `.local` first, then `home`, then `.config`. `~/.config` and `~/.agents` must exist before stow runs. Broken links into this repository and broken Claude-to-agent skill links are cleaned up first.
 - `just linux-system` requires sudo for XKB/keyd/systemd units, enables the user ssh-agent, and links `dash` to `/usr/bin/sh`.
 - `just mac-system` installs `~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout` and prompts the user to enable it manually in System Settings. No auto-reboot.
-- After the first `just user-config`, run `just pi` to install npm deps for pi extensions (stow does not manage `node_modules/`).
+- After the first dotfile install, run `just install-pi` to install npm deps for Pi extensions (stow does not manage `node_modules/`).
 
 ## Two AI ecosystems in parallel
 
@@ -46,21 +46,23 @@ New skills go under `home/.agents/skills/` — the mirror to `~/.claude/skills/`
 
 Extensions live under `home/.pi/agent/extensions/` (stowed to `~/.pi/agent/extensions/`).
 
-- `just pi` — shortcut for `cd ~/.pi/agent/extensions && npm install`. Required after first `just user-config` or `package.json` changes.
-- `just check` — runs `cd home/.pi/agent/extensions && npm run check` → `tsc` → `oxlint` → `node --test '**/tests/*.test.ts'`.
+- `just install-pi` — shortcut for `cd ~/.pi/agent/extensions && npm install`. Required after the first dotfile install or `package.json` changes.
+- `just check` — runs `cd home/.pi/agent/extensions && npm run check` → Pi/native-patch compatibility check → Oxfmt check → strict `tsc` → type-aware Oxlint (zero warnings) → all Node tests.
+- Pi `0.80.10`, Pi AI, and Pi TUI are one pinned compatibility unit. After installing or upgrading the global Pi package, run `node misc/pi-patches/apply-pi-ai-0.80.10.mjs` and then the same command with `--check`; `npm run compatibility:check` verifies package versions and that the local Pi AI tree has a recognized original or patched image.
 
-**Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `memory/` and `subagents/` load via the subdirectory-`index.ts` pattern.
+**Pi's extension loader discovers `.ts` files directly in `extensions/` AND subdirectory entry points `extensions/*/index.ts`** (and `extensions/*/` with a `package.json` `pi` field). `ask-question/`, `codex-compat/`, `cost-tracker/`, and `subagents/` load via the subdirectory-`index.ts` pattern; `_shared/` deliberately has no `index.ts`.
 
-Tests for the subagent and other Pi extensions live under `home/.pi/agent/extensions/**/tests/`. `just check` runs them after typechecking and linting. Pi-web has its own tests under `pi-web/tests/`.
+Tests for shared helpers, compatibility, subagents, and other Pi extensions live under `home/.pi/agent/extensions/**/tests/`. `just check` runs all `.test.ts` and `.test.mjs` files. Pi-web has its own tests under `pi-web/tests/`.
 
-Active extensions (each entry point is a file in `home/.pi/agent/extensions/`):
-- **`subagents/index.ts`** — persistent RPC-backed subagent tool family: `spawn_agent`, `send_agent`, `followup_agent`, `wait_agent`, `list_agents`, `interrupt_agent`, and `close_agent`. `agents/{default,scout,worker}.md` define roles; `host.ts` owns stable session-runtime IDs and lifecycle, `rpc.ts` manages `pi --mode rpc --no-session` children, and `process.ts` folds bounded event state (depth capped at 3 via `PI_SUBAGENT_DEPTH`).
-- **`memory/index.ts`** — `memory_save` tool + `/memory` and `/memory-capture` commands. Injects memory block into system prompt on `before_agent_start`. User must approve each `memory_save` via UI confirmation. Memory files: `global` at `$XDG_STATE_HOME/pi-agent/memory/global.md`, `repo` at `<git-root>/.pi/memory/repo.md`. 32 KB cap per file.
-- **`ask_question.ts`** — `ask_question` tool (multiple choice with auto-added "Compare options" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
+Active extensions (top-level `.ts` files and subdirectory `index.ts` files are entry points):
+- **`subagents/index.ts`** — persistent RPC-backed subagent tool family: `spawn_agent`, `send_agent`, `followup_agent`, `wait_agent`, `list_agents`, `interrupt_agent`, and `close_agent`. `agents/{general,scout,worker}.md` define roles; `managed-agent.ts` and `agent-registry.ts` own lifecycle, `rpc-transport.ts` owns persistent `pi --mode rpc` children, and `event-schema.ts`/`run-state.ts` validate and fold bounded observational state. `host.ts`, `rpc.ts`, and `process.ts` are compatibility facades (delegation depth capped at 2).
+- **`codex-compat/index.ts`** — version-locked OpenAI Codex `apply_patch` filesystem tool. It depends on the reviewed native Pi AI patch under `misc/pi-patches/` and replaces `edit`/`write` only for the `openai-codex` provider.
+- **`ask-question/index.ts`** — `ask_question` tool (multiple choice with auto-added "Compare options" and "Something else"). **Registers only when `ctx.hasUI`** — in non-interactive runs the tool is absent from the agent's tool list.
 - **`caffeinate.ts`** — Prevents macOS sleep during agent runs (spawns `/usr/bin/caffeinate` on `agent_start`, kills on `agent_end`).
 - **`cost-saver.ts`** — Intercepts read tool calls: blocks full-file reads > 50 KB (forces offset/limit), deduplicates repeated reads of unchanged files via SHA-256 hash.
-- **`cost-tracker.ts`** — `/analyze-cost` interactive dashboard (day/week/month breakdown by model and tool count). Reads JSONL session logs.
+- **`cost-tracker/index.ts`** — `/analyze-cost` interactive dashboard (day/week/month breakdown by model and tool count). Streams JSONL session logs.
 - **`footer.ts`** — Custom footer: left side shows cwd, git branch, model + thinking level; right side shows extension statuses, session tokens (in/out/cache hit rate), context usage bar.
+- **`model-shortcuts.ts`** — Alt+1/2/3 shortcuts for the configured Luna, Terra, and Sol model presets.
 
 ## .profile secrets (not obvious from the file alone)
 
@@ -76,11 +78,12 @@ The xterm-256 color palette is the source of truth in **three** files and must s
 
 ## CI
 
-Two GitHub Actions, both on push and PR:
+Three GitHub Actions run on push and PR:
 - `automerge.yml` — auto-merges Dependabot PRs for github-actions and gitsubmodules when update-type is `semver-patch`. Has `contents: write` and `pull-requests: write`.
 - `linter.yml` — `reviewdog/action-shellcheck` with `check_all_files_with_shebangs: true`. Scans every tracked script with a shebang.
+- `extensions.yml` — path-scoped Pi extension gate on Node 22.19: clean install, Pi/native-patch compatibility, formatting, strict typecheck, type-aware lint with zero warnings, and all extension tests.
 
-No tests run in CI. No formatter runs in CI.
+The extension workflow runs tests and formatter checks; the general shell workflow does not.
 
 ## Local hooks (Claude Code)
 
@@ -90,10 +93,10 @@ No tests run in CI. No formatter runs in CI.
 
 ## Verification gates (when changing things)
 
-No automated tests. Manual gates that catch real breakage:
+Automated extension tests run through `just check`; manual gates that catch stow, shell, and runtime breakage:
 - `just user-config` — full stow restow. If this fails, the change is broken at the symlink level.
 - `shellcheck $(git ls-files | xargs file | grep -i 'shell script' | cut -d: -f1)` — CI runs this; mirror it locally before pushing.
 - `bash -n home/.bashrc home/.profile` — syntax check the shell init.
 - `command -v just stow` — setup requires Just and GNU Stow (the recipe remains compatible with BSD `find` on macOS).
-- `just check` — typecheck, lint, and (no-op) test for the pi extensions.
+- `just check` — compatibility, formatting, strict typecheck, type-aware lint, and all Pi extension tests.
 - `cd pi-web && npm run build && npm run typecheck && npm test` — verify the pi-web project after changes there (`build` runs Vite to confirm the frontend bundles; `typecheck` covers both `tsconfig.json` + `tsconfig.app.json`). Manual smoke checklist: `pi-web/docs/smoke-test.md`.

@@ -1,26 +1,17 @@
 import path from "node:path";
 import { realpath } from "node:fs/promises";
-import {
-	type ExtensionAPI,
-	type ToolDefinition,
-	withFileMutationQueue,
-} from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import {
-	applyPreflightedPatch,
-	PatchEngineError,
-	preflightPatch,
-	type PatchPlan,
-} from "./engine.ts";
+import { applyPreflightedPatch, PatchEngineError, preflightPatch, type PatchPlan } from "./engine.ts";
 import { APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME } from "./types.ts";
 
 export interface ApplyPatchToolDetails {
-	workspaceRoot: string;
-	added: string[];
-	updated: string[];
-	deleted: string[];
-	moved: Array<{ from: string; to: string }>;
-	journalArtifacts?: string[];
+	readonly workspaceRoot: string;
+	readonly added: readonly string[];
+	readonly updated: readonly string[];
+	readonly deleted: readonly string[];
+	readonly moved: readonly { readonly from: string; readonly to: string }[];
+	readonly journalArtifacts?: readonly string[];
 }
 
 export type FileMutationQueue = <T>(filePath: string, run: () => Promise<T>) => Promise<T>;
@@ -32,23 +23,27 @@ export interface ApplyPatchToolOptions {
 /** Maximum UTF-8 size accepted by the Pi tool before parsing or filesystem access (512 KiB). */
 export const MAX_APPLY_PATCH_BYTES = 512 * 1024;
 
-const APPLY_PATCH_PARAMETERS = Type.Object({
-	patch: Type.String({
-		description: `Raw *** Begin Patch ... *** End Patch text (maximum ${MAX_APPLY_PATCH_BYTES} UTF-8 bytes).`,
-		maxLength: MAX_APPLY_PATCH_BYTES,
-	}),
-}, { additionalProperties: false });
+const APPLY_PATCH_PARAMETERS = Type.Object(
+	{
+		patch: Type.String({
+			description: `Raw *** Begin Patch ... *** End Patch text (maximum ${MAX_APPLY_PATCH_BYTES} UTF-8 bytes).`,
+			maxLength: MAX_APPLY_PATCH_BYTES,
+		}),
+	},
+	{ additionalProperties: false },
+);
 
 function planLockPaths(plan: PatchPlan): string[] {
-	return plan.changes.flatMap((change) => change.kind === "update" && change.moveAbsolutePath !== undefined
-		? [change.absolutePath, change.moveAbsolutePath]
-		: [change.absolutePath]);
+	return plan.changes.flatMap((change) =>
+		change.kind === "update" && change.moveAbsolutePath !== undefined
+			? [change.absolutePath, change.moveAbsolutePath]
+			: [change.absolutePath],
+	);
 }
 
 function filesystemErrorCode(error: unknown): string | undefined {
-	return typeof error === "object" && error !== null && "code" in error
-		? String((error as { code?: unknown }).code)
-		: undefined;
+	if (!(error instanceof Error) || !("code" in error)) return undefined;
+	return typeof error.code === "string" ? error.code : undefined;
 }
 
 async function canonicalMutationPath(filePath: string): Promise<string> {
@@ -75,10 +70,12 @@ export async function withSortedFileMutationLocks<T>(
 	queue: FileMutationQueue = withFileMutationQueue,
 ): Promise<T> {
 	const uniqueResolved = [...new Set(filePaths.map((filePath) => path.resolve(filePath)))];
-	const canonicalPairs = await Promise.all(uniqueResolved.map(async (filePath) => ({
-		filePath,
-		canonical: await canonicalMutationPath(filePath),
-	})));
+	const canonicalPairs = await Promise.all(
+		uniqueResolved.map(async (filePath) => ({
+			filePath,
+			canonical: await canonicalMutationPath(filePath),
+		})),
+	);
 	const canonicalOwners = new Map<string, string>();
 	for (const pair of canonicalPairs) {
 		const owner = canonicalOwners.get(pair.canonical);
@@ -91,9 +88,10 @@ export async function withSortedFileMutationLocks<T>(
 		canonicalOwners.set(pair.canonical, pair.filePath);
 	}
 	const sorted = [...canonicalOwners.keys()].sort();
-	const acquire = (index: number): Promise<T> => index === sorted.length
-		? run()
-		: queue(sorted[index], () => acquire(index + 1));
+	const acquire = (index: number): Promise<T> => {
+		const filePath = sorted[index];
+		return filePath === undefined ? run() : queue(filePath, () => acquire(index + 1));
+	};
 	return acquire(0);
 }
 
@@ -102,9 +100,9 @@ function describeWriteFailure(error: PatchEngineError): string {
 	if (state === undefined) return error.message;
 	const applied = state.applied.map((change) => change.path).join(", ") || "none";
 	const rolledBack = state.rolledBack.map((change) => change.path).join(", ") || "none";
-	const rollbackFailures = state.rollbackFailures
-		.map((failure) => `${failure.action} ${failure.path}: ${failure.message}`)
-		.join("; ") || "none";
+	const rollbackFailures =
+		state.rollbackFailures.map((failure) => `${failure.action} ${failure.path}: ${failure.message}`).join("; ") ||
+		"none";
 	const artifacts = state.journalArtifacts.join(", ") || "none";
 	return [
 		error.message,
@@ -115,16 +113,16 @@ function describeWriteFailure(error: PatchEngineError): string {
 	].join("\n");
 }
 
-export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails> {
+export function createApplyPatchTool(
+	options: ApplyPatchToolOptions = {},
+): ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails> {
 	const queue = options.mutationQueue ?? withFileMutationQueue;
 	return {
 		name: APPLY_PATCH_TOOL_NAME,
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,
 		promptSnippet: "Apply an add/update/delete/move patch across workspace files",
-		promptGuidelines: [
-			"Use apply_patch for coordinated filesystem changes when it is available.",
-		],
+		promptGuidelines: ["Use apply_patch for coordinated filesystem changes when it is available."],
 		parameters: APPLY_PATCH_PARAMETERS,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
@@ -134,37 +132,44 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): ToolD
 					`apply_patch input is ${patchBytes} bytes; maximum is ${MAX_APPLY_PATCH_BYTES} bytes (512 KiB)`,
 				);
 			}
-			const plan = await preflightPatch(params.patch, { workspaceRoot: ctx.cwd, signal });
+			const plan = await preflightPatch(params.patch, {
+				workspaceRoot: ctx.cwd,
+				...(signal === undefined ? {} : { signal }),
+			});
 			const lockPaths = planLockPaths(plan);
 			try {
-				return await withSortedFileMutationLocks(lockPaths, async () => {
-				onUpdate?.({
-					content: [{ type: "text", text: "Patch preflight passed; applying patch." }],
-					details: {
-						workspaceRoot: plan.workspaceRoot,
-						...plan.summary,
+				return await withSortedFileMutationLocks(
+					lockPaths,
+					async () => {
+						onUpdate?.({
+							content: [{ type: "text", text: "Patch preflight passed; applying patch." }],
+							details: {
+								workspaceRoot: plan.workspaceRoot,
+								...plan.summary,
+							},
+						});
+						const applied = await applyPreflightedPatch(plan, signal === undefined ? {} : { signal });
+						const details: ApplyPatchToolDetails = {
+							workspaceRoot: applied.workspaceRoot,
+							...plan.summary,
+							...(applied.journalArtifacts.length === 0 ? {} : { journalArtifacts: applied.journalArtifacts }),
+						};
+						const changed = [
+							...details.added.map((file) => `Added ${file}`),
+							...details.updated.map((file) => `Updated ${file}`),
+							...details.deleted.map((file) => `Deleted ${file}`),
+							...details.moved.map(({ from, to }) => `Moved ${from} -> ${to}`),
+						];
+						if (applied.journalArtifacts.length > 0) {
+							changed.push(`Warning: retained rollback journal files: ${applied.journalArtifacts.join(", ")}`);
+						}
+						return {
+							content: [{ type: "text", text: `Applied patch successfully.\n${changed.join("\n")}` }],
+							details,
+						};
 					},
-				});
-				const applied = await applyPreflightedPatch(plan, { signal });
-				const details: ApplyPatchToolDetails = {
-					workspaceRoot: applied.workspaceRoot,
-					...plan.summary,
-					...(applied.journalArtifacts.length === 0 ? {} : { journalArtifacts: applied.journalArtifacts }),
-				};
-				const changed = [
-					...details.added.map((file) => `Added ${file}`),
-					...details.updated.map((file) => `Updated ${file}`),
-					...details.deleted.map((file) => `Deleted ${file}`),
-					...details.moved.map(({ from, to }) => `Moved ${from} -> ${to}`),
-				];
-				if (applied.journalArtifacts.length > 0) {
-					changed.push(`Warning: retained rollback journal files: ${applied.journalArtifacts.join(", ")}`);
-				}
-				return {
-					content: [{ type: "text", text: `Applied patch successfully.\n${changed.join("\n")}` }],
-					details,
-				};
-				}, queue);
+					queue,
+				);
 			} catch (error) {
 				if (error instanceof PatchEngineError && error.writeState !== undefined) {
 					throw new Error(describeWriteFailure(error), { cause: error });
@@ -202,8 +207,7 @@ export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOpt
 
 	// The mutation tool is deliberately scoped to Pi's built-in ChatGPT Codex
 	// provider. Pi's version-pinned native codec patch provides raw custom input.
-	const isOpenAICodexModel = (model: { provider?: string } | undefined): boolean =>
-		model?.provider === "openai-codex";
+	const isOpenAICodexModel = (model: { provider?: string } | undefined): boolean => model?.provider === "openai-codex";
 	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(isOpenAICodexModel(ctx.model)));
 	pi.on("model_select", (event) => setCodexCompatToolsActive(isOpenAICodexModel(event.model)));
 }

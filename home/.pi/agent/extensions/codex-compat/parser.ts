@@ -1,9 +1,4 @@
-import {
-	PatchParseError,
-	type ParsedPatch,
-	type PatchChunk,
-	type PatchOperation,
-} from "./patch-types.ts";
+import { PatchParseError, type ParsedPatch, type PatchOperation } from "./patch-types.ts";
 
 const BEGIN = "*** Begin Patch";
 const END = "*** End Patch";
@@ -16,7 +11,7 @@ const EOF = "*** End of File";
 function splitLines(input: string): string[] {
 	const lines = input.split("\n");
 	if (lines.at(-1) === "") lines.pop();
-	return lines.map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+	return lines.map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
 }
 
 function operationHeader(line: string): boolean {
@@ -45,16 +40,20 @@ export function parsePatch(input: string): ParsedPatch {
 	const bodyEnd = lines.length - 1;
 	while (index < bodyEnd) {
 		const header = lines[index];
+		if (header === undefined) throw new Error("patch parser index exceeded validated input");
 		const lineNumber = index + 1;
 		if (header.startsWith(ADD)) {
 			const path = readPath(header, ADD, lineNumber);
 			index++;
 			const content: string[] = [];
-			while (index < bodyEnd && !operationHeader(lines[index])) {
-				if (!lines[index].startsWith("+")) {
+			while (index < bodyEnd) {
+				const line = lines[index];
+				if (line === undefined) throw new Error("patch parser index exceeded validated input");
+				if (operationHeader(line)) break;
+				if (!line.startsWith("+")) {
 					throw new PatchParseError("invalid_hunk", index + 1, "add-file lines must start with '+'");
 				}
-				content.push(lines[index].slice(1));
+				content.push(line.slice(1));
 				index++;
 			}
 			if (content.length === 0) {
@@ -71,8 +70,12 @@ export function parsePatch(input: string): ParsedPatch {
 				line: lineNumber,
 			});
 			index++;
-			if (index < bodyEnd && !operationHeader(lines[index])) {
-				throw new PatchParseError("invalid_hunk", index + 1, "delete-file hunk cannot have a body");
+			if (index < bodyEnd) {
+				const nextLine = lines[index];
+				if (nextLine === undefined) throw new Error("patch parser index exceeded validated input");
+				if (!operationHeader(nextLine)) {
+					throw new PatchParseError("invalid_hunk", index + 1, "delete-file hunk cannot have a body");
+				}
 			}
 			continue;
 		}
@@ -84,15 +87,27 @@ export function parsePatch(input: string): ParsedPatch {
 		const path = readPath(header, UPDATE, lineNumber);
 		index++;
 		let moveTo: string | undefined;
-		if (index < bodyEnd && lines[index].startsWith(MOVE)) {
-			moveTo = readPath(lines[index], MOVE, index + 1);
-			index++;
+		if (index < bodyEnd) {
+			const nextLine = lines[index];
+			if (nextLine === undefined) throw new Error("patch parser index exceeded validated input");
+			if (nextLine.startsWith(MOVE)) {
+				moveTo = readPath(nextLine, MOVE, index + 1);
+				index++;
+			}
 		}
 
-		const chunks: PatchChunk[] = [];
-		let chunk: PatchChunk | undefined;
-		while (index < bodyEnd && !operationHeader(lines[index])) {
+		const chunks: Array<{
+			context?: string;
+			oldLines: string[];
+			newLines: string[];
+			endOfFile: boolean;
+			line: number;
+		}> = [];
+		let chunk: (typeof chunks)[number] | undefined;
+		while (index < bodyEnd) {
 			const line = lines[index];
+			if (line === undefined) throw new Error("patch parser index exceeded validated input");
+			if (operationHeader(line)) break;
 			if (line === "@@" || line.startsWith("@@ ")) {
 				chunk = {
 					...(line === "@@" ? {} : { context: line.slice(3) }),
@@ -112,8 +127,12 @@ export function parsePatch(input: string): ParsedPatch {
 				chunk.endOfFile = true;
 				index++;
 				while (index < bodyEnd && lines[index] === "") index++;
-				if (index < bodyEnd && !operationHeader(lines[index])) {
-					throw new PatchParseError("invalid_hunk", index + 1, "end-of-file marker must end its file hunk");
+				if (index < bodyEnd) {
+					const nextLine = lines[index];
+					if (nextLine === undefined) throw new Error("patch parser index exceeded validated input");
+					if (!operationHeader(nextLine)) {
+						throw new PatchParseError("invalid_hunk", index + 1, "end-of-file marker must end its file hunk");
+					}
 				}
 				break;
 			}
@@ -127,9 +146,11 @@ export function parsePatch(input: string): ParsedPatch {
 				chunk = { oldLines: [], newLines: [], endOfFile: false, line: index + 1 };
 				chunks.push(chunk);
 			}
+			const marker = line[0];
+			if (marker === undefined) throw new Error("validated update line has no marker");
 			const text = line.slice(1);
-			if (line[0] !== "+") chunk.oldLines.push(text);
-			if (line[0] !== "-") chunk.newLines.push(text);
+			if (marker !== "+") chunk.oldLines.push(text);
+			if (marker !== "-") chunk.newLines.push(text);
 			index++;
 		}
 

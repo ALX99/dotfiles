@@ -1,14 +1,12 @@
 /**
- * Cost Saver Extension for pi
+ * Cost Saver Extension for pi.
  *
- * Reproduces two high-impact cost-saving measures from the Dirac harness:
- *
- * 1. FILE SIZE GUARD      – Blocks full-file reads > 50 KB before they hit the
- *    context window, forcing the model to use offset/limit.
- *
- * 2. FILE HASH DEDUP      – Computes a SHA-256 hash of every full-file read.
- *    If the model re-reads an unchanged file, the tool is blocked with a
- *    cheap "no changes" message instead of flooding the context.
+ * Full reads are guarded by size and deduplicated by a short SHA-256
+ * fingerprint. This is deliberately a cost heuristic, not a transactional
+ * read guarantee: a file can change after preflight and before the read tool
+ * consumes it. A successful result therefore records the fingerprint observed
+ * at preflight; a later preflight will conservatively allow a read if the file
+ * has changed since then.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -16,110 +14,162 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { isRecord } from "./_shared/json.ts";
 
-const MAX_FULL_READ_BYTES = 50 * 1024; // 50 KB
+const MAX_FULL_READ_BYTES = 50 * 1024;
 
-function sha256Short(data: Buffer): string {
-  return createHash("sha256").update(data).digest("hex").slice(0, 16);
+interface FileInfo {
+	readonly size: number;
+	isFile(): boolean;
 }
 
-/* ======================================================================== */
-/*  Extension factory                                                       */
-/* ======================================================================== */
+export interface CostSaverFileSystem {
+	stat(path: string): Promise<FileInfo>;
+	readFile(path: string): Promise<Buffer>;
+}
 
-export default function(pi: ExtensionAPI) {
-  // absolute path -> hash of the last successful full-file read
-  const fileHashCache = new Map<string, string>();
+export interface FullReadCall {
+	readonly toolCallId: string;
+	readonly cwd: string;
+	readonly path: string;
+	readonly offset?: number;
+	readonly limit?: number;
+}
 
-  /* -------------------------------------------------------------------- */
-  /*  1. File size guard + hash dedup (intercept read tool calls)         */
-  /* -------------------------------------------------------------------- */
+export interface ToolResult {
+	readonly toolCallId: string;
+	readonly cwd: string;
+	readonly input: unknown;
+	readonly isError: boolean;
+}
 
-  pi.on("tool_call", async (event, ctx) => {
-    if (!isToolCallEventType("read", event)) return;
+interface FileFingerprint {
+	readonly path: string;
+	readonly hash: string;
+}
 
-    const { path, offset, limit } = event.input;
+interface FullReadInput {
+	readonly path: string;
+	readonly offset?: unknown;
+	readonly limit?: unknown;
+}
 
-    // If the model is already being surgical, let it through.
-    if (offset !== undefined || limit !== undefined) return;
+interface CostSaverBlock {
+	readonly block: true;
+	readonly reason: string;
+}
 
-    const absPath = resolve(ctx.cwd, path || "");
+function sha256Short(data: Buffer): string {
+	return createHash("sha256").update(data).digest("hex").slice(0, 16);
+}
 
-    // ---- File size guard ----
-    let fileStats;
-    try {
-      fileStats = await stat(absPath);
-    } catch {
-      return; // File doesn't exist; let the real tool return the error.
-    }
+function parseFullReadInput(input: unknown): FullReadInput | undefined {
+	if (!isRecord(input) || typeof input.path !== "string" || input.path.trim() === "") return undefined;
+	if (input.offset !== undefined || input.limit !== undefined) return undefined;
+	return { path: input.path };
+}
 
-    if (!fileStats.isFile()) return;
+/**
+ * Owns session-local deduplication state. Fingerprints are keyed by a tool
+ * call ID until the corresponding successful result arrives, preventing a
+ * later result from recording another call's preflight observation.
+ */
+export class CostSaverController {
+	private readonly fileHashCache = new Map<string, string>();
+	private readonly pendingFingerprints = new Map<string, FileFingerprint>();
+	private readonly fs: CostSaverFileSystem;
 
-    if (fileStats.size > MAX_FULL_READ_BYTES) {
-      return {
-        block: true,
-        reason:
-          `File size is ${(fileStats.size / 1024).toFixed(0)}KB, which exceeds the ${MAX_FULL_READ_BYTES / 1024}KB limit for full-file reads. ` +
-          `Do not retry a full read. First, use grep to find concrete words, symbols, or error text relevant to your task. ` +
-          `Then read only the matching ranges and their surrounding context with offset/limit.`,
-      };
-    }
+	constructor(fs: CostSaverFileSystem = { stat, readFile }) {
+		this.fs = fs;
+	}
 
-    // ---- Hash dedup ----
-    const cachedHash = fileHashCache.get(absPath);
-    if (cachedHash) {
-      let currentHash: string | undefined;
-      try {
-        const buffer = await readFile(absPath);
-        currentHash = sha256Short(buffer);
-      } catch {
-        return; // Let the real tool handle read errors.
-      }
+	async preflight(call: FullReadCall): Promise<CostSaverBlock | undefined> {
+		if (call.path.trim() === "") {
+			return {
+				block: true,
+				reason: "A read path must not be blank.",
+			};
+		}
+		if (call.offset !== undefined || call.limit !== undefined) return undefined;
 
-      if (currentHash === cachedHash) {
-        return {
-          block: true,
-          reason:
-            `No changes have been made to the file since your last read (hash: ${cachedHash}). ` +
-            `Use offset/limit if you need to re-examine specific sections.`,
-        };
-      }
-    }
-  });
+		const absPath = resolve(call.cwd, call.path);
+		let fileStats: FileInfo;
+		try {
+			fileStats = await this.fs.stat(absPath);
+		} catch {
+			return undefined;
+		}
+		if (!fileStats.isFile()) return;
+		if (fileStats.size > MAX_FULL_READ_BYTES) {
+			return {
+				block: true,
+				reason:
+					`File size is ${(fileStats.size / 1024).toFixed(0)}KB, which exceeds the ${MAX_FULL_READ_BYTES / 1024}KB limit for full-file reads. ` +
+					"Do not retry a full read. First, use grep to find concrete words, symbols, or error text relevant to your task. " +
+					"Then read only the matching ranges and their surrounding context with offset/limit.",
+			};
+		}
 
-  /* -------------------------------------------------------------------- */
-  /*  2. Remember hashes from successful full-file reads                    */
-  /* -------------------------------------------------------------------- */
+		let fingerprint: FileFingerprint;
+		try {
+			fingerprint = { path: absPath, hash: sha256Short(await this.fs.readFile(absPath)) };
+		} catch {
+			return undefined;
+		}
 
-  pi.on("tool_result", async (event, ctx) => {
-    if (event.toolName !== "read") return;
-    if (event.isError) return;
+		if (this.fileHashCache.get(absPath) === fingerprint.hash) {
+			return {
+				block: true,
+				reason:
+					`No changes have been made to the file since your last read (hash: ${fingerprint.hash}). ` +
+					"Use offset/limit if you need to re-examine specific sections.",
+			};
+		}
 
-    const input = event.input as { path?: string; offset?: number; limit?: number };
-    if (input.offset !== undefined || input.limit !== undefined) return;
+		this.pendingFingerprints.set(call.toolCallId, fingerprint);
+		return undefined;
+	}
 
-    const absPath = resolve(ctx.cwd, input.path || "");
+	rememberResult(result: ToolResult): void {
+		const fingerprint = this.pendingFingerprints.get(result.toolCallId);
+		this.pendingFingerprints.delete(result.toolCallId);
+		if (result.isError || !fingerprint) return;
 
-    try {
-      const buffer = await readFile(absPath);
-      fileHashCache.set(absPath, sha256Short(buffer));
-    } catch {
-      // Ignore read errors here; the tool already handled them.
-    }
-  });
+		const input = parseFullReadInput(result.input);
+		if (!input || resolve(result.cwd, input.path) !== fingerprint.path) return;
+		this.fileHashCache.set(fingerprint.path, fingerprint.hash);
+	}
 
+	clear(): void {
+		this.fileHashCache.clear();
+		this.pendingFingerprints.clear();
+	}
+}
 
-  /* -------------------------------------------------------------------- */
-  /*  3. Clean up on session end                                            */
-  /* -------------------------------------------------------------------- */
+export default function costSaver(pi: ExtensionAPI): void {
+	const controller = new CostSaverController();
 
-  pi.on("session_compact", () => {
-    // Compaction discards old context, so cached hashes are stale —
-    // allow re-reading files that the agent can no longer "remember".
-    fileHashCache.clear();
-  });
+	pi.on("tool_call", async (event, ctx) => {
+		if (!isToolCallEventType("read", event)) return;
+		return controller.preflight({
+			toolCallId: event.toolCallId,
+			cwd: ctx.cwd,
+			path: event.input.path,
+			...(event.input.offset === undefined ? {} : { offset: event.input.offset }),
+			...(event.input.limit === undefined ? {} : { limit: event.input.limit }),
+		});
+	});
 
-  pi.on("session_shutdown", () => {
-    fileHashCache.clear();
-  });
+	pi.on("tool_result", (event, ctx) => {
+		if (event.toolName !== "read") return;
+		controller.rememberResult({
+			toolCallId: event.toolCallId,
+			cwd: ctx.cwd,
+			input: event.input,
+			isError: event.isError,
+		});
+	});
+
+	pi.on("session_compact", () => controller.clear());
+	pi.on("session_shutdown", () => controller.clear());
 }

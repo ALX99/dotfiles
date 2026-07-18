@@ -48,29 +48,38 @@ test("ingestLine ignores non-JSON and unrelated event types", () => {
 
 test("ingestLine captures an assistant provider error even when the child exits zero", () => {
 	const d = fresh();
-	ingestLine(msgEnd({
-		role: "assistant",
-		content: [],
-		stopReason: "error",
-		errorMessage: "Codex error: unsupported model",
-	}), d);
+	ingestLine(
+		msgEnd({
+			role: "assistant",
+			content: [],
+			stopReason: "error",
+			errorMessage: "Codex error: unsupported model",
+		}),
+		d,
+	);
 
 	assert.equal(d.assistantError, "Codex error: unsupported model");
 });
 
 test("ingestLine clears a transient assistant error after a successful retry", () => {
 	const d = fresh();
-	ingestLine(msgEnd({
-		role: "assistant",
-		content: [],
-		stopReason: "error",
-		errorMessage: "temporary provider error",
-	}), d);
-	ingestLine(msgEnd({
-		role: "assistant",
-		content: [{ type: "text", text: "recovered" }],
-		stopReason: "stop",
-	}), d);
+	ingestLine(
+		msgEnd({
+			role: "assistant",
+			content: [],
+			stopReason: "error",
+			errorMessage: "temporary provider error",
+		}),
+		d,
+	);
+	ingestLine(
+		msgEnd({
+			role: "assistant",
+			content: [{ type: "text", text: "recovered" }],
+			stopReason: "stop",
+		}),
+		d,
+	);
 
 	assert.equal(d.assistantError, undefined);
 });
@@ -109,11 +118,16 @@ test("ingestLine folds an assistant message_end into usage/tools/lastMessage", (
 
 test("ingestLine retains assistant text across messages in one generation", () => {
 	const d = fresh();
-	ingestLine(msgEnd(assistantWithUsage([
-		{ type: "text", text: "First section." },
-		{ type: "toolCall", name: "read", arguments: { path: "notes.md" } },
-		{ type: "text", text: "Second section." },
-	])), d);
+	ingestLine(
+		msgEnd(
+			assistantWithUsage([
+				{ type: "text", text: "First section." },
+				{ type: "toolCall", name: "read", arguments: { path: "notes.md" } },
+				{ type: "text", text: "Second section." },
+			]),
+		),
+		d,
+	);
 	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "Final conclusion." }])), d);
 
 	assert.equal(d.finalText, "First section.\n\nSecond section.\n\nFinal conclusion.");
@@ -121,10 +135,10 @@ test("ingestLine retains assistant text across messages in one generation", () =
 	assert.equal(d.lastMessage, "Final conclusion.");
 });
 
-test("ingestLine bounds large final text and preserves the full output in a private temp file", () => {
+test("ingestLine bounds large final text and preserves the full output in a private temp file", async () => {
 	const d = fresh();
 	const full = "x".repeat(60 * 1024);
-	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: full }])), d);
+	await ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: full }])), d);
 
 	assert.ok(Buffer.byteLength(d.finalText, "utf8") <= 50 * 1024);
 	assert.match(d.finalText, /Output truncated/);
@@ -133,10 +147,11 @@ test("ingestLine bounds large final text and preserves the full output in a priv
 	assert.equal(fs.readFileSync(d.outputFile, "utf8"), full);
 
 	const outputDir = path.dirname(d.outputFile);
-	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "replacement" }])), d);
+	await ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "replacement" }])), d);
 	assert.match(d.finalText, /Output truncated/);
 	assert.ok(d.outputFile);
-	assert.equal(fs.existsSync(outputDir), false);
+	assert.equal(path.dirname(d.outputFile), outputDir);
+	assert.equal(fs.existsSync(outputDir), true);
 	assert.match(fs.readFileSync(d.outputFile, "utf8"), /replacement$/);
 	fs.rmSync(path.dirname(d.outputFile), { recursive: true, force: true });
 });
@@ -157,24 +172,18 @@ test("ingestLine ignores a tool_result_end event — pins the wire format", () =
 
 test("ingestLine: lastMessage skips blank lines and fence delimiters", () => {
 	const d = fresh();
-	ingestLine(
-		msgEnd(assistantWithUsage([{ type: "text", text: "```ts\nconst x = 1;\n```\nReal prose" }])),
-		d,
-	);
+	ingestLine(msgEnd(assistantWithUsage([{ type: "text", text: "```ts\nconst x = 1;\n```\nReal prose" }])), d);
 	assert.equal(d.lastMessage, "const x = 1;");
 });
 
 test("recentTools is capped to a rolling window of the most recent calls", () => {
 	const d = fresh();
 	for (let i = 0; i < 60; i++) {
-		ingestLine(
-			msgEnd(assistantWithUsage([{ type: "toolCall", name: "bash", arguments: { command: `cmd ${i}` } }])),
-			d,
-		);
+		ingestLine(msgEnd(assistantWithUsage([{ type: "toolCall", name: "bash", arguments: { command: `cmd ${i}` } }])), d);
 	}
 	assert.equal(d.toolCount, 60);
 	assert.ok(d.recentTools.length <= 50);
-	assert.equal(d.recentTools[0].argsPreview, "cmd 10");
+	assert.equal(d.recentTools.at(0)?.argsPreview, "cmd 10");
 	assert.equal(d.recentTools.at(-1)?.argsPreview, "cmd 59");
 });
 
@@ -182,17 +191,19 @@ test("elapsed time, usage, tool count, and reported cost remain observational", 
 	const d = fresh();
 	d.startTime = Date.now() - 365 * 24 * 60 * 60 * 1_000;
 	for (let index = 0; index < 100; index++) {
-		ingestLine(msgEnd(assistantWithUsage(
-			[{ type: "toolCall", name: "read", arguments: { path: `file-${index}` } }],
-			{
-				input: 1_000_000,
-				output: 1_000_000,
-				cacheRead: 1_000_000,
-				cacheWrite: 1_000_000,
-				totalTokens: 4_000_000,
-				cost: { total: 1_000_000 },
-			},
-		)), d);
+		ingestLine(
+			msgEnd(
+				assistantWithUsage([{ type: "toolCall", name: "read", arguments: { path: `file-${index}` } }], {
+					input: 1_000_000,
+					output: 1_000_000,
+					cacheRead: 1_000_000,
+					cacheWrite: 1_000_000,
+					totalTokens: 4_000_000,
+					cost: { total: 1_000_000 },
+				}),
+			),
+			d,
+		);
 	}
 	assert.equal(d.aborted, false);
 	assert.equal(d.endTime, undefined);
@@ -216,62 +227,96 @@ test("argsPreview falls back to compact JSON for unknown shapes", () => {
 
 test("ingestLine forwards two nested spawn_agent snapshots recursively", () => {
 	const d = fresh();
-	for (const [id, agent, task] of [["child-a", "scout", "locate parser"], ["child-b", "worker", "fix parser"]] as const) {
-		ingestLine(JSON.stringify({
-			type: "tool_execution_start",
-			toolCallId: id,
-			toolName: "spawn_agent",
-			args: { agent, task_name: task },
-		}), d);
-		ingestLine(JSON.stringify({
-			type: "tool_execution_update",
-			toolCallId: id,
-			toolName: "spawn_agent",
-			args: {},
-			partialResult: {
-				details: {
-					agent,
-					taskName: task,
-					depth: 2,
-					toolCount: 1,
-					recentTools: [{ name: "read", argsPreview: `src/${agent}.ts` }],
-					lastMessage: "reading target",
-					nestedRuns: agent === "worker" ? [{
-						toolCallId: "grandchild",
-						agent: "scout",
-						taskName: "find tests",
-						depth: 3,
+	for (const [id, agent, task] of [
+		["child-a", "scout", "locate parser"],
+		["child-b", "worker", "fix parser"],
+	] as const) {
+		ingestLine(
+			JSON.stringify({
+				type: "tool_execution_start",
+				toolCallId: id,
+				toolName: "spawn_agent",
+				args: { agent, task_name: task },
+			}),
+			d,
+		);
+		ingestLine(
+			JSON.stringify({
+				type: "tool_execution_update",
+				toolCallId: id,
+				toolName: "spawn_agent",
+				args: {},
+				partialResult: {
+					details: {
+						agent,
+						taskName: task,
+						depth: 2,
 						toolCount: 1,
-						recentTools: [{ name: "grep", argsPreview: "parser" }],
-						lastMessage: "",
-						nestedRuns: [],
-					}] : [],
+						recentTools: [{ name: "read", argsPreview: `src/${agent}.ts` }],
+						lastMessage: "reading target",
+						nestedRuns:
+							agent === "worker"
+								? [
+										{
+											toolCallId: "grandchild",
+											agent: "scout",
+											taskName: "find tests",
+											depth: 3,
+											toolCount: 1,
+											recentTools: [{ name: "grep", argsPreview: "parser" }],
+											lastMessage: "",
+											nestedRuns: [],
+										},
+									]
+								: [],
+					},
 				},
-			},
-		}), d);
+			}),
+			d,
+		);
 	}
 
 	assert.equal(d.nestedRuns.length, 2);
-	assert.deepEqual(d.nestedRuns.map((run) => run.agent), ["scout", "worker"]);
+	assert.deepEqual(
+		d.nestedRuns.map((run) => run.agent),
+		["scout", "worker"],
+	);
 	assert.equal(d.nestedRuns[1]?.nestedRuns[0]?.agent, "scout");
 	assert.equal(d.nestedRuns[1]?.nestedRuns[0]?.recentTools[0]?.name, "grep");
 });
 
 test("ingestLine marks a completed nested spawn_agent", () => {
 	const d = fresh();
-	ingestLine(JSON.stringify({
-		type: "tool_execution_start",
-		toolCallId: "child",
-		toolName: "spawn_agent",
-		args: { agent: "scout", task_name: "find files" },
-	}), d);
-	ingestLine(JSON.stringify({
-		type: "tool_execution_end",
-		toolCallId: "child",
-		toolName: "spawn_agent",
-		result: { details: { agent: "scout", taskName: "find files", depth: 2, endTime: 1, toolCount: 2, recentTools: [], lastMessage: "done", nestedRuns: [] } },
-		isError: false,
-	}), d);
+	ingestLine(
+		JSON.stringify({
+			type: "tool_execution_start",
+			toolCallId: "child",
+			toolName: "spawn_agent",
+			args: { agent: "scout", task_name: "find files" },
+		}),
+		d,
+	);
+	ingestLine(
+		JSON.stringify({
+			type: "tool_execution_end",
+			toolCallId: "child",
+			toolName: "spawn_agent",
+			result: {
+				details: {
+					agent: "scout",
+					taskName: "find files",
+					depth: 2,
+					endTime: 1,
+					toolCount: 2,
+					recentTools: [],
+					lastMessage: "done",
+					nestedRuns: [],
+				},
+			},
+			isError: false,
+		}),
+		d,
+	);
 
 	assert.equal(d.nestedRuns[0]?.status, "completed");
 	assert.equal(d.nestedRuns[0]?.lastMessage, "done");
