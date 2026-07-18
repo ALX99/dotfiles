@@ -116,7 +116,8 @@ export default function (pi: ExtensionAPI) {
 			"Use background=true only when independent work can continue; completion is delivered automatically.",
 			"When the current response needs background results, call wait_agent once with all relevant IDs before answering; consumed results will not trigger redundant follow-up turns.",
 			"For parallel reviews, give agents non-overlapping scopes and ask for the evidence and uncertainty the task requires; synthesize and deduplicate findings in the parent.",
-			"Use followup_agent to reuse a completed agent's context, send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
+			"Use followup_agent when continuing the same subject and the completed agent's retained context is useful, especially when a scout already has relevant repository knowledge. Spawn a new agent for an unrelated topic, independent implementation scope, or different role or execution policy.",
+			"Use send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
 			"Subagents are non-interactive: they cannot open user dialogs and must report questions in text.",
 		],
 		parameters: spawnParameters,
@@ -233,7 +234,15 @@ export default function (pi: ExtensionAPI) {
 			return { content: [{ type: "text" as const, text: background ? formatLaunch(summary) : formatCompletion(summary) }], details };
 		},
 		renderCall(args, theme, context) {
-			return renderManagementCall("followup_agent", args.agent_id, args.message, context.expanded, registry.list(), theme);
+			return renderManagementCall(
+				"followup_agent",
+				args.agent_id,
+				args.message,
+				context.expanded,
+				registry.list(),
+				theme,
+				args.background === true ? "async" : "blocking",
+			);
 		},
 		renderResult(result, options, theme, context) {
 			const details = result.details as RunDetails | undefined;

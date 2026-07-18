@@ -1,7 +1,8 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { renderAgentSummaries, renderManagementCall, renderResultBlock, renderWaitCall, renderWaitResult } from "../render.ts";
+import { Container } from "@earendil-works/pi-tui";
+import { renderAgentSummaries, renderCallHeader, renderManagementCall, renderResultBlock, renderWaitCall, renderWaitResult } from "../render.ts";
 import type { RunDetails } from "../process.ts";
 
 const theme = {
@@ -69,6 +70,18 @@ function details(): RunDetails {
 	};
 }
 
+test("spawn call header always identifies async or blocking execution", () => {
+	const blocking = new Container();
+	renderCallHeader(blocking, { agent: "worker", message: "fix parser" }, false, theme as never);
+	const asyncCall = new Container();
+	renderCallHeader(asyncCall, { agent: "scout", message: "inspect parser", background: true }, false, theme as never);
+
+	assert.match(blocking.render(120).join("\n"), /spawn_agent worker .*· blocking/);
+	assert.doesNotMatch(blocking.render(120).join("\n"), /· async/);
+	assert.match(asyncCall.render(120).join("\n"), /spawn_agent scout .*· async/);
+	assert.doesNotMatch(asyncCall.render(120).join("\n"), /· blocking/);
+});
+
 test("renderResultBlock shows concurrent nested subagents and their child", () => {
 	const rendered = renderResultBlock(details(), { expanded: true, isPartial: true }, theme as never).render(120).join("\n");
 
@@ -111,10 +124,14 @@ test("management renderers identify targets and replace raw summary JSON", () =>
 		status: "running" as const,
 	}];
 	const call = renderManagementCall("send_agent", summaries[0].agent_id, "check errors", false, summaries, theme as never).render(120).join("\n");
+	const asyncFollowUp = renderManagementCall("followup_agent", summaries[0].agent_id, "continue", false, summaries, theme as never, "async").render(120).join("\n");
+	const blockingFollowUp = renderManagementCall("followup_agent", summaries[0].agent_id, "continue", false, summaries, theme as never, "blocking").render(120).join("\n");
 	const result = renderAgentSummaries("list_agents", summaries, false, theme as never).render(120).join("\n");
 
 	assert.match(call, /send_agent · inspect parser · agent-1/);
 	assert.match(call, /check errors/);
+	assert.match(asyncFollowUp, /followup_agent · inspect parser · agent-12 · async/);
+	assert.match(blockingFollowUp, /followup_agent · inspect parser · agent-12 · blocking/);
 	assert.match(result, /list_agents · 1 agent/);
 	assert.match(result, /inspect parser · scout · fast · opencode-go\/deepseek-v4-flash · low · agent-12 · running/);
 });

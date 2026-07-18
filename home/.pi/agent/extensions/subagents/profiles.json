@@ -16,7 +16,7 @@
     "deep-thinker": {
       "description": "Careful work for consequential tasks",
       "models": [
-        { "id": "openai-codex/gpt-5.6-sol", "maxThinking": "high" }
+        { "id": "openai-codex/gpt-5.6-sol", "maxThinking": "xhigh" }
       ]
     }
   },

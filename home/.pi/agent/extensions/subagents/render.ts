@@ -54,7 +54,9 @@ export function renderCallHeader(
 	if (args.thinking) meta.push(theme.fg("muted", `· thinking=${args.thinking}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
-	if (args.background) meta.push(theme.fg("muted", "· background"));
+	meta.push(args.background
+		? theme.fg("accent", "· async")
+		: theme.fg("warning", "· blocking"));
 	c.addChild(new Text(`${theme.fg("toolTitle", theme.bold("spawn_agent"))}${agentLabel} ${meta.join(" ")}`, 0, 0));
 
 	if (args.message) {
@@ -80,6 +82,7 @@ export function renderManagementCall(
 	expanded: boolean,
 	summaries: AgentSummary[],
 	theme: Theme,
+	runMode?: "async" | "blocking",
 ): Container {
 	const c = new Container();
 	const summary = agentId ? summaries.find((candidate) => candidate.agent_id === agentId) : undefined;
@@ -88,8 +91,11 @@ export function renderManagementCall(
 		: agentId
 			? ` · ${agentId.slice(0, 8)}`
 			: " · all session agents";
+	const mode = runMode
+		? theme.fg(runMode === "async" ? "accent" : "warning", ` · ${runMode}`)
+		: "";
 	c.addChild(new Text(
-		`${theme.fg("toolTitle", theme.bold(toolName))}${theme.fg("muted", target)}`,
+		`${theme.fg("toolTitle", theme.bold(toolName))}${theme.fg("muted", target)}${mode}`,
 		0,
 		0,
 	));
