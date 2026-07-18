@@ -24,7 +24,7 @@ import {
 
 const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
-export const DEFAULT_WAIT_MS = 10 * 60 * 1_000;
+export const DEFAULT_WAIT_MS = 15 * 60 * 1_000;
 
 export default function (pi: ExtensionAPI) {
 	const discovered = discoverAgents();
@@ -258,7 +258,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "wait_agent",
 		label: "Wait Agent",
-		description: "Wait up to ten minutes for specified subagents to settle. Settled results are consumed, preventing redundant automatic follow-up turns.",
+		description: "Wait up to fifteen minutes for specified subagents to settle. Settled results are consumed, preventing redundant automatic follow-up turns.",
 		parameters: createWaitAgentSchema(),
 		async execute(_id, params, signal) {
 			const requested = [...new Set(params.agent_ids)];
