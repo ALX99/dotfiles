@@ -279,14 +279,21 @@ for part := range strings.SplitSeq(text, ",") { ... }
 
 ### Go 1.27+
 
-Only use these when the module targets Go 1.27+; the release notes remain draft until release.
+Only use when the module targets Go 1.27+; the release notes remain draft until release. Generic methods are concrete-only, and `encoding/json/v2` migrations need semantic review.
 
-- Generic concrete methods may declare their own type parameters; interface methods still cannot.
-- Keyed struct literals may name unambiguous promoted fields directly.
-- Generic function arguments can be inferred from assignment contexts such as composite literals and channel sends.
-- Consider `encoding/json/v2` for stricter configurable JSON, and prefer the standard `uuid` package when it replaces a dependency cleanly.
-- Prefer `strings.CutLast` / `bytes.CutLast`, `(*url.URL).Clone`, and `url.Values.Clone` over manual equivalents.
-- Use the `goroutineleak` pprof profile when investigating permanently blocked goroutines.
+```go
+func (r Result[T]) Map[U any](f func(T) U) Result[U] { ... } // generic method
+
+cfg := Config{MinVersion: tls.VersionTLS13} // promoted embedded field
+handlers := []func(int){handle}             // infers handle[int]
+
+json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true))
+id := uuid.NewV7()
+
+head, tail, ok := strings.CutLast(path, "/")
+clone := u.Clone()
+leaks := pprof.Lookup("goroutineleak")
+```
 
 ## Miscellaneous
 
