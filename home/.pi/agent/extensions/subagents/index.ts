@@ -1,13 +1,14 @@
 /** Persistent RPC-backed subagents with stable, session-runtime IDs. */
 
+import { randomUUID } from "node:crypto";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { discoverAgents, formatAgentList, resolveAgent, type AgentConfig } from "./agents.ts";
 import { formatAgentCounts, sanitizeTerminalText, showAgentDashboard } from "./dashboard.ts";
-import { AgentRegistry, ManagedAgent, type AgentSummary, type AgentView } from "./host.ts";
-import { DEPTH_ENV, type RunDetails } from "./process.ts";
+import { AgentRegistry, executionCanDelegate, ManagedAgent, SpawnAdmissionController, type AgentSummary, type AgentView } from "./host.ts";
+import { parseChildExecutionContext, type ChildExecutionContext, type RunDetails } from "./process.ts";
 import { loadProfiles, resolveRun, type ProfilesConfig } from "./profiles.ts";
 import {
 	formatDuration,
@@ -22,7 +23,6 @@ import {
 	type WaitDetails,
 } from "./render.ts";
 
-const MAX_DEPTH = 3;
 const MAX_HANDOFF_CHARS = 8_000;
 export const DEFAULT_WAIT_MS = 15 * 60 * 1_000;
 
@@ -45,7 +45,16 @@ export default function (pi: ExtensionAPI) {
 	];
 	if (configurationErrors.length) throw new Error(configurationErrors.join("\n"));
 	const profiles = profileResult._unsafeUnwrap();
+	const executionContext = parseChildExecutionContext();
 	const registry = new AgentRegistry();
+	const admission = new SpawnAdmissionController(
+		profiles,
+		registry,
+		executionContext?.treeId ?? randomUUID(),
+		executionContext,
+	);
+	// Hard leaves do not register any member of the subagent tool family.
+	if (!admission.canExposeSubagentTools()) return;
 	const ticks = new Map<string, NodeJS.Timeout>();
 	const pendingCompletions = new Map<string, AgentSummary>();
 	let shuttingDown = false;
@@ -56,7 +65,7 @@ export default function (pi: ExtensionAPI) {
 		const policy = profiles.agentPolicies[agent.name]!;
 		return `- **${agent.name}** — ${agent.description} Default profile: \`${policy.defaultProfile}\`; allowed: ${policy.allowedProfiles.map((name) => `\`${name}\``).join(", ")}.`;
 	}).join("\n");
-	const spawnParameters = createSpawnAgentSchema(agents, profiles);
+	const spawnParameters = createSpawnAgentSchema(agents, profiles, executionContext);
 
 	pi.on("session_start", (_event, ctx) => {
 		activeContext = ctx;
@@ -106,9 +115,13 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "spawn_agent",
 		label: "Spawn Agent",
-		description: "Spawn an isolated persistent subagent. Foreground by default; background calls return an agent ID immediately. Depth capped at 3.",
+		description: "Spawn an admitted persistent subagent. Root may explicitly grant a general agent up to two delegation credits; nested delegation is limited to fast scouts. Maximum depth is 2.",
 		promptSnippet: "Spawn an isolated persistent subagent with its own context, model, and tools",
 		promptGuidelines: [
+			"The root agent must perform orchestration itself; expensive or specialized children are leaves, not replacement coordinators.",
+			"Launch scouts directly for narrow, non-overlapping evidence gathering, then pass the collected evidence to a single deep reviewer for synthesis and judgment.",
+			"Treat every deep reviewer as a leaf. Use followup_agent when an existing agent retains useful context, and do not replace an idle deep reviewer with a new one.",
+			"Grant nested delegation only when a general coordinator genuinely needs up to two narrow fast reconnaissance tasks.",
 			"Use spawn_agent to delegate a self-contained task to an isolated subagent.",
 			`Available agents and execution policies:\n${agentList}`,
 			"Normally choose only an agent. Use profile only as an explicit allowed override; never select an individual model.",
@@ -122,8 +135,14 @@ export default function (pi: ExtensionAPI) {
 		],
 		parameters: spawnParameters,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
-			if (parentDepth >= MAX_DEPTH) throw new Error(`spawn_agent capped at depth ${MAX_DEPTH}. Perform this work in the current session.`);
+			const rawParams = params as Record<string, unknown>;
+			const hasDelegationGrant = Object.hasOwn(rawParams, "delegation_credits");
+			if (executionContext && hasDelegationGrant) {
+				throw new Error("Only the top-level process may supply delegation_credits; remove it from this nested spawn.");
+			}
+			if (hasDelegationGrant && typeof rawParams.delegation_credits !== "number") {
+				throw new Error(`delegation_credits must be an integer from 0 to ${profiles.rootPolicy.maxDelegationGrant}.`);
+			}
 			const requestedAgent = params.agent.trim();
 			const agentConfig = resolveAgent(agents, requestedAgent).match(
 				(value) => value,
@@ -136,6 +155,13 @@ export default function (pi: ExtensionAPI) {
 				profile: params.profile,
 				requestedThinking: params.thinking,
 			});
+			const childContext = admission.admit({
+				agent: resolvedRun.agent,
+				profile: resolvedRun.profile,
+				...(hasDelegationGrant
+					? { delegationCredits: rawParams.delegation_credits as number }
+					: {}),
+			});
 			const contextWindow = resolvedRun.contextWindow;
 			const background = params.background === true;
 			const managed = new ManagedAgent({
@@ -143,7 +169,8 @@ export default function (pi: ExtensionAPI) {
 				cwd: params.cwd,
 				agent: agentConfig,
 				resolvedRun,
-				parentDepth,
+				childContext,
+				subagentToolsEnabled: executionCanDelegate(profiles, childContext),
 				onUpdate: onUpdate ? (details) => {
 					details.contextWindow = contextWindow;
 					onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
@@ -351,13 +378,22 @@ export function createWaitAgentSchema() {
 	});
 }
 
-export function createSpawnAgentSchema(agents: AgentConfig[], profiles: ProfilesConfig) {
-	const agentSchema = StringEnum(agents.map((agent) => agent.name), { description: "Name of the subagent." });
-	const profileSchema = StringEnum(Object.keys(profiles.profiles), { description: "Allowed execution-profile override for the selected agent." });
-	const thinkingSchema = StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
+export function createSpawnAgentSchema(agents: AgentConfig[], profiles: ProfilesConfig, context?: ChildExecutionContext) {
+	const parentDelegation = context ? profiles.agentPolicies[context.agent]?.delegation : undefined;
+	const nestedPolicy = parentDelegation?.mode === "grant-required" ? parentDelegation : undefined;
+	const allowedAgents = nestedPolicy
+		? agents.filter((agent) => nestedPolicy.allowedChildAgents.includes(agent.name))
+		: agents;
+	const allowedProfiles = nestedPolicy ? nestedPolicy.allowedChildProfiles : Object.keys(profiles.profiles);
+	const agentSchema = StringEnum(allowedAgents.map((agent) => agent.name), { description: "Name of the subagent." });
+	const profileSchema = StringEnum(allowedProfiles, { description: "Allowed execution-profile override for the selected agent." });
+	const thinkingLevels = context
+		? ["off", "minimal", "low", "medium", "high"] as const
+		: ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+	const thinkingSchema = StringEnum(thinkingLevels, {
 		description: "Optional thinking request; must not exceed the selected profile candidate's cap.",
 	});
-	return Type.Object({
+	const properties = {
 		message: Type.String({ description: "Complete self-contained assignment for the child." }),
 		handoff: Type.Optional(Type.String({ maxLength: MAX_HANDOFF_CHARS, description: "Known paths, decisions, facts, or small excerpts from the parent." })),
 		task_name: Type.Optional(Type.String({ description: "Short UI label; derived from message when omitted." })),
@@ -366,7 +402,17 @@ export function createSpawnAgentSchema(agents: AgentConfig[], profiles: Profiles
 		thinking: Type.Optional(thinkingSchema),
 		cwd: Type.Optional(Type.String({ description: "Working directory; defaults to current cwd." })),
 		background: Type.Optional(Type.Boolean({ description: "Return after launch and notify on completion. Default false." })),
-	});
+	};
+	return context
+		? Type.Object(properties)
+		: Type.Object({
+			...properties,
+			delegation_credits: Type.Optional(Type.Integer({
+				minimum: 0,
+				maximum: profiles.rootPolicy.maxDelegationGrant,
+				description: "Delegation credits granted to an eligible general child. Root only; default 0.",
+			})),
+		});
 }
 
 function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSummary): void {

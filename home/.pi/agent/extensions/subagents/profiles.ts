@@ -20,20 +20,55 @@ export const ModelCandidateSchema = z.strictObject({
 		const slash = id.indexOf("/");
 		return slash > 0 && slash < id.length - 1;
 	}, "model id must be provider/model-id"),
+	defaultThinking: ThinkingLevelSchema,
 	maxThinking: ThinkingLevelSchema,
+}).superRefine((candidate, ctx) => {
+	if (thinkingRank(candidate.defaultThinking) > thinkingRank(candidate.maxThinking)) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["defaultThinking"],
+			message: "defaultThinking must not exceed maxThinking",
+		});
+	}
 });
 
 export const ProfileSchema = z.strictObject({
 	description: nonEmptyString("description"),
+	delegationEnabled: z.boolean(),
+	countsTowardDeepAgentCap: z.boolean(),
 	models: z.array(ModelCandidateSchema).min(1, "models must contain at least one candidate"),
 });
+
+const LeafDelegationSchema = z.strictObject({
+	mode: z.literal("leaf"),
+});
+
+const GrantRequiredDelegationSchema = z.strictObject({
+	mode: z.literal("grant-required"),
+	maxDirectChildren: z.number().int().min(1),
+	allowedChildAgents: z.array(nonEmptyString("allowedChildAgents item")).min(1),
+	allowedChildProfiles: z.array(nonEmptyString("allowedChildProfiles item")).min(1),
+});
+
+export const DelegationPolicySchema = z.discriminatedUnion("mode", [
+	LeafDelegationSchema,
+	GrantRequiredDelegationSchema,
+]);
 
 export const AgentPolicySchema = z.strictObject({
 	defaultProfile: nonEmptyString("defaultProfile"),
 	allowedProfiles: z.array(nonEmptyString("allowedProfiles item")).min(1, "allowedProfiles must contain at least one profile"),
+	delegation: DelegationPolicySchema,
+});
+
+export const RootPolicySchema = z.strictObject({
+	maxDirectAgents: z.number().int().min(1),
+	maxDeepAgents: z.number().int().min(1),
+	maxDelegationGrant: z.number().int().min(0),
 });
 
 export const ProfilesSchema = z.strictObject({
+	rootPolicy: RootPolicySchema,
 	profiles: z.record(z.string(), ProfileSchema),
 	agentPolicies: z.record(z.string(), AgentPolicySchema),
 });
@@ -41,6 +76,8 @@ export const ProfilesSchema = z.strictObject({
 export type ModelCandidate = z.infer<typeof ModelCandidateSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type AgentPolicy = z.infer<typeof AgentPolicySchema>;
+export type DelegationPolicy = z.infer<typeof DelegationPolicySchema>;
+export type RootPolicy = z.infer<typeof RootPolicySchema>;
 export type ProfilesConfig = z.infer<typeof ProfilesSchema>;
 
 export interface NamedAgent {
@@ -148,6 +185,25 @@ export function validateProfiles(config: ProfilesConfig, agents: Iterable<string
 		if (!allowed.has(policy.defaultProfile)) {
 			errors.push(`${filePath}: agentPolicies.${printPathPart(agentName)}.defaultProfile: must appear in allowedProfiles`);
 		}
+		if (policy.delegation.mode === "grant-required") {
+			validateUniqueReferences(
+				policy.delegation.allowedChildAgents,
+				agentNames,
+				`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildAgents`,
+				"agent",
+				errors,
+			);
+			validateUniqueReferences(
+				policy.delegation.allowedChildProfiles,
+				profileNames,
+				`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildProfiles`,
+				"profile",
+				errors,
+			);
+			if (policy.delegation.maxDirectChildren > config.rootPolicy.maxDelegationGrant) {
+				errors.push(`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.maxDirectChildren: must not exceed rootPolicy.maxDelegationGrant`);
+			}
+		}
 	}
 	for (const agentName of agentNames) {
 		if (!Object.hasOwn(config.agentPolicies, agentName)) {
@@ -210,7 +266,7 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 	const model = available.find((candidate) => candidate.provider === provider && candidate.id === modelId);
 	if (!model) throw new Error(`Selected model '${selected.id}' disappeared from the available registry.`);
 
-	const requested = options.requestedThinking ?? selected.maxThinking;
+	const requested = options.requestedThinking ?? selected.defaultThinking;
 	assertThinkingLevel(requested);
 	if (thinkingRank(requested) > thinkingRank(selected.maxThinking)) {
 		throw new Error(`Requested thinking '${requested}' exceeds profile '${profileName}' candidate '${selected.id}' cap '${selected.maxThinking}'.`);
@@ -256,4 +312,25 @@ function formatZodIssue(filePath: string, pathParts: PropertyKey[], message: str
 
 function printPathPart(part: PropertyKey): string {
 	return typeof part === "number" ? String(part) : /^[A-Za-z_$][\w$-]*$/.test(String(part)) ? String(part) : `[${JSON.stringify(String(part))}]`;
+}
+
+function validateUniqueReferences(
+	values: string[],
+	known: Set<string>,
+	pathPrefix: string,
+	label: string,
+	errors: string[],
+): void {
+	const seen = new Map<string, number>();
+	for (const [index, value] of values.entries()) {
+		const previous = seen.get(value);
+		if (previous !== undefined) {
+			errors.push(`${pathPrefix}.${index}: duplicate allowed ${label} '${value}' (first at ${previous})`);
+		} else {
+			seen.set(value, index);
+		}
+		if (known.size > 0 && !known.has(value)) {
+			errors.push(`${pathPrefix}.${index}: references unknown ${label} '${value}'`);
+		}
+	}
 }

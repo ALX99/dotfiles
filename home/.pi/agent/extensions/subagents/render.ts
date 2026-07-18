@@ -7,7 +7,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type { AgentSummary } from "./host.ts";
-import { DEPTH_ENV, type NestedRunDetails, type RunDetails } from "./process.ts";
+import { parseChildExecutionContext, type NestedRunDetails, type RunDetails } from "./process.ts";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -42,16 +42,17 @@ function clipLine(s: string, max: number): string {
 
 export function renderCallHeader(
 	c: Container,
-	args: { message?: string; handoff?: string; agent?: string; task_name?: string; profile?: string; thinking?: string; cwd?: string; background?: boolean },
+	args: { message?: string; handoff?: string; agent?: string; task_name?: string; profile?: string; thinking?: string; delegation_credits?: number; cwd?: string; background?: boolean },
 	expanded: boolean,
 	theme: Theme,
 ): void {
 	const agentLabel = args.agent ? ` ${theme.fg("accent", args.agent)}` : "";
-	const parentDepth = Number.parseInt(process.env[DEPTH_ENV] ?? "0", 10) || 0;
+	const parentDepth = parseChildExecutionContext()?.depth ?? 0;
 	const meta: string[] = [theme.fg("muted", `[d${parentDepth + 1}]`)];
 	if (args.task_name) meta.push(theme.fg("muted", `· ${args.task_name}`));
 	if (args.profile) meta.push(theme.fg("muted", `· profile=${args.profile}`));
 	if (args.thinking) meta.push(theme.fg("muted", `· thinking=${args.thinking}`));
+	if (args.delegation_credits) meta.push(theme.fg("muted", `· delegation=${args.delegation_credits}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${args.cwd}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
 	meta.push(args.background

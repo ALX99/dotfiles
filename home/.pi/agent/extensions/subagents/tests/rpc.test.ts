@@ -16,7 +16,7 @@ function complete(text) {
   send({ type: 'agent_start' });
   const failed = text === 'done:assistant-error';
   send({ type: 'message_end', message: { role: 'assistant', content: failed ? [] : [{ type: 'text', text }], usage: { input: 2, output: 1, totalTokens: 3 }, stopReason: failed ? 'error' : 'stop', errorMessage: failed ? 'provider exploded' : undefined } });
-  if (text !== 'done:slow') setTimeout(() => send({ type: 'agent_settled' }), 5);
+  if (!text.endsWith('slow')) setTimeout(() => send({ type: 'agent_settled' }), 5);
 }
 process.stdin.on('data', chunk => {
   buffer += chunk;
@@ -41,8 +41,10 @@ send({ type: 'extension_ui_request', id: 'ui-1', method: 'confirm' });
 `;
 
 const spawnedArgs: string[][] = [];
+const spawnedContexts: unknown[] = [];
 function spawnFake(_command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) {
 	spawnedArgs.push([...args]);
+	spawnedContexts.push(JSON.parse(String(options.env?.PI_SUBAGENT_CONTEXT)));
 	return spawn(process.execPath, ["-e", rpcScript], options);
 }
 
@@ -53,6 +55,14 @@ const resolvedRun = {
 	effectiveThinking: "medium" as const,
 	contextWindow: 128_000,
 };
+
+const childContext = {
+	treeId: "test-tree",
+	depth: 1,
+	agent: "general",
+	profile: "balanced",
+	delegationCredits: 0,
+} as const;
 
 function transport(events: RpcEvent[], onExit: (error: Error | undefined) => void = () => {}): RpcTransport {
 	return new RpcTransport({
@@ -115,13 +125,15 @@ test("ManagedAgent assigns readable sequential IDs", () => {
 		defaultCwd: process.cwd(),
 		agent: config,
 		resolvedRun,
-		parentDepth: 0,
+		childContext,
+		subagentToolsEnabled: false,
 	});
 	const second = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: config,
 		resolvedRun,
-		parentDepth: 0,
+		childContext,
+		subagentToolsEnabled: false,
 	});
 
 	assert.match(first.id, /^agent-\d+$/);
@@ -140,13 +152,15 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		defaultCwd: process.cwd(),
 		agent: config,
 		resolvedRun,
-		parentDepth: 0,
+		childContext,
+		subagentToolsEnabled: false,
 		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
 		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? ""),
 	});
 	t.after(() => agent.close());
 
 	spawnedArgs.length = 0;
+	spawnedContexts.length = 0;
 	const first = await agent.start("first", undefined, "first task", false);
 	const id = agent.id;
 	const invocation = spawnedArgs[0] ?? [];
@@ -158,6 +172,11 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		"--model", resolvedRun.model, "--thinking", resolvedRun.effectiveThinking,
 	]);
 	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
+	const excludedTools = invocation[invocation.indexOf("--exclude-tools") + 1] ?? "";
+	for (const tool of ["spawn_agent", "send_agent", "followup_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"]) {
+		assert.match(excludedTools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
+	}
+	assert.deepEqual(spawnedContexts, [childContext]);
 	assert.equal(first.sessionFile, "/tmp/subagent-session.jsonl");
 	assert.equal(first.finalText, "done:Task: first");
 	assert.deepEqual(agent.summary(), {
@@ -218,6 +237,61 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().status, "closed");
 });
 
+test("wait timeout stops only the waiter and leaves the child running", async (t) => {
+	const config: AgentConfig = {
+		name: "worker",
+		description: "test",
+		systemPrompt: "",
+		filePath: "worker.md",
+	};
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun: { ...resolvedRun, agent: "worker" },
+		childContext: { ...childContext, agent: "worker" },
+		subagentToolsEnabled: false,
+		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+	});
+	t.after(() => agent.close());
+
+	await agent.start("slow", undefined, "slow", true);
+	await assert.rejects(agent.wait(10), /Timed out waiting/);
+	assert.equal(agent.summary().status, "running");
+	const waiter = new AbortController();
+	const waiting = agent.wait(undefined, waiter.signal);
+	waiter.abort();
+	await assert.rejects(waiting, /Waiting for agent .* was aborted/);
+	assert.equal(agent.summary().status, "running");
+	await agent.interrupt();
+	await agent.wait(1_000);
+});
+
+test("cancelling a foreground waiter does not automatically interrupt its child", async (t) => {
+	const config: AgentConfig = {
+		name: "general",
+		description: "test",
+		systemPrompt: "",
+		filePath: "general.md",
+	};
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		childContext,
+		subagentToolsEnabled: false,
+		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
+	});
+	t.after(() => agent.close());
+	const waiter = new AbortController();
+	const running = agent.start("slow", undefined, "slow", false, waiter.signal);
+	setTimeout(() => waiter.abort(), 10);
+	await assert.rejects(running, /Waiting for agent .* was aborted/);
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	assert.equal(agent.summary().status, "running");
+	await agent.interrupt();
+	await agent.wait(1_000);
+});
+
 test("AgentRegistry publishes lifecycle changes and immutable views", async (t) => {
 	const config: AgentConfig = {
 		name: "scout",
@@ -229,7 +303,8 @@ test("AgentRegistry publishes lifecycle changes and immutable views", async (t) 
 		defaultCwd: process.cwd(),
 		agent: config,
 		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
-		parentDepth: 0,
+		childContext: { ...childContext, agent: "scout", profile: "fast" },
+		subagentToolsEnabled: false,
 		spawnProcess: spawnFake as unknown as SpawnRpcProcess,
 	});
 	const registry = new AgentRegistry();
@@ -263,7 +338,8 @@ test("ManagedAgent cleans temporary prompts after startup failure", async () => 
 		defaultCwd: path.join(os.tmpdir(), `missing-subagent-cwd-${Date.now()}`),
 		agent: config,
 		resolvedRun: { ...resolvedRun, agent: config.name },
-		parentDepth: 0,
+		childContext: { ...childContext, agent: config.name },
+		subagentToolsEnabled: false,
 	});
 
 	await assert.rejects(agent.start("fail", undefined, "failed startup", false), /Could not start|ENOENT/);
