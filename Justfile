@@ -55,7 +55,7 @@ install: clean-broken-links
     fi
 
     if [[ ! -d "$HOME/.pi/agent/extensions/node_modules" ]]; then
-      printf "Hint: run 'just pi' to install pi extension dependencies\n"
+      printf "Hint: run 'just install-pi' to install pi extension dependencies\n"
     fi
 
     printf 'User configuration completed.\n'

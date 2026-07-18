@@ -1,0 +1,36 @@
+name: Pi extensions
+
+on:
+  push:
+    paths:
+      - "home/.pi/agent/extensions/**"
+      - "misc/pi-patches/**"
+      - ".github/workflows/extensions.yml"
+  pull_request:
+    paths:
+      - "home/.pi/agent/extensions/**"
+      - "misc/pi-patches/**"
+      - ".github/workflows/extensions.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: home/.pi/agent/extensions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.0.0
+          cache: npm
+          cache-dependency-path: home/.pi/agent/extensions/package-lock.json
+      - run: npm ci
+      - run: npm run compatibility:check
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
