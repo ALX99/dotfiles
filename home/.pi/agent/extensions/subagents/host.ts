@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { randomUUID } from "node:crypto";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
 import type { ResolvedRun } from "./profiles.ts";
@@ -15,6 +14,8 @@ import {
 import { RpcTransport, type RpcEvent, type SpawnRpcProcess } from "./rpc.ts";
 
 export type AgentStatus = "starting" | "running" | "idle" | "failed" | "aborted" | "closed";
+
+let nextAgentId = 1;
 
 export interface AgentSummary {
 	agent_id: string;
@@ -70,7 +71,7 @@ export class ManagedAgent {
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
-		this.id = options.id ?? randomUUID();
+		this.id = options.id ?? `agent-${nextAgentId++}`;
 		this.depth = options.parentDepth + 1;
 		this.onUpdate = options.onUpdate;
 		this.details = this.freshDetails("starting");
