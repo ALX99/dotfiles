@@ -58,7 +58,6 @@ export class DashboardController {
 	private unsubscribe: (() => void) | undefined;
 	private timer: DashboardTimer | undefined;
 	private maxRows = 12;
-	private disposed = false;
 	private readonly clock: DashboardClock;
 	private readonly registry: DashboardDataSource;
 	private readonly onOperation: (operation: DashboardOperation) => void;
@@ -73,7 +72,6 @@ export class DashboardController {
 
 	attach(requestRender: () => void, maxRows: () => number): void {
 		this.detach();
-		this.disposed = false;
 		this.requestRender = requestRender;
 		this.maxRows = maxRows();
 		this.refreshViews();
@@ -97,8 +95,6 @@ export class DashboardController {
 	}
 
 	dispose(): void {
-		if (this.disposed) return;
-		this.disposed = true;
 		this.detach();
 	}
 
