@@ -9,7 +9,9 @@ Use alongside the **go-code** skill.
 
 ## Context
 
-- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
+- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest official docs.
+- Use testing APIs only when supported by the module's effective Go version. Do not raise the minimum Go version merely to shorten a test.
+- Go 1.27 is unreleased until August 2026 and its release notes are still draft. Re-check <https://go.dev/doc/go1.27> before relying on a 1.27 testing API.
 
 ## Principles
 
@@ -84,25 +86,52 @@ t.Chdir(t.TempDir())           // cwd restored after test
 
 ### testing/synctest (Go 1.25+)
 
-Deterministic concurrency testing with fake clock. `synctest.Run(func() { ... })` creates an isolated bubble; `synctest.Wait()` blocks until all goroutines are durably blocked, then fake time advances to next timer event. Eliminates timing-dependent flakiness.
+Use `synctest.Test` for deterministic concurrency tests with a fake clock. The callback runs in an isolated bubble; `synctest.Wait()` waits until every goroutine in the bubble is durably blocked, allowing fake time to advance without wall-clock delays.
+
+Do not use the obsolete experimental `synctest.Run` API. It was renamed to `synctest.Test` for the stable package and removed in Go 1.26.
 
 ```go
-func TestRetryBackoff(t *testing.T) {
-    synctest.Run(func() {
-        attempts := 0
-        go retry(func() error {
-            attempts++
-            return errors.New("fail")
-        }, 3)
+func TestDelayedSend(t *testing.T) {
+    t.Parallel()
 
-        synctest.Wait() // goroutine is sleeping between retries
-        // fake time is now past first backoff; no wall-clock time spent
+    synctest.Test(t, func(t *testing.T) {
+        ch := make(chan string, 1)
+        go func() {
+            time.Sleep(time.Second)
+            ch <- "done"
+        }()
+
         synctest.Wait()
-        if attempts != 3 {
-            t.Fatalf("got %d attempts, want 3", attempts)
+        select {
+        case got := <-ch:
+            t.Fatalf("received %q before delay elapsed", got)
+        default:
+        }
+
+        time.Sleep(time.Second)
+        synctest.Wait()
+        if got := <-ch; got != "done" {
+            t.Fatalf("got %q, want done", got)
         }
     })
 }
 ```
 
-Channels/timers inside bubble are bubble-scoped; using from outside panics.
+Channels, timers, and synchronization primitives created inside the bubble are bubble-scoped; using them incorrectly across the boundary may panic.
+
+### synctest.Sleep (Go 1.27+)
+
+For modules targeting Go 1.27+, use `synctest.Sleep(d)` instead of the common `time.Sleep(d)` followed by `synctest.Wait()` sequence. It advances fake time and waits for the bubble to become durably blocked again.
+
+```go
+synctest.Sleep(time.Second)
+if got := <-ch; got != "done" {
+    t.Fatalf("got %q, want done", got)
+}
+```
+
+### Standard-Library Version Checks (Go 1.27+)
+
+`go test` runs the `stdversion` vet analyzer by default. If a test refers to a standard-library symbol newer than the file's effective Go version, fix the version mismatch rather than suppressing the check.
+
+When consuming `go test -json`, tolerate unknown fields. Go 1.27 events may include `OutputType` for structured error and frame output.
