@@ -119,8 +119,8 @@ test("resolveRun permits allowed profile overrides and rejects disallowed overri
 	assert.throws(() => resolveRun({ config, agent: "scout", requestedThinking: "high", modelRegistry: registry }), /exceeds/);
 });
 
-test("wait uses a fixed ten-minute timeout without exposing an override", () => {
-	assert.equal(DEFAULT_WAIT_MS, 600_000);
+test("wait uses a fixed fifteen-minute timeout without exposing an override", () => {
+	assert.equal(DEFAULT_WAIT_MS, 900_000);
 	const schema = createWaitAgentSchema() as unknown as {
 		properties: Record<string, unknown>;
 		required?: string[];
