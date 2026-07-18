@@ -11,15 +11,11 @@ Go best practices for clean, idiomatic, maintainable code.
 
 ## Context
 
-- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest official docs.
-- Use the newest language and standard-library features permitted by the module's `go` directive. Do not silently raise the project's minimum Go version just to use a newer API.
-- Go 1.27 is unreleased until August 2026 and its release notes are still draft. Before using a 1.27 feature, verify the current notes at <https://go.dev/doc/go1.27> and confirm the project intentionally targets Go 1.27+.
+- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
 
 ## Principles
 
-KISS, DRY, YAGNI, Clear > Clever. **Idiomatic Go**: stdlib first; don't import other languages' idioms. Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go.
-
-Prefer modern standard-library APIs when the project's Go version supports them, but preserve the repository's compatibility policy and existing conventions.
+KISS, DRY, YAGNI, Clear > Clever. **Idiomatic Go**: stdlib first; don't import other languages' idioms. Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
 
 ## Naming
 
@@ -226,92 +222,6 @@ func parseYAML(r io.Reader) (Config, error) { ... }   // ✓ interface by value
 func parseYAML(r *io.Reader) (Config, error) { ... }   // ✗ pointer to interface
 ```
 
-## Go 1.27+
-
-Only apply this section when the module deliberately targets Go 1.27 or later. During the pre-release period, re-check the draft release notes before relying on exact APIs or behavior.
-
-### Generic Methods
-
-Concrete methods may declare their own type parameters. Use them when the generic operation naturally belongs to the receiver's namespace and improves left-to-right readability. Prefer a generic function when the receiver association is weak or the method adds abstraction without clarity.
-
-```go
-type Result[T any] struct {
-    value T
-}
-
-func (r Result[T]) Map[U any](f func(T) U) Result[U] {
-    return Result[U]{value: f(r.value)}
-}
-```
-
-Generic methods cannot appear in interfaces and do not implement a non-generic interface method through a particular instantiation. Never design an interface that assumes callers can dynamically instantiate a generic method.
-
-### Promoted Fields in Struct Literals
-
-Promoted fields from embedded structs may be named directly in a keyed struct literal. Use this only when the promoted field is unambiguous; prefer the explicit nested literal when it better communicates ownership.
-
-```go
-type TLSConfig struct {
-    MinVersion uint16
-}
-
-type Config struct {
-    TLSConfig
-}
-
-cfg := Config{MinVersion: tls.VersionTLS13} // Go 1.27+
-```
-
-### Generic Function Inference in Assignment Contexts
-
-When a target function type is known, generic function type arguments can be inferred in composite literals, conversions, and channel sends. Omit explicit type arguments when inference is obvious; keep them when they clarify intent.
-
-```go
-func handle[T any](T) {}
-
-handlers := []func(int){handle} // infers handle[int]
-```
-
-### encoding/json/v2
-
-For new Go 1.27+ code, consider `encoding/json/v2` when its stricter, configurable behavior is desirable. It rejects invalid UTF-8 and duplicate object names by default and supports options on marshal/unmarshal operations. Migrate deliberately: field matching and other semantics differ from v1.
-
-```go
-import json "encoding/json/v2"
-
-if err := json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true)); err != nil {
-    return fmt.Errorf("decode config: %w", err)
-}
-```
-
-The existing `encoding/json` API remains supported and is backed by the v2 implementation in Go 1.27. Do not assert exact JSON error strings; they may change even when behavior is preserved.
-
-### uuid Standard Library Package
-
-Prefer the standard `uuid` package over a third-party dependency when it meets the project's needs. Use `uuid.New()` when the generation algorithm is irrelevant, `uuid.NewV7()` for timestamp-ordered identifiers, and `uuid.Parse` for untrusted input.
-
-```go
-id := uuid.New()
-orderedID := uuid.NewV7()
-parsed, err := uuid.Parse(raw)
-```
-
-### Goroutine Leak Profile
-
-Use the `goroutineleak` pprof profile when investigating permanently blocked goroutines. It detects a broad reachability-based class of leaks, not every possible leak.
-
-```go
-if p := pprof.Lookup("goroutineleak"); p != nil {
-    _ = p.WriteTo(os.Stderr, 1)
-}
-```
-
-### Small Standard-Library Simplifications
-
-- Prefer `strings.CutLast` / `bytes.CutLast` over manual `LastIndex` slicing.
-- Prefer `(*url.URL).Clone` and `url.Values.Clone` over hand-written deep copies.
-- See [GO_1_27.md](references/GO_1_27.md) for tooling changes, compatibility traps, and less-common APIs.
-
 ## Modern Go Idioms
 
 ### new() (Go 1.26+)
@@ -367,6 +277,17 @@ for line := range strings.Lines(text) { ... }
 for part := range strings.SplitSeq(text, ",") { ... }
 ```
 
+### Go 1.27+
+
+Only use these when the module targets Go 1.27+; the release notes remain draft until release.
+
+- Generic concrete methods may declare their own type parameters; interface methods still cannot.
+- Keyed struct literals may name unambiguous promoted fields directly.
+- Generic function arguments can be inferred from assignment contexts such as composite literals and channel sends.
+- Consider `encoding/json/v2` for stricter configurable JSON, and prefer the standard `uuid` package when it replaces a dependency cleanly.
+- Prefer `strings.CutLast` / `bytes.CutLast`, `(*url.URL).Clone`, and `url.Values.Clone` over manual equivalents.
+- Use the `goroutineleak` pprof profile when investigating permanently blocked goroutines.
+
 ## Miscellaneous
 
 - Unexported by default; minimal API surface
@@ -378,5 +299,4 @@ for part := range strings.SplitSeq(text, ",") { ... }
 ## Additional References
 
 - **go-testing** skill — anything related to Go tests
-- [GO_1_27.md](references/GO_1_27.md) - Go 1.27 language, tooling, runtime, library, and compatibility checklist
 - [PKG_DESIGN.md](references/PKG_DESIGN.md) - Package naming, project layouts, API surface design
