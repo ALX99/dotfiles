@@ -284,7 +284,7 @@ Only use when the module targets Go 1.27+; the release notes remain draft until 
 ```go
 func (r Result[T]) Map[U any](f func(T) U) Result[U] { ... } // generic method
 cfg := Config{MinVersion: tls.VersionTLS13}                  // promoted field
-handlers := []func(int){handle}                              // generic inference
+callbacks := []func(int){identity}                           // generic inference
 
 json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true)) // encoding/json/v2
 id := uuid.NewV7()
