@@ -279,16 +279,14 @@ for part := range strings.SplitSeq(text, ",") { ... }
 
 ### Go 1.27+
 
-Only use when the module targets Go 1.27+; the release notes remain draft until release. Generic methods are concrete-only, and `encoding/json/v2` migrations need semantic review.
+Only use when the module targets Go 1.27+; the release notes remain draft until release.
 
 ```go
 func (r Result[T]) Map[U any](f func(T) U) Result[U] { ... } // generic method
+cfg := Config{MinVersion: tls.VersionTLS13}                  // promoted field
+handlers := []func(int){handle}                              // generic inference
 
-cfg := Config{MinVersion: tls.VersionTLS13} // promoted embedded field
-func handle[T any](T) {}
-handlers := []func(int){handle}             // infers handle[int]
-
-json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true))
+json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true)) // encoding/json/v2
 id := uuid.NewV7()
 
 head, tail, ok := strings.CutLast(path, "/")
