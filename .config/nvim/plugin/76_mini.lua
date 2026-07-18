@@ -1,9 +1,3 @@
--- mini.nvim suite (depends on: snacks.lua for rename)
--- Load order: must run after snacks.lua
-vim.pack.add({
-  { src = 'https://github.com/nvim-mini/mini.nvim', version = vim.version.range('*') },
-})
-
 local indentscope_symbol = "│"
 local indentscope_animation = nil
 if vim.g.vscode then
@@ -31,7 +25,9 @@ require('mini.input').setup({})
 require("mini.notify").setup({ lsp_progress = { enable = false } })
 require("mini.icons").setup({})
 require('mini.cmdline').setup({})
-require('mini.bracketed').setup({})
+require('mini.bracketed').setup({
+  undo = { suffix = '' },
+})
 require('mini.trailspace').setup({})
 
 require('mini.extra').setup({})
@@ -143,16 +139,6 @@ miniclue.setup({
     -- Go mappings
     { mode = 'n', keys = 'g' },
     { mode = 'x', keys = 'g' },
-
-    -- Flash navigation (lazy-loaded)
-    { mode = 'n', keys = 'f' },
-    { mode = 'x', keys = 'f' },
-    { mode = 'n', keys = 'F' },
-    { mode = 'x', keys = 'F' },
-    { mode = 'n', keys = 't' },
-    { mode = 'x', keys = 't' },
-    { mode = 'n', keys = 'T' },
-    { mode = 'x', keys = 'T' },
 
     -- Marks and registers
     { mode = 'n', keys = "'" },

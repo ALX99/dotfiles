@@ -1,9 +1,5 @@
 if vim.g.vscode then return end
 
-vim.pack.add({
-  'https://github.com/FabijanZulj/blame.nvim',
-})
-
 local map = require('utils').map
 local gitgud = require('custom.gitgud')
 
@@ -31,20 +27,25 @@ require('blame').setup({
       return
     end
 
-    -- ponytail: scope by path when the file existed at this commit;
-    -- fall back to the full commit when it didn't (rename source or
-    -- pre-creation), so delta shows the rename via git -M instead of
-    -- a blank buffer. Assumes nvim's cwd is the repo root; the
-    -- fallback still works if not.
-    local rel = vim.fn.fnamemodify(file_path, ":.")
-    local scoped = vim.system({ "git", "cat-file", "-e", commit_hash .. ":" .. rel }, { text = true }):wait().code == 0
-    local cmd = scoped
-        and string.format("git show %s -- %s | delta --paging never", commit_hash, vim.fn.shellescape(rel))
-        or string.format("git show %s | delta --paging never", commit_hash)
+    local repo, err = gitgud.file_repo(file_path)
+    if not repo then
+      vim.notify("Git blame detail unavailable: " .. err, vim.log.levels.ERROR)
+      return
+    end
 
-    -- tabnew gives a fresh unmodified buffer for term=true; q closes
-    -- the tab in both t mode (during the pipeline) and n mode (after
-    -- delta exits and the buffer becomes terminal-normal)
+    -- Scope by path when the file existed at this commit; otherwise show the
+    -- full commit so Git displays a rename or pre-creation change.
+    local scoped = vim.system(
+      { "git", "cat-file", "-e", commit_hash .. ":" .. repo.relative_file },
+      { cwd = repo.root, text = true }
+    ):wait().code == 0
+    local cmd = { "git", "-C", repo.root, "--no-pager", "show", commit_hash }
+    if scoped then
+      vim.list_extend(cmd, { "--", repo.relative_file })
+    end
+
+    -- tabnew gives a fresh unmodified buffer for term=true; q closes the tab
+    -- in both terminal and terminal-normal mode.
     vim.cmd('tabnew')
     vim.fn.jobstart(cmd, { term = true })
     vim.keymap.set('t', 'q', '<C-\\><C-n>:tabclose<CR>', { buffer = 0 })

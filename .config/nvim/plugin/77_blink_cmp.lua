@@ -1,20 +1,10 @@
 -- blink.cmp (autocompletion)
 if vim.g.vscode then return end
 
-vim.pack.add({
-  { src = "https://github.com/saghen/blink.cmp", version = vim.version.range("1.*") },
-})
-
 require("blink.cmp").setup({
   keymap = {
     preset = "default",
     ["<CR>"] = { "select_and_accept", "fallback" },
-    ["<Tab>"] = {
-      function()
-        return vim.lsp.inline_completion.get()
-      end,
-      "fallback",
-    },
   },
 
   appearance = {

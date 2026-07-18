@@ -1,9 +1,5 @@
 if vim.g.vscode then return end
 
-vim.pack.add({
-  'https://github.com/folke/flash.nvim',
-})
-
 local map = require('utils').map
 
 -- flash.nvim

@@ -56,9 +56,10 @@ _G.Config.new_autocmd("VimEnter", {
     if should_save_session() then
       active_session_file = get_session_file()
       if vim.fn.filereadable(active_session_file) ~= 0 then
-        -- Session files may contain benign errors (e.g. %argdel with empty arglist).
-        -- silent! is the canonical way to source them: keep going regardless.
-        vim.cmd('silent! source ' .. vim.fn.fnameescape(active_session_file))
+        local ok, err = pcall(vim.cmd.source, active_session_file)
+        if not ok then
+          vim.notify('Session restore failed: ' .. err, vim.log.levels.WARN)
+        end
       end
     end
   end,
@@ -70,8 +71,8 @@ _G.Config.new_autocmd("VimEnter", {
 _G.Config.new_autocmd("VimLeavePre", {
   desc = "Save session",
   callback = function()
-    if active_session_file and should_save_session() then
-      vim.cmd("mks! " .. vim.fn.fnameescape(active_session_file))
+    if active_session_file then
+      vim.cmd.mksession({ args = { active_session_file }, bang = true })
     end
   end,
   group = session_group,

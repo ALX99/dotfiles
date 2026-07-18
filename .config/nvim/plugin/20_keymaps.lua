@@ -4,7 +4,6 @@ local map = utils.map
 require('colemak').setup()
 
 -- QoL
-map("n", "U", "<C-r>", { desc = "Redo" })
 map("x", ">", ">gv", { desc = "Increase indent" })              -- Stay in indent mode
 map("x", "<", "<gv", { desc = "Decrease indent" })              -- Stay in indent mode
 map("i", "tn", "<Esc>", { desc = "Exit insert mode" })          -- Esc is hard to press
@@ -12,22 +11,6 @@ map("i", "<C-h>", "<C-W>", { desc = "Delete word backwards" })  -- CTRL+BS = C-h
 map("i", "<M-BS>", "<C-W>", { desc = "Delete word backwards" }) -- For macOS
 
 
-map("n", "<leader>bd", "<cmd>bdelete!<CR>", { desc = "Close current buffer" })
-
-map("n", "<leader>bD", function()
-  local cur_buf = vim.api.nvim_get_current_buf()
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if buf ~= cur_buf and vim.api.nvim_buf_is_loaded(buf) then
-      local name = vim.api.nvim_buf_get_name(buf)
-      if vim.bo[buf].modified then
-        local short = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
-        local choice = vim.fn.confirm("'" .. short .. "' has unsaved changes. Discard?", "&Discard\n&Cancel", 2)
-        if choice ~= 1 then return end
-      end
-      pcall(vim.api.nvim_buf_delete, buf, { force = true })
-    end
-  end
-end, { desc = "Close all buffers except current" })
 map("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next buffer" })
 map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
 
@@ -64,8 +47,6 @@ if not vim.g.vscode then
 
   -- Diagnostics
   map('n', 'gl', vim.diagnostic.open_float, { desc = "List diagnostics" })
-  map('n', ']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, { desc = "Go to next diagnostic" })
-  map('n', '[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, { desc = "Go to previous diagnostic" })
 
   -- :only <C-w>f <C-w>F <C-w>gf <C-w>gF <C-w>= <C-w>+ <C-w>- <C-w>> <C-w>< <C-w>_ <C-w>| <C-w>x
 
@@ -123,4 +104,7 @@ map('x', '#', function() return vsearch('?') end, { expr = true })
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
 map("x", "/", "<ESC>/\\%V") -- `:h /\%V`
 
-map("n", "<leader>u", "<cmd>Undotree<CR>", { desc = "Undo tree" })
+if not vim.g.vscode then
+  vim.cmd.packadd('nvim.undotree')
+  map("n", "<leader>u", "<cmd>Undotree<CR>", { desc = "Undo tree" })
+end
