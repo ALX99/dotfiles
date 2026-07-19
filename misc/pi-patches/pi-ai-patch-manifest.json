@@ -4,13 +4,13 @@
     {
       "targetRelative": "dist/api/openai-responses-shared.js",
       "beforeSha256": "e2b24951ab498820c6f873a2a2e48ba342ecc5b282e9cbfb9a201ea1873f44b7",
-      "afterSha256": "7c3a8aada6d8fb307f158c78030ae950f72a89d4fd645ad126c53e8007f02cf5",
+      "afterSha256": "c1bd5e00befa53942e73f9e44b818933c483074971525c7b674703d43e2a9a8c",
       "patch": "pi-ai-0.80.10-openai-responses-apply-patch-custom-tool.patch"
     },
     {
       "targetRelative": "dist/api/openai-codex-responses.js",
       "beforeSha256": "7d0cafd990d6df68bb5aa36dc837f9b71f31504a09905602a7cce8e37b8a3834",
-      "afterSha256": "918f90ae1b20def8c5ff737442a69b4c56c9ae08f067ed4a0f530109df6b1273",
+      "afterSha256": "471eff3e5fa11ac09ed8fcefd643dccebde4ee621b0663254cc1edacc1b83bde",
       "patch": "pi-ai-0.80.10-codex-custom-tool-continuation.patch"
     }
   ]

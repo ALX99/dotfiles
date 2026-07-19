@@ -52,7 +52,7 @@ export function renderCallHeader(
 		task_name?: string;
 		profile?: string;
 		thinking?: string;
-		delegation_credits?: number;
+		child_spawn_budget?: number;
 		cwd?: string;
 		background?: boolean;
 	},
@@ -65,7 +65,7 @@ export function renderCallHeader(
 	if (args.task_name) meta.push(theme.fg("muted", `· ${sanitizeTerminalText(args.task_name)}`));
 	if (args.profile) meta.push(theme.fg("muted", `· profile=${sanitizeTerminalText(args.profile)}`));
 	if (args.thinking) meta.push(theme.fg("muted", `· thinking=${sanitizeTerminalText(args.thinking)}`));
-	if (args.delegation_credits) meta.push(theme.fg("muted", `· delegation=${args.delegation_credits}`));
+	if (args.child_spawn_budget) meta.push(theme.fg("muted", `· delegation=${args.child_spawn_budget}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${sanitizeTerminalText(args.cwd)}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
 	meta.push(args.background ? theme.fg("accent", "· async") : theme.fg("warning", "· blocking"));
@@ -198,12 +198,13 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 	).length;
 	const allSettled = settled === details.summaries.length;
 	const icon = allSettled ? theme.fg("success", "✓") : theme.fg("warning", "!");
+	const interruptionSummary = waitInterruptionSummary(details);
 	const suffix = allSettled
 		? `${settled}/${details.summaries.length} settled`
 		: `${settled}/${details.summaries.length} settled · ${details.summaries.length - settled} still running`;
 	c.addChild(
 		new Text(
-			`${icon} ${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· ${suffix} · ${formatDuration(details.elapsedMs)}`)}`,
+			`${icon} ${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· ${suffix}${interruptionSummary} · ${formatDuration(details.elapsedMs)}`)}`,
 			0,
 			0,
 		),
@@ -233,6 +234,16 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 		}
 	}
 	return c;
+}
+
+function waitInterruptionSummary(details: WaitDetails): string {
+	const timedOut = details.outcomes.filter((outcome) => outcome.status === "timed_out").length;
+	const cancelled = details.outcomes.filter((outcome) => outcome.status === "cancelled").length;
+	const parts = [
+		...(timedOut === 0 ? [] : [`${timedOut} timed out`]),
+		...(cancelled === 0 ? [] : [`${cancelled} cancelled`]),
+	];
+	return parts.length === 0 ? "" : ` · ${parts.join(", ")}`;
 }
 
 // ── result block ──────────────────────────────────────────────────────

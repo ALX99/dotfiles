@@ -1,6 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { truncateTail } from "@earendil-works/pi-coding-agent";
+import { execa } from "execa";
+import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { parseJson } from "../_shared/json.ts";
+import { ByteBoundedJsonlFramer } from "../_shared/jsonl.ts";
 import type { AgentEvent } from "./event-schema.ts";
 import { parseRpcRecord, type RpcEvent } from "./protocol.ts";
 
@@ -11,15 +13,81 @@ export const DEFAULT_RPC_REQUEST_TIMEOUT_MS = 30_000;
 export const DEFAULT_RPC_CLOSE_GRACE_MS = 1_000;
 export const DEFAULT_RPC_MAX_QUEUED_WRITE_BYTES = 1024 * 1024;
 
-export type SpawnRpcProcess = typeof spawn;
+interface SpawnRpcProcessOptions {
+	readonly cwd: string;
+	readonly env: Readonly<Record<string, string>>;
+	readonly cancelSignal: AbortSignal;
+	readonly forceKillAfterDelay: number;
+}
+
+export function spawnRpcProcess(command: string, args: readonly string[], options: SpawnRpcProcessOptions) {
+	return execa(command, [...args], {
+		cwd: options.cwd,
+		env: options.env,
+		stdin: "pipe",
+		stdout: "pipe",
+		stderr: "pipe",
+		buffer: false,
+		cancelSignal: options.cancelSignal,
+		cleanup: true,
+		killDescendants: true,
+		forceKillAfterDelay: options.forceKillAfterDelay,
+		reject: false,
+	});
+}
+
+export type SpawnRpcProcess = typeof spawnRpcProcess;
+type RpcSubprocess = ReturnType<SpawnRpcProcess>;
 export type RpcTransportState = "created" | "starting" | "open" | "closing" | "closed" | "failed";
+
+export interface RpcWritable {
+	write(frame: Buffer, callback: (error?: Error | null) => void): boolean;
+	once(event: "drain", listener: () => void): unknown;
+	off(event: "drain", listener: () => void): unknown;
+}
+
+export type WriteRpcFrame = (stdin: RpcWritable, frame: Buffer) => Promise<void>;
+
+/** Wait for both stream acceptance and the write callback, in either order. */
+export const writeRpcFrame: WriteRpcFrame = async (stdin, frame) => {
+	await new Promise<void>((resolve, reject) => {
+		let drained = true;
+		let callbackDone = false;
+		let settled = false;
+		const finish = (): void => {
+			if (!settled && drained && callbackDone) {
+				settled = true;
+				stdin.off("drain", onDrain);
+				resolve();
+			}
+		};
+		const onDrain = (): void => {
+			drained = true;
+			finish();
+		};
+		const writable = stdin.write(frame, (error) => {
+			if (error) {
+				if (!settled) {
+					settled = true;
+					stdin.off("drain", onDrain);
+					reject(error);
+				}
+				return;
+			}
+			callbackDone = true;
+			finish();
+		});
+		if (!writable) {
+			drained = false;
+			stdin.once("drain", onDrain);
+		}
+	});
+};
 
 interface PendingRequest {
 	readonly resolve: (value: unknown) => void;
 	readonly reject: (error: Error) => void;
-	readonly timer: NodeJS.Timeout;
-	readonly signal: AbortSignal | undefined;
-	readonly abortHandler: (() => void) | undefined;
+	readonly abortSubscription: Disposable;
 }
 
 export interface RpcRequestOptions {
@@ -42,22 +110,21 @@ export interface RpcTransportOptions {
 	readonly requestTimeoutMs?: number;
 	readonly closeGraceMs?: number;
 	readonly maxQueuedWriteBytes?: number;
+	readonly writeFrame?: WriteRpcFrame;
 }
 
 /** Bounded JSONL client for one child process. This class owns the child,
- * stream listeners, request timers, abort listeners, and write queue. */
+ * stream listeners, request cancellation, abort listeners, and write queue. */
 export class RpcTransport {
-	private process: ChildProcessWithoutNullStreams | undefined;
+	private process: RpcSubprocess | undefined;
 	private readonly pending = new Map<string, PendingRequest>();
+	private readonly lifetime = new AbortController();
 	private nextId = 1;
 	private stderr = "";
 	private state: RpcTransportState = "created";
 	private failure: Error | undefined;
 	private closePromise: Promise<void> | undefined;
-	private teardownPromise: Promise<void> | undefined;
-	private exitPromise: Promise<void> | undefined;
-	private resolveExit: (() => void) | undefined;
-	private exitObserved = false;
+	private processResult: Promise<Awaited<RpcSubprocess>> | undefined;
 	private exitReported = false;
 	private writeTail: Promise<void> = Promise.resolve();
 	private queuedWriteBytes = 0;
@@ -78,13 +145,14 @@ export class RpcTransport {
 	async start(): Promise<void> {
 		if (this.state !== "created") throw new Error(`RPC transport cannot start from '${this.state}'.`);
 		this.state = "starting";
-		const spawnProcess = this.options.spawnProcess ?? spawn;
-		let child: ChildProcessWithoutNullStreams;
+		const spawnProcess = this.options.spawnProcess ?? spawnRpcProcess;
+		let child: RpcSubprocess;
 		try {
 			child = spawnProcess(this.options.command, [...this.options.args], {
 				cwd: this.options.cwd,
 				env: this.options.env,
-				stdio: ["pipe", "pipe", "pipe"],
+				cancelSignal: this.lifetime.signal,
+				forceKillAfterDelay: this.options.closeGraceMs ?? DEFAULT_RPC_CLOSE_GRACE_MS,
 			});
 		} catch (cause) {
 			const error = new Error("Could not start subagent RPC process.", { cause });
@@ -92,25 +160,17 @@ export class RpcTransport {
 			throw error;
 		}
 		this.process = child;
-		this.exitPromise = new Promise<void>((resolve) => {
-			this.resolveExit = resolve;
-		});
 		this.attachJsonl(child);
 		this.attachStderr(child);
 		child.stdin.on("error", (cause) => {
 			this.fail(new Error(`Subagent RPC stdin failed: ${cause.message}`, { cause }));
 		});
-		child.once("exit", (code, signal) => this.handleExit(code, signal));
-		child.once("error", (cause) => {
-			const error = new Error(`Could not start subagent RPC process: ${cause.message}`, { cause });
-			this.fail(error);
-			this.observeExit();
-		});
+		this.processResult = this.monitorProcess(child);
 
 		try {
 			await new Promise<void>((resolve, reject) => {
-				child.once("spawn", resolve);
-				child.once("error", reject);
+				child.nodeChildProcess.once("spawn", resolve);
+				child.nodeChildProcess.once("error", reject);
 			});
 		} catch (cause) {
 			const error = this.failure ?? new Error("Could not start subagent RPC process.", { cause });
@@ -126,7 +186,9 @@ export class RpcTransport {
 		if (this.state !== "open" || !this.process?.stdin.writable) {
 			return Promise.reject(new Error("Subagent RPC process is not available."));
 		}
-		if (options.signal?.aborted) return Promise.reject(abortError("RPC request was aborted."));
+		if (options.signal?.aborted) {
+			return Promise.reject(abortError("RPC request was aborted.", options.signal.reason));
+		}
 
 		const id = `subagent-${this.nextId++}`;
 		let frame: Buffer;
@@ -137,21 +199,17 @@ export class RpcTransport {
 		}
 		return new Promise<unknown>((resolve, reject) => {
 			const timeoutMs = options.timeoutMs ?? this.options.requestTimeoutMs ?? DEFAULT_RPC_REQUEST_TIMEOUT_MS;
-			const timer = setTimeout(() => {
-				this.rejectRequest(id, new Error(`RPC request '${id}' timed out after ${timeoutMs}ms.`));
-			}, timeoutMs);
-			timer.unref();
-			const abortHandler =
-				options.signal === undefined
-					? undefined
-					: () => this.rejectRequest(id, abortError(`RPC request '${id}' was aborted.`));
-			if (abortHandler) options.signal?.addEventListener("abort", abortHandler, { once: true });
+			const guard = composeAbortSignal(options.signal, timeoutMs)!;
+			const abortSubscription = onAbort(guard.signal, () => {
+				const error = guard.timedOut()
+					? new Error(`RPC request '${id}' timed out after ${timeoutMs}ms.`)
+					: abortError(`RPC request '${id}' was aborted.`, guard.signal.reason);
+				this.rejectRequest(id, error);
+			});
 			this.pending.set(id, {
 				resolve,
 				reject,
-				timer,
-				signal: options.signal,
-				abortHandler,
+				abortSubscription,
 			});
 			this.enqueueWrite(frame, id);
 		});
@@ -167,50 +225,33 @@ export class RpcTransport {
 		if (this.state === "closed") return;
 		this.state = "closing";
 		this.rejectPending(new Error("Subagent RPC transport closed."));
-		await this.teardownChild();
+		this.lifetime.abort();
+		await this.processResult;
 		await this.writeTail.catch(() => {});
 		this.process = undefined;
 		this.state = "closed";
 	}
 
-	private attachJsonl(child: ChildProcessWithoutNullStreams): void {
-		let segments: Buffer[] = [];
-		let bufferedBytes = 0;
+	private attachJsonl(child: RpcSubprocess): void {
+		const framer = new ByteBoundedJsonlFramer(this.maxFrameBytes());
 		child.stdout.on("data", (raw: Buffer | string) => {
 			if (this.state === "failed" || this.state === "closed") return;
-			const chunk = typeof raw === "string" ? Buffer.from(raw) : raw;
-			let offset = 0;
-			while (offset < chunk.byteLength) {
-				const newline = chunk.indexOf(0x0a, offset);
-				const end = newline < 0 ? chunk.byteLength : newline;
-				const segment = chunk.subarray(offset, end);
-				if (bufferedBytes + segment.byteLength > this.maxFrameBytes()) {
-					this.fail(new Error(`Subagent RPC frame exceeds the ${this.maxFrameBytes()} byte limit.`));
-					return;
+			try {
+				for (const line of framer.push(raw)) {
+					this.handleLine(line);
+					if (this.isFailed()) return;
 				}
-				if (segment.byteLength > 0) {
-					segments.push(segment);
-					bufferedBytes += segment.byteLength;
-				}
-				if (newline < 0) break;
-				let line = Buffer.concat(segments, bufferedBytes);
-				if (line.at(-1) === 0x0d) line = line.subarray(0, -1);
-				segments = [];
-				bufferedBytes = 0;
-				this.handleLine(line.toString("utf8"));
-				if (this.isFailed()) return;
-				offset = newline + 1;
+			} catch {
+				this.fail(new Error(`Subagent RPC frame exceeds the ${this.maxFrameBytes()} byte limit.`));
 			}
 		});
 		child.stdout.on("end", () => {
-			if (bufferedBytes === 0 || this.state === "failed" || this.state === "closed") return;
-			let line = Buffer.concat(segments, bufferedBytes);
-			if (line.at(-1) === 0x0d) line = line.subarray(0, -1);
-			this.handleLine(line.toString("utf8"));
+			if (this.state === "failed" || this.state === "closed") return;
+			for (const line of framer.end()) this.handleLine(line);
 		});
 	}
 
-	private attachStderr(child: ChildProcessWithoutNullStreams): void {
+	private attachStderr(child: RpcSubprocess): void {
 		child.stderr.setEncoding("utf8");
 		child.stderr.on("data", (chunk: string) => {
 			this.stderr = truncateTail(this.stderr + chunk, {
@@ -295,55 +336,29 @@ export class RpcTransport {
 		if (this.state !== "open" || !child?.stdin.writable) {
 			throw new Error("Subagent RPC process is not available.");
 		}
-		await new Promise<void>((resolve, reject) => {
-			let drained = true;
-			let callbackDone = false;
-			let settled = false;
-			const finish = (): void => {
-				if (!settled && drained && callbackDone) {
-					settled = true;
-					child.stdin.off("drain", onDrain);
-					resolve();
-				}
-			};
-			const onDrain = (): void => {
-				drained = true;
-				finish();
-			};
-			const writable = child.stdin.write(frame, (error) => {
-				if (error) {
-					if (!settled) {
-						settled = true;
-						child.stdin.off("drain", onDrain);
-						reject(error);
-					}
-					return;
-				}
-				callbackDone = true;
-				finish();
-			});
-			if (!writable) {
-				drained = false;
-				child.stdin.once("drain", onDrain);
-			}
-		});
+		await (this.options.writeFrame ?? writeRpcFrame)(child.stdin, frame);
 	}
 
-	private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
-		this.observeExit();
+	private async monitorProcess(child: RpcSubprocess): Promise<Awaited<RpcSubprocess>> {
+		const result = await child;
 		if (this.state === "closing" || this.state === "closed") {
 			this.reportExit(undefined);
-			return;
+			return result;
+		}
+		if (this.state === "failed") {
+			this.reportExit(this.failure);
+			return result;
 		}
 		const suffix = this.stderr.trim() ? ` ${this.stderr.trim()}` : "";
-		this.fail(new Error(`Subagent RPC process exited (${signal ?? `code ${code ?? 1}`}).${suffix}`));
-	}
-
-	private observeExit(): void {
-		if (this.exitObserved) return;
-		this.exitObserved = true;
-		this.resolveExit?.();
-		this.resolveExit = undefined;
+		const error = new Error(
+			`Subagent RPC process exited (${result.signal ?? `code ${result.exitCode ?? 1}`}).${suffix}`,
+			{ cause: result.cause },
+		);
+		this.failure = error;
+		this.state = "failed";
+		this.rejectPending(error);
+		this.reportExit(error);
+		return result;
 	}
 
 	private fail(error: Error): void {
@@ -351,41 +366,7 @@ export class RpcTransport {
 		this.failure = error;
 		this.state = "failed";
 		this.rejectPending(error);
-		void this.teardownChild().then(
-			() => this.reportExit(error),
-			(cause) => {
-				this.reportExit(new AggregateError([error, cause], "Subagent RPC transport failed and child teardown failed."));
-			},
-		);
-	}
-
-	private teardownChild(): Promise<void> {
-		if (this.teardownPromise) return this.teardownPromise;
-		this.teardownPromise = this.teardownChildInternal();
-		return this.teardownPromise;
-	}
-
-	private async teardownChildInternal(): Promise<void> {
-		const child = this.process;
-		if (!child || this.exitObserved || child.pid === undefined) return;
-		child.kill("SIGTERM");
-		const graceMs = this.options.closeGraceMs ?? DEFAULT_RPC_CLOSE_GRACE_MS;
-		let timer: NodeJS.Timeout | undefined;
-		try {
-			await Promise.race([
-				this.exitPromise,
-				new Promise<void>((resolve) => {
-					timer = setTimeout(resolve, graceMs);
-					timer.unref();
-				}),
-			]);
-		} finally {
-			if (timer) clearTimeout(timer);
-		}
-		if (!this.exitObserved) {
-			child.kill("SIGKILL");
-			await this.exitPromise;
-		}
+		this.lifetime.abort(error);
 	}
 
 	private reportExit(error: Error | undefined): void {
@@ -398,7 +379,7 @@ export class RpcTransport {
 		const pending = this.pending.get(id);
 		if (!pending) return undefined;
 		this.pending.delete(id);
-		this.clearPendingGuards(pending);
+		pending.abortSubscription[Symbol.dispose]();
 		return pending;
 	}
 
@@ -409,11 +390,6 @@ export class RpcTransport {
 
 	private rejectPending(error: Error): void {
 		for (const id of this.pending.keys()) this.rejectRequest(id, error);
-	}
-
-	private clearPendingGuards(pending: PendingRequest): void {
-		clearTimeout(pending.timer);
-		if (pending.abortHandler) pending.signal?.removeEventListener("abort", pending.abortHandler);
 	}
 
 	private maxFrameBytes(): number {
@@ -429,8 +405,8 @@ export class RpcTransport {
 	}
 }
 
-function abortError(message: string): Error {
-	const error = new Error(message);
+function abortError(message: string, cause?: unknown): Error {
+	const error = new Error(message, { cause });
 	error.name = "AbortError";
 	return error;
 }

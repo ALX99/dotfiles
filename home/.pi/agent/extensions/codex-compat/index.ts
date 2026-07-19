@@ -1,181 +1,245 @@
-import path from "node:path";
-import { realpath } from "node:fs/promises";
-import { type ExtensionAPI, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { Readable } from "node:stream";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { applyPreflightedPatch, PatchEngineError, preflightPatch, type PatchPlan } from "./engine.ts";
 import { APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME } from "./types.ts";
-
-export interface ApplyPatchToolDetails {
-	readonly workspaceRoot: string;
-	readonly added: readonly string[];
-	readonly updated: readonly string[];
-	readonly deleted: readonly string[];
-	readonly moved: readonly { readonly from: string; readonly to: string }[];
-	readonly journalArtifacts?: readonly string[];
-}
-
-export type FileMutationQueue = <T>(filePath: string, run: () => Promise<T>) => Promise<T>;
-
-export interface ApplyPatchToolOptions {
-	mutationQueue?: FileMutationQueue;
-}
-
-/** Maximum UTF-8 size accepted by the Pi tool before parsing or filesystem access (512 KiB). */
-export const MAX_APPLY_PATCH_BYTES = 512 * 1024;
 
 const APPLY_PATCH_PARAMETERS = Type.Object(
 	{
 		patch: Type.String({
-			description: `Raw *** Begin Patch ... *** End Patch text (maximum ${MAX_APPLY_PATCH_BYTES} UTF-8 bytes).`,
-			maxLength: MAX_APPLY_PATCH_BYTES,
+			description: "Raw *** Begin Patch ... *** End Patch text.",
 		}),
 	},
 	{ additionalProperties: false },
 );
 
-function planLockPaths(plan: PatchPlan): string[] {
-	return plan.changes.flatMap((change) =>
-		change.kind === "update" && change.moveAbsolutePath !== undefined
-			? [change.absolutePath, change.moveAbsolutePath]
-			: [change.absolutePath],
+/** Each stream is bounded so a failed child cannot flood the model context. */
+export const MAX_CAPTURED_OUTPUT_BYTES = 24 * 1024;
+const FORCE_KILL_DELAY_MS = 1_000;
+
+export interface ApplyPatchToolDetails {
+	readonly exitCode: 0;
+}
+
+export interface ApplyPatchSpawnOptions {
+	readonly argv0: "apply_patch";
+	readonly cwd: string;
+	readonly shell: false;
+	readonly stdio: ["pipe", "pipe", "pipe"];
+	readonly windowsHide: true;
+}
+
+export type SpawnApplyPatchProcess = (
+	executable: string,
+	args: readonly string[],
+	options: ApplyPatchSpawnOptions,
+) => ChildProcessWithoutNullStreams;
+
+export interface ApplyPatchToolOptions {
+	/** Test seam for a fake executable. Production resolves `codex` through PATH. */
+	readonly executable?: string;
+	/** Test seam for process lifecycle failures. Production uses node:child_process.spawn. */
+	readonly spawnProcess?: SpawnApplyPatchProcess;
+}
+
+interface CapturedProcess {
+	readonly stdout: string;
+	readonly stderr: string;
+	readonly code: number | null;
+	readonly signal: NodeJS.Signals | null;
+}
+
+class BoundedOutput {
+	readonly #chunks: Buffer[] = [];
+	readonly #name: "stdout" | "stderr";
+	readonly #maxBytes: number;
+	#capturedBytes = 0;
+	#totalBytes = 0;
+
+	constructor(name: "stdout" | "stderr", maxBytes: number) {
+		this.#name = name;
+		this.#maxBytes = maxBytes;
+	}
+
+	append(value: Buffer | string): void {
+		const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+		this.#totalBytes += chunk.byteLength;
+		const remaining = this.#maxBytes - this.#capturedBytes;
+		if (remaining <= 0) return;
+		const captured = chunk.subarray(0, remaining);
+		this.#chunks.push(captured);
+		this.#capturedBytes += captured.byteLength;
+	}
+
+	toString(): string {
+		const output = Buffer.concat(this.#chunks, this.#capturedBytes).toString("utf8");
+		if (this.#totalBytes <= this.#capturedBytes) return output;
+		return `${output}\n[${this.#name} truncated: captured ${this.#capturedBytes} of ${this.#totalBytes} bytes]\n`;
+	}
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function processFailure(headline: string, output: Pick<CapturedProcess, "stdout" | "stderr">, cause?: unknown): Error {
+	const message = [headline, "", "stdout:", output.stdout || "(empty)", "", "stderr:", output.stderr || "(empty)"].join(
+		"\n",
 	);
+	return cause === undefined ? new Error(message) : new Error(message, { cause });
 }
 
-function filesystemErrorCode(error: unknown): string | undefined {
-	if (!(error instanceof Error) || !("code" in error)) return undefined;
-	return typeof error.code === "string" ? error.code : undefined;
+function captureStream(stream: Readable, output: BoundedOutput, onError: (error: Error) => void): void {
+	stream.on("data", (chunk: Buffer | string) => output.append(chunk));
+	stream.once("error", onError);
 }
 
-async function canonicalMutationPath(filePath: string): Promise<string> {
-	const suffix: string[] = [];
-	let current = path.resolve(filePath);
-	while (true) {
+const defaultSpawnProcess: SpawnApplyPatchProcess = (executable, args, options) =>
+	spawn(executable, [...args], options);
+
+/** Run Codex in its apply_patch multicall mode: no shell, wrapper, or sandbox. */
+export async function runApplyPatchProcess(
+	executable: string,
+	patch: string,
+	cwd: string,
+	signal: AbortSignal | undefined,
+	spawnProcess: SpawnApplyPatchProcess = defaultSpawnProcess,
+): Promise<CapturedProcess> {
+	if (signal?.aborted) {
+		throw processFailure("apply_patch was cancelled before it started", { stdout: "", stderr: "" });
+	}
+
+	let child: ChildProcessWithoutNullStreams;
+	try {
+		child = spawnProcess(executable, [], {
+			argv0: "apply_patch",
+			cwd,
+			shell: false,
+			stdio: ["pipe", "pipe", "pipe"],
+			windowsHide: true,
+		});
+	} catch (cause) {
+		throw processFailure(`Could not start apply_patch: ${errorMessage(cause)}`, { stdout: "", stderr: "" }, cause);
+	}
+
+	const stdout = new BoundedOutput("stdout", MAX_CAPTURED_OUTPUT_BYTES);
+	const stderr = new BoundedOutput("stderr", MAX_CAPTURED_OUTPUT_BYTES);
+	let childError: Error | undefined;
+	let stdinError: Error | undefined;
+	let stdoutError: Error | undefined;
+	let stderrError: Error | undefined;
+	let cancelled = false;
+	let closed = false;
+	let forceKillTimer: NodeJS.Timeout | undefined;
+	const completion = new Promise<CapturedProcess>((resolve) => {
+		child.once("close", (code, closeSignal) => {
+			closed = true;
+			resolve({
+				stdout: stdout.toString(),
+				stderr: stderr.toString(),
+				code,
+				signal: closeSignal,
+			});
+		});
+	});
+
+	const terminate = (): void => {
+		if (child.exitCode !== null || child.signalCode !== null) return;
 		try {
-			const canonicalParent = await realpath(current);
-			return path.join(canonicalParent, ...suffix.toReversed());
-		} catch (error) {
-			if (filesystemErrorCode(error) !== "ENOENT") throw error;
-			const parent = path.dirname(current);
-			if (parent === current) throw error;
-			suffix.push(path.basename(current));
-			current = parent;
+			child.kill("SIGTERM");
+		} catch {
+			// The close/error events below remain authoritative.
 		}
-	}
-}
-
-/** Acquire mutation queues in sorted order to avoid cross-tool multi-file lock cycles. */
-export async function withSortedFileMutationLocks<T>(
-	filePaths: readonly string[],
-	run: () => Promise<T>,
-	queue: FileMutationQueue = withFileMutationQueue,
-): Promise<T> {
-	const uniqueResolved = [...new Set(filePaths.map((filePath) => path.resolve(filePath)))];
-	const canonicalPairs = await Promise.all(
-		uniqueResolved.map(async (filePath) => ({
-			filePath,
-			canonical: await canonicalMutationPath(filePath),
-		})),
-	);
-	const canonicalOwners = new Map<string, string>();
-	for (const pair of canonicalPairs) {
-		const owner = canonicalOwners.get(pair.canonical);
-		if (owner !== undefined && owner !== pair.filePath) {
-			throw new PatchEngineError(
-				"path_conflict",
-				`Patch lock paths are canonical aliases (${owner} and ${pair.filePath})`,
-			);
+		if (child.pid !== undefined && forceKillTimer === undefined) {
+			forceKillTimer = setTimeout(() => {
+				if (child.exitCode === null && child.signalCode === null) {
+					try {
+						child.kill("SIGKILL");
+					} catch {
+						// The close/error events below remain authoritative.
+					}
+				}
+			}, FORCE_KILL_DELAY_MS);
+			forceKillTimer.unref();
 		}
-		canonicalOwners.set(pair.canonical, pair.filePath);
-	}
-	const sorted = [...canonicalOwners.keys()].sort();
-	const acquire = (index: number): Promise<T> => {
-		const filePath = sorted[index];
-		return filePath === undefined ? run() : queue(filePath, () => acquire(index + 1));
 	};
-	return acquire(0);
-}
+	const onAbort = (): void => {
+		if (closed) return;
+		cancelled = true;
+		terminate();
+	};
 
-function describeWriteFailure(error: PatchEngineError): string {
-	const state = error.writeState;
-	if (state === undefined) return error.message;
-	const applied = state.applied.map((change) => change.path).join(", ") || "none";
-	const rolledBack = state.rolledBack.map((change) => change.path).join(", ") || "none";
-	const rollbackFailures =
-		state.rollbackFailures.map((failure) => `${failure.action} ${failure.path}: ${failure.message}`).join("; ") ||
-		"none";
-	const artifacts = state.journalArtifacts.join(", ") || "none";
-	return [
-		error.message,
-		`Applied before failure: ${applied}.`,
-		`Rolled back: ${rolledBack}.`,
-		`Rollback failures: ${rollbackFailures}.`,
-		`Recovery artifacts: ${artifacts}.`,
-	].join("\n");
+	child.once("error", (error) => {
+		childError = error;
+	});
+	child.stdin.once("error", (error) => {
+		stdinError = error;
+		terminate();
+	});
+	captureStream(child.stdout, stdout, (error) => {
+		stdoutError = error;
+		terminate();
+	});
+	captureStream(child.stderr, stderr, (error) => {
+		stderrError = error;
+		terminate();
+	});
+	signal?.addEventListener("abort", onAbort, { once: true });
+	if (signal?.aborted) onAbort();
+
+	if (!cancelled) {
+		try {
+			child.stdin.end(patch, "utf8");
+		} catch (error) {
+			stdinError = error instanceof Error ? error : new Error(String(error));
+			terminate();
+		}
+	} else {
+		child.stdin.destroy();
+	}
+
+	const result = await completion;
+
+	signal?.removeEventListener("abort", onAbort);
+	if (forceKillTimer !== undefined) clearTimeout(forceKillTimer);
+
+	if (cancelled) throw processFailure("apply_patch was cancelled", result);
+	if (childError !== undefined) {
+		throw processFailure(`Could not run apply_patch: ${childError.message}`, result, childError);
+	}
+	if (stdinError !== undefined) {
+		throw processFailure(`Could not send the patch to apply_patch: ${stdinError.message}`, result, stdinError);
+	}
+	if (stdoutError !== undefined) {
+		throw processFailure(`Could not read apply_patch stdout: ${stdoutError.message}`, result, stdoutError);
+	}
+	if (stderrError !== undefined) {
+		throw processFailure(`Could not read apply_patch stderr: ${stderrError.message}`, result, stderrError);
+	}
+	if (result.code !== 0) {
+		const status =
+			result.code === null ? `terminated by signal ${result.signal ?? "unknown"}` : `exited with status ${result.code}`;
+		throw processFailure(`apply_patch ${status}`, result);
+	}
+	return result;
 }
 
 export function createApplyPatchTool(
 	options: ApplyPatchToolOptions = {},
 ): ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails> {
-	const queue = options.mutationQueue ?? withFileMutationQueue;
 	return {
 		name: APPLY_PATCH_TOOL_NAME,
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,
-		promptSnippet: "Apply an add/update/delete/move patch across workspace files",
-		promptGuidelines: ["Use apply_patch for coordinated filesystem changes when it is available."],
 		parameters: APPLY_PATCH_PARAMETERS,
 		executionMode: "sequential",
-		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			const patchBytes = Buffer.byteLength(params.patch, "utf8");
-			if (patchBytes > MAX_APPLY_PATCH_BYTES) {
-				throw new RangeError(
-					`apply_patch input is ${patchBytes} bytes; maximum is ${MAX_APPLY_PATCH_BYTES} bytes (512 KiB)`,
-				);
-			}
-			const plan = await preflightPatch(params.patch, {
-				workspaceRoot: ctx.cwd,
-				...(signal === undefined ? {} : { signal }),
-			});
-			const lockPaths = planLockPaths(plan);
-			try {
-				return await withSortedFileMutationLocks(
-					lockPaths,
-					async () => {
-						onUpdate?.({
-							content: [{ type: "text", text: "Patch preflight passed; applying patch." }],
-							details: {
-								workspaceRoot: plan.workspaceRoot,
-								...plan.summary,
-							},
-						});
-						const applied = await applyPreflightedPatch(plan, signal === undefined ? {} : { signal });
-						const details: ApplyPatchToolDetails = {
-							workspaceRoot: applied.workspaceRoot,
-							...plan.summary,
-							...(applied.journalArtifacts.length === 0 ? {} : { journalArtifacts: applied.journalArtifacts }),
-						};
-						const changed = [
-							...details.added.map((file) => `Added ${file}`),
-							...details.updated.map((file) => `Updated ${file}`),
-							...details.deleted.map((file) => `Deleted ${file}`),
-							...details.moved.map(({ from, to }) => `Moved ${from} -> ${to}`),
-						];
-						if (applied.journalArtifacts.length > 0) {
-							changed.push(`Warning: retained rollback journal files: ${applied.journalArtifacts.join(", ")}`);
-						}
-						return {
-							content: [{ type: "text", text: `Applied patch successfully.\n${changed.join("\n")}` }],
-							details,
-						};
-					},
-					queue,
-				);
-			} catch (error) {
-				if (error instanceof PatchEngineError && error.writeState !== undefined) {
-					throw new Error(describeWriteFailure(error), { cause: error });
-				}
-				throw error;
-			}
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const executable = options.executable ?? "codex";
+			const result = await runApplyPatchProcess(executable, params.patch, ctx.cwd, signal, options.spawnProcess);
+			return {
+				content: [{ type: "text", text: result.stdout }],
+				details: { exitCode: 0 },
+			};
 		},
 	};
 }
@@ -205,8 +269,8 @@ export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOpt
 		if (next !== active) pi.setActiveTools(next);
 	};
 
-	// The mutation tool is deliberately scoped to Pi's built-in ChatGPT Codex
-	// provider. Pi's version-pinned native codec patch provides raw custom input.
+	// The native Pi patch supplies raw Responses custom-tool transport only
+	// for the built-in ChatGPT OAuth Codex provider.
 	const isOpenAICodexModel = (model: { provider?: string } | undefined): boolean => model?.provider === "openai-codex";
 	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(isOpenAICodexModel(ctx.model)));
 	pi.on("model_select", (event) => setCodexCompatToolsActive(isOpenAICodexModel(event.model)));

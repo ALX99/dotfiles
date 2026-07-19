@@ -32,6 +32,22 @@ export interface AgentView {
 	readonly details: ReadonlyRunDetails;
 }
 
+export type WaitInterruptionKind = "timed_out" | "cancelled";
+
+/** A wait ended without changing the subagent's underlying run. */
+export class AgentWaitInterruptedError extends Error {
+	readonly kind: WaitInterruptionKind;
+
+	constructor(kind: WaitInterruptionKind, agentId: string, cause?: unknown) {
+		super(
+			kind === "timed_out" ? `Timed out waiting for agent ${agentId}.` : `Waiting for agent ${agentId} was aborted.`,
+			{ cause },
+		);
+		this.name = "AgentWaitInterruptedError";
+		this.kind = kind;
+	}
+}
+
 const ALLOWED_TRANSITIONS: Readonly<Record<AgentLifecycle["phase"], readonly AgentLifecycle["phase"][]>> = {
 	created: ["starting", "closing"],
 	starting: ["running", "idle", "failed", "aborted", "closing"],

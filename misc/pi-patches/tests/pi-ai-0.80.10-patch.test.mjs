@@ -24,6 +24,33 @@ const BEFORE_SHA256 = sharedTarget.beforeSha256;
 const AFTER_SHA256 = sharedTarget.afterSha256;
 const CODEX_BEFORE_SHA256 = codexTarget.beforeSha256;
 const CODEX_AFTER_SHA256 = codexTarget.afterSha256;
+const UPSTREAM_APPLY_PATCH_DESCRIPTION =
+    "Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.";
+const UPSTREAM_APPLY_PATCH_GRAMMAR = `start: begin_patch hunk+ end_patch
+begin_patch: "*** Begin Patch" LF
+end_patch: "*** End Patch" LF?
+
+hunk: add_hunk | delete_hunk | update_hunk
+add_hunk: "*** Add File: " filename LF add_line+
+delete_hunk: "*** Delete File: " filename LF
+update_hunk: "*** Update File: " filename LF change_move? change?
+
+filename: /(.+)/
+add_line: "+" /(.*)/ LF -> line
+
+change_move: "*** Move to: " filename LF
+change: (change_context | change_line)+ eof_line?
+change_context: ("@@" | "@@ " /(.+)/) LF
+change_line: ("+" | "-" | " ") /(.*)/ LF
+eof_line: "*** End of File" LF
+
+%import common.LF
+`;
+const UPSTREAM_APPLY_PATCH_FORMAT = {
+    type: "grammar",
+    syntax: "lark",
+    definition: UPSTREAM_APPLY_PATCH_GRAMMAR,
+};
 
 function sha256(content) {
     return createHash("sha256").update(content).digest("hex");
@@ -337,8 +364,20 @@ test("patched codec scopes raw apply_patch conversion to the Codex caller", asyn
         { type: "function", name: "bash", description: "Run a command", parameters, strict: true },
     ]);
     const customToolNames = new Set(["apply_patch"]);
-    assert.deepEqual(codec.convertResponsesTools(tools, { strict: true, customToolNames }), [
-        { type: "custom", name: "apply_patch", description: "Apply a patch", format: { type: "text" } },
+    const customTools = new Map([[
+        "apply_patch",
+        {
+            description: UPSTREAM_APPLY_PATCH_DESCRIPTION,
+            format: UPSTREAM_APPLY_PATCH_FORMAT,
+        },
+    ]]);
+    assert.deepEqual(codec.convertResponsesTools(tools, { strict: true, customTools }), [
+        {
+            type: "custom",
+            name: "apply_patch",
+            description: UPSTREAM_APPLY_PATCH_DESCRIPTION,
+            format: UPSTREAM_APPLY_PATCH_FORMAT,
+        },
         { type: "function", name: "bash", description: "Run a command", parameters, strict: true },
     ]);
 
@@ -389,7 +428,7 @@ test("patched codec scopes raw apply_patch conversion to the Codex caller", asyn
 
     const codexSource = await readFile(join(fixturePiAi, CODEX_TARGET_RELATIVE), "utf8");
     assert.match(codexSource, /parallel_tool_calls: false/);
-    assert.match(codexSource, /model\.provider === "openai-codex" \? CODEX_CUSTOM_TOOL_NAMES : undefined/);
+    assert.match(codexSource, /model\.provider === "openai-codex" \? CODEX_CUSTOM_TOOLS : undefined/);
     assert.doesNotMatch(codexSource, /parallel_tool_calls: true/);
 
     const output = {
@@ -485,8 +524,8 @@ test("Codex request building keeps custom providers on function apply_patch", as
     assert.deepEqual(chatGptPayload.tools[0], {
         type: "custom",
         name: "apply_patch",
-        description: "Apply a patch",
-        format: { type: "text" },
+        description: UPSTREAM_APPLY_PATCH_DESCRIPTION,
+        format: UPSTREAM_APPLY_PATCH_FORMAT,
     });
 });
 
@@ -535,4 +574,326 @@ test("custom stream correlation tolerates missing indexes and item IDs and final
     assert.match(jsonDeltas.at(-1), /"}$/);
     assert.equal(emitted.filter((event) => event.type === "toolcall_end").length, 1);
     assert.equal(output.stopReason, "toolUse");
+});
+
+test("custom stream correlation keeps interleaved calls separate and rejects unsafe finalization", async (t) => {
+  const { root, fixturePiAi } = await makeFixture(t);
+  const apply = runScript(root);
+  assert.equal(apply.status, 0, apply.stderr);
+
+  const codec = await import(
+    `${pathToFileURL(join(fixturePiAi, TARGET_RELATIVE)).href}?correlation=${Date.now()}`
+  );
+  const model = {
+    id: "codex-test",
+    provider: "openai-codex",
+    api: "openai-codex-responses",
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  };
+  const makeOutput = () => ({
+    role: "assistant",
+    content: [],
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+  });
+  const streamEvents = async function* (events) {
+    yield* events;
+  };
+  const customCall = (callId, input = "") => ({
+    type: "custom_tool_call",
+    id: `ctc_${callId}`,
+    call_id: callId,
+    name: "apply_patch",
+    input,
+  });
+
+  const output = makeOutput();
+  await codec.processResponsesStream(
+    streamEvents([
+      { type: "response.output_item.added", output_index: 0, item: customCall("first") },
+      { type: "response.output_item.added", output_index: 1, item: customCall("second") },
+      { type: "response.custom_tool_call_input.delta", call_id: "second", delta: "second patch" },
+      { type: "response.custom_tool_call_input.delta", call_id: "first", delta: "first patch" },
+      { type: "response.custom_tool_call_input.done", call_id: "first", input: "first patch" },
+      { type: "response.custom_tool_call_input.done", call_id: "second", input: "second patch" },
+      {
+        type: "response.output_item.done",
+        output_index: 1,
+        item: customCall("second", "second patch"),
+      },
+      {
+        type: "response.output_item.done",
+        output_index: 0,
+        item: customCall("first", "first patch"),
+      },
+      {
+        type: "response.completed",
+        response: { id: "resp_interleaved", status: "completed", output: [] },
+      },
+    ]),
+    output,
+    { push() {} },
+    model,
+  );
+  assert.deepEqual(output.content, [
+    {
+      type: "toolCall",
+      id: "first|ctc_first",
+      name: "apply_patch",
+      arguments: { patch: "first patch" },
+    },
+    {
+      type: "toolCall",
+      id: "second|ctc_second",
+      name: "apply_patch",
+      arguments: { patch: "second patch" },
+    },
+  ]);
+
+  await assert.rejects(
+    codec.processResponsesStream(
+      streamEvents([
+        { type: "response.output_item.added", output_index: 0, item: customCall("first") },
+        { type: "response.output_item.added", output_index: 1, item: customCall("second") },
+        { type: "response.custom_tool_call_input.delta", delta: "unidentified" },
+      ]),
+      makeOutput(),
+      { push() {} },
+      model,
+    ),
+    /Ambiguous custom tool stream event/,
+    "an unidentified delta must fail closed while two custom calls are active",
+  );
+  await assert.rejects(
+    codec.processResponsesStream(
+      streamEvents([
+        { type: "response.output_item.added", item: customCall("prefix") },
+        { type: "response.custom_tool_call_input.delta", call_id: "prefix", delta: "streamed" },
+        { type: "response.custom_tool_call_input.done", call_id: "prefix", input: "different" },
+      ]),
+      makeOutput(),
+      { push() {} },
+      model,
+    ),
+    /final input did not match the streamed input prefix/,
+  );
+  await assert.rejects(
+    codec.processResponsesStream(
+      streamEvents([
+        { type: "response.output_item.added", item: customCall("finalized") },
+        { type: "response.custom_tool_call_input.done", call_id: "finalized", input: "done" },
+        { type: "response.custom_tool_call_input.delta", call_id: "finalized", delta: " late" },
+      ]),
+      makeOutput(),
+      { push() {} },
+      model,
+    ),
+    /input delta arrived after finalization/,
+  );
+  await assert.rejects(
+    codec.processResponsesStream(
+      streamEvents([
+        { type: "response.output_item.added", item: customCall("changed") },
+        { type: "response.custom_tool_call_input.done", call_id: "changed", input: "original" },
+        { type: "response.output_item.done", item: customCall("changed", "changed") },
+      ]),
+      makeOutput(),
+      { push() {} },
+      model,
+    ),
+    /final input changed after finalization/,
+  );
+});
+
+test("a cached Codex WebSocket continuation sends custom tool output as delta input", async (t) => {
+  const { root, fixturePiAi } = await makeFixture(t);
+  const apply = runScript(root);
+  assert.equal(apply.status, 0, apply.stderr);
+
+  const codexApi = await import(
+    `${pathToFileURL(join(fixturePiAi, CODEX_TARGET_RELATIVE)).href}?websocket=${Date.now()}`
+  );
+  const sent = [];
+  const patch = "*** Begin Patch\n*** Add File: continuation.txt\n+continued\n*** End Patch";
+  class FakeWebSocket {
+    readyState = 1;
+    #listeners = new Map();
+
+    constructor() {
+      queueMicrotask(() => this.#emit("open", {}));
+    }
+
+    addEventListener(type, listener) {
+      const listeners = this.#listeners.get(type) ?? [];
+      listeners.push(listener);
+      this.#listeners.set(type, listeners);
+    }
+
+    removeEventListener(type, listener) {
+      this.#listeners.set(
+        type,
+        (this.#listeners.get(type) ?? []).filter((candidate) => candidate !== listener),
+      );
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send(payload) {
+      sent.push(JSON.parse(payload));
+      const responseEvents =
+        sent.length === 1
+          ? [
+              {
+                type: "response.output_item.added",
+                output_index: 0,
+                item: {
+                  type: "custom_tool_call",
+                  id: "ctc_1",
+                  call_id: "call_1",
+                  name: "apply_patch",
+                  input: "",
+                },
+              },
+              { type: "response.custom_tool_call_input.done", output_index: 0, input: patch },
+              {
+                type: "response.output_item.done",
+                output_index: 0,
+                item: {
+                  type: "custom_tool_call",
+                  id: "ctc_1",
+                  call_id: "call_1",
+                  name: "apply_patch",
+                  input: patch,
+                },
+              },
+              {
+                type: "response.completed",
+                response: { id: "resp_1", status: "completed", output: [] },
+              },
+            ]
+          : [
+              {
+                type: "response.completed",
+                response: { id: "resp_2", status: "completed", output: [] },
+              },
+            ];
+      queueMicrotask(() => {
+        for (const event of responseEvents) this.#emit("message", { data: JSON.stringify(event) });
+      });
+    }
+
+    #emit(type, event) {
+      for (const listener of this.#listeners.get(type) ?? []) listener(event);
+    }
+  }
+
+  const originalWebSocket = globalThis.WebSocket;
+  globalThis.WebSocket = FakeWebSocket;
+  const sessionId = `codex-continuation-${Date.now()}`;
+  t.after(() => {
+    codexApi.closeOpenAICodexWebSocketSessions(sessionId);
+    globalThis.WebSocket = originalWebSocket;
+  });
+
+  const model = {
+    id: "codex-fixture",
+    name: "Codex fixture",
+    api: "openai-codex-responses",
+    provider: "openai-codex",
+    baseUrl: "https://chatgpt.example/backend-api",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 100_000,
+    maxTokens: 4096,
+  };
+  const tool = {
+    name: "apply_patch",
+    description: "Apply a patch",
+    parameters: { type: "object", properties: { patch: { type: "string" } } },
+  };
+  const options = {
+    apiKey: [
+      Buffer.from("{}").toString("base64url"),
+      Buffer.from(
+        JSON.stringify({
+          "https://api.openai.com/auth": { chatgpt_account_id: "account_fixture" },
+        }),
+      ).toString("base64url"),
+      "signature",
+    ].join("."),
+    transport: "websocket-cached",
+    sessionId,
+  };
+  const collect = async (events) => {
+    let message;
+    for await (const event of events) {
+      assert.notEqual(event.type, "error", event.error?.errorMessage);
+      if (event.type === "done") message = event.message;
+    }
+    assert.ok(message, "the WebSocket stream must finish");
+    return message;
+  };
+
+  const first = await collect(
+    codexApi.stream(
+      model,
+      {
+        messages: [{ role: "user", content: "apply this patch", timestamp: 1 }],
+        tools: [tool],
+      },
+      options,
+    ),
+  );
+  const firstCall = first.content.find((item) => item.type === "toolCall");
+  assert.deepEqual(firstCall, {
+    type: "toolCall",
+    id: "call_1|ctc_1",
+    name: "apply_patch",
+    arguments: { patch },
+  });
+
+  await collect(
+    codexApi.stream(
+      model,
+      {
+        messages: [
+          { role: "user", content: "apply this patch", timestamp: 1 },
+          first,
+          {
+            role: "toolResult",
+            toolCallId: "call_1|ctc_1",
+            toolName: "apply_patch",
+            content: [{ type: "text", text: "Applied" }],
+            isError: false,
+            timestamp: 2,
+          },
+        ],
+        tools: [tool],
+      },
+      options,
+    ),
+  );
+
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent[0].tools[0], {
+    type: "custom",
+    name: "apply_patch",
+    description: UPSTREAM_APPLY_PATCH_DESCRIPTION,
+    format: UPSTREAM_APPLY_PATCH_FORMAT,
+  });
+  assert.equal(sent[1].previous_response_id, "resp_1");
+  assert.deepEqual(sent[1].input, [
+    { type: "custom_tool_call_output", call_id: "call_1", output: "Applied" },
+  ]);
 });

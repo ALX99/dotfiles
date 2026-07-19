@@ -1,33 +1,44 @@
 import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
-import { formatAgentList, resolveAgent } from "../agents.ts";
+import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { executionCanDelegate } from "../spawn-admission.ts";
 import { ManagedAgent } from "../managed-agent.ts";
 import { resolveRun } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
-import { createSpawnAgentSchema, trimOptional, trimRequired } from "../schemas.ts";
+import { createSpawnAgentSchema, type SpawnAgentSchemaOptions, trimOptional, trimRequired } from "../schemas.ts";
 import { textResult, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
+import type { SpawnRpcProcess } from "../rpc-transport.ts";
+
+export interface SpawnAgentToolOptions {
+	readonly spawnProcess?: SpawnRpcProcess;
+}
 
 export function createSpawnAgentTool(
 	pi: ExtensionAPI,
 	runtime: SubagentRuntime,
+	options: SpawnAgentToolOptions = {},
 ): ToolDefinition<ReturnType<typeof createSpawnAgentSchema>, ReadonlyRunDetails> {
-	const schema = createSpawnAgentSchema(runtime.profiles.rootPolicy.maxDelegationGrant);
+	const schemaOptions = spawnSchemaOptions(runtime);
+	const schema = createSpawnAgentSchema(schemaOptions);
+	const allowedAgents = runtime.agents.filter((agent) => schemaOptions.agents.includes(agent.name));
+	const allowedProfiles = schemaOptions.profiles.flatMap((name) => {
+		const profile = runtime.profiles.profiles[name];
+		return profile ? [{ name, description: profile.description }] : [];
+	});
 	return defineTool<typeof schema, ReadonlyRunDetails>({
 		name: "spawn_agent",
 		label: "Spawn Agent",
-		description:
-			"Spawn an admitted persistent subagent. Root may explicitly grant a general agent up to two delegation credits; nested delegation is limited to fast scouts. Maximum depth is 2.",
+		description: "Spawn an admitted persistent subagent.",
 		promptSnippet: "Spawn an isolated persistent subagent with its own context, model, and tools",
-		promptGuidelines: spawnGuidelines(runtime.agentList),
+		promptGuidelines: spawnGuidelines(allowedAgents, allowedProfiles, runtime.executionContext === undefined),
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			if (runtime.executionContext && params.delegation_credits !== undefined) {
-				throw new Error("Only the top-level process may supply delegation_credits; remove it from this nested spawn.");
+			if (runtime.executionContext && params.child_spawn_budget !== undefined) {
+				throw new Error("Only the top-level process may supply child_spawn_budget; remove it from this nested spawn.");
 			}
 			const message = trimRequired(params.message, "message");
 			const requestedAgent = trimRequired(params.agent, "agent");
@@ -45,31 +56,35 @@ export function createSpawnAgentTool(
 				...(profile === undefined ? {} : { profile }),
 				...(params.thinking === undefined ? {} : { requestedThinking: params.thinking }),
 			});
-			const childContext = runtime.admission.admit({
+			const reservation = runtime.admission.reserve({
 				agent: resolvedRun.agent,
 				profile: resolvedRun.profile,
-				...(params.delegation_credits === undefined ? {} : { delegationCredits: params.delegation_credits }),
+				...(params.child_spawn_budget === undefined ? {} : { childSpawnBudget: params.child_spawn_budget }),
 			});
+			const childContext = reservation.childContext;
 			const background = params.background === true;
 			const cwd = trimOptional(params.cwd);
-			const managed = new ManagedAgent({
-				defaultCwd: ctx.cwd,
-				...(cwd === undefined ? {} : { cwd }),
-				agent: agentConfig,
-				resolvedRun,
-				childContext,
-				subagentToolsEnabled: executionCanDelegate(runtime.profiles, childContext),
-				...(onUpdate
-					? {
-							onUpdate: (details) => {
-								onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
-							},
-						}
-					: {}),
-				onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
-			});
-			await runtime.registry.add(managed);
+			let managed: ManagedAgent | undefined;
 			try {
+				managed = new ManagedAgent({
+					defaultCwd: ctx.cwd,
+					...(cwd === undefined ? {} : { cwd }),
+					agent: agentConfig,
+					resolvedRun,
+					childContext,
+					subagentToolsEnabled: executionCanDelegate(runtime.profiles, childContext),
+					...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
+					...(onUpdate
+						? {
+								onUpdate: (details) => {
+									onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
+								},
+							}
+						: {}),
+					onStartupComplete: () => reservation.commit(),
+					onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+				});
+				await runtime.registry.add(managed);
 				const details = await managed.start(
 					message,
 					trimOptional(params.handoff),
@@ -80,8 +95,9 @@ export function createSpawnAgentTool(
 				const summary = managed.summary();
 				return textResult(background ? formatLaunch(summary) : formatCompletion(summary), details);
 			} catch (error) {
-				if (!managed.isAvailable()) runtime.registry.delete(managed.id);
-				throw toolError(`Agent ${managed.id} failed`, error);
+				reservation.release();
+				if (managed && !managed.isAvailable()) runtime.registry.delete(managed.id);
+				throw toolError(managed ? `Agent ${managed.id} failed` : "Agent startup failed", error);
 			}
 		},
 		renderCall(args, theme, context) {
@@ -98,22 +114,59 @@ export function createSpawnAgentTool(
 	});
 }
 
-function spawnGuidelines(agentList: string): string[] {
+function spawnSchemaOptions(runtime: SubagentRuntime): SpawnAgentSchemaOptions {
+	const parent = runtime.executionContext;
+	if (!parent) {
+		const agents = runtime.agents.map((agent) => agent.name);
+		const profiles = [
+			...new Set(agents.flatMap((agent) => runtime.profiles.agentPolicies[agent]?.allowedProfiles ?? [])),
+		];
+		return {
+			agents,
+			profiles,
+			maxSpawnBudgetPerChild: runtime.profiles.rootPolicy.maxSpawnBudgetPerChild,
+		};
+	}
+
+	const delegation = runtime.profiles.agentPolicies[parent.agent]?.delegation;
+	if (delegation?.mode !== "grant-required") {
+		throw new Error(`Agent '${parent.agent}' has subagent tools but no delegation policy.`);
+	}
+	return {
+		agents: delegation.allowedChildAgents,
+		profiles: delegation.allowedChildProfiles,
+	};
+}
+
+export function spawnGuidelines(
+	agents: readonly Pick<AgentConfig, "name" | "description">[] = [],
+	profiles: readonly { readonly name: string; readonly description: string }[] = [],
+	isRootProcess = false,
+): string[] {
+	const roleMap =
+		agents.length > 0
+			? `Choose the narrowest matching role:\n${agents
+					.map((agent) => `- ${agent.name}: ${agent.description}`)
+					.join("\n")}`
+			: undefined;
+	const profileMap =
+		profiles.length > 0
+			? `Choose the least expensive execution profile that can complete the work:\n${profiles
+					.map((profile) => `- ${profile.name}: ${profile.description}`)
+					.join("\n")}`
+			: undefined;
+
 	return [
-		"The root agent must perform orchestration itself; expensive or specialized children are leaves, not replacement coordinators.",
-		"Launch scouts directly for narrow, non-overlapping evidence gathering, then pass the collected evidence to a single deep reviewer for synthesis and judgment.",
-		"Treat every deep reviewer as a leaf. Use followup_agent when an existing agent retains useful context, and do not replace an idle deep reviewer with a new one.",
-		"Grant nested delegation only when a general coordinator genuinely needs up to two narrow fast reconnaissance tasks.",
-		"Use spawn_agent to delegate a self-contained task to an isolated subagent.",
-		`Available agents and execution policies:\n${agentList}`,
-		"Normally choose only an agent. Use profile only as an explicit allowed override; never select an individual model.",
-		"When using spawn_agent, provide a complete assignment: objective, scope, constraints, expected output, and verification.",
-		"Use background=true only when independent work can continue; completion is delivered automatically.",
-		"When the current response needs background results, call wait_agent once with all relevant IDs before answering; consumed results will not trigger redundant follow-up turns.",
-		"For parallel reviews, give agents non-overlapping scopes and ask for the evidence and uncertainty the task requires; synthesize and deduplicate findings in the parent.",
-		"Use followup_agent when continuing the same subject and the completed agent's retained context is useful, especially when a scout already has relevant repository knowledge. Spawn a new agent for an unrelated topic, independent implementation scope, or different role or execution policy.",
-		"Use send_agent to steer running work, wait_agent to wait, and interrupt_agent or close_agent for lifecycle control.",
-		"Subagents are non-interactive: they cannot open user dialogs and must report questions in text.",
+		...(roleMap === undefined ? [] : [roleMap]),
+		...(profileMap === undefined ? [] : [profileMap]),
+		...(isRootProcess
+			? [
+					"Root concurrency limits count only live children owned by this top-level process, not every agent in the delegation tree. Nested child spawns use each parent's lifetime spawn budget; there is no tree-wide agent cap.",
+				]
+			: []),
+		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. The current agent owns synthesis and final verification.",
+		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name the required validation.",
+		"Use scouts only for narrow read-only discovery; do not assign scouts implementation or final review verdicts.",
 	];
 }
 
