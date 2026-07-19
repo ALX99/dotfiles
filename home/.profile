@@ -3,6 +3,7 @@
 # Environment variables for login shells
 
 set -a
+__kernel_name=$(uname)
 
 # =============================================================================
 # PATH
@@ -32,7 +33,7 @@ EDITOR="nvim"
 # =============================================================================
 # Platform-specific
 # =============================================================================
-if [ "$(uname)" = "Darwin" ]; then
+if [ "$__kernel_name" = "Darwin" ]; then
   PATH="/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
   USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
@@ -53,6 +54,11 @@ else
   # SSH
   SSH_ASKPASS_REQUIRE="prefer"
   SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"
+  if [ -z "${SSH_CONNECTION:-}" ] &&
+    [ -n "${XDG_RUNTIME_DIR:-}" ] &&
+    [ -S "$XDG_RUNTIME_DIR/ssh-agent.socket" ]; then
+    SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+  fi
 
   # Clean up ~/ (https://wiki.archlinux.org/title/XDG_Base_Directory)
   LESSHISTFILE="-"
@@ -80,73 +86,38 @@ NPM_CONFIG_IGNORE_SCRIPTS=true
 DISABLE_TELEMETRY=1 # Disable claude code telemetry
 PI_FFF_MODE=override # Replace pi's built-in find/grep with FFF (pi-fff ext)
 
-# Compact PS1-themed GNU ls colors.
-__ls_colors() (
-  slate='38;5;245'
-  red='38;5;203'
-  green='38;5;114'
-  yellow='38;5;179'
-  blue='38;5;75'
-  purple='38;5;141'
-  cyan='38;5;109'
-  dir_blue='38;5;69'
-  dim_slate="2;${slate}"
-  c=""
-
-  # Filesystem state: keep high-risk and unusual entries obvious.
-  c="${c}di=1;${dir_blue}:ln=4;${cyan}:or=1;${red}:mi=1;${red}:ex=1;${green}:"
-  c="${c}su=1;${yellow}:sg=1;${yellow}:tw=1;${purple}:ow=1;${yellow}:st=${dim_slate}:"
-  c="${c}pi=${yellow}:so=${purple}:bd=${cyan}:cd=1;${cyan}:do=${purple}:"
-  c="${c}fi=0:no=0:"
-
-  # Archives and packages.
-  c="${c}*.zip=${green}:*.tar=${green}:*.tgz=${green}:*.gz=${green}:*.bz2=${green}:"
-  c="${c}*.xz=${green}:*.zst=${green}:*.rar=${green}:*.7z=${green}:*.deb=${yellow}:*.rpm=${yellow}:"
-
-  # Source code.
-  c="${c}*.sh=${blue}:*.bash=${blue}:*.zsh=${blue}:*.fish=${blue}:*.py=${blue}:"
-  c="${c}*.js=${blue}:*.ts=${blue}:*.jsx=${blue}:*.tsx=${blue}:*.go=${cyan}:*.rs=${cyan}:"
-  c="${c}*.c=${cyan}:*.h=${cyan}:*.cc=${cyan}:*.cpp=${cyan}:*.hpp=${cyan}:*.lua=${blue}:*.vim=${blue}:"
-
-  # Config and data.
-  c="${c}*.json=${yellow}:*.yaml=${yellow}:*.yml=${yellow}:*.toml=${yellow}:*.ini=${slate}:"
-  c="${c}*.conf=${slate}:*.cfg=${slate}:*.xml=${yellow}:*.csv=${cyan}:*.sql=${purple}:"
-
-  # Documentation.
-  c="${c}*.md=${yellow}:*.markdown=${yellow}:*.txt=${slate}:*.rst=${yellow}:*.adoc=${yellow}:*.pdf=${purple}:"
-  c="${c}*README=4;${yellow}:*README.md=4;${yellow}:*LICENSE=${yellow}:*CHANGELOG=${yellow}:"
-  c="${c}*CLAUDE.md=1;4;${purple}:*AGENTS.md=1;4;${purple}:*claude.md=1;4;${purple}:*agents.md=1;4;${purple}:"
-
-  # Media.
-  c="${c}*.png=${purple}:*.jpg=${purple}:*.jpeg=${purple}:*.gif=${purple}:*.webp=${purple}:*.svg=${cyan}:"
-  c="${c}*.mp3=${purple}:*.flac=${purple}:*.wav=${purple}:*.mp4=${purple}:*.mov=${purple}:*.mkv=${purple}:*.webm=${purple}:"
-
-  # Build and project metadata.
-  c="${c}*Dockerfile=1;${green}:*Containerfile=1;${green}:*Makefile=1;${green}:*Justfile=1;${green}:*justfile=1;${green}:"
-  c="${c}*Cargo.toml=${cyan}:*Cargo.lock=${slate}:*go.mod=${cyan}:*go.sum=${slate}:"
-  c="${c}*package.json=${cyan}:*package-lock.json=${slate}:"
-
-  # Sensitive files.
-  c="${c}*id_rsa=1;${red}:*id_ed25519=1;${red}:*.pem=1;${red}:*.key=1;${red}:*.crt=${yellow}:"
-  c="${c}*.env=1;${red}:*.env.*=1;${red}:"
-
-  # Temporary, cache, and build artifacts.
-  c="${c}*.tmp=${dim_slate}:*.temp=${dim_slate}:*.swp=${dim_slate}:*.swo=${dim_slate}:"
-  c="${c}*.o=${dim_slate}:*.obj=${dim_slate}:*.class=${dim_slate}:*.pyc=${dim_slate}:"
-  c="${c}*.cache=${dim_slate}:*.DS_Store=${dim_slate}:"
-
-  printf '%s\n' "$c"
-)
-
-LS_COLORS="$(__ls_colors)"
-unset -f __ls_colors
+# Compact PS1-themed GNU ls colors. Keep this synchronized with the palette
+# documented in Ghostty, tmux, and home/.bashrc.
+LS_COLORS='di=1;38;5;69:ln=4;38;5;109:or=1;38;5;203:mi=1;38;5;203:ex=1;38;5;114:su=1;38;5;179:sg=1;38;5;179:tw=1;38;5;141'\
+':ow=1;38;5;179:st=2;38;5;245:pi=38;5;179:so=38;5;141:bd=38;5;109:cd=1;38;5;109:do=38;5;141:fi=0:no=0:*.zip=38;'\
+'5;114:*.tar=38;5;114:*.tgz=38;5;114:*.gz=38;5;114:*.bz2=38;5;114:*.xz=38;5;114:*.zst=38;5;114:*.rar=38;5;114:*'\
+'.7z=38;5;114:*.deb=38;5;179:*.rpm=38;5;179:*.sh=38;5;75:*.bash=38;5;75:*.zsh=38;5;75:*.fish=38;5;75:*.py=38;5;'\
+'75:*.js=38;5;75:*.ts=38;5;75:*.jsx=38;5;75:*.tsx=38;5;75:*.go=38;5;109:*.rs=38;5;109:*.c=38;5;109:*.h=38;5;109'\
+':*.cc=38;5;109:*.cpp=38;5;109:*.hpp=38;5;109:*.lua=38;5;75:*.vim=38;5;75:*.json=38;5;179:*.yaml=38;5;179:*.yml'\
+'=38;5;179:*.toml=38;5;179:*.ini=38;5;245:*.conf=38;5;245:*.cfg=38;5;245:*.xml=38;5;179:*.csv=38;5;109:*.sql=38'\
+';5;141:*.md=38;5;179:*.markdown=38;5;179:*.txt=38;5;245:*.rst=38;5;179:*.adoc=38;5;179:*.pdf=38;5;141:*README='\
+'4;38;5;179:*README.md=4;38;5;179:*LICENSE=38;5;179:*CHANGELOG=38;5;179:*CLAUDE.md=1;4;38;5;141:*AGENTS.md=1;4;'\
+'38;5;141:*claude.md=1;4;38;5;141:*agents.md=1;4;38;5;141:*.png=38;5;141:*.jpg=38;5;141:*.jpeg=38;5;141:*.gif=3'\
+'8;5;141:*.webp=38;5;141:*.svg=38;5;109:*.mp3=38;5;141:*.flac=38;5;141:*.wav=38;5;141:*.mp4=38;5;141:*.mov=38;5'\
+';141:*.mkv=38;5;141:*.webm=38;5;141:*Dockerfile=1;38;5;114:*Containerfile=1;38;5;114:*Makefile=1;38;5;114:*Jus'\
+'tfile=1;38;5;114:*justfile=1;38;5;114:*Cargo.toml=38;5;109:*Cargo.lock=38;5;245:*go.mod=38;5;109:*go.sum=38;5;'\
+'245:*package.json=38;5;109:*package-lock.json=38;5;245:*id_rsa=1;38;5;203:*id_ed25519=1;38;5;203:*.pem=1;38;5;'\
+'203:*.key=1;38;5;203:*.crt=38;5;179:*.env=1;38;5;203:*.env.*=1;38;5;203:*.tmp=2;38;5;245:*.temp=2;38;5;245:*.s'\
+'wp=2;38;5;245:*.swo=2;38;5;245:*.o=2;38;5;245:*.obj=2;38;5;245:*.class=2;38;5;245:*.pyc=2;38;5;245:*.cache=2;3'\
+'8;5;245:*.DS_Store=2;38;5;245:'
 
 set +a
 
-if [ "$(uname)" = "Linux" ] &&
+if [ "$__kernel_name" = "Linux" ] &&
   command -v uwsm >/dev/null 2>&1 &&
   uwsm check may-start; then
   exec uwsm start -e -D Hyprland -- hyprland.desktop >/tmp/hyprland.log 2>&1
+fi
+unset __kernel_name
+
+# Disable terminal flow control once per login session.
+if [ -t 0 ]; then
+  stty -ixon
 fi
 
 # shellcheck source=/dev/null

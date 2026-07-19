@@ -6,6 +6,7 @@ __dotenv_active_names=()
 __dotenv_active_values=()
 __dotenv_active_had_values=()
 __dotenv_active_exported=()
+__dotenv_last_pwd=
 
 __dotenv_find() {
   local __dotenv__dir=$PWD
@@ -99,7 +100,8 @@ __dotenv_expand() {
 }
 
 __dotenv_load() {
-  local __dotenv__file=$1 __dotenv__line __dotenv__key __dotenv__value __dotenv__expand_value
+  local __dotenv__file=$1 __dotenv__signature=$2
+  local __dotenv__line __dotenv__key __dotenv__value __dotenv__expand_value
   local __dotenv__declaration __dotenv__old_value __dotenv__line_number=0 __dotenv__was_exported
 
   while IFS= read -r __dotenv__line || [[ -n $__dotenv__line ]]; do
@@ -182,12 +184,17 @@ __dotenv_load() {
   done < "$__dotenv__file"
 
   __dotenv_active_file=$__dotenv__file
-  __dotenv_active_signature=$(__dotenv_signature "$__dotenv__file")
+  __dotenv_active_signature=$__dotenv__signature
   printf 'envload: loaded %s\n' "$__dotenv__file"
 }
 
 __dotenv_update() {
   local __dotenv__force=${1:-} __dotenv__signature
+
+  if [[ -z $__dotenv__force && $__dotenv_last_pwd == "$PWD" ]]; then
+    return
+  fi
+  __dotenv_last_pwd=$PWD
 
   __dotenv_find
   if [[ -n $__dotenv_found_file ]]; then
@@ -199,7 +206,7 @@ __dotenv_update() {
   fi
 
   [[ -n $__dotenv_active_file ]] && __dotenv_unload
-  [[ -n $__dotenv_found_file ]] && __dotenv_load "$__dotenv_found_file"
+  [[ -n $__dotenv_found_file ]] && __dotenv_load "$__dotenv_found_file" "$__dotenv__signature"
 }
 
 envload() {

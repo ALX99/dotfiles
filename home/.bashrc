@@ -17,102 +17,127 @@ HISTSIZE=-1
 HISTFILESIZE=-1
 HISTCONTROL=ignoredups
 
-__prompt_is_unmerged_status() {
-  case "$1" in
-  DD | AU | UD | UA | DU | AA | UU) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-
 __prompt_git_operation() {
   local git_dir=$1
 
   if [[ -f $git_dir/MERGE_HEAD ]]; then
-    printf '%s\n' merge
+    __prompt_git_operation_result=merge
   elif [[ -d $git_dir/rebase-merge || -d $git_dir/rebase-apply ]]; then
-    printf '%s\n' rebase
+    __prompt_git_operation_result=rebase
   elif [[ -f $git_dir/BISECT_LOG ]]; then
-    printf '%s\n' bisect
+    __prompt_git_operation_result=bisect
   elif [[ -f $git_dir/CHERRY_PICK_HEAD ]]; then
-    printf '%s\n' cherry-pick
+    __prompt_git_operation_result=cherry-pick
+  else
+    __prompt_git_operation_result=
   fi
+}
+
+__prompt_git_cache_key=
+__prompt_git_dir=
+
+__prompt_find_git_dir() {
+  local cache_key candidate dir git_file parent target
+
+  cache_key="${PWD}"$'\034'"${GIT_DIR-}"$'\034'"${GIT_WORK_TREE-}"$'\034'"${GIT_COMMON_DIR-}"
+  [[ $cache_key == "$__prompt_git_cache_key" ]] && return
+
+  __prompt_git_cache_key=$cache_key
+  __prompt_git_dir=
+
+  if [[ -n ${GIT_DIR:-} ]]; then
+    if [[ $GIT_DIR == /* ]]; then
+      candidate=$GIT_DIR
+    else
+      candidate=$PWD/$GIT_DIR
+    fi
+    [[ -f $candidate/HEAD ]] && __prompt_git_dir=$candidate
+    return
+  fi
+
+  dir=$PWD
+  while :; do
+    candidate=$dir/.git
+    if [[ -d $candidate ]]; then
+      __prompt_git_dir=$candidate
+      return
+    elif [[ -f $candidate ]]; then
+      IFS= read -r git_file < "$candidate" || return
+      git_file=${git_file%$'\r'}
+      if [[ $git_file == gitdir:* ]]; then
+        target=${git_file#gitdir:}
+        target="${target#"${target%%[![:space:]]*}"}"
+        if [[ $target == /* ]]; then
+          candidate=$target
+        else
+          candidate=$dir/$target
+        fi
+        [[ -f $candidate/HEAD ]] && __prompt_git_dir=$candidate
+      fi
+      return
+    elif [[ -f $dir/HEAD && -d $dir/objects && -d $dir/refs ]]; then
+      __prompt_git_dir=$dir
+      return
+    fi
+
+    [[ $dir == / ]] && return
+    parent=${dir%/*}
+    dir=${parent:-/}
+  done
 }
 
 __prompt_git_info() {
   local branch_color=$1
-  local staged_color=$2
-  local unstaged_color=$3
-  local untracked_color=$4
-  local operation_color=$5
-  local conflict_color=$6
-  local reset=$7
-  local branch git_dir operation line status index_status worktree_status
-  local staged=0 unstaged=0 untracked=0 conflicts=0
+  local operation_color=$2
+  local reset=$3
+  local branch head
 
-  git_dir=$(git rev-parse --git-dir 2>/dev/null) || return
-  operation=$(__prompt_git_operation "$git_dir")
+  __prompt_git_segment=
+  __prompt_find_git_dir
+  [[ -n $__prompt_git_dir ]] || return
+  IFS= read -r head < "$__prompt_git_dir/HEAD" || return
+  head=${head%$'\r'}
 
-  while IFS= read -r line; do
-    if [[ $line == '## '* ]]; then
-      branch=${line#'## '}
-      branch=${branch#'No commits yet on '}
-      branch=${branch%%...*}
-      branch=${branch%% \[*}
-      [[ $branch == HEAD\ * ]] && branch=HEAD
-      continue
-    fi
-
-    status=${line:0:2}
-    index_status=${line:0:1}
-    worktree_status=${line:1:1}
-
-    if [[ $status == '??' ]]; then
-      ((untracked++))
-    elif __prompt_is_unmerged_status "$status"; then
-      ((conflicts++))
-    else
-      [[ $index_status != ' ' ]] && ((staged++))
-      [[ $worktree_status != ' ' ]] && ((unstaged++))
-    fi
-  done < <(git --no-optional-locks status --porcelain=v1 --branch 2>/dev/null)
-
+  if [[ $head == 'ref: refs/heads/'* ]]; then
+    branch=${head#'ref: refs/heads/'}
+  elif [[ $head == 'ref: '* ]]; then
+    branch=${head#'ref: '}
+  else
+    branch=HEAD
+  fi
   [[ -n $branch ]] || return
 
-  printf '%s%s%s' "$branch_color" "$branch" "$reset"
-  [[ $staged -gt 0 ]] && printf ' %s+%d%s' "$staged_color" "$staged" "$reset"
-  [[ $unstaged -gt 0 ]] && printf ' %s~%d%s' "$unstaged_color" "$unstaged" "$reset"
-  [[ $untracked -gt 0 ]] && printf ' %s?%d%s' "$untracked_color" "$untracked" "$reset"
-  [[ -n $operation ]] && printf ' %s%s%s' "$operation_color" "$operation" "$reset"
-  [[ $conflicts -gt 0 ]] && printf ' %sconflict:%d%s' "$conflict_color" "$conflicts" "$reset"
-  printf '\n'
+  __prompt_git_segment="${branch_color}${branch}${reset}"
+  __prompt_git_operation "$__prompt_git_dir"
+  if [[ -n $__prompt_git_operation_result ]]; then
+    __prompt_git_segment+=" ${operation_color}${__prompt_git_operation_result}${reset}"
+  fi
 }
 
 __prompt_render() {
   local exit_status=$1
   local cwd=${PWD##*/}
-  local host git_info segments=()
+  local host segments=()
   local reset='\[\e[0m\]'
   local bold='\[\e[1m\]'
   local dim='\[\e[2m\]'
   local slate='\[\e[38;5;245m\]'
   local red='\[\e[38;5;203m\]'
   local green='\[\e[38;5;114m\]'
-  local yellow='\[\e[38;5;179m\]'
   local blue='\[\e[38;5;75m\]'
   local purple='\[\e[38;5;141m\]'
-  local cyan='\[\e[38;5;109m\]'
 
   [[ -n $cwd ]] || cwd=/
 
   if [[ -n ${SSH_CLIENT:-} ]]; then
-    host=$(hostname -s 2>/dev/null || hostname)
+    host=${HOSTNAME%%.*}
     segments+=("${slate}${USER}@${host}${reset}")
   fi
 
   segments+=("${bold}${blue}${cwd}${reset}")
 
-  git_info=$(__prompt_git_info "$green" "$cyan" "$yellow" "$purple" "$purple" "$red" "$reset")
-  [[ -n $git_info ]] && segments+=("$git_info")
+  __prompt_git_info "$green" "$purple" "$reset"
+  [[ -n $__prompt_git_segment ]] && segments+=("$__prompt_git_segment")
   [[ -n ${VIRTUAL_ENV:-} ]] && segments+=("${purple}venv${reset}")
   [[ $exit_status -ne 0 ]] && segments+=("${red}✗$exit_status${reset}")
 
@@ -144,8 +169,6 @@ PROMPT_COMMAND=__prompt_command
 # cmdhist save multiple-line commands in the same history entry
 # huponexit send SIGHUP to all jobs when an interactive login shell exits
 shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist huponexit
-
-stty -ixon # Disable ctrl-s and ctrl-q.
 
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then
