@@ -54,6 +54,16 @@ export class AgentRegistry {
 		return [...this.entries.keys()].map((id) => this.summary(id));
 	}
 
+	/** Agents with live (or still-starting) processes that consume spawn capacity. */
+	capacity(): AgentSummary[] {
+		return [...this.entries.values()]
+			.filter(
+				(entry): entry is Extract<RegistryEntry, { kind: "live" }> =>
+					entry.kind === "live" && entry.agent.occupiesCapacity(),
+			)
+			.map((entry) => entry.agent.summary());
+	}
+
 	views(): AgentView[] {
 		return [...this.entries.keys()].map((id) => this.view(id));
 	}

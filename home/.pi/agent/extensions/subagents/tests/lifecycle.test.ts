@@ -1,12 +1,11 @@
 import * as assert from "node:assert/strict";
-import { spawn, type SpawnOptionsWithoutStdio } from "node:child_process";
 import * as fs from "node:fs";
 import { test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
 import { transitionLifecycle } from "../agent-types.ts";
 import { ManagedAgent } from "../managed-agent.ts";
-import type { SpawnRpcProcess } from "../rpc-transport.ts";
+import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
 const config: AgentConfig = {
 	name: "general",
@@ -26,15 +25,11 @@ const childContext = {
 	depth: 1,
 	agent: "general",
 	profile: "balanced",
-	delegationCredits: 0,
+	childSpawnBudget: 0,
 } as const;
 
 function fakeSpawner(script: string): SpawnRpcProcess {
-	function spawnFake(_command: string, _args: readonly string[], options: SpawnOptionsWithoutStdio) {
-		return spawn(process.execPath, ["-e", script], options);
-	}
-	// The fixture implements the stdio-pipe overload ManagedAgent uses.
-	return spawnFake as unknown as SpawnRpcProcess;
+	return (_command, _args, options) => spawnRpcProcess(process.execPath, ["-e", script], options);
 }
 
 function agent(id: string, script = "process.stdin.resume(); setInterval(() => {}, 100)"): ManagedAgent {
@@ -127,6 +122,48 @@ process.stdin.on('data', chunk => {
 	assert.deepEqual(completed, ["duplicate"]);
 });
 
+test("a cancelled foreground wait promotes the eventual child completion", async (t) => {
+	const script = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? {sessionFile:'/tmp/cancelled-wait.jsonl'} : undefined;
+    process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
+    if (command.type === 'prompt') {
+      process.stdout.write('{"type":"agent_start"}\n');
+      setTimeout(() => {
+        process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:'finished'}]}}) + '\n');
+        process.stdout.write('{"type":"agent_settled"}\n');
+      }, 20);
+    }
+  }
+});
+`;
+	const completed: string[] = [];
+	const managed = new ManagedAgent({
+		id: "cancelled-foreground",
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		childContext,
+		subagentToolsEnabled: false,
+		spawnProcess: fakeSpawner(script),
+		onBackgroundComplete: (summary) => completed.push(summary.final_text ?? ""),
+	});
+	t.after(() => managed.close());
+	const abort = new AbortController();
+	const foreground = managed.start("work", undefined, "work", false, abort.signal);
+	await waitForPhase(managed, "running");
+	abort.abort("caller stopped waiting");
+	await assert.rejects(foreground, /cancelled/);
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.deepEqual(completed, ["finished"]);
+});
+
 test("a process death invalidates availability and follow-up rejects deterministically", async (t) => {
 	const script = String.raw`
 let buffer = '';
@@ -147,10 +184,13 @@ process.stdin.on('data', chunk => {
 `;
 	const managed = agent("dead-agent", script);
 	t.after(() => managed.close());
+	const registry = new AgentRegistry();
+	await registry.add(managed);
 	await managed.start("work", undefined, "work", false);
 	await new Promise((resolve) => setTimeout(resolve, 30));
 	assert.equal(managed.isAvailable(), false);
 	assert.equal(managed.summary().status, "failed");
+	assert.deepEqual(registry.capacity(), []);
 	await assert.rejects(managed.followUp("again", "again", false), /process is dead/);
 });
 
@@ -234,6 +274,7 @@ process.stdin.on('data', chunk => {
     const data = command.type === 'get_state' ? {sessionFile:'/tmp/output.jsonl'} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type === 'prompt') {
+      process.stdout.write('{"type":"agent_start"}\n');
       process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:'x'.repeat(60000)}]}}) + '\n');
       process.stdout.write('{"type":"agent_settled"}\n');
     }
@@ -269,6 +310,7 @@ process.stdin.on('data', chunk => {
     if (command.type === 'prompt' || command.type === 'follow_up') {
       prompts++;
       const text = prompts === 1 ? 'first' : 'second';
+      process.stdout.write('{"type":"agent_start"}\n');
       process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text}]}}) + '\n');
       process.stdout.write('{"type":"agent_settled"}\n');
     }
@@ -301,6 +343,37 @@ process.stdin.on('data', chunk => {
 	releaseAppend?.();
 	const result = await followUp;
 	assert.equal(result.finalText, "second");
+});
+
+test("a delayed settlement from the previous turn cannot settle a newer generation", async (t) => {
+	const script = String.raw`
+let buffer = '';
+let prompts = 0;
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const i = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1);
+    const data = command.type === 'get_state' ? {sessionFile:'/tmp/stale-settlement.jsonl'} : undefined;
+    process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
+    if (command.type !== 'prompt' && command.type !== 'follow_up') continue;
+    prompts++;
+    if (prompts === 2) process.stdout.write('{"type":"agent_settled"}\n');
+    process.stdout.write('{"type":"agent_start"}\n');
+    process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:prompts === 1 ? 'first' : 'second'}]}}) + '\n');
+    process.stdout.write('{"type":"agent_settled"}\n');
+  }
+});
+`;
+	const managed = agent("stale-settlement", script);
+	t.after(() => managed.close());
+
+	const first = await managed.start("first", undefined, "first", false);
+	assert.equal(first.finalText, "first");
+	const second = await managed.followUp("second", "second", false);
+	assert.equal(second.generation, 2);
+	assert.equal(second.finalText, "second");
 });
 
 test("registry replacement closes the replaced agent", async () => {

@@ -19,19 +19,29 @@ const message = Type.String({
 	description: "Nonblank message for the child.",
 });
 
-export function createSpawnAgentSchema(maxDelegationGrant: number) {
-	return Type.Object(
+export interface SpawnAgentSchemaOptions {
+	readonly agents: readonly string[];
+	readonly profiles: readonly string[];
+	readonly maxSpawnBudgetPerChild?: number;
+}
+
+export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
+	if (options.agents.length === 0) throw new Error("spawn schema requires at least one allowed agent");
+	if (options.profiles.length === 0) throw new Error("spawn schema requires at least one allowed profile");
+	const schema = Type.Object(
 		{
 			message: Type.String({
 				...nonBlank,
 				maxLength: MAX_MESSAGE_CHARS,
-				description: "Complete self-contained assignment for the child.",
+				description:
+					"Self-contained assignment with objective, scope, constraints, expected output, and validation. For workers, include explicit file, module, or responsibility ownership.",
 			}),
 			handoff: Type.Optional(
 				Type.String({
 					...nonBlank,
 					maxLength: MAX_HANDOFF_CHARS,
-					description: "Known paths, decisions, facts, or small excerpts from the parent.",
+					description:
+						"Concise known paths, decisions, facts, or excerpts that save repeated exploration. Do not repeat the assignment.",
 				}),
 			),
 			task_name: Type.Optional(
@@ -41,16 +51,12 @@ export function createSpawnAgentSchema(maxDelegationGrant: number) {
 					description: "Short UI label; derived from message when omitted.",
 				}),
 			),
-			agent: Type.String({
-				...nonBlank,
-				maxLength: 128,
-				description: "Discovered subagent name. Membership is validated when the tool runs.",
+			agent: StringEnum(options.agents, {
+				description: "Allowed subagent role for this execution.",
 			}),
 			profile: Type.Optional(
-				Type.String({
-					...nonBlank,
-					maxLength: 128,
-					description: "Execution-profile override. Membership is validated when the tool runs.",
+				StringEnum(options.profiles, {
+					description: "Allowed execution-profile override.",
 				}),
 			),
 			thinking: Type.Optional(
@@ -68,19 +74,19 @@ export function createSpawnAgentSchema(maxDelegationGrant: number) {
 			background: Type.Optional(
 				Type.Boolean({ description: "Return after launch and notify on completion. Default false." }),
 			),
-			delegation_credits: Type.Optional(
+			child_spawn_budget: Type.Optional(
 				Type.Integer({
 					minimum: 0,
-					maximum: maxDelegationGrant,
-					description: "Delegation credits granted to an eligible general child. Root only; default 0.",
+					maximum: options.maxSpawnBudgetPerChild ?? 0,
+					description: "Delegation credits granted to an eligible child. Default 0.",
 				}),
 			),
 		},
 		{ additionalProperties: false },
 	);
+	if (options.maxSpawnBudgetPerChild === undefined) Reflect.deleteProperty(schema.properties, "child_spawn_budget");
+	return schema;
 }
-
-export type SpawnAgentParams = Static<ReturnType<typeof createSpawnAgentSchema>>;
 
 export const SendAgentParamsSchema = Type.Object(
 	{
@@ -89,7 +95,6 @@ export const SendAgentParamsSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export type SendAgentParams = Static<typeof SendAgentParamsSchema>;
 
 export const FollowupAgentParamsSchema = Type.Object(
 	{
@@ -100,7 +105,6 @@ export const FollowupAgentParamsSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export type FollowupAgentParams = Static<typeof FollowupAgentParamsSchema>;
 
 export const WaitAgentParamsSchema = Type.Object(
 	{
@@ -119,10 +123,8 @@ export function createWaitAgentSchema(): typeof WaitAgentParamsSchema {
 }
 
 export const ListAgentsParamsSchema = Type.Object({}, { additionalProperties: false });
-export type ListAgentsParams = Static<typeof ListAgentsParamsSchema>;
 
 export const AgentIdParamsSchema = Type.Object({ agent_id: agentId }, { additionalProperties: false });
-export type AgentIdParams = Static<typeof AgentIdParamsSchema>;
 
 export function trimRequired(value: string, label: string): string {
 	const trimmed = value.trim();

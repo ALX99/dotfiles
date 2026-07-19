@@ -7,22 +7,26 @@
 		"format:check": "oxfmt --check .",
 		"typecheck": "tsc -p tsconfig.json",
 		"lint": "oxlint --type-aware --report-unused-disable-directives --max-warnings 0",
+		"deadcode": "knip",
 		"test:extensions": "node --test '**/tests/*.test.ts' '**/tests/*.test.mjs'",
 		"test:pi-patch": "node --test '../../../../misc/pi-patches/tests/*.test.mjs'",
 		"test": "npm run test:extensions && npm run test:pi-patch",
 		"compatibility:check": "node scripts/check-pi-compatibility.mjs",
-		"check": "npm run compatibility:check && npm run format:check && npm run typecheck && npm run lint && npm test"
+		"check": "npm run compatibility:check && npm run format:check && npm run typecheck && npm run lint && npm run deadcode && npm test"
 	},
 	"dependencies": {
 		"@earendil-works/pi-ai": "0.80.10",
 		"@earendil-works/pi-coding-agent": "0.80.10",
 		"@earendil-works/pi-tui": "0.80.10",
+		"execa": "^10.0.0",
 		"neverthrow": "^8.2.0",
 		"typebox": "^1.3.6",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@types/node": "^26.1.1",
+		"fast-check": "^4.9.0",
+		"knip": "^6.27.0",
 		"oxfmt": "0.59.0",
 		"oxlint": "^1.74.0",
 		"oxlint-tsgolint": "0.25.0",
@@ -30,5 +34,19 @@
 	},
 	"engines": {
 		"node": ">=26.0.0"
+	},
+	"knip": {
+		"ignoreExportsUsedInFile": true,
+		"entry": [
+			"*.ts",
+			"*/index.ts",
+			"scripts/*.mjs",
+			"**/tests/*.test.ts",
+			"**/tests/*.test.mjs"
+		],
+		"project": [
+			"**/*.ts",
+			"**/*.mjs"
+		]
 	}
 }

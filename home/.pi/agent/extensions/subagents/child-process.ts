@@ -1,6 +1,12 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import {
+	getAgentDir,
+	hasTrustRequiringProjectResources,
+	ProjectTrustStore,
+	SettingsManager,
+} from "@earendil-works/pi-coding-agent";
 import { z } from "zod";
 import { parseJson } from "../_shared/json.ts";
 
@@ -12,7 +18,7 @@ const ChildExecutionContextSchema = z.strictObject({
 	depth: z.number().int().min(1).max(MAX_DELEGATION_DEPTH),
 	agent: z.string().trim().min(1),
 	profile: z.string().trim().min(1),
-	delegationCredits: z.number().int().min(0),
+	childSpawnBudget: z.number().int().min(0),
 });
 
 export type ChildExecutionContext = Readonly<z.infer<typeof ChildExecutionContextSchema>>;
@@ -33,6 +39,36 @@ export function parseChildExecutionContext(value = process.env[CHILD_CONTEXT_ENV
 
 export function serializeChildExecutionContext(context: ChildExecutionContext): string {
 	return JSON.stringify(ChildExecutionContextSchema.parse(context));
+}
+
+/**
+ * Pi treats an explicit --append-system-prompt as a replacement for its
+ * discovered APPEND_SYSTEM.md. Build one append prompt so the role remains at
+ * Pi's append layer, after the policy selected by Pi's project-trust rules.
+ *
+ * RPC children cannot ask for trust interactively. This mirrors Pi 0.80.10's
+ * non-interactive trust-store/default-policy decision. Project-trust extension
+ * handlers remain Pi-owned runtime behavior and are intentionally not
+ * reimplemented here.
+ */
+export function composeRoleSystemPrompt(rolePrompt: string, cwd: string, agentDir = getAgentDir()): string {
+	const appendPath = discoverAppendSystemPrompt(cwd, agentDir);
+	if (!appendPath) return rolePrompt;
+	return `${fs.readFileSync(appendPath, "utf8")}\n\n${rolePrompt}`;
+}
+
+function discoverAppendSystemPrompt(cwd: string, agentDir: string): string | undefined {
+	const projectPath = path.join(cwd, ".pi", "APPEND_SYSTEM.md");
+	if (isProjectTrustedForRpc(cwd, agentDir) && fs.existsSync(projectPath)) return projectPath;
+	const globalPath = path.join(agentDir, "APPEND_SYSTEM.md");
+	return fs.existsSync(globalPath) ? globalPath : undefined;
+}
+
+function isProjectTrustedForRpc(cwd: string, agentDir: string): boolean {
+	if (!hasTrustRequiringProjectResources(cwd)) return true;
+	const storedDecision = new ProjectTrustStore(agentDir).get(cwd);
+	if (storedDecision !== null) return storedDecision;
+	return SettingsManager.create(cwd, agentDir, { projectTrusted: false }).getDefaultProjectTrust() === "always";
 }
 
 export async function writeTempPrompt(
