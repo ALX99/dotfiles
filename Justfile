@@ -152,6 +152,10 @@ mac-system:
 install-pi:
     cd "$HOME/.pi/agent/extensions" && npm install
 
+# Format the pi extensions.
+fmt:
+    cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && npm run format
+
 # Typecheck, lint, and test the pi extensions.
 check:
     cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && npm run check
