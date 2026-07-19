@@ -1,10 +1,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
 import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
+	AgentWaitInterruptedError,
 	CleanupAggregateError,
 	lifecycleStatus,
 	transitionLifecycle,
@@ -16,6 +18,7 @@ import { OutputSpool } from "./output-spool.ts";
 import type { ResolvedRun } from "./profiles.ts";
 import {
 	CHILD_CONTEXT_ENV,
+	composeRoleSystemPrompt,
 	getPiInvocation,
 	serializeChildExecutionContext,
 	writeTempPrompt,
@@ -32,6 +35,15 @@ import {
 import { RpcTransport, type SpawnRpcProcess } from "./rpc-transport.ts";
 
 let nextAgentId = 1;
+const SCOUT_WITHHELD_ENVIRONMENT = new Set([
+	// Agent sockets authorize use of credentials independently of the tool
+	// allowlist. Scouts do not need either agent, so do not hand them these
+	// capabilities. Provider credentials remain inherited: Pi may need them
+	// to run the configured model.
+	"SSH_AUTH_SOCK",
+	"SSH_AGENT_PID",
+	"GPG_AGENT_INFO",
+]);
 const SUBAGENT_TOOL_NAMES = [
 	"spawn_agent",
 	"send_agent",
@@ -60,6 +72,7 @@ export interface ManagedAgentOptions {
 	readonly subagentToolsEnabled: boolean;
 	readonly spawnProcess?: SpawnRpcProcess;
 	readonly onUpdate?: (details: ReadonlyRunDetails) => void;
+	readonly onStartupComplete?: () => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 }
 
@@ -72,6 +85,7 @@ export class ManagedAgent {
 	private deferred: Deferred | undefined;
 	private lifecycle: AgentLifecycle = { phase: "created" };
 	private generation = 0;
+	private startedGeneration: number | undefined;
 	private taskName = "";
 	private run: MutableRunData;
 	private readonly notifiedGenerations = new Set<number>();
@@ -105,10 +119,11 @@ export class ManagedAgent {
 		let promptPath: string | undefined;
 		try {
 			if (this.options.agent.systemPrompt) {
-				const written = await writeTempPrompt(
-					this.options.agent.name,
-					buildAgentSystemPrompt(this.options.agent.systemPrompt, this.options.childContext),
+				const prompt = composeRoleSystemPrompt(
+					this.options.agent.systemPrompt,
+					this.options.cwd ?? this.options.defaultCwd,
 				);
+				const written = await writeTempPrompt(this.options.agent.name, prompt);
 				if (this.isClosing()) {
 					await fs.promises.rm(written.dir, { recursive: true, force: true });
 					throw new Error(`Agent ${this.id} was closed during startup.`);
@@ -117,6 +132,7 @@ export class ManagedAgent {
 				promptPath = written.path;
 			}
 			const sessionDir = path.join(getAgentDir(), "subagent-sessions");
+			// Session JSONL files intentionally outlive this process.
 			await fs.promises.mkdir(sessionDir, { recursive: true });
 			const args = this.rpcArguments(sessionDir, promptPath);
 			const invocation = getPiInvocation(args);
@@ -138,10 +154,9 @@ export class ManagedAgent {
 				throw new Error(`Agent ${this.id} returned an invalid session state.`);
 			}
 			this.run.sessionFile = state.sessionFile;
-			const task = handoff?.trim()
-				? `Task: ${message}\n\nParent handoff (trusted context; verify if needed):\n${handoff.trim()}`
-				: `Task: ${message}`;
+			const task = buildInitialTask(message, handoff);
 			await transport.request({ type: "prompt", message: task });
+			this.options.onStartupComplete?.();
 		} catch (cause) {
 			const error = toError(cause);
 			if (!this.isClosing()) this.failRun(error);
@@ -270,6 +285,17 @@ export class ManagedAgent {
 		);
 	}
 
+	/** Whether this entry still occupies a spawn-concurrency slot. */
+	occupiesCapacity(): boolean {
+		const transportState = this.transport?.getState();
+		return (
+			this.lifecycle.phase !== "closing" &&
+			this.lifecycle.phase !== "closed" &&
+			transportState !== "failed" &&
+			transportState !== "closed"
+		);
+	}
+
 	private beginRun(taskName: string): Deferred {
 		if (this.deferred && !this.deferred.settled) {
 			this.settleDeferred(this.deferred, {
@@ -284,6 +310,7 @@ export class ManagedAgent {
 		});
 		const generation = this.generation + 1;
 		this.generation = generation;
+		this.startedGeneration = undefined;
 		this.taskName = taskName;
 		this.setLifecycle({ phase: "starting" });
 		this.run = this.freshRun();
@@ -306,10 +333,17 @@ export class ManagedAgent {
 		if (generation !== this.generation || this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed") {
 			return;
 		}
+		// RPC events do not carry a turn or request id. A settlement received
+		// before this generation's agent_start therefore cannot be proven to
+		// belong to this run (Pi can deliver a delayed duplicate settlement from
+		// the preceding turn). agent_start is the strongest protocol boundary
+		// available, so only it arms settlement for a newly prompted generation.
+		if (event.type === "agent_settled" && this.startedGeneration !== generation) return;
 		await foldAgentEvent(event, this.run, this.output);
 		if (generation !== this.generation) return;
-		if (event.type === "agent_start" && this.lifecycle.phase === "starting") {
-			this.setLifecycle({ phase: "running" });
+		if (event.type === "agent_start") {
+			this.startedGeneration = generation;
+			if (this.lifecycle.phase === "starting") this.setLifecycle({ phase: "running" });
 		}
 		if (event.type === "agent_settled") {
 			if (this.deferred?.settled) return;
@@ -463,23 +497,24 @@ export class ManagedAgent {
 	): Promise<ReadonlyRunDetails> {
 		const deferred = this.deferred;
 		if (!deferred || deferred.generation !== generation) return this.snapshot();
-		let timeout: NodeJS.Timeout | undefined;
-		let abortHandler: (() => void) | undefined;
+		const guard = composeAbortSignal(signal, timeoutMs);
+		if (!guard) return deferred.promise;
+		let subscription: Disposable | undefined;
 		const guards = new Promise<never>((_, reject) => {
-			if (timeoutMs !== undefined) {
-				timeout = setTimeout(() => reject(new Error(`Timed out waiting for agent ${this.id}.`)), timeoutMs);
-			}
-			if (signal) {
-				abortHandler = () => reject(new Error(`Waiting for agent ${this.id} was aborted.`));
-				if (signal.aborted) abortHandler();
-				else signal.addEventListener("abort", abortHandler, { once: true });
-			}
+			subscription = onAbort(guard.signal, () => {
+				// A foreground caller gave up waiting, not the child. Promote its
+				// eventual settlement through the same callback as a background
+				// run so it is not silently stranded.
+				this.notifyWhenComplete(deferred);
+				reject(
+					new AgentWaitInterruptedError(guard.timedOut() ? "timed_out" : "cancelled", this.id, guard.signal.reason),
+				);
+			});
 		});
 		try {
 			return await Promise.race([deferred.promise, guards]);
 		} finally {
-			if (timeout) clearTimeout(timeout);
-			if (abortHandler) signal?.removeEventListener("abort", abortHandler);
+			subscription?.[Symbol.dispose]();
 		}
 	}
 
@@ -521,21 +556,18 @@ export class ManagedAgent {
 			"--session-dir",
 			sessionDir,
 		];
-		if (this.options.agent.tools?.length) args.push("--tools", this.options.agent.tools.join(","));
-		else {
-			const excluded = ["ask_question"];
-			if (!this.options.subagentToolsEnabled) excluded.push(...SUBAGENT_TOOL_NAMES);
-			args.push("--exclude-tools", excluded.join(","));
-		}
+		const tools = new Set(this.options.agent.tools);
+		if (this.options.subagentToolsEnabled) for (const tool of SUBAGENT_TOOL_NAMES) tools.add(tool);
+		args.push("--tools", [...tools].join(","));
 		if (promptPath) args.push("--append-system-prompt", promptPath);
 		return args;
 	}
 }
 
-export function buildAgentSystemPrompt(basePrompt: string, context: ChildExecutionContext): string {
-	const credits = context.delegationCredits;
-	if (credits <= 0) return basePrompt;
-	return `${basePrompt}\n\nThis execution was explicitly granted ${credits} delegation credit${credits === 1 ? "" : "s"}. Each accepted nested spawn permanently spends one credit; credits do not replenish when a child settles or closes.`;
+export function buildInitialTask(message: string, handoff: string | undefined): string {
+	return handoff?.trim()
+		? `Task: ${message}\n\nParent context (may be incomplete; use it to understand the assignment and verify factual claims when material):\n${handoff.trim()}`
+		: `Task: ${message}`;
 }
 
 export function childEnvironment(
@@ -543,7 +575,11 @@ export function childEnvironment(
 	source: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
 	const environment: Record<string, string> = {};
-	for (const [name, value] of Object.entries(source)) if (value !== undefined) environment[name] = value;
+	for (const [name, value] of Object.entries(source)) {
+		if (value === undefined) continue;
+		if (context.agent === "scout" && SCOUT_WITHHELD_ENVIRONMENT.has(name)) continue;
+		environment[name] = value;
+	}
 	environment[CHILD_CONTEXT_ENV] = serializeChildExecutionContext(context);
 	return environment;
 }

@@ -1,14 +1,13 @@
 import * as assert from "node:assert/strict";
-import { spawn, type SpawnOptionsWithoutStdio } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry } from "../agent-registry.ts";
-import { ManagedAgent } from "../managed-agent.ts";
+import { childEnvironment, ManagedAgent } from "../managed-agent.ts";
 import type { RpcEvent } from "../protocol.ts";
-import { RpcTransport, type SpawnRpcProcess } from "../rpc-transport.ts";
+import { RpcTransport, spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
 const rpcScript = String.raw`
 let buffer = '';
@@ -44,14 +43,11 @@ send({ type: 'extension_ui_request', id: 'ui-1', method: 'confirm', title: 'Ques
 
 const spawnedArgs: string[][] = [];
 const spawnedContexts: unknown[] = [];
-function spawnFake(_command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) {
+const spawnRpcFake: SpawnRpcProcess = (_command, args, options) => {
 	spawnedArgs.push([...args]);
 	spawnedContexts.push(JSON.parse(String(options.env?.PI_SUBAGENT_CONTEXT)));
-	return spawn(process.execPath, ["-e", rpcScript], options);
-}
-// ManagedAgent always calls the stdio-pipe overload implemented by spawnFake;
-// the full Node spawn overload set is intentionally unnecessary in this fixture.
-const spawnRpcFake = spawnFake as unknown as SpawnRpcProcess;
+	return spawnRpcProcess(process.execPath, ["-e", rpcScript], options);
+};
 
 const testEnv: Record<string, string> = Object.fromEntries(
 	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -70,7 +66,7 @@ const childContext = {
 	depth: 1,
 	agent: "general",
 	profile: "balanced",
-	delegationCredits: 0,
+	childSpawnBudget: 0,
 } as const;
 
 function transport(events: RpcEvent[], onExit: (error: Error | undefined) => void = () => {}): RpcTransport {
@@ -155,6 +151,77 @@ test("ManagedAgent assigns readable sequential IDs", () => {
 	assert.equal(second.id, `agent-${Number(first.id.slice("agent-".length)) + 1}`);
 });
 
+test("ManagedAgent passes an explicit scout allowlist and no shell capability", async (t) => {
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "scout",
+			description: "test",
+			tools: ["read", "find", "grep"],
+			systemPrompt: "",
+			filePath: "scout.md",
+		},
+		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
+		childContext: { ...childContext, agent: "scout", profile: "fast" },
+		subagentToolsEnabled: false,
+		spawnProcess: spawnRpcFake,
+	});
+	t.after(() => agent.close());
+
+	spawnedArgs.length = 0;
+	await agent.start("inspect", undefined, "inspect", false);
+	const invocation = spawnedArgs[0] ?? [];
+	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep");
+	assert.equal(invocation.includes("--exclude-tools"), false);
+	assert.equal(invocation.includes("bash"), false);
+});
+
+test("ManagedAgent passes role-provided custom tool names to the child", async (t) => {
+	for (const name of ["general", "worker", "scout"] as const) {
+		const tools = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+		if (name !== "scout") tools.splice(4, 0, "apply_patch");
+		const agent = new ManagedAgent({
+			defaultCwd: process.cwd(),
+			agent: {
+				name,
+				description: "test",
+				tools,
+				systemPrompt: "",
+				filePath: `${name}.md`,
+			},
+			resolvedRun: { ...resolvedRun, agent: name },
+			childContext: { ...childContext, agent: name },
+			subagentToolsEnabled: false,
+			spawnProcess: spawnRpcFake,
+		});
+		t.after(() => agent.close());
+
+		spawnedArgs.length = 0;
+		await agent.start("implement", undefined, "implement", false);
+		const invocation = spawnedArgs[0] ?? [];
+		assert.equal(invocation[invocation.indexOf("--tools") + 1], tools.join(","));
+	}
+});
+
+test("scouts inherit provider configuration but not SSH or GPG agent sockets", () => {
+	const source = {
+		OPENAI_API_KEY: "provider-credential",
+		SSH_AUTH_SOCK: "/tmp/ssh.sock",
+		SSH_AGENT_PID: "123",
+		GPG_AGENT_INFO: "/tmp/gpg.sock:123:1",
+		TERM: "xterm-256color",
+	};
+	const scout = childEnvironment({ ...childContext, agent: "scout" }, source);
+	const general = childEnvironment(childContext, source);
+
+	assert.equal(scout.OPENAI_API_KEY, "provider-credential");
+	assert.equal(scout.TERM, "xterm-256color");
+	assert.equal(scout.SSH_AUTH_SOCK, undefined);
+	assert.equal(scout.SSH_AGENT_PID, undefined);
+	assert.equal(scout.GPG_AGENT_INFO, undefined);
+	assert.equal(general.SSH_AUTH_SOCK, "/tmp/ssh.sock");
+});
+
 test("ManagedAgent retains its ID and increments generation across follow-ups", async (t) => {
 	const config: AgentConfig = {
 		name: "general",
@@ -190,7 +257,12 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		resolvedRun.effectiveThinking,
 	]);
 	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
-	const excludedTools = invocation[invocation.indexOf("--exclude-tools") + 1] ?? "";
+	assert.equal(invocation.includes("--exclude-tools"), false);
+	const tools = invocation[invocation.indexOf("--tools") + 1] ?? "";
+	assert.equal(tools, "", "an agent without an explicit tool policy is default-deny");
+	assert.equal(invocation.filter((arg) => arg === "--tools").length, 1);
+	// The test fixture deliberately has no role tool allowlist, but nested
+	// delegation must still be denied unless it is explicitly admitted.
 	for (const tool of [
 		"spawn_agent",
 		"send_agent",
@@ -200,7 +272,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		"interrupt_agent",
 		"close_agent",
 	]) {
-		assert.match(excludedTools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
+		assert.doesNotMatch(tools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
 	}
 	assert.deepEqual(spawnedContexts, [childContext]);
 	assert.equal(first.sessionFile, "/tmp/subagent-session.jsonl");

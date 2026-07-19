@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Create a git commit. Use whenever you or the user wants to create a commit.
+disable-model-invocation: true
 ---
 
 ## Context

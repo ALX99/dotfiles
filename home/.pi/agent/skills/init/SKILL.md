@@ -1,6 +1,7 @@
 ---
 name: init
 description: Generate AGENTS.md — a contributor guide for this repository
+disable-model-invocation: true
 ---
 
 Generate a file named AGENTS.md that serves as a contributor guide for this repository.
@@ -11,11 +12,11 @@ Your goal is to produce a clear, concise, and well-structured document with desc
 
 ## Process
 
-Gather deeply, then filter aggressively. Don't just list what you see — cross-reference until non-obvious patterns emerge.
+Gather targeted evidence, then filter aggressively. Don't just list what you see—cross-reference until non-obvious patterns emerge.
 
 1. **Read executable sources first** — Makefiles, CI workflows, package scripts, lockfiles, lint/format/build configs. These run; prose can lie.
 2. **Map layout** — top-level dirs and what each owns. Enough to navigate, not a full tree.
-3. **Read source until patterns stabilize** — at least 70k tokens or everything in the repo, whichever hits first. Read both sides of plugin systems, both platform branches, both layers of an abstraction boundary.
+3. **Sample representative implementation and test files** — read both sides of important plugin systems, platform branches, and abstraction boundaries. Stop when commands, structure, conventions, and architectural constraints have stabilized.
 4. **Extract only what an agent would miss without help.** If it's obvious from a single file or filename, leave it out.
 
 Every fact must be backed by a file path, command output, or git state. Speculation is worse than a gap — drop uncertain claims.

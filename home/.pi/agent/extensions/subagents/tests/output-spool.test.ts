@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { test } from "node:test";
+import fc from "fast-check";
 import { OutputSpool } from "../output-spool.ts";
 
 test("OutputSpool appends in order, bounds preview, and creates a private file", async (t) => {
@@ -47,4 +48,41 @@ test("OutputSpool does not publish bytes, lines, or preview text after append fa
 		await assert.rejects(spool.close(), /cleanup failed/);
 		await fs.promises.rm(baseDirectory, { recursive: true, force: true });
 	}
+});
+
+test("OutputSpool preserves concurrent Unicode append order across preview limits", async () => {
+	await fc.assert(
+		fc.asyncProperty(
+			fc.array(fc.string({ maxLength: 200 }), { maxLength: 10 }),
+			fc.integer({ min: 1, max: 500 }),
+			fc.integer({ min: 1, max: 20 }),
+			async (chunks, maxPreviewBytes, maxPreviewLines) => {
+				const spool = new OutputSpool({ maxPreviewBytes, maxPreviewLines });
+				let outputFile: string | undefined;
+				try {
+					await Promise.all(chunks.map((chunk) => spool.append(chunk)));
+					let expected = "";
+					for (const chunk of chunks) {
+						if (Buffer.byteLength(expected, "utf8") > 0) expected += "\n\n";
+						expected += chunk;
+					}
+					assert.equal(await spool.loadFullOutput(), expected);
+					const preview = spool.preview();
+					if (!preview.truncated) assert.equal(preview.text, expected);
+					else {
+						assert.ok(preview.outputFile);
+						assert.match(preview.text, /\[Output truncated:/);
+						assert.ok(
+							Buffer.byteLength(preview.text.split("\n\n[Output truncated:")[0] ?? "", "utf8") <= maxPreviewBytes,
+						);
+					}
+					outputFile = preview.outputFile;
+				} finally {
+					await spool.close();
+				}
+				if (outputFile) assert.equal(fs.existsSync(outputFile), false);
+			},
+		),
+		{ numRuns: 50 },
+	);
 });

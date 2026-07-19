@@ -22,6 +22,12 @@ const nonEmptyString = (label: string) =>
 			`${label} must not be empty or contain leading/trailing whitespace`,
 		);
 
+const configKey = (label: string) =>
+	z
+		.string()
+		.min(1, `${label} must not be empty`)
+		.refine((value) => !/\s/u.test(value), `${label} must not contain whitespace`);
+
 export const ModelCandidateSchema = z
 	.strictObject({
 		id: nonEmptyString("model id").refine((id) => {
@@ -45,7 +51,7 @@ export const ProfileSchema = z.strictObject({
 	description: nonEmptyString("description"),
 	delegationEnabled: z.boolean(),
 	countsTowardDeepAgentCap: z.boolean(),
-	models: z.array(ModelCandidateSchema).min(1, "models must contain at least one candidate"),
+	modelPriority: z.array(ModelCandidateSchema).min(1, "modelPriority must contain at least one candidate"),
 });
 
 const LeafDelegationSchema = z.strictObject({
@@ -54,7 +60,7 @@ const LeafDelegationSchema = z.strictObject({
 
 const GrantRequiredDelegationSchema = z.strictObject({
 	mode: z.literal("grant-required"),
-	maxDirectChildren: z.number().int().min(1),
+	maxLifetimeChildSpawns: z.number().int().min(1),
 	allowedChildAgents: z.array(nonEmptyString("allowedChildAgents item")).min(1),
 	allowedChildProfiles: z.array(nonEmptyString("allowedChildProfiles item")).min(1),
 });
@@ -73,22 +79,17 @@ export const AgentPolicySchema = z.strictObject({
 });
 
 export const RootPolicySchema = z.strictObject({
-	maxDirectAgents: z.number().int().min(1),
-	maxDeepAgents: z.number().int().min(1),
-	maxDelegationGrant: z.number().int().min(0),
+	maxConcurrentRootAgents: z.number().int().min(1),
+	maxConcurrentDeepAgents: z.number().int().min(1),
+	maxSpawnBudgetPerChild: z.number().int().min(0),
 });
 
 export const ProfilesSchema = z.strictObject({
 	rootPolicy: RootPolicySchema,
-	profiles: z.record(z.string(), ProfileSchema),
-	agentPolicies: z.record(z.string(), AgentPolicySchema),
+	profiles: z.record(configKey("profile name"), ProfileSchema),
+	agentPolicies: z.record(configKey("agent name"), AgentPolicySchema),
 });
 
-export type ModelCandidate = z.infer<typeof ModelCandidateSchema>;
-export type Profile = z.infer<typeof ProfileSchema>;
-export type AgentPolicy = z.infer<typeof AgentPolicySchema>;
-export type DelegationPolicy = z.infer<typeof DelegationPolicySchema>;
-export type RootPolicy = z.infer<typeof RootPolicySchema>;
 export type ProfilesConfig = z.infer<typeof ProfilesSchema>;
 
 export interface NamedAgent {
@@ -169,14 +170,16 @@ export function validateProfiles(
 	for (const agent of agents) agentNames.add(typeof agent === "string" ? agent : agent.name);
 
 	for (const [profileName, profile] of Object.entries(config.profiles)) {
-		if (!profileName.trim())
-			errors.push(`${filePath}: profiles.${printPathPart(profileName)}: profile name must not be empty`);
+		if (!profileName || /\s/u.test(profileName))
+			errors.push(
+				`${filePath}: profiles.${printPathPart(profileName)}: profile name must not be empty or contain whitespace`,
+			);
 		const candidates = new Map<string, number>();
-		for (const [index, candidate] of profile.models.entries()) {
+		for (const [index, candidate] of profile.modelPriority.entries()) {
 			const previous = candidates.get(candidate.id);
 			if (previous !== undefined) {
 				errors.push(
-					`${filePath}: profiles.${printPathPart(profileName)}.models.${index}.id: duplicate candidate model id '${candidate.id}' (first at models.${previous}.id)`,
+					`${filePath}: profiles.${printPathPart(profileName)}.modelPriority.${index}.id: duplicate candidate model id '${candidate.id}' (first at modelPriority.${previous}.id)`,
 				);
 			} else {
 				candidates.set(candidate.id, index);
@@ -185,8 +188,10 @@ export function validateProfiles(
 	}
 
 	for (const [agentName, policy] of Object.entries(config.agentPolicies)) {
-		if (!agentName.trim())
-			errors.push(`${filePath}: agentPolicies.${printPathPart(agentName)}: agent name must not be empty`);
+		if (!agentName || /\s/u.test(agentName))
+			errors.push(
+				`${filePath}: agentPolicies.${printPathPart(agentName)}: agent name must not be empty or contain whitespace`,
+			);
 		if (agentNames.size > 0 && !agentNames.has(agentName)) {
 			errors.push(`${filePath}: agentPolicies.${printPathPart(agentName)}: references unknown agent '${agentName}'`);
 		}
@@ -231,9 +236,20 @@ export function validateProfiles(
 				"profile",
 				errors,
 			);
-			if (policy.delegation.maxDirectChildren > config.rootPolicy.maxDelegationGrant) {
+			for (const [agentIndex, childAgent] of policy.delegation.allowedChildAgents.entries()) {
+				const childPolicy = config.agentPolicies[childAgent];
+				if (!childPolicy) continue;
+				for (const [profileIndex, childProfile] of policy.delegation.allowedChildProfiles.entries()) {
+					if (!childPolicy.allowedProfiles.includes(childProfile)) {
+						errors.push(
+							`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildProfiles.${profileIndex}: profile '${childProfile}' is advertised with child agent '${childAgent}' at allowedChildAgents.${agentIndex}, but that agent does not allow it`,
+						);
+					}
+				}
+			}
+			if (policy.delegation.maxLifetimeChildSpawns > config.rootPolicy.maxSpawnBudgetPerChild) {
 				errors.push(
-					`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.maxDirectChildren: must not exceed rootPolicy.maxDelegationGrant`,
+					`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.maxLifetimeChildSpawns: must not exceed rootPolicy.maxSpawnBudgetPerChild`,
 				);
 			}
 		}
@@ -306,13 +322,13 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 	if (!profile) throw new Error(`Profile '${profileName}' configured for agent '${agent}' does not exist.`);
 
 	const available = options.modelRegistry.getAvailable();
-	const selected = profile.models.find((candidate) => {
+	const selected = profile.modelPriority.find((candidate) => {
 		const [provider, modelId] = splitModelId(candidate.id);
 		return available.some((model) => model.provider === provider && model.id === modelId);
 	});
 	if (!selected) {
 		throw new Error(
-			`No authenticated model is available for profile '${profileName}'. Configured candidates: ${profile.models.map((candidate) => candidate.id).join(", ")}.`,
+			`No authenticated model is available for profile '${profileName}'. Configured startup priority: ${profile.modelPriority.map((candidate) => candidate.id).join(", ")}.`,
 		);
 	}
 	const [provider, modelId] = splitModelId(selected.id);
@@ -341,9 +357,6 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 		contextWindow: model.contextWindow,
 	});
 }
-
-/** Alias with an explicit name for callers that prefer profile terminology. */
-export const resolveProfileRun = resolveRun;
 
 function splitModelId(id: string): [string, string] {
 	const slash = id.indexOf("/");

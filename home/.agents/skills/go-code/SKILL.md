@@ -1,308 +1,173 @@
 ---
 name: go-code
-description: Use ALWAYS when writing, editing, or reviewing ANY Go code — no exceptions, no matter how simple the task
+description: Use for every task that writes, edits, reviews, designs, or tests Go code. Apply the user's Go style preferences and stable modern Go features supported by the module's Go version.
 ---
 
 # Go Code
 
-## Overview
+Follow the repository's supported Go version and local conventions. Prefer the standard library and clear, direct code.
 
-Go best practices for clean, idiomatic, maintainable code.
+## Version and sources
 
-## Context
+- Read both the module's `go` directive and the active toolchain version (`go version` or `go env GOVERSION`).
+- Use stable modern features supported by the project's compatibility target.
+- Prefer current official Go idioms even when nearby code predates them, unless compatibility, consistency, or migration cost materially outweighs the improvement.
+- Verify version-sensitive APIs against installed documentation or official release notes rather than relying on training data.
+- Do not use draft, experimental, or prerelease APIs by default.
 
-- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
+## Contracts and validation
 
-## Principles
-
-KISS, DRY, YAGNI, Clear > Clever. **Idiomatic Go**: stdlib first; don't import other languages' idioms. Follow Uber's Go Style Guide, Google's Go Style Guide, and Effective Go
-
-## Naming
-
-### Constructors
-
-Default to `New()` when the package name provides context. Only use `NewX()` when the package contains multiple constructible types.
-
-```go
-// ✓ package.New() - the default
-package server
-func New() *Server { ... }  // server.New()
-
-// ✓ NewX() only when package has multiple types
-package storage
-func NewRedis() *Redis { ... }
-func NewPostgres() *Postgres { ... }
-
-// ✗ Redundant - package already says "server"
-func NewServer() *Server { ... }
-```
-
-### Methods & Receivers
+- Follow conventional Go and API contracts even when they are not repeated in local documentation.
+- A `context.Context` parameter is non-nil by convention. Do not add a nil check.
+- Pointer parameters are the caller's responsibility unless nil is an intentional, meaningful input for that API.
+- Rely on types, constructor and parser invariants, prior control-flow narrowing, standard-library conventions, and framework guarantees inside trusted code.
+- Validate user input, decoded data, configuration, protocol input, unsafe or foreign values, and other real boundaries.
+- Do not turn programmer misuse into an ordinary returned-error path unless the API defines that behavior.
+- For `(T, error)` returns, return a usable `T` or a non-nil error according to the API; do not create ambiguous partial-success states.
+- Represent absence explicitly with `(T, bool)`, a documented sentinel error, or another established API convention.
 
 ```go
-// ✓ No Get prefix; 1-2 letter receiver abbreviation
-func (u *User) Name() string { ... }
-func (c *Client) FetchUser(id string) (*User, error) { ... }
-func (ns *Namespace) Name() string { ... }
-
-// ✗ Get prefix
-func (u *User) GetName() string { ... }
-```
-
-### Variables
-
-Rule: distance from declaration → name length.
-
-```go
-for i := range len(items) { ... }           // ✓ short scope → short name
-func parse(r io.Reader) error { ... }        // ✓ short scope → short name
-func (s *Server) sendNotifications(userID string) error { ... } // ✓ wide scope → descriptive
+// The caller owns the non-nil precondition.
+func (s *Service) DisableUser(user *User) error {
+	user.Active = false
+	return s.db.SaveUser(user)
+}
 ```
 
 ## Errors
 
-### Wrapping Format
+- Add context when propagating an error, preserve the cause with `%w`, and keep messages lowercase.
+- Describe the failed operation directly; avoid prefixes such as `failed to` or `error`.
+- Handle an error once. Return it or log it, not both, unless the repository has an explicit boundary policy.
+- Use `ErrName` for exported sentinel errors and `errName` for unexported ones.
 
 ```go
-// ✓ Imperative, lowercase, no "failed/error"
-fmt.Errorf("connect to database: %w", err)
-
-// ✗ NEVER use these prefixes
-fmt.Errorf("failed to connect: %w", err)
-fmt.Errorf("error connecting to database: %w", err)
+return Config{}, fmt.Errorf("load config: %w", err)
 ```
 
-### Naming
+## APIs and types
 
-```go
-var ErrNotFound = errors.New("not found")   // ✓ Err prefix
-var errInternal = errors.New("internal error")
-```
-
-### errors.AsType (Go 1.26+)
-
-Prefer over `errors.As` — generic, type-safe, no pre-declared target variable.
-
-```go
-if e, ok := errors.AsType[*url.Error](err); ok { ... } // ✓
-```
+- Keep APIs unexported unless callers require them.
+- Let the package name provide context: prefer `server.New()` over `server.NewServer()`.
+- Avoid `Get` prefixes for simple accessors.
+- Define interfaces in the consuming package. Accept interfaces and return concrete types unless the contract requires otherwise.
+- Do not add an interface only to make a test mockable.
+- Prefer value semantics. Use pointers when mutation, identity, lifecycle, or the type's established semantics require them.
+- Never use a pointer to an interface.
+- Use descriptive names in wide scopes and short conventional names in narrow scopes.
 
 ## Structure
 
-### Initialization
+- Keep the happy path flat with early returns when handling actual error states.
+- Prefer explicit initialization over `init()`.
+- Use named struct fields and group fields by responsibility.
+- Use `defer` for cleanup and unlocking when ownership is clear.
+- Keep the public surface and dependency set minimal.
+
+## Concurrency
+
+- Every goroutine needs clear ownership and a termination path.
+- Bound work when input can create an unbounded number of goroutines.
+- Propagate cancellation through the established context.
+- Establish synchronization and data ownership before adding parallelism.
+
+## Modern Go
+
+Use these features only when the module's compatibility target supports them.
+
+### Go 1.26+
+
+Prefer the generic, type-safe `errors.AsType` over a predeclared target for
+ordinary error-tree matching:
 
 ```go
-var users []User                                       // ✓ nil slice, not make
-user := User{Name: "John", Email: "john@example.com"}  // ✓ named fields
-```
-
-### Struct Field Grouping
-
-```go
-// ✓ Grouped logically, embedded types first
-type Server struct {
-    httpSrv *http.Server
-
-    host string
-    port int
-
-    log     *slog.Logger
-    metrics *Metrics
-
-    mu    sync.Mutex
-    conns map[string]*Conn
+if urlErr, ok := errors.AsType[*url.Error](err); ok {
+	return urlErr.URL
 }
 ```
 
-### Early Returns
+Use `new(expr)` when a pointer to a computed value is needed:
 
 ```go
-// ✓ Guard clauses, flat happy path
-if id == "" {
-    http.Error(w, "missing id", http.StatusBadRequest)
-    return
+cfg := Config{Timeout: new(defaultTimeout())}
+```
+
+When deliberately modernizing a Go 1.26+ module, use `go fix ./...` as a
+reviewable migration tool rather than mechanically rewriting APIs by hand.
+Inspect and test its changes like any other code change.
+
+Do not use draft Go 1.27 APIs unless the project explicitly targets a
+compatible prerelease. Reverify preview guidance after the stable release.
+
+### Go 1.25+
+
+Use `sync.WaitGroup.Go` when its no-panic contract fits and no error propagation
+is required:
+
+```go
+var wg sync.WaitGroup
+for _, item := range items {
+	wg.Go(func() { process(item) })
 }
-user, err := s.db.GetUser(r.Context(), id)
-if err != nil { ... }
-// happy path continues...
+wg.Wait()
 ```
 
-### Handle Errors Once
+Use `testing/synctest.Test` for deterministic concurrent tests; see the
+**go-testing** skill.
 
-Return OR log, never both.
+### Go 1.24+
+
+Use `omitzero` when JSON zero-value semantics are intended, especially for
+types such as `time.Time` that define `IsZero`:
 
 ```go
-// ✓ Return the error — let caller decide
-return Config{}, fmt.Errorf("load config: %w", err)
-
-// ✗ Log AND return — error gets reported twice
-log.Error("failed to load config", "err", err)
-return Config{}, fmt.Errorf("load config: %w", err)
+StartTime time.Time `json:"start_time,omitzero"`
 ```
 
-### Nil Handling
-
-1. `(T, error)` returns: valid T or non-nil error. Never both zero.
-2. Pointer params: caller's responsibility to ensure non-nil.
-3. Never use nil as a sentinel — use `(T, bool)` or `(T, error)` instead.
+Use lazy string and byte iterators (`SplitSeq`, `SplitAfterSeq`, `FieldsSeq`,
+`FieldsFuncSeq`, and `Lines`) when all substrings need not be retained:
 
 ```go
-// ✓ No defensive nil check — caller's contract
-func (s *Service) DisableUser(user *User) error {
-    user.Active = false
-    return s.db.SaveUser(user)
+for line := range strings.Lines(text) {
+	consume(line)
 }
-
-// ✗ Defensive check that's the caller's responsibility
-func (s *Service) DisableUser(user *User) error {
-    if user == nil { return errors.New("user is nil") }
-    // ...
-}
-
-// ✗ Nil as sentinel — caller must guess what nil means
-func (r *Repo) FetchUser(id int) *User { ... }
-
-// ✓ Explicit absence with bool
-func (r *Repo) FetchUser(id int) (*User, bool) { ... }
-
-// ✓ Or with error (ErrNotFound) if absence is an error condition
-func (r *Repo) FetchUser(id int) (*User, error) { ... }
-```
-
-### Pass by Value
-
-Default to value semantics. Use pointers only for:
-
-- Types with pointer semantics (`sync.Mutex`, `sql.DB`)
-- Types conventionally returned as pointers (`*bytes.Buffer`)
-- Long-lifecycle structs needing mutation (servers, clients, handlers)
-
-```go
-func (s *Server) Start(cfg Config) error { ... }  // ✓ value for config
-func formatTimestamp(t time.Time) string { ... }  // ✓ value for time
-```
-
-## Goroutines
-
-- Must not leak. Use contexts or wait groups to manage lifecycle.
-- Must not be unbounded in number.
-
-```go
-func deleteUsers(ctx context.Context, userIDs []int) ([]User, error) {
-	eg, ctx := errgroup.WithContext(ctx)
-	eg.SetLimit(5)
-	users := make([]User, len(userIDs))
-
-	for i, id := range userIDs {
-		eg.Go(func() error {
-			user, err := fetchUser(ctx, id)
-			if err != nil {
-				return fmt.Errorf("fetch user %d: %w", id, err)
-			}
-			users[i] = user
-			return nil
-		})
-	}
-
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-	return users, nil
+for part := range strings.SplitSeq(text, ",") {
+	consume(part)
 }
 ```
 
-## Interfaces
+Use `t.Context` and `t.Chdir` in tests when supported by the module.
 
-- Define in the consuming package, not the implementing package
-- Prefer composition over type embedding
-- Don't add interfaces just for testing — accept interfaces, return structs
+### Go 1.23+
 
-```go
-func parseYAML(r io.Reader) (Config, error) { ... }   // ✓ interface by value
-func parseYAML(r *io.Reader) (Config, error) { ... }   // ✗ pointer to interface
-```
-
-## Modern Go Idioms
-
-### new() (Go 1.26+)
-
-Use `new()` to get a pointer to a value instead of the `temp := val; &temp` pattern, or `func[T any](v T) *T { return &v }(val)` if you need to specify the type.
+Use `unique.Make` for frequently repeated comparable values when canonical
+handles provide a measured or clear benefit. Do not intern values speculatively:
 
 ```go
-// ✓ new() — direct pointer to value
-Age: new(yearsSince(born)),
-
-// ✗ temp variable just for addressing
-age := yearsSince(born)
-Age: &age,
+host := unique.Make(hostname)
+if host == previousHost {
+	// Same canonical value.
+}
 ```
 
-### cmp.Or
+### Stable standard-library helpers
+
+Use `cmp.Or` for concise zero-value fallback when its eager evaluation and
+left-to-right semantics are appropriate:
 
 ```go
-// ✓ cmp.Or for defaulting
-return cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(os.Getenv("HOME"), ".config"))
-
-// ✗ manual defaulting
-dir := os.Getenv("XDG_CONFIG_HOME")
-if dir != "" { return dir }
-return filepath.Join(os.Getenv("HOME"), ".config")
+dir := cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config"))
 ```
 
-### unique.Make (Go 1.23+)
+## Dependency choices
 
-Canonicalizes comparable values (interning). `Handle[T]` comparison is O(1) pointer check. Use for high-cardinality repeated values (IPs, hostnames, labels). Don't use for rarely-repeated values — intern table has overhead.
+- Prefer the standard library before adding a dependency.
+- Use external style guides to resolve gaps, not as co-equal authorities.
 
-```go
-h1 := unique.Make("hello")
-h2 := unique.Make("hello")
-h1 == h2 // true — same canonical copy
-h1.Value() // "hello"
-```
+## Testing
 
-### omitzero (Go 1.24+)
+Load the **go-testing** skill whenever writing or reviewing Go tests. Tests should encode requested or established contracts rather than invented invalid-input behavior.
 
-JSON tag option — omits field when zero. Prefer over `omitempty` for types with `IsZero() bool` (e.g. `time.Time`). Can combine both tags.
+## Additional reference
 
-```go
-StartTime time.Time `json:"start_time,omitzero"` // ✓ works correctly for zero time
-```
-
-### strings/bytes Iterators (Go 1.24+)
-
-Lazy iterator versions of `Split`, `SplitAfter`, `Fields`, `FieldsFunc` → `SplitSeq`, `SplitAfterSeq`, `FieldsSeq`, `FieldsFuncSeq`. Plus `Lines`. All work with `range`. Prefer over slice-returning variants when you don't need all substrings at once. Available in both `strings` and `bytes`.
-
-```go
-for line := range strings.Lines(text) { ... }
-for part := range strings.SplitSeq(text, ",") { ... }
-```
-
-### Go 1.27+
-
-Only use when the module targets Go 1.27+; the release notes remain draft until release.
-
-```go
-func (r Result[T]) Map[U any](f func(T) U) Result[U] { ... } // generic method
-cfg := Config{MinVersion: tls.VersionTLS13}                  // promoted field
-callbacks := []func(int){identity}                           // generic inference
-
-json.Unmarshal(data, &cfg, json.RejectUnknownMembers(true)) // encoding/json/v2
-id := uuid.NewV7()
-
-head, tail, ok := strings.CutLast(path, "/")
-clone := u.Clone()
-leaks := pprof.Lookup("goroutineleak")
-```
-
-## Miscellaneous
-
-- Unexported by default; minimal API surface
-- Prefer stdlib over third-party unless necessary
-- Avoid `init()`; prefer explicit initialization
-- Use `iota` (starting from `1`) for related constants; `stringer` for string representations
-- Use `defer` for resource cleanup and mutex unlocking
-
-## Additional References
-
-- **go-testing** skill — anything related to Go tests
-- [PKG_DESIGN.md](references/PKG_DESIGN.md) - Package naming, project layouts, API surface design
+- [PKG_DESIGN.md](references/PKG_DESIGN.md) — package naming, layouts, and API surface design

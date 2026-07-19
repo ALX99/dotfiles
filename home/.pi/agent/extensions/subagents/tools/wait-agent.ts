@@ -2,9 +2,15 @@ import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderWaitCall } from "../render.ts";
 import { uniqueAgentIds, WaitAgentParamsSchema } from "../schemas.ts";
-import { jsonResult, waitDetails, type WaitDetails } from "../tool-results.ts";
+import {
+	jsonResult,
+	waitDetails,
+	type WaitDetails,
+	type WaitOutcome,
+	type WaitOutcomeStatus,
+} from "../tool-results.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
-import type { AgentSummary } from "../agent-types.ts";
+import { AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
 
@@ -52,8 +58,48 @@ export async function executeWaitAgent(
 	// Promise.allSettled until the valid agents have finished.
 	for (const id of requested) runtime.registry.summary(id);
 	const startTime = now();
-	await Promise.allSettled(requested.map((id) => runtime.registry.wait(id, DEFAULT_WAIT_MS, signal)));
+	const waits = Promise.allSettled(requested.map((id) => runtime.registry.wait(id, DEFAULT_WAIT_MS, signal)));
+	await waitForSettlementsOrAbort(waits, signal);
 	const summaries = requested.map((id) => runtime.registry.summary(id));
+	const outcomes = (await waits).map((outcome, index) => waitOutcome(requested[index]!, outcome));
 	runtime.consumeSettledCompletions(summaries);
-	return jsonResult(summaries, waitDetails(summaries, now() - startTime, DEFAULT_WAIT_MS));
+	const details = waitDetails(summaries, now() - startTime, DEFAULT_WAIT_MS, outcomes);
+	return jsonResult({ summaries, outcomes }, details);
+}
+
+async function waitForSettlementsOrAbort(
+	waits: Promise<readonly PromiseSettledResult<ReadonlyRunDetails>[]>,
+	signal: AbortSignal | undefined,
+): Promise<void> {
+	if (!signal) {
+		await waits;
+		return;
+	}
+	signal.throwIfAborted();
+	let rejectAbort: ((reason: unknown) => void) | undefined;
+	const onAbort = () => rejectAbort?.(signal.reason);
+	const aborted = new Promise<never>((_resolve, reject) => {
+		rejectAbort = reject;
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+	try {
+		await Promise.race([waits, aborted]);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
+	}
+}
+
+function waitOutcome(id: string, outcome: PromiseSettledResult<ReadonlyRunDetails>): WaitOutcome {
+	if (outcome.status === "fulfilled") return { agent_id: id, status: "settled" };
+	const interruption = outcome.reason instanceof AgentWaitInterruptedError ? outcome.reason : undefined;
+	const status: WaitOutcomeStatus = interruption?.kind ?? "failed";
+	return {
+		agent_id: id,
+		status,
+		...(interruption === undefined ? { error: errorMessage(outcome.reason) } : {}),
+	};
+}
+
+function errorMessage(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
 }

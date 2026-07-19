@@ -1,108 +1,96 @@
 ---
 name: go-testing
-description: Use when writing, editing, or reviewing Go test code
+description: Use when writing, editing, or reviewing Go tests. Applies contract-driven test design and repository-specific testing conventions.
 ---
 
 # Go Testing
 
-Use alongside the **go-code** skill.
+Use alongside the **go-code** skill. Follow the repository's supported Go version, existing test style, and established dependencies.
 
-## Context
+## Version and sources
 
-- Determine the project's Go version by running `go list -m -f '{{.GoVersion}}'`. Your training data might be outdated; verify against the latest docs.
+- Read both the module's `go` directive and the active toolchain version.
+- Use stable testing APIs supported by the module; verify version-sensitive behavior against installed documentation or official release notes.
+- Do not copy experimental spellings from old examples into code targeting current Go.
 
-## Principles
+## Contract-driven tests
 
-- **Parallel by default**: `t.Parallel()` at both outer and subtest level
-- **No error returns from helpers**: call `t.Fatal`/`t.Fatalf` directly
-- **Table-driven**: default structure for multiple cases
-- **Minimal assertions**: stdlib only — no testify unless already in the project
+- Tests encode requested behavior and applicable language, API, framework, and project contracts; those contracts need not all be restated locally.
+- Do not add invalid-input cases merely because a value can be represented.
+- Add boundary and malformed-input tests when code parses or accepts user, network, file, configuration, database, or other external data.
+- Use table-driven tests when multiple cases genuinely share setup and assertions.
+- Use `t.Parallel()` only when isolation is clear and parallel execution provides value.
+- Do not change an implementation contract merely to satisfy a newly invented test case.
 
-## Table-Driven Tests
+## Assertions and helpers
+
+- Prefer the standard library unless the repository already uses an assertion package.
+- Call `t.Helper()` in test helpers so failures identify the caller.
+- A helper that cannot continue should call `t.Fatal` or `t.Fatalf`; return an error when the caller genuinely needs to inspect it.
+- Use `t.Errorf` when the test can meaningfully continue and `t.Fatalf` when continuing would create noise or panic.
+- Keep assertions focused on behavior relevant to the test.
+
+## Structure
+
+- Name test files after the implementation file (`user.go` → `user_test.go`).
+- Name tests `TestFunctionName` or `TestTypeName_MethodName`.
+- Prefer direct tests for one or two cases. Use subtests or tables only when they improve clarity.
+- Use current testing APIs only when supported by the module's declared Go version.
 
 ```go
-func TestGetUser(t *testing.T) {
-    t.Parallel()
+func TestNormalizeID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain", in: "user-1", want: "user-1"},
+		{name: "mixed case", in: "User-2", want: "user-2"},
+	}
 
-    tests := []struct {
-        name    string
-        id      string
-        wantErr bool
-    }{
-        {name: "found", id: "user-1", wantErr: false},
-        {name: "not found", id: "missing", wantErr: true},
-        {name: "empty id", id: "", wantErr: true},
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            t.Parallel()
-            _, err := svc.GetUser(t.Context(), tt.id)
-            if (err != nil) != tt.wantErr {
-                t.Errorf("GetUser(%q) error = %v, wantErr %v", tt.id, err, tt.wantErr)
-            }
-        })
-    }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NormalizeID(tt.in); got != tt.want {
+				t.Errorf("NormalizeID(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
 }
 ```
 
-## Test Helpers
+## Modern testing APIs
 
-- Always `t.Helper()` — failure lines point to the call site, not the helper body
-- **Never return `error`** — call `t.Fatal`/`t.Fatalf` directly
+### Go 1.25+: `testing/synctest`
 
-```go
-// ✓ Fatal on failure — caller stays clean
-func requireUser(t *testing.T, db *DB, id string) *User {
-    t.Helper()
-    u, err := db.GetUser(id)
-    if err != nil {
-        t.Fatalf("get user %q: %v", id, err)
-    }
-    return u
-}
-
-// ✗ Returning error — negates the helper
-func getUser(t *testing.T, db *DB, id string) (*User, error) { ... }
-```
-
-Use `t.Errorf` (non-fatal) when the test can meaningfully continue; `t.Fatalf` when continuing would produce noise or panic.
-
-## Naming
-
-- Test files: same base name as the file under test (`user.go` → `user_test.go`)
-- Test functions: `TestFunctionName` or `TestTypeName_MethodName`
-
-## Modern Testing Idioms
-
-### t.Context / t.Chdir (Go 1.24+)
+Use `synctest.Test`, not the removed experimental `synctest.Run`, for
+deterministic tests of timers and concurrent code:
 
 ```go
-client.Fetch(t.Context(), url) // context canceled when test finishes
-t.Chdir(t.TempDir())           // cwd restored after test
-```
+func TestCacheExpiry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cache := NewCache(time.Minute)
+		cache.Put("key", "value")
 
-### testing/synctest (Go 1.25+)
+		time.Sleep(time.Minute)
+		synctest.Wait()
 
-Deterministic concurrency testing with fake clock. `synctest.Run(func() { ... })` creates an isolated bubble; `synctest.Wait()` blocks until all goroutines are durably blocked, then fake time advances to next timer event. Eliminates timing-dependent flakiness.
-
-```go
-func TestRetryBackoff(t *testing.T) {
-    synctest.Run(func() {
-        attempts := 0
-        go retry(func() error {
-            attempts++
-            return errors.New("fail")
-        }, 3)
-
-        synctest.Wait() // goroutine is sleeping between retries
-        // fake time is now past first backoff; no wall-clock time spent
-        synctest.Wait()
-        if attempts != 3 {
-            t.Fatalf("got %d attempts, want 3", attempts)
-        }
-    })
+		if _, ok := cache.Get("key"); ok {
+			t.Fatal("entry did not expire")
+		}
+	})
 }
 ```
 
-Channels/timers inside bubble are bubble-scoped; using from outside panics.
+The callback runs in an isolated bubble with a fake clock. `synctest.Wait`
+blocks until other goroutines in the bubble are durably blocked. Do not call
+`t.Run`, `t.Parallel`, or `t.Deadline` on the `*testing.T` supplied to the
+callback.
+
+### Go 1.24+: `t.Context` and `t.Chdir`
+
+```go
+client.Fetch(t.Context(), url) // canceled just before test cleanup runs
+t.Chdir(t.TempDir())           // working directory restored after the test
+```
+
+Do not use `t.Chdir` in a parallel test or a test with parallel ancestors.

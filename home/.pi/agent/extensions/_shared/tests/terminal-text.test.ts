@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import fc from "fast-check";
 import {
 	clipTerminalText,
 	clipText,
@@ -24,4 +26,21 @@ test("text clipping preserves Unicode code points and uses word boundaries", () 
 test("terminal clipping applies display width after sanitization", () => {
 	assert.equal(clipTerminalText("\u001b[31m界界界\u001b[0m", 5), "界界…");
 	assert.equal(clipTerminalText("a\tb", 3), "a b");
+});
+
+test("terminal sanitization and clipping remain safe for arbitrary Unicode", () => {
+	fc.assert(
+		fc.property(fc.string(), fc.integer({ min: 0, max: 200 }), (value, width) => {
+			const sanitized = sanitizeTerminalText(value);
+			assert.equal(sanitizeTerminalText(sanitized), sanitized);
+			for (const character of sanitized) {
+				const code = character.codePointAt(0)!;
+				assert.equal(code < 32 || (code >= 127 && code <= 159) || code === 0x2028 || code === 0x2029, false);
+			}
+
+			const clipped = clipTerminalText(value, width);
+			assert.ok(visibleWidth(clipped) <= width);
+			assert.equal(sanitizeTerminalLine(clipped), clipped);
+		}),
+	);
 });

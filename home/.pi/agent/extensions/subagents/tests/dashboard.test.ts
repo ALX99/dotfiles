@@ -66,15 +66,19 @@ class FakeAgent implements DashboardAgentReader {
 	outputReads = 0;
 	messageError: Error | undefined;
 	outputError: Error | undefined;
+	messageLoader: (() => Promise<unknown[]>) | undefined;
+	outputLoader: (() => Promise<string>) | undefined;
 
 	async getMessages(): Promise<unknown[]> {
 		this.messageReads++;
+		if (this.messageLoader) return this.messageLoader();
 		if (this.messageError) throw this.messageError;
 		return this.messages;
 	}
 
 	async loadFullOutput(): Promise<string> {
 		this.outputReads++;
+		if (this.outputLoader) return this.outputLoader();
 		if (this.outputError) throw this.outputError;
 		return this.output;
 	}
@@ -337,6 +341,70 @@ test("transcript is an explicit snapshot that refreshes on r and once when the r
 	assert.equal(agent.messageReads, 3);
 	const snapshot = dashboard.getState().transcript;
 	if (snapshot?.status === "ready") assert.deepEqual(snapshot.lines, ["assistant: settled"]);
+	dashboard.dispose();
+});
+
+test("stale transcript and output loads cannot replace a newer generation", async () => {
+	const source = new FakeDataSource([view("running", "one", 1)]);
+	const agent = source.getLive("one");
+	const oldTranscript = Promise.withResolvers<unknown[]>();
+	const newTranscript = Promise.withResolvers<unknown[]>();
+	const transcriptLoads = [oldTranscript.promise, newTranscript.promise];
+	agent.messageLoader = () => transcriptLoads.shift()!;
+	const dashboard = new Dashboard(source, { onOperation() {} });
+	dashboard.attach(
+		() => {},
+		() => 10,
+	);
+	dashboard.handleInput("\r");
+	dashboard.handleInput("t");
+	assert.equal(dashboard.getState().transcript?.generation, 1);
+
+	source.update([view("running", "one", 2)]);
+	assert.equal(agent.messageReads, 2);
+	newTranscript.resolve([{ role: "assistant", content: [{ type: "text", text: "generation two" }] }]);
+	await settle();
+	assert.deepEqual(dashboard.getState().transcript, {
+		status: "ready",
+		agentId: "one",
+		generation: 2,
+		lines: ["assistant: generation two"],
+	});
+	oldTranscript.resolve([{ role: "assistant", content: [{ type: "text", text: "stale generation one" }] }]);
+	await settle();
+	assert.deepEqual(dashboard.getState().transcript, {
+		status: "ready",
+		agentId: "one",
+		generation: 2,
+		lines: ["assistant: generation two"],
+	});
+
+	const oldOutput = Promise.withResolvers<string>();
+	const newOutput = Promise.withResolvers<string>();
+	const outputLoads = [oldOutput.promise, newOutput.promise];
+	agent.outputLoader = () => outputLoads.shift()!;
+	source.update([view("idle", "one", 3, undefined, "preview three")]);
+	dashboard.handleInput("\u001b");
+	dashboard.handleInput("o");
+	assert.equal(dashboard.getState().output?.generation, 3);
+	source.update([view("idle", "one", 4, undefined, "preview four")]);
+	assert.equal(agent.outputReads, 2);
+	newOutput.resolve("generation four");
+	await settle();
+	assert.deepEqual(dashboard.getState().output, {
+		status: "ready",
+		agentId: "one",
+		generation: 4,
+		lines: ["generation four"],
+	});
+	oldOutput.reject(new Error("stale generation three failure"));
+	await settle();
+	assert.deepEqual(dashboard.getState().output, {
+		status: "ready",
+		agentId: "one",
+		generation: 4,
+		lines: ["generation four"],
+	});
 	dashboard.dispose();
 });
 

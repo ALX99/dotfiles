@@ -1,4 +1,4 @@
-import { clipTextAtWord } from "../_shared/terminal-text.ts";
+import { clipText, clipTextAtWord } from "../_shared/terminal-text.ts";
 import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentEvent, WireMessage } from "./event-schema.ts";
@@ -7,6 +7,9 @@ import type { OutputSpool } from "./output-spool.ts";
 const MAX_RECENT_TOOLS = 50;
 const MAX_NESTED_RUNS = 8;
 const MAX_NESTED_TOOLS = 8;
+export const MAX_ARGUMENT_PREVIEW_CHARACTERS = 500;
+export const MAX_RETAINED_EVENT_TEXT_CHARACTERS = 500;
+export const MAX_RETAINED_IDENTITY_CHARACTERS = 200;
 
 export interface RunUsage {
 	input: number;
@@ -139,7 +142,9 @@ export async function foldAgentEvent(event: AgentEvent, details: MutableRunData,
 			const message = event.message;
 			if (message.role === "assistant") {
 				if (message.stopReason === "error") {
-					details.assistantError = message.errorMessage?.trim() || "Subagent assistant stopped with an error.";
+					details.assistantError = message.errorMessage?.trim()
+						? retainedText(message.errorMessage, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
+						: "Subagent assistant stopped with an error.";
 				} else {
 					delete details.assistantError;
 				}
@@ -183,12 +188,15 @@ async function ingestMessage(msg: WireMessage, details: MutableRunData, output: 
 	for (const part of msg.content) {
 		if (part.type === "toolCall" && typeof part.name === "string") {
 			details.toolCount++;
-			details.recentTools.push({ name: part.name, argsPreview: argsPreview(part.arguments) });
+			details.recentTools.push({
+				name: retainedText(part.name, MAX_RETAINED_IDENTITY_CHARACTERS),
+				argsPreview: argsPreview(part.arguments),
+			});
 			if (details.recentTools.length > MAX_RECENT_TOOLS) details.recentTools.shift();
 		} else if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
 			textParts.push(part.text.trim());
 			const prose = part.text.split("\n").find((line) => line.trim() && !line.trimStart().startsWith("```"));
-			if (prose) details.lastMessage = prose.trim();
+			if (prose) details.lastMessage = retainedText(prose, MAX_RETAINED_EVENT_TEXT_CHARACTERS);
 		}
 	}
 	if (textParts.length === 0) return;
@@ -210,10 +218,15 @@ function nestedRunFromArgs(toolCallId: string, args: unknown, depth: number): Ne
 	const input = isRecord(args) ? args : {};
 	const message = typeof input.message === "string" ? input.message : "(task unavailable)";
 	return {
-		toolCallId,
-		agent: typeof input.agent === "string" && input.agent.trim() ? input.agent : "general",
+		toolCallId: retainedText(toolCallId, MAX_RETAINED_IDENTITY_CHARACTERS),
+		agent:
+			typeof input.agent === "string" && input.agent.trim()
+				? retainedText(input.agent, MAX_RETAINED_IDENTITY_CHARACTERS)
+				: "general",
 		taskName:
-			typeof input.task_name === "string" && input.task_name.trim() ? input.task_name : clipTextAtWord(message, 60),
+			typeof input.task_name === "string" && input.task_name.trim()
+				? retainedText(input.task_name, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
+				: clipTextAtWord(message, 60),
 		depth,
 		status: "running",
 		toolCount: 0,
@@ -229,9 +242,10 @@ function updateNestedRun(
 	rawResult: unknown,
 	fallbackStatus: NestedRunStatus,
 ): void {
+	const retainedToolCallId = retainedText(toolCallId, MAX_RETAINED_IDENTITY_CHARACTERS);
 	const existing =
-		details.nestedRuns.find((run) => run.toolCallId === toolCallId) ??
-		nestedRunFromArgs(toolCallId, undefined, details.depth + 1);
+		details.nestedRuns.find((run) => run.toolCallId === retainedToolCallId) ??
+		nestedRunFromArgs(retainedToolCallId, undefined, details.depth + 1);
 	upsertNestedRun(details, nestedRunFromResult(rawResult, existing, fallbackStatus));
 }
 
@@ -264,13 +278,22 @@ function nestedRunFromResult(
 					: fallbackStatus;
 	return {
 		toolCallId: fallback.toolCallId,
-		agent: typeof rawDetails.agent === "string" ? rawDetails.agent : fallback.agent,
-		taskName: typeof rawDetails.taskName === "string" ? rawDetails.taskName : fallback.taskName,
+		agent:
+			typeof rawDetails.agent === "string"
+				? retainedText(rawDetails.agent, MAX_RETAINED_IDENTITY_CHARACTERS)
+				: fallback.agent,
+		taskName:
+			typeof rawDetails.taskName === "string"
+				? retainedText(rawDetails.taskName, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
+				: fallback.taskName,
 		depth: typeof rawDetails.depth === "number" ? rawDetails.depth : fallback.depth,
 		status,
 		toolCount: typeof rawDetails.toolCount === "number" ? rawDetails.toolCount : fallback.toolCount,
 		recentTools: nestedTools(rawDetails.recentTools),
-		lastMessage: typeof rawDetails.lastMessage === "string" ? rawDetails.lastMessage : fallback.lastMessage,
+		lastMessage:
+			typeof rawDetails.lastMessage === "string"
+				? retainedText(rawDetails.lastMessage, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
+				: fallback.lastMessage,
 		nestedRuns: remainingDepth > 0 ? nestedRuns(rawDetails.nestedRuns, remainingDepth - 1) : [],
 	};
 }
@@ -280,7 +303,12 @@ function nestedTools(raw: unknown): Array<{ name: string; argsPreview: string }>
 	return raw
 		.flatMap((item) => {
 			if (!isRecord(item) || typeof item.name !== "string" || typeof item.argsPreview !== "string") return [];
-			return [{ name: item.name, argsPreview: item.argsPreview }];
+			return [
+				{
+					name: retainedText(item.name, MAX_RETAINED_IDENTITY_CHARACTERS),
+					argsPreview: retainedText(item.argsPreview, MAX_ARGUMENT_PREVIEW_CHARACTERS),
+				},
+			];
 		})
 		.slice(-MAX_NESTED_TOOLS);
 }
@@ -303,7 +331,11 @@ export function argsPreview(args: unknown): string {
 	if (!isRecord(args)) return "";
 	for (const key of ["path", "file_path", "command", "query", "url", "pattern", "content"]) {
 		const value = args[key];
-		if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+		if (typeof value === "string") return retainedText(value, MAX_ARGUMENT_PREVIEW_CHARACTERS);
 	}
-	return JSON.stringify(args)?.replace(/\s+/g, " ").trim() ?? "";
+	return retainedText(JSON.stringify(args) ?? "", MAX_ARGUMENT_PREVIEW_CHARACTERS);
+}
+
+function retainedText(value: string, maxCharacters: number): string {
+	return clipText(value.replace(/\s+/gu, " ").trim(), maxCharacters);
 }
