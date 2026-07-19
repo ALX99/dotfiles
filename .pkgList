@@ -51,7 +51,6 @@ intel-ucode
 iwd # Daemon to manage network connections (make sure to configure it with systemd-networkd, systemd-resolved)
 iw # iw wifi thingy
 jq # Json parser
-keychain # manage SSH agent
 keyd # keyboard deamon
 lazygit
 libnotify # library for sending desktop notifications

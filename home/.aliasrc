@@ -154,25 +154,10 @@ urlencode() { printf "%s" "$1" | jq -sRr @uri; }
 
 dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker run --entrypoint /bin/sh --rm -it "$1"; }
 
-ksc() { set -euo pipefail; s="$(klc | fzf)"; yq e -i ".current-context = \"$s\"" ~/.kube/config; }
-
-# Download a directory from a GitHub repo via sparse checkout.
-# Usage: yoink <github-url-or-owner/repo> <dest> [branch] [subpath]
-#   yoink foo/bar ./out              -> default branch, full repo
-#   yoink foo/bar ./out main         -> branch main, full repo
-#   yoink foo/bar ./out main src/pkg -> branch main, subpath src/pkg
-yoink() {
-  local p=${1#https://github.com/} dest=$2
-  local repo=${p%%/tree/*} spec=${p#*/tree/}
-  local branch subpath=""
-  [[ $spec != "$p" ]] && { branch=${spec%%/*}; subpath=${spec#*/}; [[ $subpath == "$spec" ]] && subpath=""; }
-  [[ -e $dest ]] && { echo "yoink: $dest exists" >&2; return 1; }
-  local tmp
-  tmp=$(mktemp -d) || return
-  gh repo clone "$repo" "$tmp/r" -- --depth 1 --filter=blob:none --sparse ${branch:+--branch "$branch"} &&
-    (cd "$tmp/r" && git sparse-checkout set "$subpath") &&
-    mkdir -p "$dest" && cp -r "$tmp/r/${subpath:-.}"/. "$dest/"
-  rm -rf "$tmp"
+ksc() {
+  set -euo pipefail
+  s="$(klc | fzf)"
+  yq e -i ".current-context = \"$s\"" ~/.kube/config
 }
 
 _fzf_file_insert() {
@@ -258,9 +243,5 @@ bbcomp() {
 # shellcheck disable=SC2206
 _fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
 [ -f "${_fzf_dirs[-1]}/key-bindings.$_sh" ] && . "${_fzf_dirs[-1]}/key-bindings.$_sh"
-
-# keychain
-command -v keychain >/dev/null 2>&1 && eval "$(keychain --eval --quiet --noask)"
-[ -r "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" 2>/dev/null
 
 unset _sh _fzf_dirs
