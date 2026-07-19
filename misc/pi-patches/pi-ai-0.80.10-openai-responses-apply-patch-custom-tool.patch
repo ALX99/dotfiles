@@ -48,12 +48,12 @@
 -                    tools: convertResponsesTools(deferredTools, { deferLoading: true }),
 +                    tools: convertResponsesTools(deferredTools, {
 +                        deferLoading: true,
-+                        customToolNames: options?.customToolNames,
++                        customTools: options?.customTools,
 +                    }),
                  });
              }
          }
-@@ -233,66 +247,209 @@
+@@ -233,66 +247,212 @@
  // =============================================================================
  export function convertResponsesTools(tools, options) {
      const strict = options?.strict === undefined ? false : options.strict;
@@ -65,22 +65,25 @@
 -        strict,
 -        ...(options?.deferLoading ? { defer_loading: true } : {}),
 -    }));
-+    return tools.map((tool) => options?.customToolNames?.has(tool.name)
-+        ? {
-+            type: "custom",
-+            name: tool.name,
-+            description: tool.description,
-+            format: { type: "text" },
-+            ...(options?.deferLoading ? { defer_loading: true } : {}),
-+        }
-+        : {
-+            type: "function",
-+            name: tool.name,
-+            description: tool.description,
-+            parameters: tool.parameters, // TypeBox already generates JSON Schema
-+            strict,
-+            ...(options?.deferLoading ? { defer_loading: true } : {}),
-+        });
++    return tools.map((tool) => {
++        const customTool = options?.customTools?.get(tool.name);
++        return customTool
++            ? {
++                type: "custom",
++                name: tool.name,
++                description: customTool.description,
++                format: customTool.format,
++                ...(options?.deferLoading ? { defer_loading: true } : {}),
++            }
++            : {
++                type: "function",
++                name: tool.name,
++                description: tool.description,
++                parameters: tool.parameters, // TypeBox already generates JSON Schema
++                strict,
++                ...(options?.deferLoading ? { defer_loading: true } : {}),
++            };
++    });
  }
  export async function processResponsesStream(openaiStream, output, stream, model, options) {
      let sawTerminalResponseEvent = false;
@@ -180,8 +183,9 @@
                  contentIndex: output.content.length - 1,
              };
 -            outputSlots.set(outputIndex, slot);
-             stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
+-            stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
 -            return slot;
++            stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
          }
 -        if (item.type === "message") {
 +        else if (item.type === "message") {
@@ -288,20 +292,20 @@
      };
      // Azure OpenAI can omit reasoning.encrypted_content from response.output_item.done
      // and provide it only in response.completed.response.output. Backfill the
-@@ -427,6 +584,12 @@
-                 delta: event.delta,
+@@ -428,6 +588,12 @@
                  partial: output,
              });
-+        }
+         }
 +        else if (event.type === "response.custom_tool_call_input.delta") {
 +            const slot = findSlot(event, "toolCall", true);
 +            if (!slot)
 +                continue;
 +            appendCustomInput(slot, event.delta);
-         }
++        }
          else if (event.type === "response.function_call_arguments.done") {
              const slot = getSlot(event.output_index, "toolCall");
-@@ -447,9 +610,15 @@
+             if (!slot)
+@@ -447,9 +613,15 @@
                  }
              }
          }
@@ -318,7 +322,7 @@
              if (item.type === "reasoning" && slot?.type === "thinking") {
                  const summaryText = item.summary?.map((s) => s.text).join("\n\n") || "";
                  const contentText = item.content?.map((c) => c.text).join("\n\n") || "";
-@@ -462,7 +631,7 @@
+@@ -462,7 +634,7 @@
                      content: slot.block.thinking,
                      partial: output,
                  });
@@ -327,7 +331,7 @@
              }
              else if (item.type === "message" && slot?.type === "text") {
                  slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
-@@ -473,10 +642,20 @@
+@@ -473,10 +645,20 @@
                      content: slot.block.text,
                      partial: output,
                  });
@@ -351,7 +355,7 @@
                  // Finalize in-place and strip the scratch buffer so replay only
                  // carries parsed arguments.
                  delete slot.block.partialJson;
-@@ -486,7 +665,7 @@
+@@ -486,7 +668,7 @@
                      toolCall: slot.block,
                      partial: output,
                  });

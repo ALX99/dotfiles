@@ -11,9 +11,18 @@ export interface AgentSummaryDetails {
 	readonly summaries: readonly AgentSummary[];
 }
 
+export type WaitOutcomeStatus = "settled" | "timed_out" | "cancelled" | "failed";
+
+export interface WaitOutcome {
+	readonly agent_id: string;
+	readonly status: WaitOutcomeStatus;
+	readonly error?: string;
+}
+
 export interface WaitDetails extends AgentSummaryDetails {
 	readonly elapsedMs: number;
 	readonly timeoutMs?: number;
+	readonly outcomes: readonly WaitOutcome[];
 }
 
 export function agentSummaryDetails(summaries: readonly AgentSummary[]): AgentSummaryDetails {
@@ -24,11 +33,16 @@ export function waitDetails(
 	summaries: readonly AgentSummary[],
 	elapsedMs: number,
 	timeoutMs: number | undefined,
+	outcomes: readonly WaitOutcome[] = summaries.map((summary) => ({
+		agent_id: summary.agent_id,
+		status: "settled",
+	})),
 ): WaitDetails {
 	return {
 		summaries,
 		elapsedMs,
 		...(timeoutMs === undefined ? {} : { timeoutMs }),
+		outcomes,
 	};
 }
 

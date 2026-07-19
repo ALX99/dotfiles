@@ -1,10 +1,17 @@
 import * as assert from "node:assert/strict";
-import { spawn, type SpawnOptionsWithoutStdio } from "node:child_process";
 import { test } from "node:test";
 import { parseAgentEvent } from "../event-schema.ts";
 import { parseRpcRecord } from "../protocol.ts";
 import type { RpcEvent } from "../protocol.ts";
-import { DEFAULT_RPC_MAX_FRAME_BYTES, RpcTransport, type SpawnRpcProcess } from "../rpc-transport.ts";
+import {
+	DEFAULT_RPC_MAX_FRAME_BYTES,
+	RpcTransport,
+	spawnRpcProcess,
+	writeRpcFrame,
+	type RpcWritable,
+	type SpawnRpcProcess,
+	type WriteRpcFrame,
+} from "../rpc-transport.ts";
 
 const testEnv: Record<string, string> = Object.fromEntries(
 	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -22,6 +29,7 @@ function client(
 		readonly maxStderrLines?: number;
 		readonly maxQueuedWriteBytes?: number;
 		readonly spawnProcess?: SpawnRpcProcess;
+		readonly writeFrame?: WriteRpcFrame;
 	} = {},
 ): RpcTransport {
 	return new RpcTransport({
@@ -38,7 +46,36 @@ function client(
 		...(options.maxStderrLines === undefined ? {} : { maxStderrLines: options.maxStderrLines }),
 		...(options.maxQueuedWriteBytes === undefined ? {} : { maxQueuedWriteBytes: options.maxQueuedWriteBytes }),
 		...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
+		...(options.writeFrame === undefined ? {} : { writeFrame: options.writeFrame }),
 	});
+}
+
+class ControlledWritable implements RpcWritable {
+	private callback: ((error?: Error | null) => void) | undefined;
+	private drainListener: (() => void) | undefined;
+
+	write(_frame: Buffer, callback: (error?: Error | null) => void): boolean {
+		this.callback = callback;
+		return false;
+	}
+
+	once(_event: "drain", listener: () => void): this {
+		this.drainListener = listener;
+		return this;
+	}
+
+	off(_event: "drain", listener: () => void): this {
+		if (this.drainListener === listener) this.drainListener = undefined;
+		return this;
+	}
+
+	complete(error?: Error): void {
+		this.callback?.(error);
+	}
+
+	drain(): void {
+		this.drainListener?.();
+	}
 }
 
 function trackingSpawner(exitObserved: { value: boolean }): {
@@ -46,16 +83,15 @@ function trackingSpawner(exitObserved: { value: boolean }): {
 	readonly exited: Promise<NodeJS.Signals | null>;
 } {
 	const exited = Promise.withResolvers<NodeJS.Signals | null>();
-	function spawnTracked(command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) {
-		const child = spawn(command, [...args], options);
-		child.once("exit", (_code, signal) => {
+	const spawnProcess: SpawnRpcProcess = (command, args, options) => {
+		const child = spawnRpcProcess(command, args, options);
+		child.nodeChildProcess.once("exit", (_code, signal) => {
 			exitObserved.value = true;
 			exited.resolve(signal);
 		});
 		return child;
-	}
-	// RpcTransport always requests the stdio-pipe overload implemented by this fixture.
-	return { spawnProcess: spawnTracked as unknown as SpawnRpcProcess, exited: exited.promise };
+	};
+	return { spawnProcess, exited: exited.promise };
 }
 
 test("protocol rejects non-object JSON and malformed known responses", () => {
@@ -321,6 +357,93 @@ process.stdin.on('data', chunk => {
 	);
 });
 
+test("write backpressure waits for callback and drain in either order", async () => {
+	for (const order of ["callback-first", "drain-first"] as const) {
+		const writable = new ControlledWritable();
+		let settled = false;
+		const writing = writeRpcFrame(writable, Buffer.from("frame")).then(() => {
+			settled = true;
+		});
+		if (order === "callback-first") writable.complete();
+		else writable.drain();
+		await Promise.resolve();
+		assert.equal(settled, false);
+		if (order === "callback-first") writable.drain();
+		else writable.complete();
+		await writing;
+		assert.equal(settled, true);
+	}
+
+	const failing = new ControlledWritable();
+	const writing = writeRpcFrame(failing, Buffer.from("frame"));
+	failing.drain();
+	failing.complete(new Error("write exploded"));
+	await assert.rejects(writing, /write exploded/);
+});
+
+test("timed-out queued writes are skipped and release queue capacity", async () => {
+	const writes: string[] = [];
+	const gates: Array<PromiseWithResolvers<void>> = [];
+	const injectedWrite: WriteRpcFrame = async (_stdin, frame) => {
+		writes.push(frame.toString("utf8"));
+		const gate = Promise.withResolvers<void>();
+		gates.push(gate);
+		await gate.promise;
+	};
+	const transport = client("process.stdin.resume(); setTimeout(() => {}, 500)", {
+		maxQueuedWriteBytes: 512,
+		writeFrame: injectedWrite,
+	});
+	await transport.start();
+
+	const first = transport.request({ type: "first", payload: "a".repeat(80) }, { timeoutMs: 1_000 });
+	void first.catch(() => {});
+	while (gates.length < 1) await new Promise((resolve) => setImmediate(resolve));
+	await assert.rejects(transport.request({ type: "expired", payload: "b".repeat(80) }, { timeoutMs: 10 }), /timed out/);
+	gates[0]!.resolve();
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(writes.length, 1, "an expired request must be skipped before reaching stdin");
+
+	const third = transport.request({ type: "third", payload: "c".repeat(80) }, { timeoutMs: 1_000 });
+	void third.catch(() => {});
+	while (gates.length < 2) await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(writes.length, 2, "released byte capacity must admit a later request");
+	let closeSettled = false;
+	const closing = transport.close().then(() => {
+		closeSettled = true;
+	});
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(closeSettled, false, "close must wait for an in-flight write");
+	gates[1]!.resolve();
+	await closing;
+	await assert.rejects(first, /closed/);
+	await assert.rejects(third, /closed/);
+});
+
+test("a write failure rejects every pending request and fails the transport", async () => {
+	const transport = client("process.stdin.resume(); setTimeout(() => {}, 500)", {
+		writeFrame: async () => {
+			throw new Error("injected write failure");
+		},
+	});
+	await transport.start();
+	const requests = [
+		transport.request({ type: "first" }, { timeoutMs: 1_000 }),
+		transport.request({ type: "second" }, { timeoutMs: 1_000 }),
+	];
+	const results = await Promise.allSettled(requests);
+	assert.deepEqual(
+		results.map((result) => result.status),
+		["rejected", "rejected"],
+	);
+	for (const result of results) {
+		if (result.status === "rejected") assert.match(String(result.reason), /write failed/);
+	}
+	assert.equal(transport.pendingRequestCount(), 0);
+	assert.equal(transport.getState(), "failed");
+	await transport.close();
+});
+
 test("close escalates an ignored SIGTERM, waits for exit, and is idempotent", async () => {
 	const ready = Promise.withResolvers<void>();
 	const transport = client(
@@ -345,5 +468,4 @@ test("close escalates an ignored SIGTERM, waits for exit, and is idempotent", as
 
 test("default frame bound is explicit and finite", () => {
 	assert.equal(DEFAULT_RPC_MAX_FRAME_BYTES, 1024 * 1024);
-	assert.equal(typeof spawn, "function");
 });

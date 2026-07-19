@@ -201,6 +201,10 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 		{
 			elapsedMs: 1_000,
 			timeoutMs: 1_000,
+			outcomes: [
+				{ agent_id: "done-12345678", status: "settled" },
+				{ agent_id: "running-12345678", status: "timed_out" },
+			],
 			summaries: [
 				{
 					agent_id: "done-12345678",
@@ -234,6 +238,7 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 		.join("\n");
 
 	assert.match(rendered, /1\/2 settled · 1 still running/);
+	assert.match(rendered, /1 timed out/);
 	assert.match(rendered, /inspect parser · scout · fast · done-123/);
 	assert.match(rendered, /fix parser · worker · balanced · running-/);
 	assert.doesNotMatch(rendered, /Parser finding/);

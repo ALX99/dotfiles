@@ -1,29 +1,65 @@
 --- a/dist/api/openai-codex-responses.js
 +++ b/dist/api/openai-codex-responses.js
-@@ -31,6 +31,10 @@
+@@ -31,6 +31,44 @@
  // endpoint (the same endpoint the official Codex client compresses against).
  const REQUEST_COMPRESSION_ZSTD_LEVEL = 3;
  const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
-+const CODEX_CUSTOM_TOOL_NAMES = new Set(["apply_patch"]);
-+function getCodexCustomToolNames(model) {
-+    return model.provider === "openai-codex" ? CODEX_CUSTOM_TOOL_NAMES : undefined;
++const APPLY_PATCH_TOOL_DESCRIPTION = "Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.";
++const APPLY_PATCH_LARK_GRAMMAR = `start: begin_patch hunk+ end_patch
++begin_patch: "*** Begin Patch" LF
++end_patch: "*** End Patch" LF?
++
++hunk: add_hunk | delete_hunk | update_hunk
++add_hunk: "*** Add File: " filename LF add_line+
++delete_hunk: "*** Delete File: " filename LF
++update_hunk: "*** Update File: " filename LF change_move? change?
++
++filename: /(.+)/
++add_line: "+" /(.*)/ LF -> line
++
++change_move: "*** Move to: " filename LF
++change: (change_context | change_line)+ eof_line?
++change_context: ("@@" | "@@ " /(.+)/) LF
++change_line: ("+" | "-" | " ") /(.*)/ LF
++eof_line: "*** End of File" LF
++
++%import common.LF
++`;
++const CODEX_CUSTOM_TOOLS = new Map([
++    [
++        "apply_patch",
++        {
++            description: APPLY_PATCH_TOOL_DESCRIPTION,
++            format: {
++                type: "grammar",
++                syntax: "lark",
++                definition: APPLY_PATCH_LARK_GRAMMAR,
++            },
++        },
++    ],
++]);
++const CODEX_CUSTOM_TOOL_NAMES = new Set(CODEX_CUSTOM_TOOLS.keys());
++function getCodexCustomTools(model) {
++    return model.provider === "openai-codex" ? CODEX_CUSTOM_TOOLS : undefined;
 +}
  const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
  const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
  const CODEX_RESPONSE_STATUSES = new Set([
-@@ -339,9 +343,11 @@
+@@ -339,9 +377,13 @@
  // ============================================================================
  function buildRequestBody(model, context, options) {
      const toolPlacement = splitDeferredTools(context, model.compat?.supportsToolSearch ?? false);
-+    const customToolNames = getCodexCustomToolNames(model);
++    const customTools = getCodexCustomTools(model);
++    const customToolNames = customTools === undefined ? undefined : CODEX_CUSTOM_TOOL_NAMES;
      const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
          includeSystemPrompt: false,
          deferredTools: toolPlacement.deferred,
 +        customToolNames,
++        customTools,
      });
      const body = {
          model: model.id,
-@@ -353,7 +359,7 @@
+@@ -353,7 +395,7 @@
          include: ["reasoning.encrypted_content"],
          prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
          tool_choice: options?.toolChoice ?? "auto",
@@ -32,23 +68,24 @@
      };
      if (options?.temperature !== undefined) {
          body.temperature = options.temperature;
-@@ -362,7 +368,10 @@
+@@ -362,7 +404,10 @@
          body.service_tier = options.serviceTier;
      }
      if (toolPlacement.immediate.length > 0) {
 -        body.tools = convertResponsesTools(toolPlacement.immediate, { strict: null });
 +        body.tools = convertResponsesTools(toolPlacement.immediate, {
 +            strict: null,
-+            customToolNames,
++            customTools,
 +        });
      }
      if (options?.reasoningEffort !== undefined) {
          const effort = options.reasoningEffort === "none"
-@@ -1114,9 +1123,11 @@
+@@ -1114,9 +1159,12 @@
              keepConnection = false;
          }
          else if (useCachedContext && entry && output.responseId) {
-+            const customToolNames = getCodexCustomToolNames(model);
++            const customTools = getCodexCustomTools(model);
++            const customToolNames = customTools === undefined ? undefined : CODEX_CUSTOM_TOOL_NAMES;
              const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
                  includeSystemPrompt: false,
 -            }).filter((item) => item.type !== "function_call_output");
