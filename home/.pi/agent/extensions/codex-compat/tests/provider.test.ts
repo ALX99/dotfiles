@@ -1,20 +1,24 @@
-import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import { mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { PassThrough, Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
+import { test } from "node:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
 	createApplyPatchTool,
-	MAX_APPLY_PATCH_BYTES,
+	MAX_CAPTURED_OUTPUT_BYTES,
 	registerCodexCompat,
-	type FileMutationQueue,
-	withSortedFileMutationLocks,
+	runApplyPatchProcess,
+	type SpawnApplyPatchProcess,
 } from "../index.ts";
-import { PatchEngineError } from "../engine.ts";
+import { APPLY_PATCH_TOOL_DESCRIPTION } from "../types.ts";
 
-const patch = "*** Begin Patch\n*** Add File: z.txt\n+z\n*** Add File: a.txt\n+a\n*** End Patch\n";
+const FAKE_EXECUTABLE = fileURLToPath(new URL("./fake-apply-patch.mjs", import.meta.url));
 
 function model(overrides: Partial<Model<Api>> = {}): Model<Api> {
 	return {
@@ -32,83 +36,218 @@ function model(overrides: Partial<Model<Api>> = {}): Model<Api> {
 	};
 }
 
-test("apply_patch preflights, locks sorted paths, and applies without confirmation", async () => {
-	const root = await mkdtemp(path.join(tmpdir(), "codex-compat-tool-"));
+function toolText(result: Awaited<ReturnType<ReturnType<typeof createApplyPatchTool>["execute"]>>): string {
+	const content = result.content.find((item) => item.type === "text");
+	assert.ok(content && content.type === "text");
+	return content.text;
+}
+
+test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", async () => {
+	const cwd = await mkdtemp(path.join(tmpdir(), "codex-compat-process-"));
 	try {
-		const locks: string[] = [];
-		const queue: FileMutationQueue = async (filePath, run) => {
-			locks.push(filePath);
-			return run();
-		};
-		const result = await createApplyPatchTool({ mutationQueue: queue }).execute(
+		const patch = "*** Begin Patch\n*** Add File: test.txt\n+raw\n*** End Patch\n";
+		const result = await createApplyPatchTool({ executable: FAKE_EXECUTABLE }).execute(
 			"tool_1",
 			{ patch },
 			undefined,
 			undefined,
-			// The tool adapter reads only cwd and hasUI from this focused test context.
-			{ cwd: root, hasUI: false } as ExtensionContext,
+			{ cwd } as ExtensionContext,
 		);
-		const canonicalRoot = await realpath(root);
-		assert.deepEqual(locks, [path.join(canonicalRoot, "a.txt"), path.join(canonicalRoot, "z.txt")]);
-		assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "a\n");
-		assert.equal(await readFile(path.join(root, "z.txt"), "utf8"), "z\n");
-		const text = result.content.find((content) => content.type === "text");
-		assert.match(text?.text ?? "", /Applied patch successfully/);
+		const upstream = toolText(result);
+		assert.equal(upstream.endsWith("\n"), false, "successful stdout must not be trimmed or rewritten");
+		assert.deepEqual(JSON.parse(upstream), {
+			input: patch,
+			cwd: await realpath(cwd),
+			args: [],
+		});
+		assert.deepEqual(result.details, { exitCode: 0 });
 	} finally {
-		await rm(root, { recursive: true, force: true });
+		await rm(cwd, { recursive: true, force: true });
 	}
 });
 
-test("canonical lock aliases are rejected before queue acquisition", async () => {
-	const root = await mkdtemp(path.join(tmpdir(), "codex-compat-lock-"));
+test("adapter smoke-tests an installed Codex in apply_patch multicall mode", async (t) => {
+	const cwd = await mkdtemp(path.join(tmpdir(), "codex-compat-upstream-"));
 	try {
-		const target = path.join(root, "target.txt");
-		const alias = path.join(root, "alias.txt");
-		await writeFile(target, "content\n");
-		await symlink(target, alias);
-		let queueCalls = 0;
-		await assert.rejects(
-			withSortedFileMutationLocks(
-				[target, alias],
-				async () => undefined,
-				async (_filePath, run) => {
-					queueCalls++;
-					return run();
-				},
-			),
-			(error) => error instanceof PatchEngineError && error.code === "path_conflict",
-		);
-		assert.equal(queueCalls, 0);
+		let result;
+		try {
+			result = await createApplyPatchTool().execute(
+				"tool_upstream",
+				{ patch: "*** Begin Patch\n*** Add File: smoke.txt\n+from upstream\n*** End Patch\n" },
+				undefined,
+				undefined,
+				{ cwd } as ExtensionContext,
+			);
+		} catch (error) {
+			if (error instanceof Error && /spawn codex ENOENT/.test(error.message)) {
+				t.skip("Codex is not installed on PATH");
+				return;
+			}
+			throw error;
+		}
+		assert.equal(toolText(result), "Success. Updated the following files:\nA smoke.txt\n");
+		assert.equal(await readFile(path.join(cwd, "smoke.txt"), "utf8"), "from upstream\n");
 	} finally {
-		await rm(root, { recursive: true, force: true });
+		await rm(cwd, { recursive: true, force: true });
 	}
 });
 
-test("oversized patches are rejected before locking or preflight", async () => {
-	let queueCalls = 0;
-	const tool = createApplyPatchTool({
-		mutationQueue: async (_filePath, run) => {
-			queueCalls++;
-			return run();
-		},
+test("nonzero exit surfaces bounded upstream stdout and stderr", async () => {
+	await assert.rejects(runApplyPatchProcess(FAKE_EXECUTABLE, "FAIL", process.cwd(), undefined), (error) => {
+		assert.ok(error instanceof Error);
+		assert.match(error.message, /apply_patch exited with status 7/);
+		assert.match(error.message, /stdout:\nupstream stdout\n/);
+		assert.match(error.message, /stderr:\nupstream stderr\n/);
+		return true;
 	});
+
+	await assert.rejects(runApplyPatchProcess(FAKE_EXECUTABLE, "LARGE_FAILURE", process.cwd(), undefined), (error) => {
+		assert.ok(error instanceof Error);
+		assert.ok(error.message.length < MAX_CAPTURED_OUTPUT_BYTES * 2 + 1_000);
+		assert.match(error.message, new RegExp(`stdout truncated: captured ${MAX_CAPTURED_OUTPUT_BYTES}`));
+		assert.match(error.message, new RegExp(`stderr truncated: captured ${MAX_CAPTURED_OUTPUT_BYTES}`));
+		return true;
+	});
+});
+
+test("cancellation terminates the direct child", async () => {
+	const controller = new AbortController();
+	const run = runApplyPatchProcess(FAKE_EXECUTABLE, "HANG", process.cwd(), controller.signal);
+	setTimeout(() => controller.abort(), 100).unref();
+	await assert.rejects(run, /apply_patch was cancelled/);
+});
+
+test("a pre-aborted signal does not spawn a child", async () => {
+	const controller = new AbortController();
+	controller.abort();
+	let spawnCount = 0;
+	const spawnProcess: SpawnApplyPatchProcess = () => {
+		spawnCount++;
+		throw new Error("must not spawn");
+	};
+
 	await assert.rejects(
-		tool.execute("tool_oversized", { patch: "x".repeat(MAX_APPLY_PATCH_BYTES + 1) }, undefined, undefined, {
-			cwd: process.cwd(),
-			hasUI: false,
-			// The tool rejects size before reading any other context member.
-		} as ExtensionContext),
-		(error) => error instanceof RangeError,
+		runApplyPatchProcess("/fake/apply_patch", "raw patch", "/workspace", controller.signal, spawnProcess),
+		/apply_patch was cancelled before it started/,
 	);
-	assert.equal(queueCalls, 0);
+	assert.equal(spawnCount, 0);
+});
+
+test("cancellation escalates an uncooperative child from SIGTERM to SIGKILL in order", async () => {
+	const signals: NodeJS.Signals[] = [];
+	const spawnProcess: SpawnApplyPatchProcess = () => {
+		const child = new EventEmitter() as EventEmitter & {
+			stdin: Writable;
+			stdout: PassThrough;
+			stderr: PassThrough;
+			exitCode: number | null;
+			signalCode: NodeJS.Signals | null;
+			pid: number;
+			kill(signal: NodeJS.Signals): boolean;
+		};
+		child.stdin = new Writable({
+			write(_chunk, _encoding, callback) {
+				callback();
+			},
+		});
+		child.stdout = new PassThrough();
+		child.stderr = new PassThrough();
+		child.exitCode = null;
+		child.signalCode = null;
+		child.pid = 42;
+		child.kill = (signal) => {
+			signals.push(signal);
+			if (signal === "SIGKILL") {
+				child.signalCode = signal;
+				queueMicrotask(() => {
+					child.stdout.end();
+					child.stderr.end();
+					child.emit("close", null, signal);
+				});
+			}
+			return true;
+		};
+		return child as unknown as ChildProcessWithoutNullStreams;
+	};
+	const controller = new AbortController();
+	const run = runApplyPatchProcess("/fake/apply_patch", "raw patch", "/workspace", controller.signal, spawnProcess);
+	controller.abort();
+
+	await assert.rejects(run, /apply_patch was cancelled/);
+	assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+});
+
+test("stdin errors are observed and terminate the child without hiding captured output", async () => {
+	const spawnProcess: SpawnApplyPatchProcess = (executable, args, options) => {
+		assert.equal(executable, "/fake/apply_patch");
+		assert.deepEqual(args, []);
+		assert.equal(options.argv0, "apply_patch");
+		assert.equal(options.shell, false);
+		assert.equal(options.cwd, "/workspace");
+
+		const child = new EventEmitter() as EventEmitter & {
+			stdin: Writable;
+			stdout: PassThrough;
+			stderr: PassThrough;
+			exitCode: number | null;
+			signalCode: NodeJS.Signals | null;
+			pid: undefined;
+			kill(signal: NodeJS.Signals): boolean;
+		};
+		child.stdin = new Writable({
+			write(_chunk, _encoding, callback) {
+				callback(new Error("injected stdin failure"));
+			},
+		});
+		child.stdout = new PassThrough();
+		child.stderr = new PassThrough();
+		child.exitCode = null;
+		child.signalCode = null;
+		child.pid = undefined;
+		child.kill = (signal) => {
+			child.signalCode = signal;
+			queueMicrotask(() => {
+				child.stdout.end();
+				child.stderr.end();
+				child.emit("close", null, signal);
+			});
+			return true;
+		};
+		child.stdout.write("partial stdout\n");
+		child.stderr.write("partial stderr\n");
+		return child as unknown as ChildProcessWithoutNullStreams;
+	};
+
+	await assert.rejects(
+		runApplyPatchProcess("/fake/apply_patch", "raw patch", "/workspace", undefined, spawnProcess),
+		(error) => {
+			assert.ok(error instanceof Error);
+			assert.match(error.message, /Could not send the patch.*injected stdin failure/);
+			assert.match(error.message, /partial stdout/);
+			assert.match(error.message, /partial stderr/);
+			return true;
+		},
+	);
+});
+
+test("a child spawn error is observed through the close lifecycle", async () => {
+	await assert.rejects(
+		runApplyPatchProcess(
+			path.join(tmpdir(), `missing-apply-patch-${process.pid}`),
+			"raw patch",
+			process.cwd(),
+			undefined,
+		),
+		/Could not run apply_patch: spawn .* ENOENT/,
+	);
 });
 
 function registerActivationFixture(initialActive: string[]) {
 	let active = [...initialActive];
 	let registeredTool: ToolDefinition | undefined;
 	let providerRegistered = false;
+	const setCalls: string[][] = [];
 	const handlers = new Map<string, (...args: never[]) => unknown>();
-	// registerCodexCompat uses only the API methods implemented by this activation harness.
 	const pi = {
 		registerTool(tool: ToolDefinition) {
 			registeredTool = tool;
@@ -121,18 +260,21 @@ function registerActivationFixture(initialActive: string[]) {
 		},
 		setActiveTools(names: string[]) {
 			active = [...names];
+			setCalls.push([...names]);
 		},
 		on(name: string, handler: (...args: never[]) => unknown) {
 			handlers.set(name, handler);
 		},
 	} as unknown as ExtensionAPI;
-	registerCodexCompat(pi);
-	// Registration fixes these event names and handler shapes; the harness invokes only those shapes.
+	registerCodexCompat(pi, { executable: FAKE_EXECUTABLE });
 	const sessionStart = handlers.get("session_start") as unknown as (_event: object, ctx: { model: Model<Api> }) => void;
 	const modelSelect = handlers.get("model_select") as unknown as (event: { model: Model<Api> }) => void;
 	return {
 		get active() {
 			return [...active];
+		},
+		get setCalls() {
+			return setCalls.map((names) => [...names]);
 		},
 		registeredTool,
 		providerRegistered,
@@ -145,9 +287,14 @@ function registerActivationFixture(initialActive: string[]) {
 	};
 }
 
-test("activation is scoped to openai-codex and no longer registers a direct API provider", () => {
+test("activation remains scoped to openai-codex with the exact upstream description", () => {
 	const fixture = registerActivationFixture(["read", "edit", "write"]);
+	assert.equal(
+		APPLY_PATCH_TOOL_DESCRIPTION,
+		"Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.",
+	);
 	assert.equal(fixture.registeredTool?.executionMode, "sequential");
+	assert.equal(fixture.registeredTool?.description, APPLY_PATCH_TOOL_DESCRIPTION);
 	assert.equal(fixture.providerRegistered, false);
 	fixture.start(model());
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
@@ -155,4 +302,34 @@ test("activation is scoped to openai-codex and no longer registers a direct API 
 	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
 	fixture.select(model());
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
+});
+
+test("activation is idempotent and restores only built-ins it suppressed", () => {
+	const fixture = registerActivationFixture(["read", "edit"]);
+	const codex = model({ provider: "openai-codex" });
+
+	fixture.start(codex);
+	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]]);
+
+	fixture.start(codex);
+	fixture.select(codex);
+	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]], "repeated Codex selection must be a no-op");
+
+	fixture.select(model());
+	assert.deepEqual(fixture.active, ["read", "edit"], "write was never suppressed and must not be added");
+	assert.deepEqual(fixture.setCalls, [
+		["read", "apply_patch"],
+		["read", "edit"],
+	]);
+
+	fixture.select(model());
+	assert.equal(fixture.setCalls.length, 2, "repeated non-Codex selection must be a no-op");
+});
+
+test("non-Codex startup removes only a pre-existing apply_patch activation", () => {
+	const fixture = registerActivationFixture(["read", "apply_patch"]);
+	fixture.start(model());
+	assert.deepEqual(fixture.active, ["read"]);
+	assert.deepEqual(fixture.setCalls, [["read"]]);
 });

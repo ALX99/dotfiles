@@ -1,6 +1,7 @@
 ---
 name: create-pr
 description: Use when the user asks to create, open, make, draft, raise, or submit a PR / pull request / MR. Triggers on phrases like "create a PR", "open a PR", "make a PR", "draft a PR", "PR this", "raise a pull request", "submit a PR", "push and PR". MUST be used instead of calling `gh pr create` directly.
+disable-model-invocation: true
 ---
 
 ## Context

@@ -2,10 +2,25 @@ import { test, type TestContext } from "node:test";
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import fc from "fast-check";
 import { discoverAgents } from "../agents.ts";
 import { parseAgentEvent } from "../event-schema.ts";
 import { OutputSpool } from "../output-spool.ts";
-import { argsPreview, foldAgentEvent, type MutableRunData } from "../run-state.ts";
+import {
+	MAX_ARGUMENT_PREVIEW_CHARACTERS,
+	MAX_RETAINED_EVENT_TEXT_CHARACTERS,
+	MAX_RETAINED_IDENTITY_CHARACTERS,
+	argsPreview,
+	foldAgentEvent,
+	type MutableRunData,
+	type ReadonlyNestedRunDetails,
+} from "../run-state.ts";
+
+const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+function graphemeCount(value: string): number {
+	return Array.from(segmenter.segment(value)).length;
+}
 
 function fresh(t: TestContext): {
 	readonly details: MutableRunData;
@@ -330,4 +345,92 @@ test("event folding marks a completed nested spawn_agent", async (t) => {
 
 	assert.equal(d.nestedRuns[0]?.status, "completed");
 	assert.equal(d.nestedRuns[0]?.lastMessage, "done");
+});
+
+test("retained event snapshots stay bounded for arbitrary tool arguments and nested results", async (t) => {
+	const { details } = fresh(t);
+	const output = new OutputSpool();
+	t.after(() => output.close());
+
+	await fc.assert(
+		fc.asyncProperty(
+			fc.dictionary(fc.string({ maxLength: 20 }), fc.jsonValue(), { maxKeys: 30 }),
+			fc.string({ maxLength: 2_000 }),
+			fc.array(
+				fc.record({
+					name: fc.string({ maxLength: 2_000 }),
+					argsPreview: fc.string({ maxLength: 2_000 }),
+				}),
+				{ maxLength: 20 },
+			),
+			async (args, retained, tools) => {
+				assert.ok(graphemeCount(argsPreview(args)) <= MAX_ARGUMENT_PREVIEW_CHARACTERS);
+				const nested = (depth: number): Record<string, unknown> => ({
+					toolCallId: retained,
+					agent: retained,
+					taskName: retained,
+					lastMessage: retained,
+					recentTools: tools,
+					nestedRuns: depth === 0 ? [] : [nested(depth - 1)],
+				});
+				details.nestedRuns = [];
+				await foldAgentEvent(
+					{ type: "tool_execution_start", toolCallId: retained, toolName: "spawn_agent", args },
+					details,
+					output,
+				);
+				await foldAgentEvent(
+					{
+						type: "tool_execution_end",
+						toolCallId: retained,
+						toolName: "spawn_agent",
+						result: { details: nested(6) },
+						isError: false,
+					},
+					details,
+					output,
+				);
+
+				const assertNestedBounds = (run: ReadonlyNestedRunDetails, depth: number): void => {
+					assert.ok(depth <= 4);
+					assert.ok(graphemeCount(run.taskName) <= MAX_RETAINED_EVENT_TEXT_CHARACTERS);
+					assert.ok(graphemeCount(run.lastMessage) <= MAX_RETAINED_EVENT_TEXT_CHARACTERS);
+					assert.ok(run.recentTools.length <= 8);
+					for (const tool of run.recentTools) {
+						assert.ok(graphemeCount(tool.argsPreview) <= MAX_ARGUMENT_PREVIEW_CHARACTERS);
+					}
+					assert.ok(run.nestedRuns.length <= 8);
+					for (const child of run.nestedRuns) assertNestedBounds(child, depth + 1);
+				};
+				for (const run of details.nestedRuns) assertNestedBounds(run, 1);
+			},
+		),
+	);
+});
+
+test("assistant errors, messages, and tool names are bounded before snapshots retain them", async (t) => {
+	const { details } = fresh(t);
+	const output = new OutputSpool();
+	t.after(() => output.close());
+	const huge = "界".repeat(MAX_RETAINED_EVENT_TEXT_CHARACTERS * 4);
+	await foldAgentEvent(
+		{
+			type: "message_end",
+			message: {
+				role: "assistant",
+				stopReason: "error",
+				errorMessage: huge,
+				content: [
+					{ type: "text", text: huge },
+					{ type: "toolCall", name: huge, arguments: { command: huge } },
+				],
+			},
+		},
+		details,
+		output,
+	);
+	assert.ok(graphemeCount(details.assistantError ?? "") <= MAX_RETAINED_EVENT_TEXT_CHARACTERS);
+	assert.ok(graphemeCount(details.lastMessage) <= MAX_RETAINED_EVENT_TEXT_CHARACTERS);
+	assert.ok(graphemeCount(details.recentTools[0]?.name ?? "") <= MAX_RETAINED_IDENTITY_CHARACTERS);
+	assert.ok(graphemeCount(details.recentTools[0]?.argsPreview ?? "") <= MAX_ARGUMENT_PREVIEW_CHARACTERS);
 });

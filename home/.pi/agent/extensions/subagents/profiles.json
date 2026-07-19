@@ -1,15 +1,15 @@
 {
 	"rootPolicy": {
-		"maxDirectAgents": 4,
-		"maxDeepAgents": 1,
-		"maxDelegationGrant": 2
+		"maxConcurrentRootAgents": 4,
+		"maxConcurrentDeepAgents": 1,
+		"maxSpawnBudgetPerChild": 2
 	},
 	"profiles": {
 		"fast": {
 			"description": "Fast, economical work",
 			"delegationEnabled": true,
 			"countsTowardDeepAgentCap": false,
-			"models": [
+			"modelPriority": [
 				{ "id": "openrouter/poolside/laguna-m.1:free", "defaultThinking": "high", "maxThinking": "high" },
 				{ "id": "opencode-go/deepseek-v4-flash", "defaultThinking": "high", "maxThinking": "high" }
 			]
@@ -18,7 +18,7 @@
 			"description": "Routine implementation and analysis with moderate cost",
 			"delegationEnabled": true,
 			"countsTowardDeepAgentCap": false,
-			"models": [
+			"modelPriority": [
 				{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "high", "maxThinking": "high" },
 				{ "id": "opencode-go/glm-5.2", "defaultThinking": "high", "maxThinking": "high" }
 			]
@@ -27,7 +27,7 @@
 			"description": "Careful work for consequential tasks",
 			"delegationEnabled": false,
 			"countsTowardDeepAgentCap": true,
-			"models": [{ "id": "openai-codex/gpt-5.6-sol", "defaultThinking": "high", "maxThinking": "xhigh" }]
+			"modelPriority": [{ "id": "openai-codex/gpt-5.6-sol", "defaultThinking": "high", "maxThinking": "xhigh" }]
 		}
 	},
 	"agentPolicies": {
@@ -39,14 +39,19 @@
 		"worker": {
 			"defaultProfile": "balanced",
 			"allowedProfiles": ["fast", "balanced", "deep-thinker"],
-			"delegation": { "mode": "leaf" }
+			"delegation": {
+				"mode": "grant-required",
+				"maxLifetimeChildSpawns": 2,
+				"allowedChildAgents": ["scout"],
+				"allowedChildProfiles": ["fast"]
+			}
 		},
 		"general": {
 			"defaultProfile": "balanced",
 			"allowedProfiles": ["fast", "balanced", "deep-thinker"],
 			"delegation": {
 				"mode": "grant-required",
-				"maxDirectChildren": 2,
+				"maxLifetimeChildSpawns": 2,
 				"allowedChildAgents": ["scout"],
 				"allowedChildProfiles": ["fast"]
 			}
