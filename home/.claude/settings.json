@@ -90,8 +90,7 @@
     "command": "~/.claude/status"
   },
   "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true,
-    "lsp@alx99-personal": true
+    "superpowers@superpowers-marketplace": true
   },
   "spinnerVerbs": {
     "mode": "replace",
