@@ -7,10 +7,10 @@ local lsp_formatters = {
   go = 'gopls',
   html = 'html',
   css = 'cssls',
-  javascript = 'tsgo',
-  javascriptreact = 'tsgo',
-  typescript = 'tsgo',
-  typescriptreact = 'tsgo',
+  javascript = 'tsc',
+  javascriptreact = 'tsc',
+  typescript = 'tsc',
+  typescriptreact = 'tsc',
 }
 
 local external_formatters = {
