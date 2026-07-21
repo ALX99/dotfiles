@@ -21,7 +21,7 @@ local enabled_lsps = {
   "html",
   "cssls",
   "tailwindcss",
-  "tsgo",
+  "tsc",
   "terraformls",
   "eslint",
   "gopls",
