@@ -15,6 +15,35 @@ Follow the repository's supported Go version and local conventions. Prefer the s
 - Verify version-sensitive APIs against installed documentation or official release notes rather than relying on training data.
 - Do not use draft, experimental, or prerelease APIs by default.
 
+## Semantic navigation with `gopls`
+
+Use `gopls` from the module root for semantic navigation before text search.
+Positions are `path/file.go:line:column` (1-based).
+
+```sh
+gopls definition ./internal/cache/cache.go:42:7
+gopls references ./internal/cache/cache.go:42:7
+gopls implementation ./internal/cache/cache.go:42:7
+gopls call_hierarchy ./internal/cache/cache.go:42:7
+gopls signature ./internal/cache/cache.go:42:7
+gopls workspace_symbol -matcher=fuzzy Cache
+gopls symbols ./internal/cache/cache.go
+gopls check ./internal/cache/cache.go
+```
+
+Use `references -declaration` to exclude the declaration. `gopls` output
+locations can be used directly in follow-up commands.
+
+```sh
+gopls prepare_rename ./internal/cache/cache.go:42:7
+gopls rename -diff ./internal/cache/cache.go:42:7 NewName
+gopls format -diff ./internal/cache/cache.go
+gopls imports -diff ./internal/cache/cache.go
+gopls codeaction -kind=quickfix -exec -diff ./internal/cache/cache.go
+```
+
+Use `-write` only when applying a change.
+
 ## Contracts and validation
 
 - Follow conventional Go and API contracts even when they are not repeated in local documentation.
