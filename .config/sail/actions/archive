@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-set -e
+set -eo pipefail
 
 archive_name="$(basename "$1").tar.zst"
 
 # Add timestamp if archive exists
 [ -f "$archive_name" ] && archive_name="$(basename "$1")_$(date +%Y%m%d_%H%M%S).tar.zst"
 
+trap 'rm -f -- "$archive_name"' ERR
 tar -cf - "$@" | zstd -T0 >"$archive_name"
+trap - ERR
