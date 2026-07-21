@@ -1,17 +1,17 @@
 {
-  "version": "0.80.10",
+  "version": "0.81.0",
   "targets": [
     {
       "targetRelative": "dist/api/openai-responses-shared.js",
       "beforeSha256": "e2b24951ab498820c6f873a2a2e48ba342ecc5b282e9cbfb9a201ea1873f44b7",
       "afterSha256": "c1bd5e00befa53942e73f9e44b818933c483074971525c7b674703d43e2a9a8c",
-      "patch": "pi-ai-0.80.10-openai-responses-apply-patch-custom-tool.patch"
+      "patch": "pi-ai-0.81.0-openai-responses-apply-patch-custom-tool.patch"
     },
     {
       "targetRelative": "dist/api/openai-codex-responses.js",
-      "beforeSha256": "7d0cafd990d6df68bb5aa36dc837f9b71f31504a09905602a7cce8e37b8a3834",
-      "afterSha256": "471eff3e5fa11ac09ed8fcefd643dccebde4ee621b0663254cc1edacc1b83bde",
-      "patch": "pi-ai-0.80.10-codex-custom-tool-continuation.patch"
+      "beforeSha256": "2f6ecfcc6a695b5094f4317fe042d2edd07525b9962e8db1afff4f694ecfdbf0",
+      "afterSha256": "7c8c796da1e7ace5788f97045e05f73ec30093da28f9ac0109571071ae7d0bf4",
+      "patch": "pi-ai-0.81.0-codex-custom-tool-continuation.patch"
     }
   ]
 }
