@@ -7,11 +7,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
-import { runInstaller } from "../apply-pi-ai-0.80.10.mjs";
+import { runInstaller } from "../apply-pi-ai-0.81.0.mjs";
 import { assertPatchAssets, loadPatchManifest } from "../manifest.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SCRIPT = resolve(HERE, "../apply-pi-ai-0.80.10.mjs");
+const SCRIPT = resolve(HERE, "../apply-pi-ai-0.81.0.mjs");
 const manifest = await loadPatchManifest(resolve(HERE, "../pi-ai-patch-manifest.json"));
 const VERSION = manifest.version;
 const [sharedTarget, codexTarget] = manifest.targets;
@@ -131,7 +131,7 @@ async function makeFixture(t) {
         await writeFile(target, before);
     }
     else {
-        assert.equal(installedHash, BEFORE_SHA256, "installed Pi 0.80.10 codec must match a pinned pre/post image");
+        assert.equal(installedHash, BEFORE_SHA256, "installed Pi 0.81.0 codec must match a pinned pre/post image");
     }
     const installedCodex = await readFile(codexTarget, "utf8");
     const installedCodexHash = sha256(installedCodex);
@@ -155,7 +155,7 @@ test("patch manifest parser rejects malformed metadata and installer assets", as
     t.after(() => rm(root, { recursive: true, force: true }));
     const manifestPath = join(root, "manifest.json");
     const valid = {
-        version: "0.80.10",
+        version: "0.81.0",
         targets: [{
             targetRelative: "dist/api/target.js",
             beforeSha256: "a".repeat(64),
@@ -165,7 +165,7 @@ test("patch manifest parser rejects malformed metadata and installer assets", as
     };
     const cases = [
         ["requires exact root keys", (value) => { value.extra = true; }, /root must contain exactly/],
-        ["requires an exact version", (value) => { value.version = "^0.80.10"; }, /version must be an exact version string/],
+        ["requires an exact version", (value) => { value.version = "^0.81.0"; }, /version must be an exact version string/],
         ["requires targets", (value) => { value.targets = []; }, /targets must be a nonempty array/],
         ["requires exact target keys", (value) => { delete value.targets[0].patch; }, /targets\[0\] must contain exactly/],
         ["rejects duplicate targets", (value) => { value.targets.push(structuredClone(value.targets[0])); }, /targetRelative is duplicated/],

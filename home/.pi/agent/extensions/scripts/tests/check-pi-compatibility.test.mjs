@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { checkPiCompatibility, PI_PACKAGES } from "../check-pi-compatibility.mjs";
 
-const VERSION = "0.80.10";
+const VERSION = "0.81.0";
 
 async function fixture() {
 	const root = await mkdtemp(join(tmpdir(), "pi-compat-"));
@@ -74,7 +74,7 @@ test("rejects ranges, version drift, unknown hashes, and a mismatched patch vers
 	await writeFile(packagePath, JSON.stringify(packageJson));
 	const installedPath = join(files.extensionRoot, "node_modules", PI_PACKAGES[1], "package.json");
 	await writeFile(installedPath, JSON.stringify({ name: PI_PACKAGES[1], version: "0.80.11" }));
-	await assert.rejects(checkPiCompatibility(files.options), /expected 0\.80\.10/);
+	await assert.rejects(checkPiCompatibility(files.options), /expected 0\.81\.0/);
 
 	await writeFile(installedPath, JSON.stringify({ name: PI_PACKAGES[1], version: VERSION }));
 	await writeFile(files.target, "unknown");
@@ -82,9 +82,9 @@ test("rejects ranges, version drift, unknown hashes, and a mismatched patch vers
 
 	await writeFile(files.target, "original");
 	const manifest = JSON.parse(await readFile(files.manifestPath, "utf8"));
-	manifest.version = "0.80.11";
+	manifest.version = "0.81.1";
 	await writeFile(files.manifestPath, JSON.stringify(manifest));
-	await assert.rejects(checkPiCompatibility(files.options), /native patch expects Pi 0\.80\.11/);
+	await assert.rejects(checkPiCompatibility(files.options), /native patch expects Pi 0\.81\.1/);
 });
 
 test("rejects malformed native patch manifests before inspecting Pi targets", async (t) => {
