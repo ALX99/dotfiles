@@ -1,42 +1,53 @@
 ---
 name: commit
-description: Create a git commit. Use whenever you or the user wants to create a commit.
-disable-model-invocation: true
+description: Create a git commit. Use before creating a git commit.
 ---
 
-## Context
+Create one coherent git commit.
 
-- To check if anything is staged: `git diff --cached --quiet && echo "nothing staged" || echo "HAS STAGED CHANGES"`
-- Use the description the user provided when invoking this skill. If none was given, assume "staged changes".
+Inspect the repository changes and use any description supplied by the user to
+determine what belongs in the commit. Stage the relevant changes before
+committing.
 
-### `git status -s` output
+Do not include unrelated changes. If the intended commit is unclear, or the
+changes cannot be separated confidently, ask the user what to include.
 
-Run `git status -s` to see the staged changes. The first column shows the staging area (index), the second shows the working tree:
-  - `M ` (first column) = staged
-  - ` M` (second column) = unstaged but modified
-  - `??` = untracked
+Use Conventional Commits:
 
-## Your task
-
-Create a single git commit using **Conventional Commits** format:
-
-```
-<type>(<scope>): <short summary>
+```text
+<type>[optional scope]: <summary>
 ```
 
-- **type**: `feat` (new feature), `fix` (bug fix only), `refactor` (restructure without behavior change), `chore` (general random things — build config, deps, minor tweaks, misc), `docs` (documentation), `test` (testing), `perf` (performance), `ci` (CI/CD pipeline, workflows, actions, infra), `build` (build system, tooling)
-- **scope**: optional, the BROAD area of the codebase (e.g. `nvim`, `tmux`, `shell`, `backend`, `frontend`), not individual features
-- **summary**: imperative, lowercase, no period, max 50 chars (hard limit 72)
+Choose the type based on the purpose and outcome:
 
-**Litmus test**: a new contributor should understand the problem, why it matters, and the impact without opening files or reading the diff. Avoid code identifiers, filenames, and function names in the summary unless they ARE the user-facing impact.
+* `feat`: adds or materially changes behavior
+* `fix`: corrects an actual bug or unintended behavior
+* `refactor`: restructures code without changing behavior
+* `perf`: improves performance
+* `docs`: documentation only
+* `test`: tests only
+* `build`: dependencies, build tooling, or packaging
+* `ci`: CI/CD configuration
+* `chore`: maintenance that does not fit another type
 
-- Bad: `Add NameFromHex with sync.Once lazy init`
-- Good: `Improve color name lookup performance while keeping startup fast`
-- Bad: `fix: nil pointer in session.go`
-- Good: `fix: prevent session loading from crashing on missing metadata`
+Do not use `fix` merely because an implementation, dependency, or
+configuration was updated.
 
-Draft 1-2 sentences focused on the "why" and outcome, not a list of files or implementation details. Use clear verbs: `add` (new capability), `update` (enhancement), `fix` (bug fix). Add a body only when the "why" isn't obvious from the summary; wrap body lines at 72 chars.
+The scope is optional. Use a broad, stable area of the codebase, such as
+`shell`, `nvim`, `backend`, or `frontend`. Prefer scopes already used by the
+repository. Do not use filenames, function names, or narrow implementation
+details. Omit the scope when no single area clearly fits.
 
-If the changes span multiple unrelated areas, pick the most significant one for the type/scope.
+The summary must be imperative, lowercase, have no trailing period, and stay
+under 72 characters. Describe the outcome or problem solved rather than the
+files or implementation details.
 
-Do not send any other text or messages besides tool calls (except when asking the user what to commit).
+Add a short body only when the motivation or impact is not obvious.
+
+Do not discard existing changes, amend commits, bypass hooks, or commit
+suspected secrets unless explicitly requested.
+
+After committing, verify the commit and remaining working-tree changes.
+
+Do not narrate routine steps. Only send a message when user input is required
+or the commit cannot safely be created.
