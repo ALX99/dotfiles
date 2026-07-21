@@ -40,6 +40,19 @@ local function get_session_file()
   return session_dir .. "/" .. vim.fn.sha256(cwd) .. ".vim"
 end
 
+-- The generated session script recreates buffers for every saved window.
+-- Remove regular-file buffers whose paths have disappeared after restoration.
+local function discard_deleted_file_buffers()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    if vim.bo[bufnr].buftype == "" and name ~= ""
+      and vim.fn.filereadable(name) == 0
+      and vim.fn.isdirectory(name) == 0 then
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end
+  end
+end
+
 -- Create the dir if it doesn't exist
 vim.fn.mkdir(session_dir, "p")
 
@@ -56,7 +69,10 @@ _G.Config.new_autocmd("VimEnter", {
     if should_save_session() then
       active_session_file = get_session_file()
       if vim.fn.filereadable(active_session_file) ~= 0 then
-        local ok, err = pcall(vim.cmd.source, active_session_file)
+        -- Prevent plugins from reacting while the generated session script
+        -- briefly creates buffers for paths that may no longer exist.
+        local ok, err = pcall(vim.cmd, "noautocmd source " .. vim.fn.fnameescape(active_session_file))
+        discard_deleted_file_buffers()
         if not ok then
           vim.notify('Session restore failed: ' .. err, vim.log.levels.WARN)
         end
