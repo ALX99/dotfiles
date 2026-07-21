@@ -37,9 +37,9 @@ Node 26+ is required. In `home/.pi/agent/extensions/`, use tabs and let
 suite. Tests use Node’s built-in runner, for example:
 `npm run test:extensions`.
 
-Pi, Pi AI, and Pi TUI are pinned to `0.80.10`. Changes to compatibility code
+Pi, Pi AI, and Pi TUI are pinned to `0.81.0`. Changes to compatibility code
 must keep `misc/pi-patches/`, its manifest, extension behavior, and tests in
-sync; run `node misc/pi-patches/apply-pi-ai-0.80.10.mjs --check`.
+sync; run `node misc/pi-patches/apply-pi-ai-0.81.0.mjs --check`.
 For shell edits, run `bash -n home/.bashrc home/.profile`; CI also runs
 ShellCheck.
 

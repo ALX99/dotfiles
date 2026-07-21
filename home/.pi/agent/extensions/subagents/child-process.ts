@@ -46,7 +46,7 @@ export function serializeChildExecutionContext(context: ChildExecutionContext): 
  * discovered APPEND_SYSTEM.md. Build one append prompt so the role remains at
  * Pi's append layer, after the policy selected by Pi's project-trust rules.
  *
- * RPC children cannot ask for trust interactively. This mirrors Pi 0.80.10's
+ * RPC children cannot ask for trust interactively. This mirrors Pi 0.81.0's
  * non-interactive trust-store/default-policy decision. Project-trust extension
  * handlers remain Pi-owned runtime behavior and are intentionally not
  * reimplemented here.

@@ -23,7 +23,7 @@ against the code when practical. Do not implement changes or make final review,
 design, correctness, severity, or issue verdicts.
 
 Work read-only. The tool allowlist grants only Pi's read, find, and grep tools:
-it grants no shell, edit, or write capability. Pi 0.80.10 has no filesystem or
+it grants no shell, edit, or write capability. Pi 0.81.0 has no filesystem or
 command sandbox for this role, so this is tool-level enforcement rather than an
 OS-level isolation boundary. Do not attempt indirect state-changing actions.
 

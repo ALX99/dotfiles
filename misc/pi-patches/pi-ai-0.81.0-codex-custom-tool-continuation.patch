@@ -1,6 +1,6 @@
 --- a/dist/api/openai-codex-responses.js
 +++ b/dist/api/openai-codex-responses.js
-@@ -31,6 +31,44 @@
+@@ -32,6 +32,44 @@
  // endpoint (the same endpoint the official Codex client compresses against).
  const REQUEST_COMPRESSION_ZSTD_LEVEL = 3;
  const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
@@ -45,7 +45,7 @@
  const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
  const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
  const CODEX_RESPONSE_STATUSES = new Set([
-@@ -339,9 +377,13 @@
+@@ -340,9 +378,13 @@
  // ============================================================================
  function buildRequestBody(model, context, options) {
      const toolPlacement = splitDeferredTools(context, model.compat?.supportsToolSearch ?? false);
@@ -59,7 +59,7 @@
      });
      const body = {
          model: model.id,
-@@ -353,7 +395,7 @@
+@@ -354,7 +396,7 @@
          include: ["reasoning.encrypted_content"],
          prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
          tool_choice: options?.toolChoice ?? "auto",
@@ -68,7 +68,7 @@
      };
      if (options?.temperature !== undefined) {
          body.temperature = options.temperature;
-@@ -362,7 +404,10 @@
+@@ -363,7 +405,10 @@
          body.service_tier = options.serviceTier;
      }
      if (toolPlacement.immediate.length > 0) {
@@ -80,7 +80,7 @@
      }
      if (options?.reasoningEffort !== undefined) {
          const effort = options.reasoningEffort === "none"
-@@ -1114,9 +1159,12 @@
+@@ -1115,9 +1160,12 @@
              keepConnection = false;
          }
          else if (useCachedContext && entry && output.responseId) {

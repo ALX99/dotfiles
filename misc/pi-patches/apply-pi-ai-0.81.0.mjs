@@ -35,7 +35,7 @@ function parseArgs(argv) {
             piRoot = resolve(argv[++i]);
         }
         else if (arg === "--help" || arg === "-h") {
-            console.log("Usage: apply-pi-ai-0.80.10.mjs [--check] [--pi-root PATH]");
+            console.log("Usage: apply-pi-ai-0.81.0.mjs [--check] [--pi-root PATH]");
             process.exit(0);
         }
         else {
