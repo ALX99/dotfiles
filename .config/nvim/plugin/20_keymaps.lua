@@ -19,8 +19,6 @@ map('n', '<C-d>', '<C-d>zz')
 map('n', '<C-u>', '<C-u>zz')
 
 -- Center search results when navigating
-map("n", "l", "nzzzv", { silent = true })
-map("n", "L", "Nzzzv", { silent = true })
 
 -- pack
 map("n", "<leader>Pu", function() vim.pack.update() end, { desc = "vimpack update - code action to skip some" })
