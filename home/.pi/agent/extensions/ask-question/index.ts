@@ -20,10 +20,10 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 			name: "ask_question",
 			label: "Ask Question",
 			description:
-				"Ask the user a multiple-choice question. Provide 2-5 alternatives. In the TUI, the user may select multiple alternatives; other interfaces accept one selection. The tool automatically adds 'Compare options' and 'Something else'. Use when you need the user to choose between specific options, ask for trade-offs, or provide a custom answer.",
-			promptSnippet: "Ask the user a multiple-choice question with 2-5 alternatives",
+				"Ask a multiple-choice question. Provide 2-5 alternatives. In the TUI, the responder may select multiple alternatives; other interfaces accept one selection. The tool automatically adds 'Compare options' and 'Something else'. Use when you need the responder to choose between specific options, ask for trade-offs, or provide a custom answer.",
+			promptSnippet: "Ask a multiple-choice question with 2-5 alternatives",
 			promptGuidelines: [
-				"Use ask_question when you need the user to pick from specific options, ask for trade-offs, or provide a custom answer.",
+				"Use ask_question when you need the responder to pick from specific options, ask for trade-offs, or provide a custom answer.",
 				"Keep alternatives short and distinct.",
 			],
 			parameters: AskQuestionParamsSchema,

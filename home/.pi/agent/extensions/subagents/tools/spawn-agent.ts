@@ -8,7 +8,7 @@ import { ManagedAgent } from "../managed-agent.ts";
 import { resolveRun } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import { createSpawnAgentSchema, type SpawnAgentSchemaOptions, trimOptional, trimRequired } from "../schemas.ts";
-import { textResult, toolError } from "../tool-results.ts";
+import { formatPendingQuestion, textResult, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import type { SpawnRpcProcess } from "../rpc-transport.ts";
@@ -83,6 +83,7 @@ export function createSpawnAgentTool(
 						: {}),
 					onStartupComplete: () => reservation.commit(),
 					onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+					onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
 				});
 				await runtime.registry.add(managed);
 				const details = await managed.start(
@@ -93,7 +94,10 @@ export function createSpawnAgentTool(
 					background ? undefined : signal,
 				);
 				const summary = managed.summary();
-				return textResult(background ? formatLaunch(summary) : formatCompletion(summary), details);
+				return textResult(
+					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatCompletion(summary)),
+					details,
+				);
 			} catch (error) {
 				reservation.release();
 				if (managed && !managed.isAvailable()) runtime.registry.delete(managed.id);

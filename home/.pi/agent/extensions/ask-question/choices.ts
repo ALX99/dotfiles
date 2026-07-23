@@ -2,7 +2,7 @@ import type { AskQuestionDetails, AskQuestionInput } from "./schema.ts";
 
 export const COMPARE_OPTION = "Compare options";
 export const OTHER_OPTION = "Something else";
-export const NO_ANSWER_MSG = "User declined to answer, await further instructions.";
+export const NO_ANSWER_MSG = "Responder declined to answer, await further instructions.";
 
 export type QuestionOptionKind = "alternative" | "compare" | "other";
 
@@ -69,7 +69,7 @@ export function resolveChoices(
 	if (choices.some((choice) => choice.kind === "compare")) {
 		return makeResult(
 			params,
-			"The user requested a comparison of the alternatives. Explain the key pros, cons, and trade-offs for each alternative, then call ask_question again with the same question and alternatives.",
+			"The responder requested a comparison of the alternatives. Explain the key pros, cons, and trade-offs for each alternative, then call ask_question again with the same question and alternatives.",
 			null,
 			false,
 			"compare",
@@ -88,7 +88,8 @@ export function resolveChoices(
 		return makeResult(params, NO_ANSWER_MSG, null, false);
 	}
 
-	const prefix = custom !== undefined && answers.length === 1 ? "User answered (custom): " : "User selected: ";
+	const prefix =
+		custom !== undefined && answers.length === 1 ? "Responder answered (custom): " : "Responder selected: ";
 	return makeResult(params, `${prefix}${answers.join(", ")}`, answers, custom !== undefined);
 }
 

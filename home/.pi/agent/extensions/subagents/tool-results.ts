@@ -11,7 +11,7 @@ export interface AgentSummaryDetails {
 	readonly summaries: readonly AgentSummary[];
 }
 
-export type WaitOutcomeStatus = "settled" | "timed_out" | "cancelled" | "failed";
+export type WaitOutcomeStatus = "settled" | "waiting_input" | "deferred" | "timed_out" | "cancelled" | "failed";
 
 export interface WaitOutcome {
 	readonly agent_id: string;
@@ -27,6 +27,22 @@ export interface WaitDetails extends AgentSummaryDetails {
 
 export function agentSummaryDetails(summaries: readonly AgentSummary[]): AgentSummaryDetails {
 	return { summaries };
+}
+
+export function formatPendingQuestion(summary: AgentSummary): string | undefined {
+	const question = summary.pending_question;
+	if (!question) return undefined;
+	return `agent_id: ${summary.agent_id}
+status: waiting_input
+generation: ${summary.generation}
+question_id: ${question.question_id}
+
+${question.question}
+
+Options:
+${question.options.map((option) => `- ${option}`).join("\n")}
+
+Answer with answer_agent. If external input is required, call ask_question first with only the substantive alternatives; it adds 'Compare options' and 'Something else' automatically.`;
 }
 
 export function waitDetails(

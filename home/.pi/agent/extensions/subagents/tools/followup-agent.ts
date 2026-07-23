@@ -4,7 +4,7 @@ import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderManagementCall } from "../render.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import { FollowupAgentParamsSchema, trimOptional, trimRequired } from "../schemas.ts";
-import { textResult } from "../tool-results.ts";
+import { formatPendingQuestion, textResult } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 
 export function createFollowupAgentTool(
@@ -39,7 +39,8 @@ export function createFollowupAgentTool(
 			const summary = agent.summary();
 			const text = background
 				? `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\nCompletion will be delivered automatically. Use send_agent, followup_agent, wait_agent, interrupt_agent, or close_agent with this agent_id.`
-				: `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`;
+				: (formatPendingQuestion(summary) ??
+					`agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`);
 			return textResult(text, details);
 		},
 		renderCall(args, theme, context) {

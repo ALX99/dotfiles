@@ -3,7 +3,7 @@ import { Check } from "typebox/value";
 
 export const AskQuestionParamsSchema = Type.Object(
 	{
-		question: Type.String({ description: "The question to ask the user" }),
+		question: Type.String({ description: "The question to ask the responder" }),
 		alternatives: Type.Array(Type.String({ minLength: 1, description: "One alternative answer option" }), {
 			minItems: 2,
 			maxItems: 5,
