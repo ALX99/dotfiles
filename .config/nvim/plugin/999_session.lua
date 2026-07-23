@@ -69,9 +69,9 @@ _G.Config.new_autocmd("VimEnter", {
     if should_save_session() then
       active_session_file = get_session_file()
       if vim.fn.filereadable(active_session_file) ~= 0 then
-        -- Prevent plugins from reacting while the generated session script
-        -- briefly creates buffers for paths that may no longer exist.
-        local ok, err = pcall(vim.cmd, "noautocmd source " .. vim.fn.fnameescape(active_session_file))
+        -- Session restoration relies on normal buffer and filetype events so
+        -- filetype plugins can initialize each restored buffer.
+        local ok, err = pcall(vim.cmd, "source " .. vim.fn.fnameescape(active_session_file))
         discard_deleted_file_buffers()
         if not ok then
           vim.notify('Session restore failed: ' .. err, vim.log.levels.WARN)
