@@ -4,13 +4,14 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry } from "../agent-registry.ts";
-import { AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
+import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import type { ChildExecutionContext } from "../child-process.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 import { initRunData, snapshotRunData, type ReadonlyRunDetails } from "../run-state.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
+import { createAnswerAgentTool } from "../tools/answer-agent.ts";
 import { createSpawnAgentTool, spawnGuidelines } from "../tools/spawn-agent.ts";
 import { DEFAULT_WAIT_MS, executeWaitAgent } from "../tools/wait-agent.ts";
 
@@ -125,6 +126,7 @@ function spawnRuntime(executionContext?: ChildExecutionContext): {
 		handleBackgroundComplete(pi, completed) {
 			completions.push({ pi, summary: completed });
 		},
+		handleQuestion() {},
 		consumeSettledCompletions() {},
 	};
 	return { runtime, registry, completions };
@@ -171,6 +173,36 @@ test("spawn_agent exposes concise delegation guidance without coupling to exact 
 	assert.ok(guidelines.some((guideline) => /fast: Fast/.test(guideline)));
 	assert.ok(guidelines.some((guideline) => /not every agent.*tree|no tree-wide agent cap/i.test(guideline)));
 	assert.ok(guidelines.every((guideline) => guideline.length < 500));
+});
+
+test("answer_agent sends the pending response and exposes escalation guidance", async () => {
+	const answers: Array<{ questionId: string; answer: string }> = [];
+	const runtime = {
+		registry: {
+			getLive() {
+				return {
+					async answerQuestion(questionId: string, answer: string) {
+						answers.push({ questionId, answer });
+					},
+					summary: () => summary("worker-1"),
+				};
+			},
+			list: () => [summary("worker-1")],
+		},
+	} as unknown as SubagentRuntime;
+	const tool = createAnswerAgentTool(runtime);
+
+	const result = await tool.execute(
+		"answer-call",
+		{ agent_id: " worker-1 ", question_id: " question-1 ", answer: " Flexible " },
+		undefined,
+		undefined,
+		toolContext(),
+	);
+
+	assert.deepEqual(answers, [{ questionId: "question-1", answer: "Flexible" }]);
+	assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /delivered to worker-1/);
+	assert.ok(tool.promptGuidelines?.some((guideline) => /ask_question/.test(guideline)));
 });
 
 test("spawn_agent completes a foreground transaction and leaves the reusable agent registry-owned", async (t) => {
@@ -417,6 +449,68 @@ test("wait_agent reports timeout and cancellation without interrupting other age
 		{ agent_id: "cancelled", status: "cancelled" },
 	]);
 	assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /"timed_out"/);
+});
+
+test("wait_agent returns a pending question without waiting for the rest of the wave", async () => {
+	const base = snapshotRunData(
+		initRunData({
+			agent: { name: "scout", description: "Scout", systemPrompt: "Scout", filePath: "scout.md" },
+			taskName: "inspect",
+			profile: "fast",
+			model: "provider/model",
+			effectiveThinking: "low",
+			parentDepth: 0,
+		}),
+		{ status: "running" },
+	);
+	const runtime = {
+		registry: {
+			wait(id: string, _timeout: number | undefined, signal: AbortSignal | undefined) {
+				if (id === "question") {
+					return Promise.resolve({
+						...base,
+						pendingQuestion: {
+							question_id: "question-1",
+							question: "Choose",
+							options: ["A", "B"],
+						},
+					});
+				}
+				return new Promise<ReadonlyRunDetails>((_resolve, reject) => {
+					signal?.addEventListener(
+						"abort",
+						() => {
+							const deferred = signal.reason instanceof AgentWaitDeferredReason;
+							reject(new AgentWaitInterruptedError(deferred ? "deferred" : "cancelled", id, signal.reason));
+						},
+						{ once: true },
+					);
+				});
+			},
+			summary(id: string) {
+				return id === "question"
+					? {
+							...summary(id),
+							status: "running" as const,
+							pending_question: {
+								question_id: "question-1",
+								question: "Choose",
+								options: ["A", "B"],
+							},
+						}
+					: { ...summary(id), status: "running" as const };
+			},
+		},
+		consumeSettledCompletions() {},
+	};
+
+	const result = await executeWaitAgent({ agent_ids: ["question", "still-running"] }, runtime, undefined);
+
+	assert.deepEqual(result.details?.outcomes, [
+		{ agent_id: "question", status: "waiting_input" },
+		{ agent_id: "still-running", status: "deferred" },
+	]);
+	assert.equal(result.details?.summaries[0]?.pending_question?.question_id, "question-1");
 });
 
 test("wait_agent propagates external cancellation immediately", async () => {

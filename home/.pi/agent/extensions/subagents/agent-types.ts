@@ -12,6 +12,12 @@ export type AgentLifecycle =
 
 export type AgentStatus = Exclude<AgentLifecycle["phase"], "created" | "closing">;
 
+export interface AgentQuestion {
+	readonly question_id: string;
+	readonly question: string;
+	readonly options: readonly string[];
+}
+
 export interface AgentSummary {
 	readonly agent_id: string;
 	readonly agent: string;
@@ -25,6 +31,7 @@ export interface AgentSummary {
 	readonly status: AgentStatus;
 	readonly final_text?: string;
 	readonly error?: string;
+	readonly pending_question?: AgentQuestion;
 }
 
 export interface AgentView {
@@ -32,7 +39,15 @@ export interface AgentView {
 	readonly details: ReadonlyRunDetails;
 }
 
-export type WaitInterruptionKind = "timed_out" | "cancelled";
+export type WaitInterruptionKind = "timed_out" | "cancelled" | "deferred";
+
+/** Internal reason used to release a wait wave when one child needs input. */
+export class AgentWaitDeferredReason extends Error {
+	constructor() {
+		super("Another agent in this wait wave needs input.");
+		this.name = "AgentWaitDeferredReason";
+	}
+}
 
 /** A wait ended without changing the subagent's underlying run. */
 export class AgentWaitInterruptedError extends Error {
@@ -40,7 +55,11 @@ export class AgentWaitInterruptedError extends Error {
 
 	constructor(kind: WaitInterruptionKind, agentId: string, cause?: unknown) {
 		super(
-			kind === "timed_out" ? `Timed out waiting for agent ${agentId}.` : `Waiting for agent ${agentId} was aborted.`,
+			kind === "timed_out"
+				? `Timed out waiting for agent ${agentId}.`
+				: kind === "deferred"
+					? `Stopped waiting for agent ${agentId} because another agent needs input.`
+					: `Waiting for agent ${agentId} was aborted.`,
 			{ cause },
 		);
 		this.name = "AgentWaitInterruptedError";

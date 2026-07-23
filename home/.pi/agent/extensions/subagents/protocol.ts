@@ -16,14 +16,30 @@ const FailureResponseSchema = z.object({
 	error: z.string().trim().min(1),
 });
 
-const ExtensionUiRequestSchema = z.object({
+const ExtensionUiRequestBaseSchema = z.object({
 	type: z.literal("extension_ui_request"),
 	id: z.string().min(1),
 	method: z.string().min(1),
 });
 
+const SelectUiRequestSchema = ExtensionUiRequestBaseSchema.extend({
+	method: z.literal("select"),
+	title: z.string().min(1),
+	options: z.array(z.string().min(1)).min(1).max(7),
+});
+
+const InputUiRequestSchema = ExtensionUiRequestBaseSchema.extend({
+	method: z.literal("input"),
+	title: z.string().min(1),
+	placeholder: z.string().optional(),
+});
+
+const ExtensionUiRequestSchema = z.union([SelectUiRequestSchema, InputUiRequestSchema, ExtensionUiRequestBaseSchema]);
+
 export type RpcResponse = Readonly<z.infer<typeof SuccessResponseSchema> | z.infer<typeof FailureResponseSchema>>;
 export type ExtensionUiRequest = Readonly<z.infer<typeof ExtensionUiRequestSchema>>;
+export type SelectUiRequest = Readonly<z.infer<typeof SelectUiRequestSchema>>;
+export type InputUiRequest = Readonly<z.infer<typeof InputUiRequestSchema>>;
 export type UnsupportedRpcEvent = Readonly<Record<string, unknown> & { type: string }>;
 export type RpcEvent = UnsupportedRpcEvent;
 
@@ -33,6 +49,14 @@ export type ParsedRpcRecord =
 	| { readonly kind: "agent-event"; readonly event: AgentEvent }
 	| { readonly kind: "event"; readonly event: RpcEvent }
 	| { readonly kind: "error"; readonly error: Error };
+
+export function isSelectUiRequest(request: ExtensionUiRequest): request is SelectUiRequest {
+	return request.method === "select" && "title" in request && "options" in request;
+}
+
+export function isInputUiRequest(request: ExtensionUiRequest): request is InputUiRequest {
+	return request.method === "input" && "title" in request;
+}
 
 export function parseRpcRecord(value: unknown): ParsedRpcRecord {
 	if (!isRecord(value) || typeof value.type !== "string" || value.type.length === 0) {

@@ -13,6 +13,11 @@ const agentId = Type.String({
 	maxLength: MAX_AGENT_ID_CHARS,
 	description: "Stable session-runtime agent ID.",
 });
+const questionId = Type.String({
+	...nonBlank,
+	maxLength: MAX_AGENT_ID_CHARS,
+	description: "Pending question ID reported by the child.",
+});
 const message = Type.String({
 	...nonBlank,
 	maxLength: MAX_MESSAGE_CHARS,
@@ -92,6 +97,19 @@ export const SendAgentParamsSchema = Type.Object(
 	{
 		agent_id: agentId,
 		message,
+	},
+	{ additionalProperties: false },
+);
+
+export const AnswerAgentParamsSchema = Type.Object(
+	{
+		agent_id: agentId,
+		question_id: questionId,
+		answer: Type.String({
+			...nonBlank,
+			maxLength: MAX_MESSAGE_CHARS,
+			description: "A listed option or a custom answer.",
+		}),
 	},
 	{ additionalProperties: false },
 );

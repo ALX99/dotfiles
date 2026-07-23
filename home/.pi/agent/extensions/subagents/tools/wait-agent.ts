@@ -10,7 +10,7 @@ import {
 	type WaitOutcomeStatus,
 } from "../tool-results.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
-import { AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
+import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
 
@@ -32,7 +32,7 @@ export function createWaitAgentTool(
 		name: "wait_agent",
 		label: "Wait Agent",
 		description:
-			"Wait up to fifteen minutes for specified subagents to settle. Settled results are consumed, preventing redundant automatic follow-up turns.",
+			"Wait up to fifteen minutes for specified subagents to settle or request input. Settled results are consumed, preventing redundant automatic follow-up turns.",
 		parameters: WaitAgentParamsSchema,
 		async execute(_id, params, signal) {
 			return executeWaitAgent(params, runtime, signal, now);
@@ -58,8 +58,19 @@ export async function executeWaitAgent(
 	// Promise.allSettled until the valid agents have finished.
 	for (const id of requested) runtime.registry.summary(id);
 	const startTime = now();
-	const waits = Promise.allSettled(requested.map((id) => runtime.registry.wait(id, DEFAULT_WAIT_MS, signal)));
+	const wave = new AbortController();
+	const waitSignal = signal ? AbortSignal.any([signal, wave.signal]) : wave.signal;
+	const waits = Promise.allSettled(
+		requested.map(async (id) => {
+			const details = await runtime.registry.wait(id, DEFAULT_WAIT_MS, waitSignal);
+			if (details.pendingQuestion && !wave.signal.aborted) {
+				wave.abort(new AgentWaitDeferredReason());
+			}
+			return details;
+		}),
+	);
 	await waitForSettlementsOrAbort(waits, signal);
+	signal?.throwIfAborted();
 	const summaries = requested.map((id) => runtime.registry.summary(id));
 	const outcomes = (await waits).map((outcome, index) => waitOutcome(requested[index]!, outcome));
 	runtime.consumeSettledCompletions(summaries);
@@ -90,7 +101,9 @@ async function waitForSettlementsOrAbort(
 }
 
 function waitOutcome(id: string, outcome: PromiseSettledResult<ReadonlyRunDetails>): WaitOutcome {
-	if (outcome.status === "fulfilled") return { agent_id: id, status: "settled" };
+	if (outcome.status === "fulfilled") {
+		return { agent_id: id, status: outcome.value.pendingQuestion ? "waiting_input" : "settled" };
+	}
 	const interruption = outcome.reason instanceof AgentWaitInterruptedError ? outcome.reason : undefined;
 	const status: WaitOutcomeStatus = interruption?.kind ?? "failed";
 	return {
