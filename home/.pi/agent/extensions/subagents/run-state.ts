@@ -1,6 +1,7 @@
 import { clipText, clipTextAtWord } from "../_shared/terminal-text.ts";
 import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
+import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentEvent, WireMessage } from "./event-schema.ts";
 import type { OutputSpool } from "./output-spool.ts";
 
@@ -63,6 +64,7 @@ export interface RunDetails extends MutableRunData {
 	agentId?: string;
 	generation?: number;
 	status?: RunStatus;
+	pendingQuestion?: AgentQuestion;
 	aborted: boolean;
 }
 

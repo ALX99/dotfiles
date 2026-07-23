@@ -49,6 +49,50 @@ const spawnRpcFake: SpawnRpcProcess = (_command, args, options) => {
 	return spawnRpcProcess(process.execPath, ["-e", rpcScript], options);
 };
 
+const questionRpcScript = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+function finish(answer) {
+  send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'answer:' + answer }], stopReason: 'stop' } });
+  send({ type: 'agent_settled' });
+}
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const line = buffer.slice(0, index); buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type === 'extension_ui_response') {
+      if (command.id === 'question-1' && command.value === 'Something else') {
+        send({ type: 'extension_ui_request', id: 'custom-1', method: 'input', title: 'Something else', placeholder: 'Type your answer...' });
+      } else {
+        finish(command.value ?? 'cancelled');
+      }
+      continue;
+    }
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-question.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, command: command.type, success: true, data });
+    if (command.type === 'prompt') {
+      send({ type: 'agent_start' });
+      setTimeout(() => {
+        send({
+          type: 'extension_ui_request',
+          id: 'question-1',
+          method: 'select',
+          title: 'Which implementation?',
+          options: ['Simple', 'Flexible', 'Compare options', 'Something else']
+        });
+      }, 5);
+    }
+  }
+});
+`;
+
+const spawnQuestionRpcFake: SpawnRpcProcess = (_command, _args, options) =>
+	spawnRpcProcess(process.execPath, ["-e", questionRpcScript], options);
+
 const testEnv: Record<string, string> = Object.fromEntries(
 	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
 );
@@ -157,7 +201,7 @@ test("ManagedAgent passes an explicit scout allowlist and no shell capability", 
 		agent: {
 			name: "scout",
 			description: "test",
-			tools: ["read", "find", "grep"],
+			tools: ["read", "find", "grep", "ask_question"],
 			systemPrompt: "",
 			filePath: "scout.md",
 		},
@@ -171,7 +215,7 @@ test("ManagedAgent passes an explicit scout allowlist and no shell capability", 
 	spawnedArgs.length = 0;
 	await agent.start("inspect", undefined, "inspect", false);
 	const invocation = spawnedArgs[0] ?? [];
-	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep");
+	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep,ask_question");
 	assert.equal(invocation.includes("--exclude-tools"), false);
 	assert.equal(invocation.includes("bash"), false);
 });
@@ -201,6 +245,31 @@ test("ManagedAgent passes role-provided custom tool names to the child", async (
 		const invocation = spawnedArgs[0] ?? [];
 		assert.equal(invocation[invocation.indexOf("--tools") + 1], tools.join(","));
 	}
+});
+
+test("delegation-enabled children receive answer_agent for their own direct children", async (t) => {
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "general",
+			description: "test",
+			tools: ["read", "ask_question"],
+			systemPrompt: "",
+			filePath: "general.md",
+		},
+		resolvedRun,
+		childContext,
+		subagentToolsEnabled: true,
+		spawnProcess: spawnRpcFake,
+	});
+	t.after(() => agent.close());
+
+	spawnedArgs.length = 0;
+	await agent.start("delegate", undefined, "delegate", false);
+	const invocation = spawnedArgs[0] ?? [];
+	const tools = (invocation[invocation.indexOf("--tools") + 1] ?? "").split(",");
+	assert.equal(tools.includes("ask_question"), true);
+	assert.equal(tools.includes("answer_agent"), true);
 });
 
 test("scouts inherit provider configuration but not SSH or GPG agent sockets", () => {
@@ -271,6 +340,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		"list_agents",
 		"interrupt_agent",
 		"close_agent",
+		"answer_agent",
 	]) {
 		assert.doesNotMatch(tools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
 	}
@@ -343,6 +413,74 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	await new Promise((resolve) => setImmediate(resolve));
 	assert.deepEqual(completions, ["done:third"], "closed background runs must not report failure completion");
 	assert.equal(agent.summary().status, "closed");
+});
+
+test("a foreground child question returns to its parent and resumes after a listed answer", async (t) => {
+	const questions: string[] = [];
+	const completions: string[] = [];
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "general",
+			description: "test",
+			tools: ["ask_question"],
+			systemPrompt: "",
+			filePath: "general.md",
+		},
+		resolvedRun,
+		childContext,
+		subagentToolsEnabled: false,
+		spawnProcess: spawnQuestionRpcFake,
+		onQuestion: (_summary, question) => questions.push(question.question_id),
+		onBackgroundComplete: (completed) => completions.push(completed.final_text ?? ""),
+	});
+	t.after(() => agent.close());
+
+	const waiting = await agent.start("choose", undefined, "choose", false);
+	assert.equal(waiting.pendingQuestion?.question_id, "question-1");
+	assert.deepEqual(waiting.pendingQuestion?.options, ["Simple", "Flexible", "Compare options", "Something else"]);
+	assert.deepEqual(questions, [], "a foreground tool result carries the question without a duplicate callback");
+	assert.equal(agent.summary().pending_question?.question, "Which implementation?");
+
+	await agent.answerQuestion("question-1", "Simple");
+	assert.equal(agent.summary().pending_question, undefined);
+	const settled = await agent.wait(1_000);
+	assert.equal(settled.finalText, "answer:Simple");
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(completions, ["answer:Simple"], "a question-interrupted foreground run is promoted");
+});
+
+test("a background child question notifies its parent and forwards a custom answer through RPC input", async (t) => {
+	const questions: Array<{ id: string; summaryQuestionId: string | undefined }> = [];
+	const agent = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "worker",
+			description: "test",
+			tools: ["ask_question"],
+			systemPrompt: "",
+			filePath: "worker.md",
+		},
+		resolvedRun: { ...resolvedRun, agent: "worker" },
+		childContext: { ...childContext, agent: "worker" },
+		subagentToolsEnabled: false,
+		spawnProcess: spawnQuestionRpcFake,
+		onQuestion: (summary, question) =>
+			questions.push({ id: question.question_id, summaryQuestionId: summary.pending_question?.question_id }),
+	});
+	t.after(() => agent.close());
+
+	const launched = await agent.start("choose", undefined, "choose", true);
+	assert.equal(launched.status, "launched");
+	for (let attempt = 0; questions.length === 0 && attempt < 100; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+	assert.deepEqual(questions, [{ id: "question-1", summaryQuestionId: "question-1" }]);
+	await assert.rejects(agent.answerQuestion("stale-question", "Flexible"), /no pending question/);
+
+	await agent.answerQuestion("question-1", "A custom approach");
+	const settled = await agent.wait(1_000);
+	assert.equal(settled.finalText, "answer:A custom approach");
 });
 
 test("wait timeout stops only the waiter and leaves the child running", async (t) => {

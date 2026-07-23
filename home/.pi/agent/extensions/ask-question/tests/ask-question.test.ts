@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import {
 	getOptionColor,
@@ -13,6 +14,7 @@ import {
 } from "../choices.ts";
 import { once, selectMultiple, type MultiSelectUi } from "../multi-select.ts";
 import { readAskQuestionDetails } from "../schema.ts";
+import askQuestionExtension from "../index.ts";
 
 const params = { question: "Pick a tool", alternatives: ["Fast", "Simple"] };
 type MultiSelectFactory = Parameters<MultiSelectUi["custom"]>[0];
@@ -70,7 +72,7 @@ test("resolveChoices handles a custom answer and trims it", () => {
 	const options = makeQuestionOptions(params.alternatives);
 	const result = resolveChoices(params, [required(options[3])], "  Something more flexible  ");
 
-	assert.equal(required(result.content[0]).text, "User answered (custom): Something more flexible");
+	assert.equal(required(result.content[0]).text, "Responder answered (custom): Something more flexible");
 	assert.deepEqual(result.details.answers, ["Something more flexible"]);
 	assert.equal(result.details.wasCustom, true);
 });
@@ -79,7 +81,7 @@ test("resolveChoices rejects blank custom answers", () => {
 	const options = makeQuestionOptions(params.alternatives);
 	const result = resolveChoices(params, [required(options[3])], "   ");
 
-	assert.equal(required(result.content[0]).text, "User declined to answer, await further instructions.");
+	assert.equal(required(result.content[0]).text, "Responder declined to answer, await further instructions.");
 	assert.equal(result.details.answer, null);
 });
 
@@ -87,7 +89,7 @@ test("resolveChoices handles a custom answer alongside alternatives", () => {
 	const options = makeQuestionOptions(params.alternatives);
 	const result = resolveChoices(params, [required(options[0]), required(options[3])], "Something more flexible");
 
-	assert.equal(required(result.content[0]).text, "User selected: Fast, Something more flexible");
+	assert.equal(required(result.content[0]).text, "Responder selected: Fast, Something more flexible");
 	assert.deepEqual(result.details.answers, ["Fast", "Something more flexible"]);
 	assert.equal(result.details.wasCustom, true);
 });
@@ -95,7 +97,7 @@ test("resolveChoices handles a custom answer alongside alternatives", () => {
 test("resolveChoices handles cancellation", () => {
 	const result = resolveChoices(params, null, undefined);
 
-	assert.equal(required(result.content[0]).text, "User declined to answer, await further instructions.");
+	assert.equal(required(result.content[0]).text, "Responder declined to answer, await further instructions.");
 	assert.equal(result.details.answer, null);
 	assert.deepEqual(result.details.answers, []);
 	assert.equal(result.details.action, null);
@@ -104,13 +106,13 @@ test("resolveChoices handles cancellation", () => {
 test("makeResult records trimmed alternatives and multiple selected answers", () => {
 	const result = makeResult(
 		{ question: "Pick tools", alternatives: [" read ", "write", "bash"] },
-		"User selected: read, bash",
+		"Responder selected: read, bash",
 		["read", "bash"],
 		false,
 	);
 
 	assert.equal(required(result.content[0]).type, "text");
-	assert.equal(required(result.content[0]).text, "User selected: read, bash");
+	assert.equal(required(result.content[0]).text, "Responder selected: read, bash");
 	assert.deepEqual(result.details.alternatives, ["read", "write", "bash"]);
 	assert.deepEqual(result.details.answers, ["read", "bash"]);
 	assert.equal(result.details.answer, "read");
@@ -119,7 +121,7 @@ test("makeResult records trimmed alternatives and multiple selected answers", ()
 });
 
 test("result details are narrowed through the strict schema", () => {
-	const result = makeResult(params, "User selected: Fast", "Fast", false);
+	const result = makeResult(params, "Responder selected: Fast", "Fast", false);
 
 	assert.deepEqual(readAskQuestionDetails(result.details), result.details);
 	assert.equal(readAskQuestionDetails({ ...result.details, unexpected: true }), undefined);
@@ -165,4 +167,29 @@ test("once ignores repeated completion", () => {
 	complete("second");
 
 	assert.deepEqual(values, ["first"]);
+});
+
+test("registered tool is responder-neutral and never addresses a user", () => {
+	interface AskQuestionToolConfig {
+		readonly description: string;
+		readonly promptSnippet: string;
+		readonly promptGuidelines: string[];
+	}
+
+	let registered: AskQuestionToolConfig | undefined;
+	const pi = {
+		on(_event: string, handler: (event: unknown, ctx: { hasUI: boolean }) => void) {
+			handler({}, { hasUI: true });
+		},
+		registerTool(config: AskQuestionToolConfig) {
+			registered = config;
+		},
+	} as unknown as ExtensionAPI;
+
+	askQuestionExtension(pi);
+
+	assert.ok(registered, "ask_question tool should be registered");
+	const haystack = [registered!.description, registered!.promptSnippet, ...registered!.promptGuidelines].join(" ");
+	assert.match(haystack, /responder/i, "tool copy should name a responder");
+	assert.doesNotMatch(haystack, /\buser\b/i, "tool copy must not assume a human user answers");
 });

@@ -1,16 +1,19 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { OTHER_OPTION } from "../ask-question/choices.ts";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
 import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
+	AgentWaitDeferredReason,
 	AgentWaitInterruptedError,
 	CleanupAggregateError,
 	lifecycleStatus,
 	transitionLifecycle,
 	type AgentLifecycle,
+	type AgentQuestion,
 	type AgentSummary,
 } from "./agent-types.ts";
 import type { AgentEvent } from "./event-schema.ts";
@@ -32,6 +35,7 @@ import {
 	type ReadonlyRunDetails,
 	type RunStatus,
 } from "./run-state.ts";
+import { isInputUiRequest, isSelectUiRequest, type ExtensionUiRequest, type InputUiRequest } from "./protocol.ts";
 import { RpcTransport, type SpawnRpcProcess } from "./rpc-transport.ts";
 
 let nextAgentId = 1;
@@ -52,6 +56,7 @@ const SUBAGENT_TOOL_NAMES = [
 	"list_agents",
 	"interrupt_agent",
 	"close_agent",
+	"answer_agent",
 ] as const;
 
 interface Deferred {
@@ -60,6 +65,18 @@ interface Deferred {
 	readonly resolve: (details: ReadonlyRunDetails) => void;
 	readonly reject: (error: Error) => void;
 	settled: boolean;
+}
+
+interface QuestionSignal {
+	readonly generation: number;
+	readonly promise: Promise<AgentQuestion>;
+	readonly resolve: (question: AgentQuestion) => void;
+	settled: boolean;
+}
+
+interface QueuedCustomAnswer {
+	readonly generation: number;
+	readonly answer: string;
 }
 
 export interface ManagedAgentOptions {
@@ -74,6 +91,7 @@ export interface ManagedAgentOptions {
 	readonly onUpdate?: (details: ReadonlyRunDetails) => void;
 	readonly onStartupComplete?: () => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
+	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
 
 export class ManagedAgent {
@@ -88,6 +106,10 @@ export class ManagedAgent {
 	private startedGeneration: number | undefined;
 	private taskName = "";
 	private run: MutableRunData;
+	private pendingQuestion: AgentQuestion | undefined;
+	private questionSignal: QuestionSignal | undefined;
+	private queuedCustomAnswer: QueuedCustomAnswer | undefined;
+	private activeWaiters = 0;
 	private readonly notifiedGenerations = new Set<number>();
 	private readonly listeners = new Set<() => void>();
 	private onUpdate: ((details: ReadonlyRunDetails) => void) | undefined;
@@ -117,6 +139,7 @@ export class ManagedAgent {
 		if (this.lifecycle.phase !== "created") throw new Error("Subagent already started.");
 		const run = this.beginRun(taskName);
 		let promptPath: string | undefined;
+		let foregroundQuestionGuard = false;
 		try {
 			if (this.options.agent.systemPrompt) {
 				const prompt = composeRoleSystemPrompt(
@@ -144,6 +167,7 @@ export class ManagedAgent {
 				...(this.options.spawnProcess === undefined ? {} : { spawnProcess: this.options.spawnProcess }),
 				onEvent: () => {},
 				onAgentEvent: (event) => this.queueEvent(event),
+				onUiRequest: (request) => this.handleUiRequest(request),
 				onExit: (error) => this.onExit(error),
 			});
 			this.transport = transport;
@@ -155,9 +179,17 @@ export class ManagedAgent {
 			}
 			this.run.sessionFile = state.sessionFile;
 			const task = buildInitialTask(message, handoff);
+			if (!background) {
+				this.activeWaiters++;
+				foregroundQuestionGuard = true;
+			}
 			await transport.request({ type: "prompt", message: task });
 			this.options.onStartupComplete?.();
 		} catch (cause) {
+			if (foregroundQuestionGuard) {
+				this.activeWaiters--;
+				foregroundQuestionGuard = false;
+			}
 			const error = toError(cause);
 			if (!this.isClosing()) this.failRun(error);
 			try {
@@ -171,14 +203,51 @@ export class ManagedAgent {
 			this.notifyWhenComplete(run);
 			return this.snapshot("launched");
 		}
-		return this.waitForGeneration(run.generation, signal);
+		try {
+			return await this.waitForGeneration(run.generation, signal);
+		} finally {
+			if (foregroundQuestionGuard) this.activeWaiters--;
+		}
 	}
 
 	async steer(message: string): Promise<void> {
 		if (this.lifecycle.phase !== "running" && this.lifecycle.phase !== "starting") {
 			throw new Error(`Agent ${this.id} is not running.`);
 		}
+		if (this.pendingQuestion) {
+			throw new Error(
+				`Agent ${this.id} is waiting for an answer to question '${this.pendingQuestion.question_id}'; use answer_agent.`,
+			);
+		}
 		await this.rpc().request({ type: "steer", message });
+	}
+
+	async answerQuestion(questionId: string, answer: string): Promise<void> {
+		const question = this.pendingQuestion;
+		if (!question || question.question_id !== questionId || this.generation !== this.questionSignal?.generation) {
+			throw new Error(`Agent ${this.id} has no pending question '${questionId}'.`);
+		}
+		if (answer === OTHER_OPTION) {
+			throw new Error(`Provide the custom answer itself instead of the reserved '${OTHER_OPTION}' option.`);
+		}
+
+		const isListedOption = question.options.includes(answer);
+		if (!isListedOption && !question.options.includes(OTHER_OPTION)) {
+			throw new Error(`Answer must match one of the options for question '${questionId}'.`);
+		}
+		if (!isListedOption) {
+			this.queuedCustomAnswer = { generation: this.generation, answer };
+		}
+		this.pendingQuestion = undefined;
+		this.questionSignal = this.newQuestionSignal(this.generation);
+		this.emit();
+
+		try {
+			await this.rpc().respondToUi(questionId, { value: isListedOption ? answer : OTHER_OPTION });
+		} catch (cause) {
+			this.failRun(cause);
+			throw cause;
+		}
 	}
 
 	async getMessages(): Promise<unknown[]> {
@@ -213,9 +282,18 @@ export class ManagedAgent {
 			this.taskName = taskName;
 			this.run.taskName = taskName;
 		}
+		let foregroundQuestionGuard = false;
 		try {
+			if (!background) {
+				this.activeWaiters++;
+				foregroundQuestionGuard = true;
+			}
 			await this.rpc().request({ type: wasRunning ? "follow_up" : "prompt", message });
 		} catch (cause) {
+			if (foregroundQuestionGuard) {
+				this.activeWaiters--;
+				foregroundQuestionGuard = false;
+			}
 			const error = toError(cause);
 			this.failRun(error);
 			throw error;
@@ -224,7 +302,11 @@ export class ManagedAgent {
 			this.notifyWhenComplete(run);
 			return this.snapshot("launched");
 		}
-		return this.waitForGeneration(run.generation, signal);
+		try {
+			return await this.waitForGeneration(run.generation, signal);
+		} finally {
+			if (foregroundQuestionGuard) this.activeWaiters--;
+		}
 	}
 
 	async wait(timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
@@ -235,8 +317,14 @@ export class ManagedAgent {
 	async interrupt(): Promise<void> {
 		if (this.lifecycle.phase !== "running" && this.lifecycle.phase !== "starting") return;
 		this.setLifecycle({ phase: "aborted" });
+		const pendingQuestion = this.pendingQuestion;
+		this.pendingQuestion = undefined;
+		this.queuedCustomAnswer = undefined;
 		this.emit();
 		try {
+			if (pendingQuestion) {
+				await this.rpc().respondToUi(pendingQuestion.question_id, { cancelled: true });
+			}
 			await this.rpc().request({ type: "abort" });
 		} catch (cause) {
 			const error = toError(cause);
@@ -267,6 +355,7 @@ export class ManagedAgent {
 			status,
 			...(this.run.finalText ? { final_text: this.run.finalText } : {}),
 			...(error ? { error } : {}),
+			...(this.pendingQuestion ? { pending_question: snapshotQuestion(this.pendingQuestion) } : {}),
 		};
 	}
 
@@ -311,6 +400,9 @@ export class ManagedAgent {
 		const generation = this.generation + 1;
 		this.generation = generation;
 		this.startedGeneration = undefined;
+		this.pendingQuestion = undefined;
+		this.queuedCustomAnswer = undefined;
+		this.questionSignal = this.newQuestionSignal(generation);
 		this.taskName = taskName;
 		this.setLifecycle({ phase: "starting" });
 		this.run = this.freshRun();
@@ -327,6 +419,42 @@ export class ManagedAgent {
 		this.eventTail = this.eventTail
 			.then(() => this.processEvent(event, generation))
 			.catch((cause) => this.failRun(cause));
+	}
+
+	private handleUiRequest(request: ExtensionUiRequest): boolean {
+		if (isInputUiRequest(request)) return this.handleInputRequest(request);
+		if (!isSelectUiRequest(request) || this.pendingQuestion || this.isClosing()) return false;
+
+		const question: AgentQuestion = {
+			question_id: request.id,
+			question: request.title,
+			options: [...request.options],
+		};
+		this.pendingQuestion = question;
+		const signal =
+			this.questionSignal?.generation === this.generation
+				? this.questionSignal
+				: this.newQuestionSignal(this.generation);
+		this.questionSignal = signal;
+		if (!signal.settled) {
+			signal.settled = true;
+			signal.resolve(snapshotQuestion(question));
+		}
+		this.emit();
+		if (this.activeWaiters === 0) {
+			this.options.onQuestion?.(this.summary(), snapshotQuestion(question));
+		}
+		return true;
+	}
+
+	private handleInputRequest(request: InputUiRequest): boolean {
+		const queued = this.queuedCustomAnswer;
+		if (!queued || queued.generation !== this.generation || this.isClosing()) return false;
+		this.queuedCustomAnswer = undefined;
+		void this.rpc()
+			.respondToUi(request.id, { value: queued.answer })
+			.catch((cause) => this.failRun(cause));
+		return true;
 	}
 
 	private async processEvent(event: AgentEvent, generation: number): Promise<void> {
@@ -347,6 +475,8 @@ export class ManagedAgent {
 		}
 		if (event.type === "agent_settled") {
 			if (this.deferred?.settled) return;
+			this.pendingQuestion = undefined;
+			this.queuedCustomAnswer = undefined;
 			this.run.endTime = Date.now();
 			if (this.lifecycle.phase === "aborted") {
 				this.settleCurrent({ kind: "resolve" });
@@ -373,6 +503,8 @@ export class ManagedAgent {
 		if (this.lifecycle.phase !== "failed") {
 			this.setLifecycle({ phase: "failed", error });
 		}
+		this.pendingQuestion = undefined;
+		this.queuedCustomAnswer = undefined;
 		this.run.exitCode = 1;
 		this.run.stderr = error.message;
 		this.run.endTime = Date.now();
@@ -384,6 +516,8 @@ export class ManagedAgent {
 		if (this.lifecycle.phase === "closed") return;
 		if (this.lifecycle.phase !== "closing") {
 			this.setLifecycle({ phase: "closing" });
+			this.pendingQuestion = undefined;
+			this.queuedCustomAnswer = undefined;
 			this.emit();
 		}
 		this.settleCurrent({ kind: "reject", error: new Error(`Agent ${this.id} was closed.`) });
@@ -447,11 +581,17 @@ export class ManagedAgent {
 	}
 
 	private snapshot(status: RunStatus = lifecycleStatus(this.lifecycle)): ReadonlyRunDetails {
-		return snapshotRunData(this.run, {
+		const snapshot = snapshotRunData(this.run, {
 			agentId: this.id,
 			generation: this.generation,
 			status,
 		});
+		return this.pendingQuestion ? { ...snapshot, pendingQuestion: snapshotQuestion(this.pendingQuestion) } : snapshot;
+	}
+
+	private newQuestionSignal(generation: number): QuestionSignal {
+		const { promise, resolve } = Promise.withResolvers<AgentQuestion>();
+		return { generation, promise, resolve, settled: false };
 	}
 
 	private notifyWhenComplete(run: Deferred): void {
@@ -497,23 +637,43 @@ export class ManagedAgent {
 	): Promise<ReadonlyRunDetails> {
 		const deferred = this.deferred;
 		if (!deferred || deferred.generation !== generation) return this.snapshot();
+		if (this.pendingQuestion) {
+			this.notifyWhenComplete(deferred);
+			return this.snapshot();
+		}
+		const questionSignal =
+			this.questionSignal?.generation === generation
+				? this.questionSignal
+				: (this.questionSignal = this.newQuestionSignal(generation));
 		const guard = composeAbortSignal(signal, timeoutMs);
-		if (!guard) return deferred.promise;
 		let subscription: Disposable | undefined;
-		const guards = new Promise<never>((_, reject) => {
-			subscription = onAbort(guard.signal, () => {
-				// A foreground caller gave up waiting, not the child. Promote its
-				// eventual settlement through the same callback as a background
-				// run so it is not silently stranded.
-				this.notifyWhenComplete(deferred);
-				reject(
-					new AgentWaitInterruptedError(guard.timedOut() ? "timed_out" : "cancelled", this.id, guard.signal.reason),
-				);
-			});
-		});
+		const guards =
+			guard === undefined
+				? undefined
+				: new Promise<never>((_, reject) => {
+						subscription = onAbort(guard.signal, () => {
+							// A foreground caller gave up waiting, not the child. Promote its
+							// eventual settlement through the same callback as a background
+							// run so it is not silently stranded.
+							this.notifyWhenComplete(deferred);
+							const kind = guard.timedOut()
+								? "timed_out"
+								: guard.signal.reason instanceof AgentWaitDeferredReason
+									? "deferred"
+									: "cancelled";
+							reject(new AgentWaitInterruptedError(kind, this.id, guard.signal.reason));
+						});
+					});
+		this.activeWaiters++;
 		try {
-			return await Promise.race([deferred.promise, guards]);
+			const question = questionSignal.promise.then(() => this.snapshot());
+			const result = await Promise.race(
+				guards === undefined ? [deferred.promise, question] : [deferred.promise, question, guards],
+			);
+			if (result.pendingQuestion) this.notifyWhenComplete(deferred);
+			return result;
 		} finally {
+			this.activeWaiters--;
 			subscription?.[Symbol.dispose]();
 		}
 	}
@@ -541,6 +701,11 @@ export class ManagedAgent {
 		}
 		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed") {
 			throw new Error(`Agent ${this.id} is closed.`);
+		}
+		if (this.pendingQuestion) {
+			throw new Error(
+				`Agent ${this.id} is waiting for an answer to question '${this.pendingQuestion.question_id}'; use answer_agent.`,
+			);
 		}
 		this.rpc();
 	}
@@ -582,4 +747,8 @@ export function childEnvironment(
 	}
 	environment[CHILD_CONTEXT_ENV] = serializeChildExecutionContext(context);
 	return environment;
+}
+
+function snapshotQuestion(question: AgentQuestion): AgentQuestion {
+	return { ...question, options: [...question.options] };
 }

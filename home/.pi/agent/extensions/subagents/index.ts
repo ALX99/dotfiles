@@ -3,6 +3,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapSubagents, registerSubagentLifecycle } from "./bootstrap.ts";
 import { showAgentDashboard } from "./dashboard.ts";
+import { createAnswerAgentTool } from "./tools/answer-agent.ts";
 import { createCloseAgentTool } from "./tools/close-agent.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
 import { createInterruptAgentTool } from "./tools/interrupt-agent.ts";
@@ -26,6 +27,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool(createSpawnAgentTool(pi, runtime));
+	pi.registerTool(createAnswerAgentTool(runtime));
 	pi.registerTool(createSendAgentTool(runtime));
 	pi.registerTool(createFollowupAgentTool(runtime));
 	pi.registerTool(createWaitAgentTool(runtime));
