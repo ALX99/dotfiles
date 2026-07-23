@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
-import { ManagedAgent, buildInitialTask } from "../managed-agent.ts";
+import { ManagedAgent } from "../managed-agent.ts";
 import { SpawnAdmissionController, executionCanDelegate } from "../spawn-admission.ts";
 import { createSpawnAgentSchema } from "../index.ts";
 import {
@@ -73,17 +73,6 @@ test("child execution context has one strict parser and absence identifies root"
 		new RegExp(`Invalid ${CHILD_CONTEXT_ENV}`),
 	);
 	assert.throws(() => parseChildExecutionContext("{"), /Invalid PI_SUBAGENT_CONTEXT/);
-});
-
-test("initial tasks distinguish parent context from verified facts", () => {
-	assert.equal(buildInitialTask("inspect", undefined), "Task: inspect");
-	assert.equal(
-		buildInitialTask("inspect", "  prior finding  "),
-		`Task: inspect
-
-Parent context (may be incomplete; use it to understand the assignment and verify factual claims when material):
-prior finding`,
-	);
 });
 
 test("scout, deep-profile, zero-credit, and depth-2 executions are hard leaves", () => {

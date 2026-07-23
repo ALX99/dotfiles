@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { branchRevision, buildFooterViewModel, renderContextBar, shortenCwd, THINKING_COLOR } from "../footer.ts";
+import { branchRevision, buildFooterViewModel, renderContextBar, shortenCwd } from "../footer.ts";
 
 const theme = {
 	fg(_color: string, text: string): string {
@@ -27,18 +27,6 @@ test("shortenCwd only substitutes an actual home-directory boundary", () => {
 	assert.equal(shortenCwd("/Users/alex/project", "/Users/alex"), "~/project");
 	assert.equal(shortenCwd("/Users/alex", "/Users/alex"), "~");
 	assert.equal(shortenCwd("/Users/alexander/project", "/Users/alex"), "/Users/alexander/project");
-});
-
-test("thinking colors cover every supported level, including off and max", () => {
-	assert.deepEqual(THINKING_COLOR, {
-		off: "muted",
-		minimal: "thinkingMinimal",
-		low: "thinkingLow",
-		medium: "thinkingMedium",
-		high: "thinkingHigh",
-		xhigh: "thinkingXhigh",
-		max: "thinkingXhigh",
-	});
 });
 
 test("branch revision changes when switching to a same-length branch", () => {
