@@ -148,14 +148,14 @@ mac-system:
     echo 'System Settings → Keyboard → Text Input → Edit → + → Others → Colemak-DH ANSI'
     printf 'macOS system configuration completed.\n'
 
-# Install npm dependencies for pi extensions
+# Install pnpm dependencies for pi extensions.
 install-pi:
-    cd "$HOME/.pi/agent/extensions" && npm install
+    cd "$HOME/.pi/agent/extensions" && pnpm install --frozen-lockfile
 
 # Format the pi extensions.
 fmt:
-    cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && npm run format
+    cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && pnpm run format
 
 # Typecheck, lint, and test the pi extensions.
 check:
-    cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && npm run check
+    cd {{ quote(repo_dir) }}/home/.pi/agent/extensions && pnpm run check

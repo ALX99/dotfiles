@@ -1,6 +1,7 @@
 {
 	"name": "extensions",
 	"version": "1.0.0",
+	"private": true,
 	"type": "module",
 	"scripts": {
 		"format": "oxfmt .",
@@ -10,9 +11,10 @@
 		"deadcode": "knip",
 		"test:extensions": "node --test '**/tests/*.test.ts' '**/tests/*.test.mjs'",
 		"test:pi-patch": "node --test '../../../../misc/pi-patches/tests/*.test.mjs'",
-		"test": "npm run test:extensions && npm run test:pi-patch",
+		"test": "pnpm run test:extensions && pnpm run test:pi-patch",
 		"compatibility:check": "node scripts/check-pi-compatibility.mjs",
-		"check": "npm run compatibility:check && npm run format:check && npm run typecheck && npm run lint && npm run deadcode && npm test"
+		"peers:check": "pnpm peers check",
+		"check": "pnpm run compatibility:check && pnpm run peers:check && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run deadcode && pnpm test"
 	},
 	"dependencies": {
 		"@earendil-works/pi-ai": "0.81.1",
@@ -30,7 +32,8 @@
 		"oxfmt": "0.59.0",
 		"oxlint": "^1.74.0",
 		"oxlint-tsgolint": "0.25.0",
-		"typescript": "^7.0.2"
+		"typescript": "^7.0.2",
+		"yaml": "^2.9.0"
 	},
 	"engines": {
 		"node": ">=26.0.0"

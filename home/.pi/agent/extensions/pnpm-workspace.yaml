@@ -1,0 +1,11 @@
+strictPeerDependencies: true
+
+# These published lifecycle hooks are no-op/advisory for this dependency tree.
+# Deny them explicitly so installs stay non-interactive and fail on any new
+# dependency build script until it is reviewed.
+allowBuilds:
+  "@google/genai": false
+  protobufjs: false
+
+patchedDependencies:
+  "@earendil-works/pi-ai@0.81.1": patches/pi-ai.patch
