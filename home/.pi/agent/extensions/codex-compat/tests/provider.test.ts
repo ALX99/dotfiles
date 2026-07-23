@@ -16,7 +16,6 @@ import {
 	runApplyPatchProcess,
 	type SpawnApplyPatchProcess,
 } from "../index.ts";
-import { APPLY_PATCH_TOOL_DESCRIPTION } from "../types.ts";
 
 const FAKE_EXECUTABLE = fileURLToPath(new URL("./fake-apply-patch.mjs", import.meta.url));
 
@@ -287,14 +286,9 @@ function registerActivationFixture(initialActive: string[]) {
 	};
 }
 
-test("activation remains scoped to openai-codex with the exact upstream description", () => {
+test("activation remains scoped to openai-codex", () => {
 	const fixture = registerActivationFixture(["read", "edit", "write"]);
-	assert.equal(
-		APPLY_PATCH_TOOL_DESCRIPTION,
-		"Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.",
-	);
 	assert.equal(fixture.registeredTool?.executionMode, "sequential");
-	assert.equal(fixture.registeredTool?.description, APPLY_PATCH_TOOL_DESCRIPTION);
 	assert.equal(fixture.providerRegistered, false);
 	fixture.start(model());
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);

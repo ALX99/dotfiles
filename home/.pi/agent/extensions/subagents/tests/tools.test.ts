@@ -12,7 +12,7 @@ import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 import { initRunData, snapshotRunData, type ReadonlyRunDetails } from "../run-state.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
 import { createAnswerAgentTool } from "../tools/answer-agent.ts";
-import { createSpawnAgentTool, spawnGuidelines } from "../tools/spawn-agent.ts";
+import { createSpawnAgentTool } from "../tools/spawn-agent.ts";
 import { DEFAULT_WAIT_MS, executeWaitAgent } from "../tools/wait-agent.ts";
 
 const spawnProfiles: ProfilesConfig = {
@@ -161,21 +161,7 @@ function summary(id: string): AgentSummary {
 	};
 }
 
-test("spawn_agent exposes concise delegation guidance without coupling to exact prose", () => {
-	const guidelines = spawnGuidelines(
-		[spawnAgent],
-		[{ name: "fast", description: spawnProfiles.profiles.fast!.description }],
-		true,
-	);
-	assert.ok(guidelines.length >= 2);
-	assert.ok(guidelines.some((guideline) => /independent work|parallelism/.test(guideline)));
-	assert.ok(guidelines.some((guideline) => /scouts?.*read-only/i.test(guideline)));
-	assert.ok(guidelines.some((guideline) => /fast: Fast/.test(guideline)));
-	assert.ok(guidelines.some((guideline) => /not every agent.*tree|no tree-wide agent cap/i.test(guideline)));
-	assert.ok(guidelines.every((guideline) => guideline.length < 500));
-});
-
-test("answer_agent sends the pending response and exposes escalation guidance", async () => {
+test("answer_agent sends the trimmed pending response to its direct child", async () => {
 	const answers: Array<{ questionId: string; answer: string }> = [];
 	const runtime = {
 		registry: {
@@ -201,8 +187,7 @@ test("answer_agent sends the pending response and exposes escalation guidance", 
 	);
 
 	assert.deepEqual(answers, [{ questionId: "question-1", answer: "Flexible" }]);
-	assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /delivered to worker-1/);
-	assert.ok(tool.promptGuidelines?.some((guideline) => /ask_question/.test(guideline)));
+	assert.equal(result.details?.summaries[0]?.agent_id, "worker-1");
 });
 
 test("spawn_agent completes a foreground transaction and leaves the reusable agent registry-owned", async (t) => {

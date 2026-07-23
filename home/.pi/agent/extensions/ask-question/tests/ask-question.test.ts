@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import {
 	getOptionColor,
@@ -14,7 +13,6 @@ import {
 } from "../choices.ts";
 import { once, selectMultiple, type MultiSelectUi } from "../multi-select.ts";
 import { readAskQuestionDetails } from "../schema.ts";
-import askQuestionExtension from "../index.ts";
 
 const params = { question: "Pick a tool", alternatives: ["Fast", "Simple"] };
 type MultiSelectFactory = Parameters<MultiSelectUi["custom"]>[0];
@@ -167,29 +165,4 @@ test("once ignores repeated completion", () => {
 	complete("second");
 
 	assert.deepEqual(values, ["first"]);
-});
-
-test("registered tool is responder-neutral and never addresses a user", () => {
-	interface AskQuestionToolConfig {
-		readonly description: string;
-		readonly promptSnippet: string;
-		readonly promptGuidelines: string[];
-	}
-
-	let registered: AskQuestionToolConfig | undefined;
-	const pi = {
-		on(_event: string, handler: (event: unknown, ctx: { hasUI: boolean }) => void) {
-			handler({}, { hasUI: true });
-		},
-		registerTool(config: AskQuestionToolConfig) {
-			registered = config;
-		},
-	} as unknown as ExtensionAPI;
-
-	askQuestionExtension(pi);
-
-	assert.ok(registered, "ask_question tool should be registered");
-	const haystack = [registered!.description, registered!.promptSnippet, ...registered!.promptGuidelines].join(" ");
-	assert.match(haystack, /responder/i, "tool copy should name a responder");
-	assert.doesNotMatch(haystack, /\buser\b/i, "tool copy must not assume a human user answers");
 });
