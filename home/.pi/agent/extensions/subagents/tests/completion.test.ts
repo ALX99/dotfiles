@@ -5,6 +5,7 @@ import {
 	BACKGROUND_COMPLETION_DEBOUNCE_MS,
 	DefaultSubagentRuntime,
 	formatBackgroundCompletions,
+	formatSubagentQuestion,
 	isCompletionSuperseded,
 } from "../bootstrap.ts";
 import type { ProfilesConfig } from "../profiles.ts";
@@ -44,6 +45,22 @@ test("background completions mark escaped child output as evidence", () => {
 	);
 });
 
+test("subagent questions are escaped and direct the parent to the answer tool", () => {
+	const content = formatSubagentQuestion(
+		{ ...summary(2), agent_id: `worker-"<&` },
+		{
+			question_id: `question-"<&`,
+			question: "Choose <now> & later",
+			options: ["A & B", "<custom>"],
+		},
+	);
+	assert.match(content, /Use answer_agent|Answer it with answer_agent/);
+	assert.match(content, /agent_id="worker-&quot;&lt;&amp;"/);
+	assert.match(content, /question_id="question-&quot;&lt;&amp;"/);
+	assert.match(content, /<question>Choose &lt;now&gt; &amp; later<\/question>/);
+	assert.match(content, /<option>A &amp; B<\/option>/);
+});
+
 test("simultaneous idle background completions are delivered in one debounced follow-up", async (t) => {
 	const runtime = new DefaultSubagentRuntime(
 		[],
@@ -81,4 +98,43 @@ test("simultaneous idle background completions are delivered in one debounced fo
 	assert.equal(notifications.length, 2);
 	assert.equal(messages.length, 1);
 	assert.match(String((messages[0] as { content: string }).content), /<subagent_results>[\s\S]*agent-1[\s\S]*agent-2/);
+});
+
+test("background questions trigger an immediate parent follow-up", async (t) => {
+	const runtime = new DefaultSubagentRuntime(
+		[],
+		{
+			rootPolicy: {
+				maxConcurrentRootAgents: 1,
+				maxConcurrentDeepAgents: 1,
+				maxSpawnBudgetPerChild: 0,
+			},
+			profiles: {},
+			agentPolicies: {},
+		} as ProfilesConfig,
+		undefined,
+	);
+	const messages: Array<{
+		message: { customType: string; content: string };
+		options: { deliverAs: string; triggerTurn: boolean };
+	}> = [];
+	const pi = {
+		sendMessage: (
+			message: { customType: string; content: string },
+			options: { deliverAs: string; triggerTurn: boolean },
+		) => messages.push({ message, options }),
+	} as never;
+	t.after(() => runtime.shutdown());
+
+	runtime.handleQuestion(pi, summary(1, "running"), {
+		question_id: "question-1",
+		question: "Choose",
+		options: ["A", "B"],
+	});
+
+	assert.equal(messages.length, 1);
+	assert.equal(messages[0]?.message.customType, "subagent-question");
+	assert.match(messages[0]?.message.content ?? "", /question-1[\s\S]*Choose/);
+	assert.match(messages[0]?.message.content ?? "", /answer_agent/);
+	assert.deepEqual(messages[0]?.options, { deliverAs: "followUp", triggerTurn: true });
 });

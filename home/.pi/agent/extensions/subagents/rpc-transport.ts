@@ -4,7 +4,7 @@ import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { parseJson } from "../_shared/json.ts";
 import { ByteBoundedJsonlFramer } from "../_shared/jsonl.ts";
 import type { AgentEvent } from "./event-schema.ts";
-import { parseRpcRecord, type RpcEvent } from "./protocol.ts";
+import { parseRpcRecord, type ExtensionUiRequest, type RpcEvent } from "./protocol.ts";
 
 export const DEFAULT_RPC_MAX_FRAME_BYTES = 1024 * 1024;
 export const DEFAULT_RPC_MAX_STDERR_BYTES = 64 * 1024;
@@ -95,6 +95,11 @@ export interface RpcRequestOptions {
 	readonly signal?: AbortSignal;
 }
 
+export type ExtensionUiResponse =
+	| { readonly value: string }
+	| { readonly confirmed: boolean }
+	| { readonly cancelled: true };
+
 export interface RpcTransportOptions {
 	readonly command: string;
 	readonly args: readonly string[];
@@ -103,6 +108,7 @@ export interface RpcTransportOptions {
 	readonly spawnProcess?: SpawnRpcProcess;
 	readonly onEvent: (event: RpcEvent) => void;
 	readonly onAgentEvent?: (event: AgentEvent) => void;
+	readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
 	readonly onExit: (error: Error | undefined) => void;
 	readonly maxFrameBytes?: number;
 	readonly maxStderrBytes?: number;
@@ -215,6 +221,30 @@ export class RpcTransport {
 		});
 	}
 
+	async respondToUi(requestId: string, response: ExtensionUiResponse): Promise<void> {
+		if (this.failure) throw this.failure;
+		if (this.state !== "open" || !this.process?.stdin.writable) {
+			throw new Error("Subagent RPC process is not available.");
+		}
+		let frame: Buffer;
+		try {
+			frame = Buffer.from(
+				`${JSON.stringify({
+					type: "extension_ui_response",
+					id: requestId,
+					...response,
+				})}\n`,
+				"utf8",
+			);
+		} catch (cause) {
+			throw new Error("Could not serialize subagent extension UI response.", { cause });
+		}
+		this.enqueueWrite(frame);
+		await this.writeTail;
+		if (this.failure) throw this.failure;
+		if (this.state !== "open") throw new Error("Subagent RPC process is not available.");
+	}
+
 	close(): Promise<void> {
 		if (this.closePromise) return this.closePromise;
 		this.closePromise = this.closeInternal();
@@ -281,16 +311,14 @@ export class RpcTransport {
 				return;
 			}
 			case "ui-request":
+				try {
+					if (this.options.onUiRequest?.(parsed.request) === true) return;
+				} catch (cause) {
+					this.fail(new Error("Subagent extension UI request handler failed.", { cause }));
+					return;
+				}
 				if (isBlockingUiMethod(parsed.request.method)) {
-					this.enqueueWrite(
-						Buffer.from(
-							`${JSON.stringify({
-								type: "extension_ui_response",
-								id: parsed.request.id,
-								cancelled: true,
-							})}\n`,
-						),
-					);
+					void this.respondToUi(parsed.request.id, { cancelled: true }).catch(() => {});
 				}
 				return;
 			case "event":

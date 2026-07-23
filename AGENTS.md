@@ -12,7 +12,9 @@ Pi configuration is under `home/.pi/agent/`. Extensions live in
 `home/.pi/agent/extensions/`: top-level `.ts` files and `*/index.ts` are entry
 points; `_shared/` is intentionally not. The RPC-backed subagent extension
 keeps role prompts in `subagents/agents/` and lifecycle/transport/state in
-separate modules. Its tests are colocated in `subagents/tests/`.
+separate modules. Its tests are colocated in `subagents/tests/`. Child
+`ask_question` requests route to the immediate spawning agent and resume
+through `answer_agent`.
 Harness-independent skills belong in `home/.agents/skills/`; Pi-only skills
 belong in `home/.pi/agent/skills/`.
 

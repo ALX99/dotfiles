@@ -2,7 +2,7 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseAgentEvent } from "../event-schema.ts";
 import { parseRpcRecord } from "../protocol.ts";
-import type { RpcEvent } from "../protocol.ts";
+import type { ExtensionUiRequest, RpcEvent } from "../protocol.ts";
 import {
 	DEFAULT_RPC_MAX_FRAME_BYTES,
 	RpcTransport,
@@ -21,6 +21,7 @@ function client(
 	script: string,
 	options: {
 		readonly onEvent?: (event: RpcEvent) => void;
+		readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
 		readonly onExit?: (error: Error | undefined) => void;
 		readonly maxFrameBytes?: number;
 		readonly requestTimeoutMs?: number;
@@ -38,6 +39,7 @@ function client(
 		cwd: process.cwd(),
 		env: testEnv,
 		onEvent: options.onEvent ?? (() => {}),
+		...(options.onUiRequest === undefined ? {} : { onUiRequest: options.onUiRequest }),
 		onExit: options.onExit ?? (() => {}),
 		...(options.maxFrameBytes === undefined ? {} : { maxFrameBytes: options.maxFrameBytes }),
 		...(options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs }),
@@ -131,6 +133,21 @@ test("protocol accepts harmless response metadata and unknown UI methods", () =>
 	assert.equal(uiRequest.kind, "ui-request");
 });
 
+test("protocol preserves the question fields required for parent routing", () => {
+	const record = parseRpcRecord({
+		type: "extension_ui_request",
+		id: "question-1",
+		method: "select",
+		title: "Choose",
+		options: ["A", "B"],
+	});
+	assert.equal(record.kind, "ui-request");
+	if (record.kind !== "ui-request") return;
+	assert.equal(record.request.method, "select");
+	assert.equal("title" in record.request ? record.request.title : undefined, "Choose");
+	assert.deepEqual("options" in record.request ? record.request.options : undefined, ["A", "B"]);
+});
+
 test("known event poison is rejected while genuinely unknown variants are bounded envelopes", () => {
 	for (const value of [
 		{ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: 1 }] } },
@@ -203,6 +220,51 @@ process.stdin.on('data', chunk => {
 	await transport.start();
 	assert.equal(await transport.request({ type: "ping" }), "ok");
 	assert.equal(transport.getState(), "open");
+});
+
+test("handled extension UI requests can be answered without automatic cancellation", async (t) => {
+	const requests: ExtensionUiRequest[] = [];
+	const observed = Promise.withResolvers<Record<string, unknown>>();
+	const script = String.raw`
+let buffer = '';
+process.stdout.write(JSON.stringify({
+  type: 'extension_ui_request',
+  id: 'question-1',
+  method: 'select',
+  title: 'Choose',
+  options: ['A', 'B']
+}) + '\n');
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  if (!buffer.includes('\n')) return;
+  const index = buffer.indexOf('\n');
+  const response = JSON.parse(buffer.slice(0, index));
+  process.stdout.write(JSON.stringify({type: 'observed_ui_response', response}) + '\n');
+});
+`;
+	const transport = client(script, {
+		onUiRequest: (request) => {
+			requests.push(request);
+			return true;
+		},
+		onEvent: (event) => {
+			if (event.type === "observed_ui_response") {
+				observed.resolve(event.response as Record<string, unknown>);
+			}
+		},
+	});
+	t.after(() => transport.close());
+	await transport.start();
+	while (requests.length === 0) await new Promise((resolve) => setImmediate(resolve));
+	await transport.respondToUi("question-1", { value: "B" });
+
+	assert.equal(requests[0]?.method, "select");
+	assert.deepEqual(await observed.promise, {
+		type: "extension_ui_response",
+		id: "question-1",
+		value: "B",
+	});
 });
 
 test("oversized non-newline stdout fails at the configured frame limit", async (t) => {

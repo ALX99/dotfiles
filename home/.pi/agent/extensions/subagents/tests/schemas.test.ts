@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { Check } from "typebox/value";
 import {
+	AnswerAgentParamsSchema,
 	MAX_WAIT_AGENTS,
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
@@ -20,6 +21,17 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	assert.equal(Check(spawn, { agent: "unknown", message: "inspect" }), false);
 	assert.equal(Check(spawn, { agent: "scout", profile: "unknown", message: "inspect" }), false);
 	assert.equal(Check(SendAgentParamsSchema, { agent_id: "agent-1", message: "inspect", extra: true }), false);
+	assert.equal(Check(AnswerAgentParamsSchema, { agent_id: "agent-1", question_id: "question-1", answer: "A" }), true);
+	assert.equal(Check(AnswerAgentParamsSchema, { agent_id: "agent-1", question_id: " ", answer: "A" }), false);
+	assert.equal(
+		Check(AnswerAgentParamsSchema, {
+			agent_id: "agent-1",
+			question_id: "question-1",
+			answer: "A",
+			extra: true,
+		}),
+		false,
+	);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["agent-1"], extra: true }), false);
 	assert.equal(Check(spawn, { agent: " ", message: "inspect" }), false);
 	assert.equal(Check(spawn, { agent: "scout", message: " " }), false);
