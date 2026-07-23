@@ -40,10 +40,11 @@ function relativePath(manifestPath, value, label) {
 }
 
 function validateManifest(manifestPath, value) {
-	exactObject(manifestPath, value, ["version", "targets"], "root");
+	exactObject(manifestPath, value, ["version", "patch", "targets"], "root");
 	if (typeof value.version !== "string" || !VERSION.test(value.version)) {
 		fail(manifestPath, "version must be an exact version string");
 	}
+	const patch = relativePath(manifestPath, value.patch, "patch");
 	if (!Array.isArray(value.targets) || value.targets.length === 0) {
 		fail(manifestPath, "targets must be a nonempty array");
 	}
@@ -51,9 +52,8 @@ function validateManifest(manifestPath, value) {
 	const targetPaths = new Set();
 	const targets = value.targets.map((target, index) => {
 		const label = `targets[${index}]`;
-		exactObject(manifestPath, target, ["targetRelative", "beforeSha256", "afterSha256", "patch"], label);
+		exactObject(manifestPath, target, ["targetRelative", "beforeSha256", "afterSha256"], label);
 		const targetRelative = relativePath(manifestPath, target.targetRelative, `${label}.targetRelative`);
-		const patch = relativePath(manifestPath, target.patch, `${label}.patch`);
 		if (typeof target.beforeSha256 !== "string" || !SHA256.test(target.beforeSha256)) {
 			fail(manifestPath, `${label}.beforeSha256 must be a lowercase SHA-256 hash`);
 		}
@@ -65,10 +65,10 @@ function validateManifest(manifestPath, value) {
 		}
 		if (targetPaths.has(targetRelative)) fail(manifestPath, `targetRelative is duplicated: ${targetRelative}`);
 		targetPaths.add(targetRelative);
-		return { targetRelative, beforeSha256: target.beforeSha256, afterSha256: target.afterSha256, patch };
+		return { targetRelative, beforeSha256: target.beforeSha256, afterSha256: target.afterSha256 };
 	});
 
-	return { version: value.version, targets };
+	return { version: value.version, patch, targets };
 }
 
 export async function loadPatchManifest(manifestPath) {
@@ -97,12 +97,30 @@ export function patchAssetPath(manifestPath, patch) {
 
 /** Installer-only validation: the compatibility checker only needs target hashes. */
 export async function assertPatchAssets(manifestPath, manifest) {
-	for (const target of manifest.targets) {
-		const assetPath = patchAssetPath(manifestPath, target.patch);
-		try {
-			await access(assetPath);
-		} catch (cause) {
-			fail(manifestPath, `cannot access patch asset ${target.patch}: ${cause instanceof Error ? cause.message : String(cause)}`);
-		}
+	const assetPath = patchAssetPath(manifestPath, manifest.patch);
+	try {
+		await access(assetPath);
+	} catch (cause) {
+		fail(manifestPath, `cannot access patch asset ${manifest.patch}: ${cause instanceof Error ? cause.message : String(cause)}`);
 	}
+}
+
+export function selectPatchTarget(patchSource, targetRelative) {
+	const targetHeader = `diff --git a/${targetRelative} b/${targetRelative}`;
+	const lines = patchSource.split("\n");
+	const headers = lines
+		.map((line, index) => [line, index])
+		.filter(([line]) => line.startsWith("diff --git "));
+	const matches = headers.filter(([line]) => line === targetHeader);
+	if (matches.length !== 1) {
+		throw new Error(`Patch must contain exactly one diff section for ${targetRelative}`);
+	}
+	const sectionStart = matches[0][1];
+	const nextHeader = headers.find(([, index]) => index > sectionStart);
+	const sectionLines = lines.slice(sectionStart + 1, nextHeader?.[1]);
+	const fileHeaderIndex = sectionLines.findIndex((line) => line === `--- a/${targetRelative}`);
+	if (fileHeaderIndex < 0 || sectionLines[fileHeaderIndex + 1] !== `+++ b/${targetRelative}`) {
+		throw new Error(`Patch section for ${targetRelative} must modify its matching path`);
+	}
+	return sectionLines.slice(fileHeaderIndex).join("\n");
 }

@@ -4,9 +4,12 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parse } from "yaml";
 import { loadPatchManifest } from "../../../../../misc/pi-patches/manifest.mjs";
 
 export const PI_PACKAGES = ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"];
+const PI_AI = "@earendil-works/pi-ai";
+const PATCH_PATH = "patches/pi-ai.patch";
 
 function fail(message) {
 	throw new Error(`Pi compatibility check failed: ${message}`);
@@ -26,6 +29,20 @@ async function readJson(path, label) {
 	}
 }
 
+async function readYaml(path, label) {
+	let source;
+	try {
+		source = await readFile(path, "utf8");
+	} catch (cause) {
+		fail(`cannot read ${label} at ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
+	}
+	try {
+		return parse(source);
+	} catch (cause) {
+		fail(`${label} at ${path} is not valid YAML: ${cause instanceof Error ? cause.message : String(cause)}`);
+	}
+}
+
 function exactVersion(value, packageName) {
 	if (typeof value !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value)) {
 		fail(`${packageName} must use an exact version, found ${JSON.stringify(value)}`);
@@ -37,11 +54,20 @@ function sha256(source) {
 	return createHash("sha256").update(source).digest("hex");
 }
 
+function importerEntry(lockfile, name) {
+	const entry = lockfile.importers?.["."]?.dependencies?.[name];
+	if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+		fail(`lockfile importer declares invalid ${name} metadata`);
+	}
+	return entry;
+}
+
 export async function checkPiCompatibility(options = {}) {
 	const extensionRoot = resolve(options.extensionRoot ?? dirname(dirname(fileURLToPath(import.meta.url))));
 	const repoRoot = resolve(options.repoRoot ?? join(extensionRoot, "../../../.."));
 	const packageJson = await readJson(join(extensionRoot, "package.json"), "extension package metadata");
-	const packageLock = await readJson(join(extensionRoot, "package-lock.json"), "extension lockfile");
+	const workspace = await readYaml(join(extensionRoot, "pnpm-workspace.yaml"), "pnpm workspace configuration");
+	const lockfile = await readYaml(join(extensionRoot, "pnpm-lock.yaml"), "pnpm lockfile");
 
 	const declaredVersions = PI_PACKAGES.map((name) =>
 		exactVersion(packageJson.dependencies?.[name], `${name} dependency`),
@@ -51,10 +77,38 @@ export async function checkPiCompatibility(options = {}) {
 		fail(`Pi dependencies must have one version, found ${declaredVersions.join(", ")}`);
 	}
 
-	const lockDependencies = packageLock.packages?.[""]?.dependencies;
+	const patchKey = `${PI_AI}@${expectedVersion}`;
+	if (workspace?.patchedDependencies?.[patchKey] !== PATCH_PATH) {
+		fail(`pnpm workspace patchedDependencies must map ${patchKey} to ${PATCH_PATH}`);
+	}
+	const patchHash = lockfile?.patchedDependencies?.[patchKey];
+	if (typeof patchHash !== "string" || !/^[a-f0-9]{64}$/.test(patchHash)) {
+		fail(`pnpm lockfile patchedDependencies must record a SHA-256 for ${patchKey}`);
+	}
+	const patchSource = await readFile(join(extensionRoot, PATCH_PATH));
+	const actualPatchHash = sha256(patchSource);
+	if (actualPatchHash !== patchHash) {
+		fail(`pnpm patch has SHA-256 ${actualPatchHash}, lockfile records ${patchHash}`);
+	}
+
 	for (const name of PI_PACKAGES) {
-		if (lockDependencies?.[name] !== expectedVersion) {
-			fail(`lockfile root declares ${name} ${JSON.stringify(lockDependencies?.[name])}, expected ${expectedVersion}`);
+		const entry = importerEntry(lockfile, name);
+		if (entry.specifier !== expectedVersion) {
+			fail(
+				`lockfile importer declares ${name} specifier ${JSON.stringify(entry.specifier)}, expected ${expectedVersion}`,
+			);
+		}
+		const escapedVersion = expectedVersion.replaceAll(".", "\\.");
+		const peerSuffix = String.raw`(?:\([^()]+\))*`;
+		const expectedResolvedVersion = new RegExp(
+			name === PI_AI
+				? `^${escapedVersion}\\(patch_hash=${patchHash}\\)${peerSuffix}$`
+				: `^${escapedVersion}${peerSuffix}$`,
+		);
+		if (typeof entry.version !== "string" || !expectedResolvedVersion.test(entry.version)) {
+			fail(
+				`lockfile importer resolves ${name} ${JSON.stringify(entry.version)}, expected ${name === PI_AI ? `a patched ${expectedVersion} version` : expectedVersion}`,
+			);
 		}
 		const installedPackagePath = join(extensionRoot, "node_modules", name, "package.json");
 		const installedPackage = await readJson(installedPackagePath, `${name} installed metadata`);
@@ -77,28 +131,23 @@ export async function checkPiCompatibility(options = {}) {
 	if (nativePatch.version !== expectedVersion) {
 		fail(`native patch expects Pi ${nativePatch.version}, package dependencies expect ${expectedVersion}`);
 	}
+	if (nativePatch.patch !== "pi-ai.patch") {
+		fail(`native patch must use the canonical pi-ai.patch asset, found ${nativePatch.patch}`);
+	}
 
 	const piAiRoot = join(extensionRoot, "node_modules", "@earendil-works", "pi-ai");
-	const treeStates = [];
 	for (const target of nativePatch.targets) {
 		const targetPath = join(piAiRoot, target.targetRelative);
 		const targetSource = await readFile(targetPath);
 		const actualHash = sha256(targetSource);
-		if (actualHash === target.beforeSha256) treeStates.push("original");
-		else if (actualHash === target.afterSha256) treeStates.push("patched");
-		else {
-			fail(
-				`${targetPath} has SHA-256 ${actualHash}; expected original ${target.beforeSha256} or patched ${target.afterSha256}`,
-			);
+		if (actualHash !== target.afterSha256) {
+			fail(`${targetPath} has SHA-256 ${actualHash}; expected patched ${target.afterSha256}`);
 		}
-	}
-	if (!treeStates.every((state) => state === treeStates[0])) {
-		fail(`installed pi-ai tree is partially patched (${treeStates.join(", ")})`);
 	}
 
 	return {
 		version: expectedVersion,
-		treeState: treeStates[0],
+		treeState: "patched",
 		targetCount: nativePatch.targets.length,
 	};
 }

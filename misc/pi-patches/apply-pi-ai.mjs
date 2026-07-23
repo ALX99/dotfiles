@@ -6,7 +6,7 @@ import { realpathSync } from "node:fs";
 import { link, lstat, open, readFile, realpath, rename, rm, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { assertPatchAssets, loadPatchManifest, patchAssetPath } from "./manifest.mjs";
+import { assertPatchAssets, loadPatchManifest, patchAssetPath, selectPatchTarget } from "./manifest.mjs";
 
 const MANIFEST_PATH = fileURLToPath(new URL("./pi-ai-patch-manifest.json", import.meta.url));
 const MANIFEST = await loadPatchManifest(MANIFEST_PATH);
@@ -14,8 +14,8 @@ await assertPatchAssets(MANIFEST_PATH, MANIFEST);
 const EXPECTED_VERSION = MANIFEST.version;
 const PATCHES = MANIFEST.targets.map((target) => ({
     ...target,
-    patchPath: patchAssetPath(MANIFEST_PATH, target.patch),
 }));
+const PATCH_PATH = patchAssetPath(MANIFEST_PATH, MANIFEST.patch);
 
 function fail(message) {
     throw new Error(message);
@@ -231,7 +231,7 @@ export async function runInstaller(argv, hooks = {}) {
         }
         let patched = source;
         if (!alreadyPatched) {
-            const patch = await readFile(spec.patchPath, "utf8");
+            const patch = selectPatchTarget(await readFile(PATCH_PATH, "utf8"), spec.targetRelative);
             patched = applyUnifiedDiff(source, patch);
             const patchedHash = sha256(patched);
             if (patchedHash !== spec.afterSha256)
