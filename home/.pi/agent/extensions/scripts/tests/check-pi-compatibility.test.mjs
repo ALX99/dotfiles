@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -6,6 +7,8 @@ import test from "node:test";
 import { checkPiCompatibility, PI_PACKAGES } from "../check-pi-compatibility.mjs";
 
 const VERSION = "0.81.1";
+const PATCH_SOURCE = "fixture patch\n";
+const PATCH_HASH = createHash("sha256").update(PATCH_SOURCE).digest("hex");
 
 async function fixture() {
 	const root = await mkdtemp(join(tmpdir(), "pi-compat-"));
@@ -15,7 +18,35 @@ async function fixture() {
 
 	const dependencies = Object.fromEntries(PI_PACKAGES.map((name) => [name, VERSION]));
 	await writeFile(join(extensionRoot, "package.json"), JSON.stringify({ dependencies }));
-	await writeFile(join(extensionRoot, "package-lock.json"), JSON.stringify({ packages: { "": { dependencies } } }));
+	await mkdir(join(extensionRoot, "patches"));
+	await writeFile(join(extensionRoot, "patches/pi-ai.patch"), PATCH_SOURCE);
+	const patchKey = `@earendil-works/pi-ai@${VERSION}`;
+	await writeFile(
+		join(extensionRoot, "pnpm-workspace.yaml"),
+		`patchedDependencies:\n  "${patchKey}": patches/pi-ai.patch\n`,
+	);
+	await writeFile(
+		join(extensionRoot, "pnpm-lock.yaml"),
+		[
+			"importers:",
+			"  .:",
+			"    dependencies:",
+			...PI_PACKAGES.flatMap((name) => [
+				`      "${name}":`,
+				`        specifier: ${VERSION}`,
+				`        version: ${
+					name === "@earendil-works/pi-ai"
+						? `${VERSION}(patch_hash=${PATCH_HASH})(ws@8.21.0)(zod@4.4.3)`
+						: name === "@earendil-works/pi-coding-agent"
+							? `${VERSION}(ws@8.21.0)(zod@4.4.3)`
+							: VERSION
+				}`,
+			]),
+			"patchedDependencies:",
+			`  "${patchKey}": ${PATCH_HASH}`,
+			"",
+		].join("\n"),
+	);
 	for (const name of PI_PACKAGES) {
 		const packageRoot = join(extensionRoot, "node_modules", name);
 		await mkdir(packageRoot, { recursive: true });
@@ -25,16 +56,14 @@ async function fixture() {
 	const target = join(extensionRoot, "node_modules/@earendil-works/pi-ai/dist/api/target.js");
 	await mkdir(dirname(target), { recursive: true });
 	await writeFile(target, "original");
-	const crypto = await import("node:crypto");
-	const before = crypto.createHash("sha256").update("original").digest("hex");
-	const after = crypto.createHash("sha256").update("patched").digest("hex");
+	const before = createHash("sha256").update("original").digest("hex");
+	const after = createHash("sha256").update("patched").digest("hex");
 	await writeFile(
 		manifestPath,
 		JSON.stringify({
 			version: VERSION,
-			targets: [
-				{ targetRelative: "dist/api/target.js", beforeSha256: before, afterSha256: after, patch: "target.patch" },
-			],
+			patch: "pi-ai.patch",
+			targets: [{ targetRelative: "dist/api/target.js", beforeSha256: before, afterSha256: after }],
 		}),
 	);
 
@@ -47,20 +76,19 @@ async function fixture() {
 	};
 }
 
-test("accepts matching exact packages with an original or patched Pi tree", async (t) => {
+test("accepts matching exact packages with a pnpm-patched Pi tree", async (t) => {
 	const files = await fixture();
 	t.after(() => rm(files.root, { recursive: true, force: true }));
 
+	await writeFile(files.target, "patched");
 	assert.deepEqual(await checkPiCompatibility(files.options), {
 		version: VERSION,
-		treeState: "original",
+		treeState: "patched",
 		targetCount: 1,
 	});
-	await writeFile(files.target, "patched");
-	assert.equal((await checkPiCompatibility(files.options)).treeState, "patched");
 });
 
-test("rejects ranges, version drift, unknown hashes, and a mismatched patch version", async (t) => {
+test("rejects ranges, package drift, unpatched trees, and a mismatched patch version", async (t) => {
 	const files = await fixture();
 	t.after(() => rm(files.root, { recursive: true, force: true }));
 
@@ -77,14 +105,46 @@ test("rejects ranges, version drift, unknown hashes, and a mismatched patch vers
 	await assert.rejects(checkPiCompatibility(files.options), /expected 0\.81\.1/);
 
 	await writeFile(installedPath, JSON.stringify({ name: PI_PACKAGES[1], version: VERSION }));
-	await writeFile(files.target, "unknown");
-	await assert.rejects(checkPiCompatibility(files.options), /expected original/);
+	await assert.rejects(checkPiCompatibility(files.options), /expected patched/);
 
-	await writeFile(files.target, "original");
+	await writeFile(files.target, "patched");
 	const manifest = JSON.parse(await readFile(files.manifestPath, "utf8"));
 	manifest.version = "0.81.2";
 	await writeFile(files.manifestPath, JSON.stringify(manifest));
 	await assert.rejects(checkPiCompatibility(files.options), /native patch expects Pi 0\.81\.2/);
+});
+
+test("rejects pnpm workspace and lockfile drift", async (t) => {
+	const files = await fixture();
+	t.after(() => rm(files.root, { recursive: true, force: true }));
+	await writeFile(files.target, "patched");
+
+	const workspacePath = join(files.extensionRoot, "pnpm-workspace.yaml");
+	await writeFile(workspacePath, `patchedDependencies:\n  "@earendil-works/pi-ai@${VERSION}": patches/wrong.patch\n`);
+	await assert.rejects(
+		checkPiCompatibility(files.options),
+		/must map @earendil-works\/pi-ai@0\.81\.1 to patches\/pi-ai\.patch/,
+	);
+
+	await writeFile(workspacePath, `patchedDependencies:\n  "@earendil-works/pi-ai@${VERSION}": patches/pi-ai.patch\n`);
+	const patchPath = join(files.extensionRoot, "patches/pi-ai.patch");
+	await writeFile(patchPath, "changed patch\n");
+	await assert.rejects(checkPiCompatibility(files.options), /pnpm patch has SHA-256/);
+	await writeFile(patchPath, PATCH_SOURCE);
+
+	const lockPath = join(files.extensionRoot, "pnpm-lock.yaml");
+	const lock = await readFile(lockPath, "utf8");
+	await writeFile(lockPath, lock.replace("specifier: 0.81.1", "specifier: ^0.81.1"));
+	await assert.rejects(checkPiCompatibility(files.options), /specifier "\^0\.81\.1"/);
+
+	await writeFile(
+		lockPath,
+		lock.replace(`version: 0.81.1(patch_hash=${PATCH_HASH})(ws@8.21.0)(zod@4.4.3)`, "version: 0.81.1"),
+	);
+	await assert.rejects(checkPiCompatibility(files.options), /expected a patched 0\.81\.1 version/);
+
+	await writeFile(lockPath, lock.replaceAll(PATCH_HASH, "not-a-hash"));
+	await assert.rejects(checkPiCompatibility(files.options), /must record a SHA-256/);
 });
 
 test("rejects malformed native patch manifests before inspecting Pi targets", async (t) => {
@@ -92,8 +152,8 @@ test("rejects malformed native patch manifests before inspecting Pi targets", as
 	t.after(() => rm(files.root, { recursive: true, force: true }));
 
 	const manifest = JSON.parse(await readFile(files.manifestPath, "utf8"));
-	delete manifest.targets[0].patch;
+	delete manifest.patch;
 	await writeFile(files.manifestPath, JSON.stringify(manifest));
 
-	await assert.rejects(checkPiCompatibility(files.options), /Pi patch manifest .*targets\[0\] must contain exactly/);
+	await assert.rejects(checkPiCompatibility(files.options), /Pi patch manifest .*root must contain exactly/);
 });

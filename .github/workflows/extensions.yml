@@ -26,11 +26,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26.0.0
-          cache: npm
-          cache-dependency-path: home/.pi/agent/extensions/package-lock.json
-      - run: npm ci
-      - run: npm run compatibility:check
-      - run: npm run format:check
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
+          cache: pnpm
+          cache-dependency-path: home/.pi/agent/extensions/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run compatibility:check
+      - run: pnpm run peers:check
+      - run: pnpm run format:check
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm test

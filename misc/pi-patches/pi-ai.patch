@@ -1,6 +1,106 @@
+diff --git a/dist/api/openai-codex-responses.js b/dist/api/openai-codex-responses.js
+index f34cf240bbd0034c2189bf299058569ec9082753..e4bd39c656f734cbf65a8e5efbeaae3b197c1056 100644
+--- a/dist/api/openai-codex-responses.js
++++ b/dist/api/openai-codex-responses.js
+@@ -32,6 +32,44 @@ const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 15_000;
+ // endpoint (the same endpoint the official Codex client compresses against).
+ const REQUEST_COMPRESSION_ZSTD_LEVEL = 3;
+ const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
++const APPLY_PATCH_TOOL_DESCRIPTION = "Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.";
++const APPLY_PATCH_LARK_GRAMMAR = `start: begin_patch hunk+ end_patch
++begin_patch: "*** Begin Patch" LF
++end_patch: "*** End Patch" LF?
++
++hunk: add_hunk | delete_hunk | update_hunk
++add_hunk: "*** Add File: " filename LF add_line+
++delete_hunk: "*** Delete File: " filename LF
++update_hunk: "*** Update File: " filename LF change_move? change?
++
++filename: /(.+)/
++add_line: "+" /(.*)/ LF -> line
++
++change_move: "*** Move to: " filename LF
++change: (change_context | change_line)+ eof_line?
++change_context: ("@@" | "@@ " /(.+)/) LF
++change_line: ("+" | "-" | " ") /(.*)/ LF
++eof_line: "*** End of File" LF
++
++%import common.LF
++`;
++const CODEX_CUSTOM_TOOLS = new Map([
++    [
++        "apply_patch",
++        {
++            description: APPLY_PATCH_TOOL_DESCRIPTION,
++            format: {
++                type: "grammar",
++                syntax: "lark",
++                definition: APPLY_PATCH_LARK_GRAMMAR,
++            },
++        },
++    ],
++]);
++const CODEX_CUSTOM_TOOL_NAMES = new Set(CODEX_CUSTOM_TOOLS.keys());
++function getCodexCustomTools(model) {
++    return model.provider === "openai-codex" ? CODEX_CUSTOM_TOOLS : undefined;
++}
+ const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
+ const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
+ const CODEX_RESPONSE_STATUSES = new Set([
+@@ -340,9 +378,13 @@ export const streamSimple = (model, context, options) => {
+ // ============================================================================
+ function buildRequestBody(model, context, options) {
+     const toolPlacement = splitDeferredTools(context, model.compat?.supportsToolSearch ?? false);
++    const customTools = getCodexCustomTools(model);
++    const customToolNames = customTools === undefined ? undefined : CODEX_CUSTOM_TOOL_NAMES;
+     const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
+         includeSystemPrompt: false,
+         deferredTools: toolPlacement.deferred,
++        customToolNames,
++        customTools,
+     });
+     const body = {
+         model: model.id,
+@@ -354,7 +396,7 @@ function buildRequestBody(model, context, options) {
+         include: ["reasoning.encrypted_content"],
+         prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
+         tool_choice: options?.toolChoice ?? "auto",
+-        parallel_tool_calls: true,
++        parallel_tool_calls: false,
+     };
+     if (options?.temperature !== undefined) {
+         body.temperature = options.temperature;
+@@ -363,7 +405,10 @@ function buildRequestBody(model, context, options) {
+         body.service_tier = options.serviceTier;
+     }
+     if (toolPlacement.immediate.length > 0) {
+-        body.tools = convertResponsesTools(toolPlacement.immediate, { strict: null });
++        body.tools = convertResponsesTools(toolPlacement.immediate, {
++            strict: null,
++            customTools,
++        });
+     }
+     if (options?.reasoningEffort !== undefined) {
+         const effort = options.reasoningEffort === "none"
+@@ -1115,9 +1160,12 @@ async function processWebSocketStream(url, body, headers, output, stream, model,
+             keepConnection = false;
+         }
+         else if (useCachedContext && entry && output.responseId) {
++            const customTools = getCodexCustomTools(model);
++            const customToolNames = customTools === undefined ? undefined : CODEX_CUSTOM_TOOL_NAMES;
+             const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
+                 includeSystemPrompt: false,
+-            }).filter((item) => item.type !== "function_call_output");
++                customToolNames,
++            }).filter((item) => item.type !== "function_call_output" && item.type !== "custom_tool_call_output");
+             entry.continuation = {
+                 lastRequestBody: fullBody,
+                 lastResponseId: output.responseId,
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index 0216ce205ce7abf800b190bc7e63d526191dc8e7..2b8f802f0806be4db8f622e4a6ebfd3047edaee3 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
-@@ -148,13 +148,24 @@
+@@ -148,13 +148,24 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                      if (isDifferentModel && itemId?.startsWith("fc_")) {
                          itemId = undefined;
                      }
@@ -32,7 +132,7 @@
                  }
              }
              if (output.length === 0)
-@@ -193,7 +204,7 @@
+@@ -193,7 +204,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                  output = sanitizeSurrogates(hasText ? textResult : hasImages ? "(see attached image)" : "(no tool output)");
              }
              messages.push({
@@ -41,7 +141,7 @@
                  call_id: callId,
                  output,
              });
-@@ -220,7 +231,10 @@
+@@ -220,7 +231,10 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                      call_id: searchCallId,
                      execution: "client",
                      status: "completed",
@@ -53,7 +153,7 @@
                  });
              }
          }
-@@ -233,66 +247,212 @@
+@@ -233,66 +247,212 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
  // =============================================================================
  export function convertResponsesTools(tools, options) {
      const strict = options?.strict === undefined ? false : options.strict;
@@ -183,9 +283,8 @@
                  contentIndex: output.content.length - 1,
              };
 -            outputSlots.set(outputIndex, slot);
--            stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
+             stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
 -            return slot;
-+            stream.push({ type: "thinking_start", contentIndex: slot.contentIndex, partial: output });
          }
 -        if (item.type === "message") {
 +        else if (item.type === "message") {
@@ -292,7 +391,7 @@
      };
      // Azure OpenAI can omit reasoning.encrypted_content from response.output_item.done
      // and provide it only in response.completed.response.output. Backfill the
-@@ -428,6 +588,12 @@
+@@ -428,6 +588,12 @@ export async function processResponsesStream(openaiStream, output, stream, model
                  partial: output,
              });
          }
@@ -305,7 +404,7 @@
          else if (event.type === "response.function_call_arguments.done") {
              const slot = getSlot(event.output_index, "toolCall");
              if (!slot)
-@@ -447,9 +613,15 @@
+@@ -447,9 +613,15 @@ export async function processResponsesStream(openaiStream, output, stream, model
                  }
              }
          }
@@ -322,7 +421,7 @@
              if (item.type === "reasoning" && slot?.type === "thinking") {
                  const summaryText = item.summary?.map((s) => s.text).join("\n\n") || "";
                  const contentText = item.content?.map((c) => c.text).join("\n\n") || "";
-@@ -462,7 +634,7 @@
+@@ -462,7 +634,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
                      content: slot.block.thinking,
                      partial: output,
                  });
@@ -331,7 +430,7 @@
              }
              else if (item.type === "message" && slot?.type === "text") {
                  slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
-@@ -473,10 +645,20 @@
+@@ -473,10 +645,20 @@ export async function processResponsesStream(openaiStream, output, stream, model
                      content: slot.block.text,
                      partial: output,
                  });
@@ -355,7 +454,7 @@
                  // Finalize in-place and strip the scratch buffer so replay only
                  // carries parsed arguments.
                  delete slot.block.partialJson;
-@@ -486,7 +668,7 @@
+@@ -486,7 +668,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
                      toolCall: slot.block,
                      partial: output,
                  });

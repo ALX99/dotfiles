@@ -21,8 +21,9 @@ belong in `home/.pi/agent/skills/`.
 ## Setup and System Changes
 
 Run `just` to list recipes. Use `just install` to restow user configuration,
-then `just install-pi` to install extension dependencies. The installer creates
-required directories, preserves existing third-party skills, and links only
+then `just install-pi` to install locked extension dependencies with pnpm. The
+installer creates required directories, preserves existing third-party skills,
+and links only
 missing skills. Run it after Stow layout changes.
 
 `just linux-system` requires `sudo` and changes Arch system configuration;
@@ -33,15 +34,18 @@ changing navigation intent.
 
 ## Pi Extensions and Validation
 
-Node 26+ is required. In `home/.pi/agent/extensions/`, use tabs and let
+Node 26+ and a global pnpm install are required. In
+`home/.pi/agent/extensions/`, keep `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+and the Pi AI `patchedDependencies` entry synchronized. Use tabs and let
 `oxfmt` format code; TypeScript is strict and uses NodeNext imports. Run
 `just check` for the required compatibility, formatting, type, lint, and test
 suite. Tests use Node’s built-in runner, for example:
-`npm run test:extensions`.
+`pnpm run test:extensions`.
 
 Pi, Pi AI, and Pi TUI are pinned to `0.81.1`. Changes to compatibility code
-must keep `misc/pi-patches/`, its manifest, extension behavior, and tests in
-sync; run `node misc/pi-patches/apply-pi-ai.mjs --check`.
+must keep `misc/pi-patches/`, its manifest, the pnpm patch exposed under
+`extensions/patches/`, extension behavior, and tests in sync; run
+`node misc/pi-patches/apply-pi-ai.mjs --check`.
 For shell edits, run `bash -n home/.bashrc home/.profile`; CI also runs
 ShellCheck.
 

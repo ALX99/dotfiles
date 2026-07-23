@@ -16,6 +16,7 @@ RUN sed -i '/^#DisableSandboxSyscalls/s/^#//' /etc/pacman.conf \
       nodejs \
       npm \
       openssh \
+      pnpm \
       python \
       python-pip \
       ripgrep \
