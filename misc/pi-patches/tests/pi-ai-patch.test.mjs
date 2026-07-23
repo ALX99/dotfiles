@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { cp, lstat, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,16 +8,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { runInstaller } from "../apply-pi-ai.mjs";
-import { assertPatchAssets, loadPatchManifest } from "../manifest.mjs";
+import { assertPatchAssets, loadPatchManifest, selectPatchTarget } from "../manifest.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const EXTENSION_ROOT = resolve(HERE, "../../../home/.pi/agent/extensions");
 const SCRIPT = resolve(HERE, "../apply-pi-ai.mjs");
 const manifest = await loadPatchManifest(resolve(HERE, "../pi-ai-patch-manifest.json"));
 const VERSION = manifest.version;
 const [sharedTarget, codexTarget] = manifest.targets;
 assert.ok(sharedTarget && codexTarget, "patch manifest must define both targets");
-const PATCH = resolve(HERE, `../${sharedTarget.patch}`);
-const CODEX_PATCH = resolve(HERE, `../${codexTarget.patch}`);
+const PATCH = resolve(HERE, `../${manifest.patch}`);
 const TARGET_RELATIVE = sharedTarget.targetRelative;
 const CODEX_TARGET_RELATIVE = codexTarget.targetRelative;
 const BEFORE_SHA256 = sharedTarget.beforeSha256;
@@ -54,11 +54,6 @@ const UPSTREAM_APPLY_PATCH_FORMAT = {
 
 function sha256(content) {
     return createHash("sha256").update(content).digest("hex");
-}
-
-function installedPiRoot() {
-    const executable = execFileSync("which", ["pi"], { encoding: "utf8" }).trim();
-    return resolve(dirname(realpathSync(executable)), "..");
 }
 
 function reverseUnifiedDiff(source, patch) {
@@ -112,21 +107,25 @@ function reverseUnifiedDiff(source, patch) {
 }
 
 async function makeFixture(t) {
-    const installedRoot = installedPiRoot();
-    const installedPiAi = join(installedRoot, "node_modules/@earendil-works/pi-ai");
+    const installedRoot = realpathSync(join(EXTENSION_ROOT, "node_modules/@earendil-works/pi-coding-agent"));
+    const installedPiAi = realpathSync(join(EXTENSION_ROOT, "node_modules/@earendil-works/pi-ai"));
+    const installedPartialJson = realpathSync(join(installedPiAi, "../../partial-json"));
     const root = await mkdtemp(join(tmpdir(), "pi-ai-patch-test-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     await cp(join(installedRoot, "package.json"), join(root, "package.json"));
     const fixturePiAi = join(root, "node_modules/@earendil-works/pi-ai");
     await cp(installedPiAi, fixturePiAi, { recursive: true });
-    await cp(join(installedRoot, "node_modules/partial-json"), join(root, "node_modules/partial-json"), { recursive: true });
+    await cp(installedPartialJson, join(root, "node_modules/partial-json"), { recursive: true });
 
     const target = join(fixturePiAi, TARGET_RELATIVE);
     const codexTarget = join(fixturePiAi, CODEX_TARGET_RELATIVE);
     const installed = await readFile(target, "utf8");
     const installedHash = sha256(installed);
     if (installedHash === AFTER_SHA256) {
-        const before = reverseUnifiedDiff(installed, await readFile(PATCH, "utf8"));
+        const before = reverseUnifiedDiff(
+            installed,
+            selectPatchTarget(await readFile(PATCH, "utf8"), TARGET_RELATIVE),
+        );
         assert.equal(sha256(before), BEFORE_SHA256);
         await writeFile(target, before);
     }
@@ -136,7 +135,10 @@ async function makeFixture(t) {
     const installedCodex = await readFile(codexTarget, "utf8");
     const installedCodexHash = sha256(installedCodex);
     if (installedCodexHash === CODEX_AFTER_SHA256) {
-        const beforeCodex = reverseUnifiedDiff(installedCodex, await readFile(CODEX_PATCH, "utf8"));
+        const beforeCodex = reverseUnifiedDiff(
+            installedCodex,
+            selectPatchTarget(await readFile(PATCH, "utf8"), CODEX_TARGET_RELATIVE),
+        );
         assert.equal(sha256(beforeCodex), CODEX_BEFORE_SHA256);
         await writeFile(codexTarget, beforeCodex);
     }
@@ -156,23 +158,24 @@ test("patch manifest parser rejects malformed metadata and installer assets", as
     const manifestPath = join(root, "manifest.json");
     const valid = {
         version: VERSION,
+        patch: "target.patch",
         targets: [{
             targetRelative: "dist/api/target.js",
             beforeSha256: "a".repeat(64),
             afterSha256: "b".repeat(64),
-            patch: "target.patch",
         }],
     };
     const cases = [
         ["requires exact root keys", (value) => { value.extra = true; }, /root must contain exactly/],
         ["requires an exact version", (value) => { value.version = `^${VERSION}`; }, /version must be an exact version string/],
         ["requires targets", (value) => { value.targets = []; }, /targets must be a nonempty array/],
-        ["requires exact target keys", (value) => { delete value.targets[0].patch; }, /targets\[0\] must contain exactly/],
+        ["requires a root patch", (value) => { delete value.patch; }, /root must contain exactly/],
+        ["requires exact target keys", (value) => { value.targets[0].patch = "target.patch"; }, /targets\[0\] must contain exactly/],
         ["rejects duplicate targets", (value) => { value.targets.push(structuredClone(value.targets[0])); }, /targetRelative is duplicated/],
         ["rejects escaping target paths", (value) => { value.targets[0].targetRelative = "../target.js"; }, /targetRelative must be a contained relative path/],
         ["rejects invalid hashes", (value) => { value.targets[0].beforeSha256 = "A".repeat(64); }, /beforeSha256 must be a lowercase SHA-256 hash/],
         ["rejects identical hashes", (value) => { value.targets[0].afterSha256 = value.targets[0].beforeSha256; }, /must have different beforeSha256 and afterSha256/],
-        ["rejects escaping patch paths", (value) => { value.targets[0].patch = "/target.patch"; }, /patch must be a contained relative path/],
+        ["rejects escaping patch paths", (value) => { value.patch = "/target.patch"; }, /patch must be a contained relative path/],
     ];
 
     for (const [description, mutate, expected] of cases) {
@@ -187,6 +190,20 @@ test("patch manifest parser rejects malformed metadata and installer assets", as
     await assert.rejects(assertPatchAssets(manifestPath, parsed), /cannot access patch asset target\.patch/);
     await writeFile(join(root, "target.patch"), "patch");
     await assert.doesNotReject(assertPatchAssets(manifestPath, parsed));
+});
+
+test("canonical patch has one selectable diff section per manifest target", async () => {
+    const patch = await readFile(PATCH, "utf8");
+    for (const target of manifest.targets) {
+        assert.match(
+            selectPatchTarget(patch, target.targetRelative),
+            new RegExp(`^--- a/${target.targetRelative.replaceAll(".", "\\.")}\\n\\+\\+\\+ b/`),
+        );
+    }
+    assert.throws(
+        () => selectPatchTarget(patch, "dist/api/not-a-target.js"),
+        /exactly one diff section/,
+    );
 });
 
 test("installer is strict, atomic, and idempotent on a temporary package copy", async (t) => {
