@@ -27,8 +27,8 @@ get_bat() {
   Darwin)
     local pmset_output
     pmset_output="$(pmset -g batt)"
-    percentage="$(printf '%s\n' "$pmset_output" | grep -Eo "\d+%" | cut -d% -f1)"
-    status="$(printf '%s\n' "$pmset_output" | grep -qi 'charging' && echo 'Charging' || true)"
+    percentage="$(printf '%s\n' "$pmset_output" | grep -Eo "[0-9]+%" | cut -d% -f1)"
+    status="$(printf '%s\n' "$pmset_output" | grep -Eqi '(^|[[:space:];])charging([[:space:];]|$)' && echo 'Charging' || true)"
     ;;
   *)
     return
