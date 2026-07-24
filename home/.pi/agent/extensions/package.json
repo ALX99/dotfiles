@@ -10,16 +10,14 @@
 		"lint": "oxlint --type-aware --report-unused-disable-directives --max-warnings 0",
 		"deadcode": "knip",
 		"test:extensions": "node --test '**/tests/*.test.ts' '**/tests/*.test.mjs'",
-		"test:pi-patch": "node --test '../../../../misc/pi-patches/tests/*.test.mjs'",
-		"test": "pnpm run test:extensions && pnpm run test:pi-patch",
-		"compatibility:check": "node scripts/check-pi-compatibility.mjs",
+		"test": "pnpm run test:extensions",
 		"peers:check": "pnpm peers check",
-		"check": "pnpm run compatibility:check && pnpm run peers:check && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run deadcode && pnpm test"
+		"check": "pnpm run peers:check && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run deadcode && pnpm test"
 	},
 	"dependencies": {
-		"@earendil-works/pi-ai": "0.81.1",
-		"@earendil-works/pi-coding-agent": "0.81.1",
-		"@earendil-works/pi-tui": "0.81.1",
+		"@earendil-works/pi-ai": "0.82.0",
+		"@earendil-works/pi-coding-agent": "0.82.0",
+		"@earendil-works/pi-tui": "0.82.0",
 		"execa": "^10.0.0",
 		"neverthrow": "^8.2.0",
 		"typebox": "^1.3.6",
@@ -32,8 +30,7 @@
 		"oxfmt": "0.59.0",
 		"oxlint": "^1.74.0",
 		"oxlint-tsgolint": "0.25.0",
-		"typescript": "^7.0.2",
-		"yaml": "^2.9.0"
+		"typescript": "^7.0.2"
 	},
 	"engines": {
 		"node": ">=26.0.0"
@@ -43,9 +40,7 @@
 		"entry": [
 			"*.ts",
 			"*/index.ts",
-			"scripts/*.mjs",
-			"**/tests/*.test.ts",
-			"**/tests/*.test.mjs"
+			"**/tests/*.test.ts"
 		],
 		"project": [
 			"**/*.ts",

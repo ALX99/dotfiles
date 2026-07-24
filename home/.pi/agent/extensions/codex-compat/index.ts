@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME } from "./types.ts";
+import { APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME, APPLY_PATCH_LARK_GRAMMAR } from "./types.ts";
 
 const APPLY_PATCH_PARAMETERS = Type.Object(
 	{
@@ -232,6 +232,13 @@ export function createApplyPatchTool(
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,
 		parameters: APPLY_PATCH_PARAMETERS,
+		// Native grammar-tool constraint (Pi 0.82.0+): the single `patch`
+		// argument is grammar-constrained at sampling time on grammar-capable
+		// providers, replacing the patched pi-ai `custom` tool.
+		constrainedSampling: {
+			type: "grammar",
+			variants: { openai_lark: APPLY_PATCH_LARK_GRAMMAR },
+		},
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const executable = options.executable ?? "codex";
