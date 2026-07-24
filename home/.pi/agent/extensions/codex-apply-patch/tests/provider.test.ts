@@ -42,7 +42,7 @@ function toolText(result: Awaited<ReturnType<ReturnType<typeof createApplyPatchT
 }
 
 test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", async () => {
-	const cwd = await mkdtemp(path.join(tmpdir(), "codex-compat-process-"));
+	const cwd = await mkdtemp(path.join(tmpdir(), "codex-apply-patch-process-"));
 	try {
 		const patch = "*** Begin Patch\n*** Add File: test.txt\n+raw\n*** End Patch\n";
 		const result = await createApplyPatchTool({ executable: FAKE_EXECUTABLE }).execute(
@@ -66,7 +66,7 @@ test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", asy
 });
 
 test("adapter smoke-tests an installed Codex in apply_patch multicall mode", async (t) => {
-	const cwd = await mkdtemp(path.join(tmpdir(), "codex-compat-upstream-"));
+	const cwd = await mkdtemp(path.join(tmpdir(), "codex-apply-patch-upstream-"));
 	try {
 		let result;
 		try {
