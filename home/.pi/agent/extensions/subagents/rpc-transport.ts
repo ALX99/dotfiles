@@ -12,6 +12,7 @@ export const DEFAULT_RPC_MAX_STDERR_LINES = 200;
 export const DEFAULT_RPC_REQUEST_TIMEOUT_MS = 30_000;
 export const DEFAULT_RPC_CLOSE_GRACE_MS = 1_000;
 export const DEFAULT_RPC_MAX_QUEUED_WRITE_BYTES = 1024 * 1024;
+export const DEFAULT_RPC_SPAWN_TIMEOUT_MS = 30_000;
 
 interface SpawnRpcProcessOptions {
 	readonly cwd: string;
@@ -115,6 +116,7 @@ export interface RpcTransportOptions {
 	readonly maxStderrLines?: number;
 	readonly requestTimeoutMs?: number;
 	readonly closeGraceMs?: number;
+	readonly spawnTimeoutMs?: number;
 	readonly maxQueuedWriteBytes?: number;
 	readonly writeFrame?: WriteRpcFrame;
 }
@@ -175,8 +177,19 @@ export class RpcTransport {
 
 		try {
 			await new Promise<void>((resolve, reject) => {
-				child.nodeChildProcess.once("spawn", resolve);
-				child.nodeChildProcess.once("error", reject);
+				const timer = setTimeout(() => {
+					reject(new Error(`Subagent RPC process did not spawn within ${this.spawnTimeoutMs()}ms.`));
+				}, this.spawnTimeoutMs());
+				const onSpawn = (): void => {
+					clearTimeout(timer);
+					resolve();
+				};
+				const onError = (cause: Error): void => {
+					clearTimeout(timer);
+					reject(cause);
+				};
+				child.nodeChildProcess.once("spawn", onSpawn);
+				child.nodeChildProcess.once("error", onError);
 			});
 		} catch (cause) {
 			const error = this.failure ?? new Error("Could not start subagent RPC process.", { cause });
@@ -418,6 +431,10 @@ export class RpcTransport {
 
 	private rejectPending(error: Error): void {
 		for (const id of this.pending.keys()) this.rejectRequest(id, error);
+	}
+
+	private spawnTimeoutMs(): number {
+		return this.options.spawnTimeoutMs ?? DEFAULT_RPC_SPAWN_TIMEOUT_MS;
 	}
 
 	private maxFrameBytes(): number {
