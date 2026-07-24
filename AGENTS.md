@@ -18,7 +18,7 @@ deliberately disables folding.
 - `data_analysis/` — privacy-preserving Pi JSONL efficiency and regression
   reporting; its generated `report.html` is intentionally ignored.
 - `misc/` — machine-level Arch, systemd, XKB/keyd, pacman, and Pi compatibility
-  assets. The `codex-compat` extension declares the `apply_patch` tool with a
+  assets. The `codex-apply-patch` extension declares the `apply_patch` tool with a
   Lark grammar via `constrainedSampling`; Pi 0.82.0 provides native grammar-tool
   support, so no patched pi-ai build is needed.
 - `home/.pi/agent/` — Pi settings, extensions, and Pi-only skills.
@@ -62,7 +62,7 @@ Run these from the repository root unless noted otherwise.
   imports. Their package manager is pnpm; keep `pnpm-lock.yaml`,
   `pnpm-workspace.yaml` synchronized. Use tabs and let `oxfmt` format them.
 - Pi, Pi AI, and Pi TUI are pinned to `0.82.0`. Keep `pnpm-lock.yaml`,
-  `pnpm-workspace.yaml`, the `codex-compat` tool grammar, and the compatibility
+  `pnpm-workspace.yaml`, the `codex-apply-patch` tool grammar, and the compatibility
   check synchronized when changing compatibility code.
 - Colemak-DH navigation mappings span nvim, tmux, sail, keyd, Karabiner,
   Ghostty, and readline; update every affected layer when changing navigation
