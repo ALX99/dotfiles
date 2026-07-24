@@ -1,57 +1,80 @@
 # Repository Guidelines
 
-## Project Structure
+This is a Stow-managed personal dotfiles repository. The `.local/`, `home/`,
+and `.config/` packages target `~/.local`, `~`, and `~/.config`; `.stowrc`
+deliberately disables folding.
 
-This is a Stow-managed personal dotfiles repository. The `.local/`, `home/`, and
-`.config/` packages target `~/.local`, `~`, and `~/.config` respectively;
-`.stowrc` deliberately uses `--no-folding`. `misc/` owns machine-level Arch,
-systemd, XKB/keyd, pacman, and Pi compatibility files. The
-`.config/mpv/scripts/subs2srs` path is the `Ajatt-Tools/mpvacious` submodule.
+## Repository Map
 
-Pi configuration is under `home/.pi/agent/`. Extensions live in
-`home/.pi/agent/extensions/`: top-level `.ts` files and `*/index.ts` are entry
-points; `_shared/` is intentionally not. The RPC-backed subagent extension
-keeps role prompts in `subagents/agents/` and lifecycle/transport/state in
-separate modules. Its tests are colocated in `subagents/tests/`. Child
-`ask_question` requests route to the immediate spawning agent and resume
-through `answer_agent`.
-Harness-independent skills belong in `home/.agents/skills/`; Pi-only skills
-belong in `home/.pi/agent/skills/`.
+- `.local/` — user-local executables and shared data; add command-line helpers
+  under `.local/bin/`.
+- `home/` — home-directory dotfiles, including shell configuration and agent
+  configuration. Keep tracked symlinks as symlinks: `.bash_profile` points to
+  `.profile`, and the Claude/Codex instruction links lead to
+  `.pi/agent/APPEND_SYSTEM.md`.
+- `.config/` — application configuration. The `mpv/scripts/subs2srs`
+  directory is the `Ajatt-Tools/mpvacious` submodule; do not edit it as local
+  configuration.
+- `data_analysis/` — privacy-preserving Pi JSONL efficiency and regression
+  reporting; its generated `report.html` is intentionally ignored.
+- `misc/` — machine-level Arch, systemd, XKB/keyd, pacman, and Pi compatibility
+  assets. The `codex-compat` extension declares the `apply_patch` tool with a
+  Lark grammar via `constrainedSampling`; Pi 0.82.0 provides native grammar-tool
+  support, so no patched pi-ai build is needed.
+- `home/.pi/agent/` — Pi settings, extensions, and Pi-only skills.
+  `extensions/*.ts` and `extensions/*/index.ts` are extension entry points;
+  `_shared/` is not. The RPC subagent extension separates role prompts
+  (`subagents/agents/`) from lifecycle, transport, and state modules; its tests
+  are in `subagents/tests/`. Child `ask_question` requests route to the
+  immediate spawning agent and resume through `answer_agent`.
+- `home/.agents/skills/` — harness-independent skills. Put Pi-only skills in
+  `home/.pi/agent/skills/` instead.
+- `.github/workflows/` — CI: extension checks run only for extension or patch
+  changes; ShellCheck runs for all pushes and pull requests.
+- `Justfile` — installation, formatting, and validation recipes; inspect it
+  before changing setup or system configuration.
+- `CLAUDE.md` — symlink to this file. `home/.claude/CLAUDE.md` and
+  `home/.codex/AGENTS.md` are separate downstream instruction links.
 
-## Setup and System Changes
+## Essential Commands
 
-Run `just` to list recipes. Use `just install` to restow user configuration,
-then `just install-pi` to install locked extension dependencies with pnpm. The
-installer creates required directories, preserves existing third-party skills,
-and links only
-missing skills. Run it after Stow layout changes.
+Run these from the repository root unless noted otherwise.
 
-`just linux-system` requires `sudo` and changes Arch system configuration;
-`just mac-system` installs (but does not enable) the macOS Colemak-DH layout.
-Do not run either casually. Colemak-DH navigation mappings span nvim, tmux,
-sail, keyd, Karabiner, Ghostty, and readline—update every affected layer when
-changing navigation intent.
+- `just` — list available recipes.
+- `just install` — restow user configuration and link shared skills; run after
+  Stow-layout changes. It changes paths in `$HOME` and enables the user
+  `ssh-agent` service when its bus is available.
+- `just install-pi` — install locked Pi extension dependencies with pnpm in
+  `$HOME/.pi/agent/extensions`.
+- `just fmt` — format Pi extensions with `oxfmt`.
+- `just check` — run Pi compatibility, formatting, type, lint, dead-code, and
+  test checks.
+- `pnpm run test:extensions` — focused extension tests; run from
+  `home/.pi/agent/extensions/`.
+- `bash -n home/.bashrc home/.profile` — syntax-check the primary shell files.
+- `just linux-system` — privileged Arch system configuration; do not run
+  casually. `just mac-system` installs, but does not enable, the macOS
+  Colemak-DH layout.
 
-## Pi Extensions and Validation
+## Architecture & Working Agreements
 
-Node 26+ and a global pnpm install are required. In
-`home/.pi/agent/extensions/`, keep `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
-and the Pi AI `patchedDependencies` entry synchronized. Use tabs and let
-`oxfmt` format code; TypeScript is strict and uses NodeNext imports. Run
-`just check` for the required compatibility, formatting, type, lint, and test
-suite. Tests use Node’s built-in runner, for example:
-`pnpm run test:extensions`.
+- Pi extensions require Node 26+ and use strict TypeScript with NodeNext
+  imports. Their package manager is pnpm; keep `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml` synchronized. Use tabs and let `oxfmt` format them.
+- Pi, Pi AI, and Pi TUI are pinned to `0.82.0`. Keep `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml`, the `codex-compat` tool grammar, and the compatibility
+  check synchronized when changing compatibility code.
+- Colemak-DH navigation mappings span nvim, tmux, sail, keyd, Karabiner,
+  Ghostty, and readline; update every affected layer when changing navigation
+  intent.
+- Keep unrelated local edits intact. Use concise Conventional Commit-style
+  subjects consistent with recent history.
 
-Pi, Pi AI, and Pi TUI are pinned to `0.81.1`. Changes to compatibility code
-must keep `misc/pi-patches/`, its manifest, the pnpm patch exposed under
-`extensions/patches/`, extension behavior, and tests in sync; run
-`node misc/pi-patches/apply-pi-ai.mjs --check`.
-For shell edits, run `bash -n home/.bashrc home/.profile`; CI also runs
-ShellCheck.
+## Keeping This File Accurate
 
-## Change Hygiene
-
-Use concise Conventional Commit-style subjects (`fix(nvim): …`,
-`refactor(pi): …`) consistent with recent history. Keep unrelated local edits
-intact. `CLAUDE.md` and selected files under `home/` are links: edit their
-canonical source rather than replacing the link.
+This file must stay accurate. Before finishing any change, check whether it
+alters a mapped path or responsibility, or a documented command, workflow,
+dependency, or architectural rule. If so, update `AGENTS.md` in the same
+change. When creating, deleting, moving, renaming, or repurposing files or
+directories, always review the repository map; do not add entries for ordinary
+files already covered by an existing responsibility.
