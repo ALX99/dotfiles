@@ -28,7 +28,7 @@ get_bat() {
     local pmset_output
     pmset_output="$(pmset -g batt)"
     percentage="$(printf '%s\n' "$pmset_output" | grep -Eo "[0-9]+%" | cut -d% -f1)"
-    status="$(printf '%s\n' "$pmset_output" | grep -Eqi '(^|[[:space:];])charging([[:space:];]|$)' && echo 'Charging' || true)"
+    status="$(printf '%s\n' "$pmset_output" | grep -Eqi '[0-9]+%;[[:space:]]*charging([[:space:];]|$)' && echo 'Charging' || true)"
     ;;
   *)
     return
