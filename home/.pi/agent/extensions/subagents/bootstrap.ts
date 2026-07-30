@@ -3,7 +3,6 @@ import { isRecord } from "../_shared/json.ts";
 import { discoverAgents, type AgentConfig } from "./agents.ts";
 import { AgentRegistry, SUBAGENT_SETTLEMENT_CUSTOM_TYPE } from "./agent-registry.ts";
 import { CleanupAggregateError, type AgentQuestion, type AgentSummary } from "./agent-types.ts";
-import { pruneStaleContextArtifacts } from "./context-artifacts.ts";
 import { loadProfiles, type ProfilesConfig } from "./profiles.ts";
 import type { RunUsage } from "./run-state.ts";
 import { SpawnAdmissionController } from "./spawn-admission.ts";
@@ -20,6 +19,7 @@ export interface SubagentRuntime {
 	readonly admission: SpawnAdmissionController;
 	readonly ticks: Map<string, NodeJS.Timeout>;
 	readonly shuttingDown: boolean;
+	readonly restoredResultCount: number;
 	handleBackgroundComplete(pi: ExtensionAPI, summary: AgentSummary): void;
 	handleQuestion(pi: ExtensionAPI, summary: AgentSummary, question: AgentQuestion): void;
 	consumeSettledCompletions(summaries: readonly AgentSummary[]): void;
@@ -34,6 +34,7 @@ export class DefaultSubagentRuntime implements SubagentRuntime {
 	readonly ticks = new Map<string, NodeJS.Timeout>();
 	readonly admission: SpawnAdmissionController;
 	shuttingDown = false;
+	restoredResultCount = 0;
 	private readonly pendingCompletions = new Map<string, AgentSummary>();
 	private activeContext: ExtensionContext | undefined;
 	private uiBinding: RegistryUiBinding | undefined;
@@ -51,7 +52,7 @@ export class DefaultSubagentRuntime implements SubagentRuntime {
 	async startSession(ctx: ExtensionContext): Promise<void> {
 		this.activeContext = ctx;
 		const branch = ctx.sessionManager.getBranch();
-		this.registry.restoreResultLocators(branch);
+		this.restoredResultCount = this.registry.restoreResultLocators(branch);
 		this.accountedUsage.clear();
 		restoreAccountedUsage(branch, this.accountedUsage);
 		this.uiBinding?.close();
@@ -59,14 +60,6 @@ export class DefaultSubagentRuntime implements SubagentRuntime {
 			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
 		});
 		this.uiBinding.refresh();
-		try {
-			await pruneStaleContextArtifacts({ agentDir: this.agentDir });
-		} catch (error) {
-			ctx.ui.notify(
-				`Subagent artifact cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-				"warning",
-			);
-		}
 	}
 
 	flushCompletions(pi: ExtensionAPI, force = false): void {

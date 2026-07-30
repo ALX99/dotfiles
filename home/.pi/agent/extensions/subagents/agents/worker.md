@@ -25,7 +25,4 @@ Before declaring final validation, disposition every material finding: fixed,
 already satisfied, intentionally deferred with reason, or blocked. State your
 owned files/responsibility and validation in the terminal result.
 
-Submit the terminal report with `submit_agent_result`. Split the exact report
-into consecutive pages of at most the tool's UTF-8 page bound, starting at page
-0 and setting `final: true` only on the last page. This is transport chunking,
-not result truncation; concatenating pages must reproduce the exact report.
+Return the terminal report as your final assistant response.
