@@ -10,16 +10,14 @@ import {
 } from "../child-process.ts";
 
 const context: ChildExecutionContext = {
-	treeId: "tree-1",
-	depth: 1,
 	agent: "worker",
 	profile: "balanced",
-	childSpawnBudget: 2,
+	parentSessionId: "parent-session-1",
 };
 
 test("child execution context serialization round-trips through the strict parser", () => {
 	assert.deepEqual(parseChildExecutionContext(serializeChildExecutionContext(context)), context);
-	assert.throws(() => serializeChildExecutionContext({ ...context, childSpawnBudget: -1 } as ChildExecutionContext));
+	assert.throws(() => serializeChildExecutionContext({ ...context, depth: 1 } as ChildExecutionContext));
 });
 
 test("temporary role prompts preserve content in a private sanitized file", async (t) => {

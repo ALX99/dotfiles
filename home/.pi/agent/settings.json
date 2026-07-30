@@ -1,16 +1,18 @@
 {
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-luna",
+  "defaultModel": "gpt-5.6-terra",
   "defaultThinkingLevel": "medium",
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "0.80.10",
+  "lastChangelogVersion": "0.83.0",
   "retry": {
-    "maxRetries": 10
+    "maxRetries": 10,
+    "enabled": true
   },
   "packages": [
-    "npm:@ff-labs/pi-fff@0.10.0"
+    "npm:@ff-labs/pi-fff@0.10.0",
+    "git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.6-terra",

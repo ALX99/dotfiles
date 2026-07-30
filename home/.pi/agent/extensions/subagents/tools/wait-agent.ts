@@ -32,13 +32,18 @@ export function createWaitAgentTool(
 		name: "wait_agent",
 		label: "Wait Agent",
 		description:
-			"Wait up to fifteen minutes for specified subagents to settle or request input. Settled results are consumed, preventing redundant automatic follow-up turns.",
+			"Wait as one multi-agent barrier for specified subagents to settle or request input. A matching queued completion is consumed exactly once.",
 		parameters: WaitAgentParamsSchema,
 		async execute(_id, params, signal) {
 			return executeWaitAgent(params, runtime, signal, now);
 		},
 		renderCall(args, theme) {
-			return renderWaitCall(uniqueAgentIds(args.agent_ids), DEFAULT_WAIT_MS, runtime.registry.list(), theme);
+			return renderWaitCall(
+				uniqueAgentIds(args.agent_ids),
+				args.timeout_ms ?? DEFAULT_WAIT_MS,
+				runtime.registry.list(),
+				theme,
+			);
 		},
 		renderResult(result, options, theme) {
 			return renderWaitToolResult(result, options, theme);
@@ -53,6 +58,7 @@ export async function executeWaitAgent(
 	now: () => number = Date.now,
 ) {
 	const requested = uniqueAgentIds(params.agent_ids);
+	const timeoutMs = params.timeout_ms ?? DEFAULT_WAIT_MS;
 	// Resolve every ID before starting a potentially long wait. `wait()` is
 	// asynchronous, so an unknown ID would otherwise be hidden by
 	// Promise.allSettled until the valid agents have finished.
@@ -62,7 +68,7 @@ export async function executeWaitAgent(
 	const waitSignal = signal ? AbortSignal.any([signal, wave.signal]) : wave.signal;
 	const waits = Promise.allSettled(
 		requested.map(async (id) => {
-			const details = await runtime.registry.wait(id, DEFAULT_WAIT_MS, waitSignal);
+			const details = await runtime.registry.wait(id, timeoutMs, waitSignal);
 			if (details.pendingQuestion && !wave.signal.aborted) {
 				wave.abort(new AgentWaitDeferredReason());
 			}
@@ -74,7 +80,7 @@ export async function executeWaitAgent(
 	const summaries = requested.map((id) => runtime.registry.summary(id));
 	const outcomes = (await waits).map((outcome, index) => waitOutcome(requested[index]!, outcome));
 	runtime.consumeSettledCompletions(summaries);
-	const details = waitDetails(summaries, now() - startTime, DEFAULT_WAIT_MS, outcomes);
+	const details = waitDetails(summaries, now() - startTime, timeoutMs, outcomes);
 	return jsonResult({ summaries, outcomes }, details);
 }
 

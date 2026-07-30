@@ -1,20 +1,21 @@
-import { clipText, clipTextAtWord } from "../_shared/terminal-text.ts";
+import { clipText } from "../_shared/terminal-text.ts";
 import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentEvent, WireMessage } from "./event-schema.ts";
 import type { OutputSpool } from "./output-spool.ts";
+import type { AgentResultReference } from "./result-store.ts";
 
 const MAX_RECENT_TOOLS = 50;
-const MAX_NESTED_RUNS = 8;
-const MAX_NESTED_TOOLS = 8;
 export const MAX_ARGUMENT_PREVIEW_CHARACTERS = 500;
 export const MAX_RETAINED_EVENT_TEXT_CHARACTERS = 500;
 export const MAX_RETAINED_IDENTITY_CHARACTERS = 200;
+const MUTATION_CAPABLE_TOOLS = new Set(["bash", "edit", "write", "apply_patch"]);
 
 export interface RunUsage {
 	input: number;
 	output: number;
+	reasoning?: number;
 	cacheRead: number;
 	cacheWrite: number;
 	cost: number;
@@ -22,19 +23,6 @@ export interface RunUsage {
 }
 
 export type RunStatus = "starting" | "running" | "idle" | "failed" | "aborted" | "closed" | "launched";
-export type NestedRunStatus = "running" | "completed" | "failed" | "aborted";
-
-export interface NestedRunDetails {
-	toolCallId: string;
-	agent: string;
-	taskName: string;
-	depth: number;
-	status: NestedRunStatus;
-	toolCount: number;
-	recentTools: Array<{ name: string; argsPreview: string }>;
-	lastMessage: string;
-	nestedRuns: NestedRunDetails[];
-}
 
 export interface MutableRunData {
 	agent: string;
@@ -43,21 +31,27 @@ export interface MutableRunData {
 	model: string;
 	effectiveThinking: string;
 	sessionFile?: string;
-	depth: number;
 	exitCode: number;
+	/** Bounded presentation/transport preview of the settled terminal result. */
 	finalText: string;
+	/** Bounded presentation preview of live assistant narration. */
+	transcriptPreview: string;
 	outputFile?: string;
 	stderr: string;
 	assistantError?: string;
 	startTime: number;
 	endTime?: number;
 	toolCount: number;
+	mutationToolCalls: number;
 	recentTools: Array<{ name: string; argsPreview: string }>;
 	lastMessage: string;
-	nestedRuns: NestedRunDetails[];
+	lastAssistantText: string;
 	tokens: number;
 	usage: RunUsage;
 	contextWindow?: number;
+	resultId: string;
+	result?: AgentResultReference;
+	omittedTelemetryRecords: number;
 }
 
 export interface RunDetails extends MutableRunData {
@@ -68,16 +62,9 @@ export interface RunDetails extends MutableRunData {
 	aborted: boolean;
 }
 
-export type ReadonlyNestedRunDetails = Readonly<
-	Omit<NestedRunDetails, "recentTools" | "nestedRuns"> & {
-		readonly recentTools: readonly Readonly<{ name: string; argsPreview: string }>[];
-		readonly nestedRuns: readonly ReadonlyNestedRunDetails[];
-	}
->;
 export type ReadonlyRunDetails = Readonly<
-	Omit<RunDetails, "recentTools" | "nestedRuns" | "usage"> & {
+	Omit<RunDetails, "recentTools" | "usage" | "lastAssistantText"> & {
 		readonly recentTools: readonly Readonly<{ name: string; argsPreview: string }>[];
-		readonly nestedRuns: readonly ReadonlyNestedRunDetails[];
 		readonly usage: Readonly<RunUsage>;
 	}
 >;
@@ -89,7 +76,7 @@ export interface InitRunDetailsParams {
 	readonly model: string;
 	readonly effectiveThinking: string;
 	readonly sessionFile?: string;
-	readonly parentDepth: number;
+	readonly resultId: string;
 }
 
 export function initRunData(params: InitRunDetailsParams): MutableRunData {
@@ -100,17 +87,20 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		model: params.model,
 		effectiveThinking: params.effectiveThinking,
 		...(params.sessionFile === undefined ? {} : { sessionFile: params.sessionFile }),
-		depth: params.parentDepth + 1,
 		exitCode: 0,
 		finalText: "",
+		transcriptPreview: "",
 		stderr: "",
 		startTime: Date.now(),
 		toolCount: 0,
+		mutationToolCalls: 0,
 		recentTools: [],
 		lastMessage: "",
-		nestedRuns: [],
+		lastAssistantText: "",
 		tokens: 0,
-		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		usage: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		resultId: params.resultId,
+		omittedTelemetryRecords: 0,
 	};
 }
 
@@ -121,20 +111,20 @@ export interface RunSnapshotState {
 }
 
 export function snapshotRunData(details: MutableRunData, state: RunSnapshotState = {}): ReadonlyRunDetails {
+	const { lastAssistantText: _lastAssistantText, ...publicDetails } = details;
 	return {
-		...details,
+		...publicDetails,
 		...(state.agentId === undefined ? {} : { agentId: state.agentId }),
 		...(state.generation === undefined ? {} : { generation: state.generation }),
 		...(state.status === undefined ? {} : { status: state.status }),
 		aborted: state.status === "aborted",
 		recentTools: details.recentTools.map((tool) => ({ ...tool })),
-		nestedRuns: details.nestedRuns.map(snapshotNestedRun),
 		usage: { ...details.usage },
 	};
 }
 
-/** Fold a previously validated event. Output writes are serialized by the
- * OutputSpool and awaited before settlement is published. */
+/** Fold bounded live telemetry. Canonical terminal results are captured from
+ * persisted result pages only after the child settles. */
 export async function foldAgentEvent(event: AgentEvent, details: MutableRunData, output: OutputSpool): Promise<void> {
 	switch (event.type) {
 		case "agent_start":
@@ -154,20 +144,11 @@ export async function foldAgentEvent(event: AgentEvent, details: MutableRunData,
 			await ingestMessage(message, details, output);
 			return;
 		}
-		case "tool_execution_start":
-			if (event.toolName === "spawn_agent") {
-				upsertNestedRun(details, nestedRunFromArgs(event.toolCallId, event.args, details.depth + 1));
-			}
-			return;
-		case "tool_execution_update":
-			if (event.toolName === "spawn_agent") {
-				updateNestedRun(details, event.toolCallId, event.partialResult, "running");
-			}
-			return;
 		case "tool_execution_end":
-			if (event.toolName === "spawn_agent") {
-				updateNestedRun(details, event.toolCallId, event.result, event.isError ? "failed" : "completed");
-			}
+			if (MUTATION_CAPABLE_TOOLS.has(event.toolName)) details.mutationToolCalls++;
+			return;
+		case "tool_execution_start":
+		case "tool_execution_update":
 			return;
 	}
 }
@@ -179,11 +160,17 @@ async function ingestMessage(msg: WireMessage, details: MutableRunData, output: 
 		details.usage.turns++;
 		details.usage.input += usage.input ?? 0;
 		details.usage.output += usage.output ?? 0;
+		details.usage.reasoning = (details.usage.reasoning ?? 0) + (usage.reasoning ?? 0);
 		details.usage.cacheRead += usage.cacheRead ?? 0;
 		details.usage.cacheWrite += usage.cacheWrite ?? 0;
 		details.usage.cost += usage.cost?.total ?? 0;
 		details.tokens =
-			usage.totalTokens ?? (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+			usage.totalTokens ??
+			(usage.input ?? 0) +
+				(usage.output ?? 0) +
+				(usage.reasoning ?? 0) +
+				(usage.cacheRead ?? 0) +
+				(usage.cacheWrite ?? 0);
 	}
 
 	const textParts: string[] = [];
@@ -196,137 +183,17 @@ async function ingestMessage(msg: WireMessage, details: MutableRunData, output: 
 			});
 			if (details.recentTools.length > MAX_RECENT_TOOLS) details.recentTools.shift();
 		} else if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
-			textParts.push(part.text.trim());
+			textParts.push(part.text);
 			const prose = part.text.split("\n").find((line) => line.trim() && !line.trimStart().startsWith("```"));
 			if (prose) details.lastMessage = retainedText(prose, MAX_RETAINED_EVENT_TEXT_CHARACTERS);
 		}
 	}
 	if (textParts.length === 0) return;
+	details.lastAssistantText = textParts.join("\n");
 	const preview = await output.append(textParts.join("\n\n"));
-	details.finalText = preview.text;
+	details.transcriptPreview = preview.text;
 	if (preview.outputFile) details.outputFile = preview.outputFile;
 	else delete details.outputFile;
-}
-
-function snapshotNestedRun(run: NestedRunDetails): NestedRunDetails {
-	return {
-		...run,
-		recentTools: run.recentTools.map((tool) => ({ ...tool })),
-		nestedRuns: run.nestedRuns.map(snapshotNestedRun),
-	};
-}
-
-function nestedRunFromArgs(toolCallId: string, args: unknown, depth: number): NestedRunDetails {
-	const input = isRecord(args) ? args : {};
-	const message = typeof input.message === "string" ? input.message : "(task unavailable)";
-	return {
-		toolCallId: retainedText(toolCallId, MAX_RETAINED_IDENTITY_CHARACTERS),
-		agent:
-			typeof input.agent === "string" && input.agent.trim()
-				? retainedText(input.agent, MAX_RETAINED_IDENTITY_CHARACTERS)
-				: "general",
-		taskName:
-			typeof input.task_name === "string" && input.task_name.trim()
-				? retainedText(input.task_name, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
-				: clipTextAtWord(message, 60),
-		depth,
-		status: "running",
-		toolCount: 0,
-		recentTools: [],
-		lastMessage: "",
-		nestedRuns: [],
-	};
-}
-
-function updateNestedRun(
-	details: MutableRunData,
-	toolCallId: string,
-	rawResult: unknown,
-	fallbackStatus: NestedRunStatus,
-): void {
-	const retainedToolCallId = retainedText(toolCallId, MAX_RETAINED_IDENTITY_CHARACTERS);
-	const existing =
-		details.nestedRuns.find((run) => run.toolCallId === retainedToolCallId) ??
-		nestedRunFromArgs(retainedToolCallId, undefined, details.depth + 1);
-	upsertNestedRun(details, nestedRunFromResult(rawResult, existing, fallbackStatus));
-}
-
-function upsertNestedRun(details: MutableRunData, run: NestedRunDetails): void {
-	const index = details.nestedRuns.findIndex((item) => item.toolCallId === run.toolCallId);
-	if (index >= 0) details.nestedRuns[index] = run;
-	else details.nestedRuns.push(run);
-	while (details.nestedRuns.length > MAX_NESTED_RUNS) {
-		const completedIndex = details.nestedRuns.findIndex((item) => item.status !== "running");
-		details.nestedRuns.splice(completedIndex >= 0 ? completedIndex : 0, 1);
-	}
-}
-
-function nestedRunFromResult(
-	rawResult: unknown,
-	fallback: NestedRunDetails,
-	fallbackStatus: NestedRunStatus,
-	remainingDepth = 3,
-): NestedRunDetails {
-	const rawDetails = isRecord(rawResult) && isRecord(rawResult.details) ? rawResult.details : rawResult;
-	if (!isRecord(rawDetails)) return { ...fallback, status: fallbackStatus };
-	const status = isNestedRunStatus(rawDetails.status)
-		? rawDetails.status
-		: rawDetails.aborted === true
-			? "aborted"
-			: typeof rawDetails.exitCode === "number" && rawDetails.exitCode !== 0
-				? "failed"
-				: rawDetails.endTime !== undefined
-					? "completed"
-					: fallbackStatus;
-	return {
-		toolCallId: fallback.toolCallId,
-		agent:
-			typeof rawDetails.agent === "string"
-				? retainedText(rawDetails.agent, MAX_RETAINED_IDENTITY_CHARACTERS)
-				: fallback.agent,
-		taskName:
-			typeof rawDetails.taskName === "string"
-				? retainedText(rawDetails.taskName, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
-				: fallback.taskName,
-		depth: typeof rawDetails.depth === "number" ? rawDetails.depth : fallback.depth,
-		status,
-		toolCount: typeof rawDetails.toolCount === "number" ? rawDetails.toolCount : fallback.toolCount,
-		recentTools: nestedTools(rawDetails.recentTools),
-		lastMessage:
-			typeof rawDetails.lastMessage === "string"
-				? retainedText(rawDetails.lastMessage, MAX_RETAINED_EVENT_TEXT_CHARACTERS)
-				: fallback.lastMessage,
-		nestedRuns: remainingDepth > 0 ? nestedRuns(rawDetails.nestedRuns, remainingDepth - 1) : [],
-	};
-}
-
-function nestedTools(raw: unknown): Array<{ name: string; argsPreview: string }> {
-	if (!Array.isArray(raw)) return [];
-	return raw
-		.flatMap((item) => {
-			if (!isRecord(item) || typeof item.name !== "string" || typeof item.argsPreview !== "string") return [];
-			return [
-				{
-					name: retainedText(item.name, MAX_RETAINED_IDENTITY_CHARACTERS),
-					argsPreview: retainedText(item.argsPreview, MAX_ARGUMENT_PREVIEW_CHARACTERS),
-				},
-			];
-		})
-		.slice(-MAX_NESTED_TOOLS);
-}
-
-function nestedRuns(raw: unknown, remainingDepth: number): NestedRunDetails[] {
-	if (!Array.isArray(raw) || remainingDepth < 0) return [];
-	return raw
-		.flatMap((item) => {
-			if (!isRecord(item) || typeof item.toolCallId !== "string") return [];
-			return [nestedRunFromResult(item, nestedRunFromArgs(item.toolCallId, undefined, 0), "running", remainingDepth)];
-		})
-		.slice(-MAX_NESTED_RUNS);
-}
-
-function isNestedRunStatus(value: unknown): value is NestedRunStatus {
-	return value === "running" || value === "completed" || value === "failed" || value === "aborted";
 }
 
 export function argsPreview(args: unknown): string {

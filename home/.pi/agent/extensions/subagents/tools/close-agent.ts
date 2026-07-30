@@ -11,7 +11,8 @@ export function createCloseAgentTool(
 	return defineTool<typeof AgentIdParamsSchema, AgentSummaryDetails>({
 		name: "close_agent",
 		label: "Close Agent",
-		description: "Terminate a subagent process. Closed agents cannot be resumed.",
+		description:
+			"Terminate a retained subagent process. The call is idempotent for archived agents; persisted result/session references remain readable.",
 		parameters: AgentIdParamsSchema,
 		async execute(_id, params) {
 			const agentId = trimRequired(params.agent_id, "agent_id");

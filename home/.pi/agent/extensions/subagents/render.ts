@@ -7,10 +7,9 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type { AgentSummary } from "./agent-types.ts";
-import { parseChildExecutionContext } from "./child-process.ts";
-import type { ReadonlyNestedRunDetails, ReadonlyRunDetails } from "./run-state.ts";
+import type { ReadonlyRunDetails } from "./run-state.ts";
 import { clipTerminalText, sanitizeTerminalBlock, sanitizeTerminalText } from "../_shared/terminal-text.ts";
-export type { AgentSummaryDetails, WaitDetails } from "./tool-results.ts";
+export type { WaitDetails } from "./tool-results.ts";
 import type { WaitDetails } from "./tool-results.ts";
 
 const TICK_INTERVAL_MS = 1000;
@@ -52,22 +51,21 @@ export function renderCallHeader(
 		task_name?: string;
 		profile?: string;
 		thinking?: string;
-		child_spawn_budget?: number;
 		cwd?: string;
 		background?: boolean;
+		retain?: boolean;
 	},
 	expanded: boolean,
 	theme: Theme,
 ): void {
 	const agentLabel = args.agent ? ` ${theme.fg("accent", sanitizeTerminalText(args.agent))}` : "";
-	const parentDepth = parseChildExecutionContext()?.depth ?? 0;
-	const meta: string[] = [theme.fg("muted", `[d${parentDepth + 1}]`)];
+	const meta: string[] = [];
 	if (args.task_name) meta.push(theme.fg("muted", `· ${sanitizeTerminalText(args.task_name)}`));
 	if (args.profile) meta.push(theme.fg("muted", `· profile=${sanitizeTerminalText(args.profile)}`));
 	if (args.thinking) meta.push(theme.fg("muted", `· thinking=${sanitizeTerminalText(args.thinking)}`));
-	if (args.child_spawn_budget) meta.push(theme.fg("muted", `· delegation=${args.child_spawn_budget}`));
 	if (args.cwd) meta.push(theme.fg("muted", `· cwd=${sanitizeTerminalText(args.cwd)}`));
 	if (args.handoff?.trim()) meta.push(theme.fg("muted", "· handoff"));
+	if (args.retain) meta.push(theme.fg("accent", "· retained"));
 	meta.push(args.background ? theme.fg("accent", "· async") : theme.fg("warning", "· blocking"));
 	c.addChild(new Text(`${theme.fg("toolTitle", theme.bold("spawn_agent"))}${agentLabel} ${meta.join(" ")}`, 0, 0));
 
@@ -95,9 +93,9 @@ export function renderManagementCall(
 	const c = new Container();
 	const summary = agentId ? summaries.find((candidate) => candidate.agent_id === agentId) : undefined;
 	const target = summary
-		? ` · ${sanitizeTerminalText(summary.task_name || summary.agent)} · ${sanitizeTerminalText(summary.agent_id.slice(0, 8))}`
+		? ` · ${sanitizeTerminalText(summary.task_name || summary.agent)} · ${sanitizeTerminalText(summary.agent_id)}`
 		: agentId
-			? ` · ${sanitizeTerminalText(agentId.slice(0, 8))}`
+			? ` · ${sanitizeTerminalText(agentId)}`
 			: " · all session agents";
 	const mode = runMode ? theme.fg(runMode === "async" ? "accent" : "warning", ` · ${runMode}`) : "";
 	c.addChild(
@@ -142,7 +140,7 @@ export function renderAgentSummaries(
 						: theme.fg("dim", "–");
 		c.addChild(
 			new Text(
-				`  ${statusIcon} ${theme.fg("text", sanitizeTerminalText(summary.task_name || summary.agent))} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.model)} · ${sanitizeTerminalText(summary.effective_thinking)} · ${sanitizeTerminalText(summary.agent_id.slice(0, 8))} · ${summary.status}`)}`,
+				`  ${statusIcon} ${theme.fg("text", sanitizeTerminalText(summary.task_name || summary.agent))} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.model)} · ${sanitizeTerminalText(summary.effective_thinking)} · ${sanitizeTerminalText(summary.agent_id)} · ${summary.status}`)}`,
 				0,
 				0,
 			),
@@ -179,10 +177,10 @@ export function renderWaitCall(
 	);
 	for (const id of agentIds) {
 		const summary = summaryById.get(id);
-		const label = sanitizeTerminalText(summary?.task_name || summary?.agent || id.slice(0, 8));
+		const label = sanitizeTerminalText(summary?.task_name || summary?.agent || id);
 		c.addChild(
 			new Text(
-				`${theme.fg("warning", "  ⟳")} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(id.slice(0, 8))}`)}`,
+				`${theme.fg("warning", "  ⟳")} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(id)}`)}`,
 				0,
 				0,
 			),
@@ -223,7 +221,7 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 		const label = sanitizeTerminalText(summary.task_name || summary.agent);
 		c.addChild(
 			new Text(
-				`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.agent_id.slice(0, 8))} · ${summary.status}`)}`,
+				`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.agent_id)} · ${summary.status}`)}`,
 				0,
 				0,
 			),
@@ -272,8 +270,7 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 		theme.fg("muted", `· ${sanitizeTerminalText(details.agent)}`),
 	];
 	if (options.expanded) {
-		headerParts.push(theme.fg("muted", `[d${details.depth}]`));
-		if (details.agentId) headerParts.push(theme.fg("muted", `· ${details.agentId.slice(0, 8)}`));
+		if (details.agentId) headerParts.push(theme.fg("muted", `· ${sanitizeTerminalText(details.agentId)}`));
 		headerParts.push(
 			theme.fg(
 				"muted",
@@ -304,25 +301,6 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 		c.addChild(new Text(theme.fg("dim", `  ${clipLine(activity, 100)}`), 0, 0));
 	}
 
-	if (details.nestedRuns.length) {
-		if (options.expanded) {
-			c.addChild(new Spacer(1));
-			renderNestedRuns(c, details.nestedRuns, true, theme);
-		} else {
-			const nested = countNestedRuns(details.nestedRuns);
-			c.addChild(
-				new Text(
-					theme.fg(
-						"dim",
-						`  ↳ ${nested.total} subagent${nested.total === 1 ? "" : "s"}${nested.running ? ` · ${nested.running} running` : ""}`,
-					),
-					0,
-					0,
-				),
-			);
-		}
-	}
-
 	if (options.expanded && details.lastMessage && tools.length > 0) {
 		c.addChild(new Spacer(1));
 		c.addChild(new Text(theme.fg("text", sanitizeTerminalBlock(details.lastMessage)), 0, 0));
@@ -346,6 +324,16 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 		}
 	}
 
+	if (options.expanded && details.omittedTelemetryRecords > 0) {
+		c.addChild(
+			new Text(
+				theme.fg("warning", `${details.omittedTelemetryRecords} oversized live telemetry record(s) omitted`),
+				0,
+				0,
+			),
+		);
+	}
+
 	if (!isRunning && details.finalText) {
 		c.addChild(new Spacer(1));
 		const preview = options.expanded ? details.finalText : details.finalText.split("\n").slice(0, 3).join("\n");
@@ -364,59 +352,6 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 
 	return c;
 }
-
-function countNestedRuns(runs: readonly ReadonlyNestedRunDetails[]): { total: number; running: number } {
-	let total = 0;
-	let running = 0;
-	for (const run of runs) {
-		total++;
-		if (run.status === "running") running++;
-		const children = countNestedRuns(run.nestedRuns);
-		total += children.total;
-		running += children.running;
-	}
-	return { total, running };
-}
-
-function renderNestedRuns(
-	c: Container,
-	runs: readonly ReadonlyNestedRunDetails[],
-	expanded: boolean,
-	theme: Theme,
-	indent = "  ",
-): void {
-	const visible = expanded ? runs : runs.slice(-2);
-	if (runs.length > visible.length) {
-		c.addChild(new Text(theme.fg("dim", `${indent}… ${runs.length - visible.length} earlier subagents`), 0, 0));
-	}
-
-	for (const run of visible) {
-		const icon =
-			run.status === "running"
-				? theme.fg("warning", "⟳")
-				: run.status === "completed"
-					? theme.fg("success", "✓")
-					: theme.fg("error", "✗");
-		c.addChild(
-			new Text(
-				`${indent}${theme.fg("muted", "↳")} ${icon} ${theme.fg("accent", sanitizeTerminalText(run.agent))} ${theme.fg("muted", `[d${run.depth}] · ${sanitizeTerminalText(run.taskName)}`)}`,
-				0,
-				0,
-			),
-		);
-
-		const tools = expanded ? run.recentTools : run.recentTools.slice(-2);
-		for (const tool of tools) {
-			const body = tool.argsPreview ? `${tool.name}: ${tool.argsPreview}` : tool.name;
-			c.addChild(new Text(theme.fg("dim", `${indent}    ${clipLine(body, 92)}`), 0, 0));
-		}
-		if (!tools.length && run.lastMessage) {
-			c.addChild(new Text(theme.fg("dim", `${indent}    ${clipLine(run.lastMessage, 92)}`), 0, 0));
-		}
-		if (run.nestedRuns.length) renderNestedRuns(c, run.nestedRuns, expanded, theme, `${indent}    `);
-	}
-}
-
 /** Set up (and tear down) a 1Hz invalidation tick while the result is partial.
  * `ticks` is keyed by toolCallId so concurrent spawns don't share a slot. */
 export function manageTick(
