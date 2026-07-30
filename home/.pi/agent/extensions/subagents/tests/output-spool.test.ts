@@ -71,9 +71,10 @@ test("OutputSpool preserves concurrent Unicode append order across preview limit
 					if (!preview.truncated) assert.equal(preview.text, expected);
 					else {
 						assert.ok(preview.outputFile);
-						assert.match(preview.text, /\[Output truncated:/);
+						assert.match(preview.text, /\[Live transcript preview clipped:/);
 						assert.ok(
-							Buffer.byteLength(preview.text.split("\n\n[Output truncated:")[0] ?? "", "utf8") <= maxPreviewBytes,
+							Buffer.byteLength(preview.text.split("\n\n[Live transcript preview clipped:")[0] ?? "", "utf8") <=
+								maxPreviewBytes,
 						);
 					}
 					outputFile = preview.outputFile;

@@ -1,11 +1,10 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { type Static, Type } from "typebox";
 
-export const MAX_MESSAGE_CHARS = 100_000;
-export const MAX_HANDOFF_CHARS = 8_000;
 export const MAX_TASK_NAME_CHARS = 200;
 export const MAX_AGENT_ID_CHARS = 128;
 export const MAX_WAIT_AGENTS = 32;
+export const MAX_WAIT_TIMEOUT_MS = 30 * 60 * 1_000;
 
 const nonBlank = { minLength: 1, pattern: "\\S" } as const;
 const agentId = Type.String({
@@ -20,14 +19,12 @@ const questionId = Type.String({
 });
 const message = Type.String({
 	...nonBlank,
-	maxLength: MAX_MESSAGE_CHARS,
 	description: "Nonblank message for the child.",
 });
 
 export interface SpawnAgentSchemaOptions {
 	readonly agents: readonly string[];
 	readonly profiles: readonly string[];
-	readonly maxSpawnBudgetPerChild?: number;
 }
 
 export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
@@ -37,16 +34,14 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 		{
 			message: Type.String({
 				...nonBlank,
-				maxLength: MAX_MESSAGE_CHARS,
 				description:
 					"Self-contained assignment with objective, scope, constraints, expected output, and validation. For workers, include explicit file, module, or responsibility ownership.",
 			}),
 			handoff: Type.Optional(
 				Type.String({
 					...nonBlank,
-					maxLength: MAX_HANDOFF_CHARS,
 					description:
-						"Concise known paths, decisions, facts, or excerpts that save repeated exploration. Do not repeat the assignment.",
+						"Only non-derivable facts, decisions, exact excerpts, constraints, and relevant paths that save repeated exploration. Do not repeat the assignment or paste the parent transcript.",
 				}),
 			),
 			task_name: Type.Optional(
@@ -79,17 +74,15 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			background: Type.Optional(
 				Type.Boolean({ description: "Return after launch and notify on completion. Default false." }),
 			),
-			child_spawn_budget: Type.Optional(
-				Type.Integer({
-					minimum: 0,
-					maximum: options.maxSpawnBudgetPerChild ?? 0,
-					description: "Delegation credits granted to an eligible child. Default 0.",
+			retain: Type.Optional(
+				Type.Boolean({
+					description:
+						"Keep the child process alive after settlement for followup_agent. Default false; one-shot agents auto-close.",
 				}),
 			),
 		},
 		{ additionalProperties: false },
 	);
-	if (options.maxSpawnBudgetPerChild === undefined) Reflect.deleteProperty(schema.properties, "child_spawn_budget");
 	return schema;
 }
 
@@ -107,7 +100,6 @@ export const AnswerAgentParamsSchema = Type.Object(
 		question_id: questionId,
 		answer: Type.String({
 			...nonBlank,
-			maxLength: MAX_MESSAGE_CHARS,
 			description: "A listed option or a custom answer.",
 		}),
 	},
@@ -131,6 +123,13 @@ export const WaitAgentParamsSchema = Type.Object(
 			maxItems: MAX_WAIT_AGENTS,
 			description: "Agent IDs to wait for. Duplicates are ignored after trimming.",
 		}),
+		timeout_ms: Type.Optional(
+			Type.Integer({
+				minimum: 1,
+				maximum: MAX_WAIT_TIMEOUT_MS,
+				description: `Caller-selected wait timeout in milliseconds, up to ${MAX_WAIT_TIMEOUT_MS}.`,
+			}),
+		),
 	},
 	{ additionalProperties: false },
 );
@@ -150,11 +149,45 @@ export function trimRequired(value: string, label: string): string {
 	return trimmed;
 }
 
+export function preserveRequired(value: string, label: string): string {
+	if (!value.trim()) throw new Error(`${label} must not be blank.`);
+	return value;
+}
+
 export function trimOptional(value: string | undefined): string | undefined {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : undefined;
 }
 
+export function preserveOptional(value: string | undefined): string | undefined {
+	return value?.trim() ? value : undefined;
+}
+
 export function uniqueAgentIds(values: readonly string[]): string[] {
 	return [...new Set(values.map((value) => trimRequired(value, "agent_id")))];
+}
+
+export function prepareSpawnArguments(args: unknown): Static<ReturnType<typeof createSpawnAgentSchema>> {
+	if (!args || typeof args !== "object" || Array.isArray(args)) {
+		return args as Static<ReturnType<typeof createSpawnAgentSchema>>;
+	}
+	const input = args as Record<string, unknown>;
+	if (!Object.hasOwn(input, "child_spawn_budget")) {
+		return args as Static<ReturnType<typeof createSpawnAgentSchema>>;
+	}
+	const legacyBudget = input.child_spawn_budget;
+	if (legacyBudget !== 0) {
+		if (typeof legacyBudget === "number" && legacyBudget > 0) {
+			throw new Error(
+				"Positive child_spawn_budget values are no longer supported because subagents are leaves. Remove child_spawn_budget.",
+			);
+		}
+		throw new Error("Legacy child_spawn_budget compatibility accepts only 0. Remove child_spawn_budget.");
+	}
+	const prepared = { ...input };
+	Reflect.deleteProperty(prepared, "child_spawn_budget");
+	// A legacy call carrying the old zero budget came from the persistent-agent
+	// schema. Keep that stored call resumable with its original lifecycle.
+	if (prepared.retain === undefined) prepared.retain = true;
+	return prepared as Static<ReturnType<typeof createSpawnAgentSchema>>;
 }

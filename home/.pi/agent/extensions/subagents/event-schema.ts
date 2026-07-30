@@ -5,6 +5,7 @@ const UsageSchema = z
 	.object({
 		input: z.number().finite().nonnegative().optional(),
 		output: z.number().finite().nonnegative().optional(),
+		reasoning: z.number().finite().nonnegative().optional(),
 		cacheRead: z.number().finite().nonnegative().optional(),
 		cacheWrite: z.number().finite().nonnegative().optional(),
 		totalTokens: z.number().finite().nonnegative().optional(),

@@ -14,7 +14,6 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	const spawn = createSpawnAgentSchema({
 		agents: ["scout", "worker"],
 		profiles: ["fast", "balanced"],
-		maxSpawnBudgetPerChild: 2,
 	});
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect" }), true);
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect", extra: true }), false);
@@ -35,13 +34,14 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["agent-1"], extra: true }), false);
 	assert.equal(Check(spawn, { agent: " ", message: "inspect" }), false);
 	assert.equal(Check(spawn, { agent: "scout", message: " " }), false);
-	assert.equal(Check(spawn, { agent: "scout", message: "inspect", child_spawn_budget: 3 }), false);
-	assert.equal(Check(SendAgentParamsSchema, { agent_id: "a", message: "x".repeat(100_001) }), false);
+	assert.equal(Check(spawn, { agent: "scout", message: "inspect", child_spawn_budget: 0 }), false);
+	assert.equal(Check(SendAgentParamsSchema, { agent_id: "a", message: "x".repeat(100_001) }), true);
 });
 
-test("nested spawn schema omits root-only delegation credits", () => {
+test("spawn schema exposes one-shot retention and no nested delegation fields", () => {
 	const spawn = createSpawnAgentSchema({ agents: ["scout"], profiles: ["fast"] });
 	assert.equal(Object.hasOwn(spawn.properties, "child_spawn_budget"), false);
+	assert.equal(Object.hasOwn(spawn.properties, "retain"), true);
 	assert.equal(Check(spawn, { agent: "scout", profile: "fast", message: "inspect" }), true);
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect", child_spawn_budget: 0 }), false);
 });

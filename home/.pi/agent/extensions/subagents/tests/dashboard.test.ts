@@ -32,9 +32,11 @@ function view(
 			profile: "fast",
 			model: "opencode-go/deepseek-v4-flash",
 			effective_thinking: "low",
-			depth: 1,
 			generation,
+			retained: true,
 			status,
+			started_at: 0,
+			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 			...(sessionFile === undefined ? {} : { session_file: sessionFile }),
 		},
 		details: {
@@ -43,18 +45,20 @@ function view(
 			profile: "fast",
 			model: "opencode-go/deepseek-v4-flash",
 			effectiveThinking: "low",
-			depth: 1,
 			exitCode: 0,
 			finalText,
+			transcriptPreview: "",
 			stderr: "",
 			aborted: status === "aborted",
 			startTime: 0,
 			toolCount: 0,
+			mutationToolCalls: 0,
 			recentTools: [],
 			lastMessage: "",
-			nestedRuns: [],
 			tokens: 0,
 			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+			resultId: "0".repeat(64),
+			omittedTelemetryRecords: 0,
 		},
 	};
 }
@@ -104,6 +108,14 @@ class FakeDataSource implements DashboardDataSource {
 		const agent = this.agents.get(id);
 		if (!agent) throw new Error(`Missing fake agent ${id}.`);
 		return agent;
+	}
+
+	async readTranscript(id: string): Promise<unknown[]> {
+		return this.getLive(id).getMessages();
+	}
+
+	async readResult(id: string): Promise<{ text: string; done: true }> {
+		return { text: await this.getLive(id).loadFullOutput(), done: true };
 	}
 
 	subscribe(listener: () => void): () => void {

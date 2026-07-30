@@ -85,7 +85,9 @@ export function allowedDashboardActions(summary: AgentSummary): AllowedDashboard
 	const active = isActiveStatus(summary.status);
 	return {
 		steer: active,
-		followUp: summary.status === "idle" || summary.status === "failed" || summary.status === "aborted",
+		followUp:
+			summary.retained === true &&
+			(summary.status === "idle" || summary.status === "failed" || summary.status === "aborted"),
 		interrupt: active,
 		close: summary.status !== "closed",
 		jump: !active && Boolean(summary.session_file),
@@ -269,7 +271,6 @@ function renderDiagnostics(
 	row: (text?: string) => string,
 	border: (text: string) => string,
 ): string[] {
-	const nested = countNested(agent.details.nestedRuns);
 	const diagnostics: readonly (readonly [string, string])[] = [
 		["Agent", sanitizeTerminalText(agent.summary.agent)],
 		["Profile", sanitizeTerminalText(agent.summary.profile)],
@@ -278,12 +279,12 @@ function renderDiagnostics(
 		["Session", sanitizeTerminalText(agent.summary.session_file ?? agent.details.sessionFile ?? "unavailable")],
 		["ID", sanitizeTerminalText(agent.summary.agent_id)],
 		["Generation", String(agent.summary.generation)],
-		["Depth", String(agent.summary.depth)],
+		["Retained", agent.summary.retained ? "yes" : "one-shot"],
 		[
 			"Usage",
-			`${agent.details.toolCount} tools · ${agent.details.usage.turns} turns${agent.details.tokens ? ` · context ${formatContextUsage(agent.details.tokens, agent.details.contextWindow)}` : ""}`,
+			`${agent.details.toolCount} tools · ${agent.details.usage.turns} turns${agent.details.usage.cost ? ` · $${agent.details.usage.cost.toFixed(3)}` : ""}${agent.details.tokens ? ` · context ${formatContextUsage(agent.details.tokens, agent.details.contextWindow)}` : ""}`,
 		],
-		["Nested", nested.total ? `${nested.running}/${nested.total} running` : "none"],
+		["Telemetry omitted", String(agent.details.omittedTelemetryRecords)],
 	];
 	const lines = [topBorder(" Agent info ", width, border)];
 	for (const [label, value] of diagnostics) {
@@ -335,19 +336,6 @@ function taskLabel(view: AgentView): string {
 
 function elapsed(view: AgentView, now: number): string {
 	return formatDuration((view.details.endTime ?? now) - view.details.startTime);
-}
-
-function countNested(runs: AgentView["details"]["nestedRuns"]): { total: number; running: number } {
-	let total = 0;
-	let running = 0;
-	for (const run of runs) {
-		total++;
-		if (run.status === "running") running++;
-		const child = countNested(run.nestedRuns);
-		total += child.total;
-		running += child.running;
-	}
-	return { total, running };
 }
 
 function actionHints(actions: AllowedDashboardActions, compact = false): string {

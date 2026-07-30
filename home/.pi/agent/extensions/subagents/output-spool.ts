@@ -18,7 +18,8 @@ export interface OutputSpoolOptions {
 	readonly maxPreviewLines?: number;
 }
 
-/** Owns one private append-only output file and its bounded head preview. */
+/** Owns a presentation-only live assistant transcript and bounded UI preview.
+ * Canonical terminal results are persisted separately in child session pages. */
 export class OutputSpool {
 	private readonly options: OutputSpoolOptions;
 	private directory: string | undefined;
@@ -55,7 +56,7 @@ export class OutputSpool {
 	preview(): OutputPreview {
 		if (!this.truncated) return { text: this.previewText, truncated: false };
 		const outputFile = this.filePath;
-		const notice = `\n\n[Output truncated: ${countLines(this.previewText)} of ${this.totalBytes === 0 ? 0 : this.totalNewlines + 1} lines (${formatSize(Buffer.byteLength(this.previewText, "utf8"))} of ${formatSize(this.totalBytes)}).]`;
+		const notice = `\n\n[Live transcript preview clipped: ${countLines(this.previewText)} of ${this.totalBytes === 0 ? 0 : this.totalNewlines + 1} lines (${formatSize(Buffer.byteLength(this.previewText, "utf8"))} of ${formatSize(this.totalBytes)}). The exact terminal result is persisted separately.]`;
 		return {
 			text: `${this.previewText}${notice}`,
 			...(outputFile === undefined ? {} : { outputFile }),

@@ -1,7 +1,7 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderManagementCall } from "../render.ts";
-import { AnswerAgentParamsSchema, trimRequired } from "../schemas.ts";
+import { AnswerAgentParamsSchema, preserveRequired, trimRequired } from "../schemas.ts";
 import { agentSummaryDetails, textResult, type AgentSummaryDetails } from "../tool-results.ts";
 import { renderSummaryToolResult } from "../ui/result-renderers.ts";
 
@@ -22,7 +22,7 @@ export function createAnswerAgentTool(
 		async execute(_id, params) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
 			const questionId = trimRequired(params.question_id, "question_id");
-			const answer = trimRequired(params.answer, "answer");
+			const answer = preserveRequired(params.answer, "answer");
 			const agent = runtime.registry.getLive(agentId);
 			await agent.answerQuestion(questionId, answer);
 			return textResult(

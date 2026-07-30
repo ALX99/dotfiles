@@ -2,17 +2,37 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry } from "../agent-registry.ts";
-import { childEnvironment, ManagedAgent } from "../managed-agent.ts";
+import {
+	childEnvironment,
+	ManagedAgent as ProductionManagedAgent,
+	type ManagedAgentOptions,
+} from "../managed-agent.ts";
+import { contextArtifactDirectory } from "../context-artifacts.ts";
 import type { RpcEvent } from "../protocol.ts";
 import { RpcTransport, spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
+const testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-rpc-test-"));
+after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
+
+class ManagedAgent extends ProductionManagedAgent {
+	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
+		super({ ...options, agentDir: testAgentDir });
+	}
+}
+
 const rpcScript = String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
 let buffer = '';
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+function expand(value) {
+  const match = /^\[\[pi-subagent-context:v1:([0-9a-f]{64})\]\]$/.exec(value);
+  return match ? fs.readFileSync(path.join(process.env.TEST_CONTEXT_DIR, match[1] + '.context'), 'utf8') : value;
+}
 function complete(text) {
   send({ type: 'agent_start' });
   const failed = text === 'done:assistant-error';
@@ -32,8 +52,8 @@ process.stdin.on('data', chunk => {
       ? { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'transcript' }] }] }
       : command.type === 'get_state' ? { sessionFile: '/tmp/subagent-session.jsonl' } : undefined;
     send({ type: 'response', id: command.id, command: command.type, success: true, data });
-    if (command.type === 'prompt') complete('done:' + command.message);
-    if (command.type === 'follow_up') complete('follow:' + command.message);
+    if (command.type === 'prompt') complete('done:' + expand(command.message));
+    if (command.type === 'follow_up') complete('follow:' + expand(command.message));
     if (command.type === 'abort') setTimeout(() => send({ type: 'agent_settled' }), 1);
   }
 });
@@ -46,15 +66,24 @@ const spawnedContexts: unknown[] = [];
 const spawnRpcFake: SpawnRpcProcess = (_command, args, options) => {
 	spawnedArgs.push([...args]);
 	spawnedContexts.push(JSON.parse(String(options.env?.PI_SUBAGENT_CONTEXT)));
-	return spawnRpcProcess(process.execPath, ["-e", rpcScript], options);
+	return spawnRpcProcess(process.execPath, ["-e", rpcScript], {
+		...options,
+		env: { ...options.env, TEST_CONTEXT_DIR: contextArtifactDirectory(testAgentDir) },
+	});
 };
 
 const questionRpcScript = String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
 let buffer = '';
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+function expand(value) {
+  const match = /^\[\[pi-subagent-context:v1:([0-9a-f]{64})\]\]$/.exec(value);
+  return match ? fs.readFileSync(path.join(process.env.TEST_CONTEXT_DIR, match[1] + '.context'), 'utf8') : value;
+}
 function finish(answer) {
-  send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'answer:' + answer }], stopReason: 'stop' } });
+  send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'answer:' + expand(answer) }], stopReason: 'stop' } });
   send({ type: 'agent_settled' });
 }
 process.stdin.on('data', chunk => {
@@ -91,7 +120,10 @@ process.stdin.on('data', chunk => {
 `;
 
 const spawnQuestionRpcFake: SpawnRpcProcess = (_command, _args, options) =>
-	spawnRpcProcess(process.execPath, ["-e", questionRpcScript], options);
+	spawnRpcProcess(process.execPath, ["-e", questionRpcScript], {
+		...options,
+		env: { ...options.env, TEST_CONTEXT_DIR: contextArtifactDirectory(testAgentDir) },
+	});
 
 const testEnv: Record<string, string> = Object.fromEntries(
 	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -106,11 +138,8 @@ const resolvedRun = {
 };
 
 const childContext = {
-	treeId: "test-tree",
-	depth: 1,
 	agent: "general",
 	profile: "balanced",
-	childSpawnBudget: 0,
 } as const;
 
 function transport(events: RpcEvent[], onExit: (error: Error | undefined) => void = () => {}): RpcTransport {
@@ -169,7 +198,7 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 	await client.close();
 });
 
-test("ManagedAgent assigns readable sequential IDs", () => {
+test("ManagedAgent IDs include the agent name and remain sequential", () => {
 	const config: AgentConfig = {
 		name: "general",
 		description: "test",
@@ -181,18 +210,18 @@ test("ManagedAgent assigns readable sequential IDs", () => {
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 	});
 	const second = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 	});
 
-	assert.match(first.id, /^agent-\d+$/);
-	assert.equal(second.id, `agent-${Number(first.id.slice("agent-".length)) + 1}`);
+	assert.match(first.id, /^general-\d+$/);
+	assert.equal(second.id, `general-${Number(first.id.slice("general-".length)) + 1}`);
 });
 
 test("ManagedAgent passes an explicit scout allowlist and no shell capability", async (t) => {
@@ -207,7 +236,7 @@ test("ManagedAgent passes an explicit scout allowlist and no shell capability", 
 		},
 		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
 		childContext: { ...childContext, agent: "scout", profile: "fast" },
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
@@ -215,7 +244,7 @@ test("ManagedAgent passes an explicit scout allowlist and no shell capability", 
 	spawnedArgs.length = 0;
 	await agent.start("inspect", undefined, "inspect", false);
 	const invocation = spawnedArgs[0] ?? [];
-	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep,ask_question");
+	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep,ask_question,submit_agent_result");
 	assert.equal(invocation.includes("--exclude-tools"), false);
 	assert.equal(invocation.includes("bash"), false);
 });
@@ -235,7 +264,7 @@ test("ManagedAgent passes role-provided custom tool names to the child", async (
 			},
 			resolvedRun: { ...resolvedRun, agent: name },
 			childContext: { ...childContext, agent: name },
-			subagentToolsEnabled: false,
+			retain: true,
 			spawnProcess: spawnRpcFake,
 		});
 		t.after(() => agent.close());
@@ -243,11 +272,11 @@ test("ManagedAgent passes role-provided custom tool names to the child", async (
 		spawnedArgs.length = 0;
 		await agent.start("implement", undefined, "implement", false);
 		const invocation = spawnedArgs[0] ?? [];
-		assert.equal(invocation[invocation.indexOf("--tools") + 1], tools.join(","));
+		assert.equal(invocation[invocation.indexOf("--tools") + 1], [...tools, "submit_agent_result"].join(","));
 	}
 });
 
-test("delegation-enabled children receive answer_agent for their own direct children", async (t) => {
+test("children are leaves and receive only the terminal result extension tool", async (t) => {
 	const agent = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: {
@@ -259,7 +288,7 @@ test("delegation-enabled children receive answer_agent for their own direct chil
 		},
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: true,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
@@ -269,7 +298,9 @@ test("delegation-enabled children receive answer_agent for their own direct chil
 	const invocation = spawnedArgs[0] ?? [];
 	const tools = (invocation[invocation.indexOf("--tools") + 1] ?? "").split(",");
 	assert.equal(tools.includes("ask_question"), true);
-	assert.equal(tools.includes("answer_agent"), true);
+	assert.equal(tools.includes("submit_agent_result"), true);
+	assert.equal(tools.includes("answer_agent"), false);
+	assert.equal(tools.includes("spawn_agent"), false);
 });
 
 test("scouts inherit provider configuration but not SSH or GPG agent sockets", () => {
@@ -304,7 +335,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? ""),
 	});
@@ -328,7 +359,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
 	assert.equal(invocation.includes("--exclude-tools"), false);
 	const tools = invocation[invocation.indexOf("--tools") + 1] ?? "";
-	assert.equal(tools, "", "an agent without an explicit tool policy is default-deny");
+	assert.equal(tools, "submit_agent_result", "the only implicit child tool is terminal result submission");
 	assert.equal(invocation.filter((arg) => arg === "--tools").length, 1);
 	// The test fixture deliberately has no role tool allowlist, but nested
 	// delegation must still be denied unless it is explicitly admitted.
@@ -344,22 +375,16 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	]) {
 		assert.doesNotMatch(tools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
 	}
-	assert.deepEqual(spawnedContexts, [childContext]);
+	assert.deepEqual(spawnedContexts, [{ ...childContext, agentId: id }]);
+	assert.deepEqual(await fs.promises.readdir(contextArtifactDirectory(testAgentDir)), []);
 	assert.equal(first.sessionFile, "/tmp/subagent-session.jsonl");
 	assert.equal(first.finalText, "done:Task: first");
-	assert.deepEqual(agent.summary(), {
-		agent_id: id,
-		agent: "general",
-		task_name: "first task",
-		profile: "balanced",
-		model: "opencode-go/glm-5.2",
-		effective_thinking: "medium",
-		session_file: "/tmp/subagent-session.jsonl",
-		depth: 1,
-		generation: 1,
-		status: "idle",
-		final_text: "done:Task: first",
-	});
+	assert.equal(agent.summary().agent_id, id);
+	assert.equal(agent.summary().generation, 1);
+	assert.equal(agent.summary().retained, true);
+	assert.equal(agent.summary().status, "idle");
+	assert.equal(agent.summary().final_text, "done:Task: first");
+	assert.equal(agent.summary().result?.source, "assistant_fallback");
 
 	const internal = agent as unknown as { output: { close(): Promise<void> } };
 	const closeFirstOutput = internal.output.close.bind(internal.output);
@@ -375,7 +400,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(spawnedArgs.length, 1, "follow-ups must reuse the same configured child process");
 	assert.equal(second.finalText, "done:second");
 	assert.equal(agent.summary().generation, 2);
-	assert.deepEqual(await agent.getMessages(), [{ role: "assistant", content: [{ type: "text", text: "transcript" }] }]);
+	await assert.rejects(agent.getMessages(), /managed subagent session directory|Child session/);
 
 	const launched = await agent.followUp("third", "third task", true);
 	assert.equal(launched.status, "launched");
@@ -394,25 +419,272 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().generation, 5);
 
 	await assert.rejects(agent.followUp("assistant-error", "failing task", false), /provider exploded/);
-	assert.deepEqual(agent.summary(), {
-		agent_id: id,
-		agent: "general",
-		task_name: "failing task",
-		profile: "balanced",
-		model: "opencode-go/glm-5.2",
-		effective_thinking: "medium",
-		session_file: "/tmp/subagent-session.jsonl",
-		depth: 1,
-		generation: 6,
-		status: "failed",
-		error: "provider exploded",
-	});
+	assert.equal(agent.summary().agent_id, id);
+	assert.equal(agent.summary().generation, 6);
+	assert.equal(agent.summary().status, "failed");
+	assert.match(agent.summary().error ?? "", /^provider exploded/);
+	assert.equal(agent.summary().failure?.kind, "provider_failure");
 
 	await agent.followUp("slow", "close task", true);
 	await agent.close();
 	await new Promise((resolve) => setImmediate(resolve));
 	assert.deepEqual(completions, ["done:third"], "closed background runs must not report failure completion");
 	assert.equal(agent.summary().status, "closed");
+});
+
+test("ManagedAgent retries a settled assistant error with the next model candidate", async (t) => {
+	const fallbackScript = String.raw`
+let buffer = '';
+const model = process.env.TEST_MODEL;
+process.stdin.setEncoding('utf8');
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-fallback.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, command: command.type, success: true, data });
+    if (command.type !== 'prompt') continue;
+    send({ type: 'agent_start' });
+    if (model === 'provider/primary') {
+      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' } });
+    } else {
+      send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'fallback succeeded' }], stopReason: 'stop' } });
+    }
+    send({ type: 'agent_settled' });
+  }
+});
+`;
+	let spawnCount = 0;
+	const fallbackArgs: string[][] = [];
+	const completions: string[] = [];
+	const managed = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "general",
+			description: "test",
+			systemPrompt: "",
+			filePath: "general.md",
+		},
+		resolvedRun: {
+			...resolvedRun,
+			model: "provider/primary",
+		},
+		fallbackRuns: [
+			{
+				...resolvedRun,
+				model: "provider/fallback",
+				effectiveThinking: "high",
+				contextWindow: 64_000,
+			},
+		],
+		childContext,
+		retain: true,
+		spawnProcess: (_command, args, options) => {
+			spawnCount++;
+			fallbackArgs.push([...args]);
+			const modelIndex = args.indexOf("--model");
+			const selectedModel = args[modelIndex + 1];
+			assert.ok(selectedModel);
+			return spawnRpcProcess(process.execPath, ["-e", fallbackScript], {
+				...options,
+				env: { ...options.env, TEST_MODEL: selectedModel },
+			});
+		},
+		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? summary.error ?? ""),
+	});
+	t.after(() => managed.close());
+
+	const launched = await managed.start("work", undefined, "fallback task", true);
+	assert.equal(launched.status, "launched");
+	const result = await managed.wait(1_000);
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(result.finalText, "fallback succeeded");
+	assert.equal(result.model, "provider/fallback");
+	assert.equal(result.effectiveThinking, "high");
+	assert.equal(result.contextWindow, 64_000);
+	assert.equal(result.generation, 1);
+	assert.equal(spawnCount, 2);
+	assert.equal(fallbackArgs[1]?.includes("--session"), true, "model fallback should resume the persistent session");
+	assert.deepEqual(completions, ["fallback succeeded"]);
+	assert.equal(managed.summary().agent_id, managed.id);
+	assert.equal(managed.summary().model, "provider/fallback");
+	assert.equal(managed.summary().effective_thinking, "high");
+	assert.equal(managed.summary().generation, 1);
+	assert.equal(managed.summary().status, "idle");
+	assert.equal(managed.summary().final_text, "fallback succeeded");
+	assert.equal(managed.summary().result?.source, "assistant_fallback");
+});
+
+test("account quota fallback skips models on the exhausted provider", async (t) => {
+	const script = String.raw`
+let buffer = '';
+const model = process.env.TEST_MODEL;
+process.stdin.setEncoding('utf8');
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/quota-fallback.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, success: true, data });
+    if (command.type !== 'prompt') continue;
+    send({ type: 'agent_start' });
+    if (model.startsWith('same-provider/')) {
+      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'account quota exhausted' } });
+    } else {
+      send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'other provider succeeded' }], stopReason: 'stop' } });
+    }
+    send({ type: 'agent_settled' });
+  }
+});
+`;
+	const spawnedModels: string[] = [];
+	const managed = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: { name: "general", description: "test", systemPrompt: "", filePath: "general.md" },
+		resolvedRun: { ...resolvedRun, model: "same-provider/primary" },
+		fallbackRuns: [
+			{ ...resolvedRun, model: "same-provider/secondary" },
+			{ ...resolvedRun, model: "other-provider/recovery" },
+		],
+		childContext,
+		retain: true,
+		spawnProcess: (_command, args, options) => {
+			const model = args[args.indexOf("--model") + 1]!;
+			spawnedModels.push(model);
+			return spawnRpcProcess(process.execPath, ["-e", script], {
+				...options,
+				env: { ...options.env, TEST_MODEL: model },
+			});
+		},
+	});
+	t.after(() => managed.close());
+	const result = await managed.start("work", undefined, "quota", false);
+	assert.equal(result.finalText, "other provider succeeded");
+	assert.deepEqual(spawnedModels, ["same-provider/primary", "other-provider/recovery"]);
+});
+
+test("mutating workers report recoverable failure instead of replaying on fallback", async (t) => {
+	const script = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/mutating-worker.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, success: true, data });
+    if (command.type !== 'prompt') continue;
+    send({ type: 'agent_start' });
+    send({ type: 'tool_execution_end', toolCallId: 'edit-1', toolName: 'edit', result: {}, isError: false });
+    send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'provider failed after edit' } });
+    send({ type: 'agent_settled' });
+  }
+});
+`;
+	let spawnCount = 0;
+	const managed = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: { name: "worker", description: "test", systemPrompt: "", filePath: "worker.md" },
+		resolvedRun: { ...resolvedRun, agent: "worker", model: "provider/primary" },
+		fallbackRuns: [{ ...resolvedRun, agent: "worker", model: "other/recovery" }],
+		childContext: { agent: "worker", profile: "balanced" },
+		retain: true,
+		spawnProcess: (_command, _args, options) => {
+			spawnCount++;
+			return spawnRpcProcess(process.execPath, ["-e", script], options);
+		},
+	});
+	t.after(() => managed.close());
+	await assert.rejects(
+		managed.start("mutate", undefined, "mutate", false),
+		/Automatic model fallback was not attempted/,
+	);
+	assert.equal(spawnCount, 1);
+	assert.deepEqual(managed.summary().failure, { kind: "mutation_replay_blocked", recoverable: true });
+	assert.equal(managed.summary().session_file, "/tmp/mutating-worker.jsonl");
+	assert.ok(managed.summary().result);
+});
+
+test("interrupting a model fallback handover aborts without releasing capacity", async (t) => {
+	const script = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-interrupted-fallback.jsonl' } : undefined;
+    send({ type: 'response', id: command.id, command: command.type, success: true, data });
+    if (command.type === 'prompt') {
+      send({ type: 'agent_start' });
+      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' } });
+      setTimeout(() => send({ type: 'agent_settled' }), 10);
+    }
+  }
+});
+`;
+	let spawnCount = 0;
+	const managed = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "general",
+			description: "test",
+			systemPrompt: "",
+			filePath: "general.md",
+		},
+		resolvedRun: { ...resolvedRun, model: "provider/primary" },
+		fallbackRuns: [{ ...resolvedRun, model: "provider/fallback" }],
+		childContext,
+		retain: true,
+		spawnProcess: (_command, _args, options) => {
+			spawnCount++;
+			return spawnRpcProcess(process.execPath, ["-e", script], options);
+		},
+	});
+	let releaseClose: (() => void) | undefined;
+	const closeGate = new Promise<void>((resolve) => {
+		releaseClose = resolve;
+	});
+	t.after(async () => {
+		releaseClose?.();
+		await managed.close();
+	});
+
+	await managed.start("work", undefined, "interrupt fallback", true);
+	const internal = managed as unknown as {
+		transport: { close(): Promise<void> } | undefined;
+		replacingTransport: boolean;
+	};
+	const transport = internal.transport;
+	assert.ok(transport);
+	const close = transport.close.bind(transport);
+	const { promise: closeStarted, resolve: markCloseStarted } = Promise.withResolvers<void>();
+	transport.close = async () => {
+		markCloseStarted();
+		await closeGate;
+		await close();
+	};
+
+	await closeStarted;
+	assert.equal(internal.replacingTransport, true);
+	assert.equal(managed.occupiesCapacity(), true);
+	await managed.interrupt();
+	assert.equal((await managed.wait(1_000)).status, "aborted");
+	releaseClose?.();
+	for (let attempt = 0; internal.replacingTransport && attempt < 100; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+	assert.equal(internal.replacingTransport, false);
+	assert.equal(spawnCount, 1);
+	assert.equal(managed.summary().status, "aborted");
 });
 
 test("a foreground child question returns to its parent and resumes after a listed answer", async (t) => {
@@ -429,7 +701,7 @@ test("a foreground child question returns to its parent and resumes after a list
 		},
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: false,
 		spawnProcess: spawnQuestionRpcFake,
 		onQuestion: (_summary, question) => questions.push(question.question_id),
 		onBackgroundComplete: (completed) => completions.push(completed.final_text ?? ""),
@@ -448,6 +720,7 @@ test("a foreground child question returns to its parent and resumes after a list
 	assert.equal(settled.finalText, "answer:Simple");
 	await new Promise((resolve) => setImmediate(resolve));
 	assert.deepEqual(completions, ["answer:Simple"], "a question-interrupted foreground run is promoted");
+	assert.equal(agent.summary().status, "closed");
 });
 
 test("a background child question notifies its parent and forwards a custom answer through RPC input", async (t) => {
@@ -463,7 +736,7 @@ test("a background child question notifies its parent and forwards a custom answ
 		},
 		resolvedRun: { ...resolvedRun, agent: "worker" },
 		childContext: { ...childContext, agent: "worker" },
-		subagentToolsEnabled: false,
+		retain: false,
 		spawnProcess: spawnQuestionRpcFake,
 		onQuestion: (summary, question) =>
 			questions.push({ id: question.question_id, summaryQuestionId: summary.pending_question?.question_id }),
@@ -481,6 +754,8 @@ test("a background child question notifies its parent and forwards a custom answ
 	await agent.answerQuestion("question-1", "A custom approach");
 	const settled = await agent.wait(1_000);
 	assert.equal(settled.finalText, "answer:A custom approach");
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(agent.summary().status, "closed");
 });
 
 test("wait timeout stops only the waiter and leaves the child running", async (t) => {
@@ -495,7 +770,7 @@ test("wait timeout stops only the waiter and leaves the child running", async (t
 		agent: config,
 		resolvedRun: { ...resolvedRun, agent: "worker" },
 		childContext: { ...childContext, agent: "worker" },
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
@@ -524,7 +799,7 @@ test("cancelling a foreground waiter does not automatically interrupt its child"
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 	});
 	t.after(() => agent.close());
@@ -550,7 +825,7 @@ test("AgentRegistry publishes lifecycle changes and immutable views", async (t) 
 		agent: config,
 		resolvedRun: { ...resolvedRun, agent: "scout", profile: "fast", effectiveThinking: "low" },
 		childContext: { ...childContext, agent: "scout", profile: "fast" },
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: spawnRpcFake,
 	});
 	const registry = new AgentRegistry();
@@ -591,7 +866,7 @@ test("ManagedAgent cleans temporary prompts after startup failure", async () => 
 		agent: config,
 		resolvedRun: { ...resolvedRun, agent: config.name },
 		childContext: { ...childContext, agent: config.name },
-		subagentToolsEnabled: false,
+		retain: true,
 	});
 
 	await assert.rejects(agent.start("fail", undefined, "failed startup", false), /Could not start|ENOENT/);
