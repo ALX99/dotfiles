@@ -15,22 +15,34 @@ deliberately disables folding.
 - `.config/` — application configuration. The `mpv/scripts/subs2srs`
   directory is the `Ajatt-Tools/mpvacious` submodule; do not edit it as local
   configuration.
+- `.devcontainer/` — DevContainer setup (Dockerfile, devcontainer.json,
+  bootstrap script) plus the multi-architecture Alpine `sandbox.Dockerfile`
+  used by `sbx`.
 - `data_analysis/` — privacy-preserving Pi JSONL efficiency and regression
-  reporting; its generated `report.html` is intentionally ignored.
-- `misc/` — machine-level Arch, systemd, XKB/keyd, pacman, and Pi compatibility
-  assets. The `codex-apply-patch` extension declares the `apply_patch` tool with a
-  Lark grammar via `constrainedSampling`; Pi 0.82.0 provides native grammar-tool
+  reporting; its generated `report.html` is a build artifact that is not
+  committed to git.
+- `misc/` — machine-level Arch, systemd, XKB/keyd, and pacman assets.
+- The `codex-apply-patch` extension declares the `apply_patch` tool with a Lark
+  grammar via `constrainedSampling`; Pi 0.83.0 provides native grammar-tool
   support, so no patched pi-ai build is needed.
+- `.pkgList` — Arch package manifest used to provision a fresh system; see
+  `misc/pacman-hooks` and `just linux-system` for related setup.
 - `home/.pi/agent/` — Pi settings, extensions, and Pi-only skills.
   `extensions/*.ts` and `extensions/*/index.ts` are extension entry points;
   `_shared/` is not. The RPC subagent extension separates role prompts
-  (`subagents/agents/`) from lifecycle, transport, and state modules; its tests
-  are in `subagents/tests/`. Child `ask_question` requests route to the
-  immediate spawning agent and resume through `answer_agent`.
+  (`subagents/agents/`) from lifecycle, transport, durable context/result
+  artifacts, and state modules; its tests are in `subagents/tests/`. Children
+  are leaves and one-shot by default. Large assignments transit through
+  short-lived private artifacts, expand only as exact child RPC inputs, and
+  persist as ordinary child user messages. Accepted-run metadata and terminal
+  result pages live in child sessions; settlement records restore
+  `read_agent_result` locators after restart and carry child-only usage.
+  Retained children support follow-ups; child `ask_question` requests route to
+  the immediate spawning agent and resume through `answer_agent`.
 - `home/.agents/skills/` — harness-independent skills. Put Pi-only skills in
   `home/.pi/agent/skills/` instead.
-- `.github/workflows/` — CI: extension checks run only for extension or patch
-  changes; ShellCheck runs for all pushes and pull requests.
+- `.github/workflows/` — CI: extension checks run only for extension changes;
+  ShellCheck runs for all pushes and pull requests.
 - `Justfile` — installation, formatting, and validation recipes; inspect it
   before changing setup or system configuration.
 - `CLAUDE.md` — symlink to this file. `home/.claude/CLAUDE.md` and
@@ -47,8 +59,8 @@ Run these from the repository root unless noted otherwise.
 - `just install-pi` — install locked Pi extension dependencies with pnpm in
   `$HOME/.pi/agent/extensions`.
 - `just fmt` — format Pi extensions with `oxfmt`.
-- `just check` — run Pi compatibility, formatting, type, lint, dead-code, and
-  test checks.
+- `just check` — run Pi dependency, formatting, type, lint, dead-code, and test
+  checks.
 - `pnpm run test:extensions` — focused extension tests; run from
   `home/.pi/agent/extensions/`.
 - `bash -n home/.bashrc home/.profile` — syntax-check the primary shell files.
@@ -61,9 +73,9 @@ Run these from the repository root unless noted otherwise.
 - Pi extensions require Node 26+ and use strict TypeScript with NodeNext
   imports. Their package manager is pnpm; keep `pnpm-lock.yaml`,
   `pnpm-workspace.yaml` synchronized. Use tabs and let `oxfmt` format them.
-- Pi, Pi AI, and Pi TUI are pinned to `0.82.0`. Keep `pnpm-lock.yaml`,
-  `pnpm-workspace.yaml`, the `codex-apply-patch` tool grammar, and the compatibility
-  check synchronized when changing compatibility code.
+- Pi, Pi AI, and Pi TUI are pinned to `0.83.0`. Keep `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml`, and the `codex-apply-patch` tool grammar synchronized
+  when upgrading Pi packages.
 - Colemak-DH navigation mappings span nvim, tmux, sail, keyd, Karabiner,
   Ghostty, and readline; update every affected layer when changing navigation
   intent.

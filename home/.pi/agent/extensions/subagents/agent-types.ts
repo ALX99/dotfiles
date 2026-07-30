@@ -1,4 +1,5 @@
-import type { ReadonlyRunDetails } from "./run-state.ts";
+import type { ReadonlyRunDetails, RunUsage } from "./run-state.ts";
+import type { AgentResultReference } from "./result-store.ts";
 
 export type AgentLifecycle =
 	| { readonly phase: "created" }
@@ -26,11 +27,20 @@ export interface AgentSummary {
 	readonly model: string;
 	readonly effective_thinking: string;
 	readonly session_file?: string;
-	readonly depth: number;
 	readonly generation: number;
+	readonly retained: boolean;
 	readonly status: AgentStatus;
+	readonly started_at: number;
+	readonly ended_at?: number;
+	readonly duration_ms?: number;
+	readonly usage: Readonly<RunUsage>;
 	readonly final_text?: string;
+	readonly result?: AgentResultReference;
 	readonly error?: string;
+	readonly failure?: {
+		readonly kind: string;
+		readonly recoverable: boolean;
+	};
 	readonly pending_question?: AgentQuestion;
 }
 

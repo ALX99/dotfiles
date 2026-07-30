@@ -1,19 +1,35 @@
+import { getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import { isRecord } from "../_shared/json.ts";
 import { CleanupAggregateError, type AgentSummary, type AgentView } from "./agent-types.ts";
-import { ManagedAgent } from "./managed-agent.ts";
+import { ManagedAgent, reserveManagedAgentIds } from "./managed-agent.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
+import { paginateStoredResult, readChildTranscript, readStoredAgentResult, type ResultPage } from "./result-store.ts";
 
 /** Closed agents retain dashboard and tool result metadata, but no process resources. */
 export const DEFAULT_MAX_CLOSED_AGENT_HISTORY = 32;
+export const SUBAGENT_SETTLEMENT_CUSTOM_TYPE = "subagent-settlement";
 
 export type RegistryEntry =
 	| { readonly kind: "live"; readonly agent: ManagedAgent }
 	| { readonly kind: "archived"; readonly view: AgentView };
 
+interface ResultLocator {
+	readonly sessionFile: string;
+	readonly generation: number;
+	readonly resultId?: string;
+}
+
 export class AgentRegistry {
 	private readonly entries = new Map<string, RegistryEntry>();
+	private readonly resultLocators = new Map<string, ResultLocator>();
 	private readonly agentUnsubscribers = new Map<string, () => void>();
 	private readonly closedAgentIds: string[] = [];
 	private readonly listeners = new Set<() => void>();
+	private readonly agentDir: string;
+
+	constructor(agentDir = getAgentDir()) {
+		this.agentDir = agentDir;
+	}
 
 	async add(agent: ManagedAgent): Promise<void> {
 		const replaced = this.entries.get(agent.id);
@@ -22,6 +38,7 @@ export class AgentRegistry {
 		this.removeClosedAgentId(agent.id);
 		this.agentUnsubscribers.get(agent.id)?.();
 		this.agentUnsubscribers.delete(agent.id);
+		this.resultLocators.delete(agent.id);
 		this.entries.set(agent.id, { kind: "live", agent });
 		this.agentUnsubscribers.set(
 			agent.id,
@@ -48,6 +65,58 @@ export class AgentRegistry {
 	async wait(id: string, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
 		const entry = this.requireEntry(id);
 		return entry.kind === "live" ? entry.agent.wait(timeoutMs, signal) : entry.view.details;
+	}
+
+	async readTranscript(id: string): Promise<unknown[]> {
+		const entry = this.requireEntry(id);
+		if (entry.kind === "live") return entry.agent.getMessages();
+		const sessionFile = entry.view.summary.session_file;
+		if (!sessionFile) throw new Error(`Agent '${id}' has no persisted session.`);
+		return readChildTranscript(sessionFile, this.agentDir);
+	}
+
+	async readResult(
+		id: string,
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+	): Promise<ResultPage> {
+		const entry = this.entries.get(id);
+		if (!entry) {
+			const locator = this.resultLocators.get(id);
+			if (!locator) throw new Error(`Unknown agent_id '${id}'.`);
+			const generation = options.generation ?? locator.generation;
+			const result = await readStoredAgentResult(
+				locator.sessionFile,
+				generation,
+				generation === locator.generation ? locator.resultId : undefined,
+				this.agentDir,
+			);
+			return paginateStoredResult(id, result, options);
+		}
+		if (entry.kind === "live") return entry.agent.readResult(options);
+		const summary = entry.view.summary;
+		const generation = options.generation ?? summary.generation;
+		const sessionFile = summary.session_file;
+		const resultId =
+			generation === summary.generation ? (summary.result?.result_id ?? entry.view.details.resultId) : undefined;
+		if (!sessionFile) throw new Error(`Agent '${id}' has no persisted session.`);
+		const result = await readStoredAgentResult(sessionFile, generation, resultId, this.agentDir);
+		return paginateStoredResult(id, result, options);
+	}
+
+	restoreResultLocators(entries: readonly SessionEntry[]): number {
+		this.resultLocators.clear();
+		for (const entry of entries) {
+			for (const candidate of locatorCandidates(entry)) {
+				this.resultLocators.set(candidate.agentId, candidate.locator);
+			}
+		}
+		reserveManagedAgentIds(this.resultLocators.keys());
+		return this.resultLocators.size;
 	}
 
 	list(): AgentSummary[] {
@@ -104,6 +173,7 @@ export class AgentRegistry {
 			for (const unsubscribe of this.agentUnsubscribers.values()) unsubscribe();
 			this.agentUnsubscribers.clear();
 			this.entries.clear();
+			this.resultLocators.clear();
 			this.closedAgentIds.length = 0;
 			this.emit();
 		}
@@ -130,6 +200,13 @@ export class AgentRegistry {
 			summary: { ...agent.summary(), status: "closed" },
 			details: { ...agent.getDetails(), status: "closed", aborted: false },
 		};
+		if (view.summary.session_file) {
+			this.resultLocators.set(agent.id, {
+				sessionFile: view.summary.session_file,
+				generation: view.summary.generation,
+				...(view.summary.result?.result_id === undefined ? {} : { resultId: view.summary.result.result_id }),
+			});
+		}
 		this.entries.set(agent.id, { kind: "archived", view });
 		this.removeClosedAgentId(agent.id);
 		this.closedAgentIds.push(agent.id);
@@ -150,4 +227,75 @@ export class AgentRegistry {
 	private emit(): void {
 		for (const listener of this.listeners) listener();
 	}
+}
+
+const LOCATOR_TOOL_NAMES = new Set([
+	"spawn_agent",
+	"followup_agent",
+	"wait_agent",
+	"list_agents",
+	"close_agent",
+	"interrupt_agent",
+]);
+
+function locatorCandidates(entry: SessionEntry): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+	let details: unknown;
+	if (entry.type === "custom" && entry.customType === SUBAGENT_SETTLEMENT_CUSTOM_TYPE) {
+		details = entry.data;
+	} else if (entry.type === "custom_message" && entry.customType === "subagent-completion") {
+		details = entry.details;
+	} else if (
+		entry.type === "message" &&
+		entry.message.role === "toolResult" &&
+		LOCATOR_TOOL_NAMES.has(entry.message.toolName)
+	) {
+		details = entry.message.details;
+	} else {
+		return [];
+	}
+	return collectLocatorCandidates(details);
+}
+
+function collectLocatorCandidates(
+	value: unknown,
+): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+	if (Array.isArray(value)) return value.flatMap((item) => collectLocatorCandidates(item));
+	if (!isRecord(value)) return [];
+	const nested = Array.isArray(value.summaries)
+		? value.summaries.flatMap((item) => collectLocatorCandidates(item))
+		: [];
+	const agentId = stringField(value, "agent_id", "agentId");
+	const sessionFile = stringField(value, "session_file", "sessionFile");
+	const generation = value.generation;
+	if (
+		agentId === undefined ||
+		sessionFile === undefined ||
+		typeof generation !== "number" ||
+		!Number.isInteger(generation) ||
+		generation < 1
+	) {
+		return nested;
+	}
+	const result = isRecord(value.result) ? value.result : undefined;
+	const resultId = stringField(value, "resultId") ?? (result ? stringField(result, "result_id") : undefined);
+	if (resultId !== undefined && !/^[0-9a-f]{64}$/.test(resultId)) return nested;
+	return [
+		...nested,
+		{
+			agentId,
+			locator: {
+				sessionFile,
+				generation,
+				...(resultId === undefined ? {} : { resultId }),
+			},
+		},
+	];
+}
+
+function stringField(value: Readonly<Record<string, unknown>>, ...names: string[]): string | undefined {
+	for (const name of names) {
+		const field = value[name];
+		if (typeof field === "string" && field.trim()) return field;
+	}
+	return undefined;
 }

@@ -11,14 +11,12 @@ import { z } from "zod";
 import { parseJson } from "../_shared/json.ts";
 
 export const CHILD_CONTEXT_ENV = "PI_SUBAGENT_CONTEXT";
-export const MAX_DELEGATION_DEPTH = 2;
 
 const ChildExecutionContextSchema = z.strictObject({
-	treeId: z.string().trim().min(1),
-	depth: z.number().int().min(1).max(MAX_DELEGATION_DEPTH),
 	agent: z.string().trim().min(1),
 	profile: z.string().trim().min(1),
-	childSpawnBudget: z.number().int().min(0),
+	agentId: z.string().trim().min(1).max(128).optional(),
+	parentSessionId: z.string().trim().min(1).max(128).optional(),
 });
 
 export type ChildExecutionContext = Readonly<z.infer<typeof ChildExecutionContextSchema>>;

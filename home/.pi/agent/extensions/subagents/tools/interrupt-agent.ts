@@ -11,7 +11,8 @@ export function createInterruptAgentTool(
 	return defineTool<typeof AgentIdParamsSchema, AgentSummaryDetails>({
 		name: "interrupt_agent",
 		label: "Interrupt Agent",
-		description: "Abort a subagent's current run while retaining it for follow-up work.",
+		description:
+			"Abort a subagent's current run. Only agents spawned with retain:true remain eligible for follow-up work.",
 		parameters: AgentIdParamsSchema,
 		async execute(_id, params) {
 			const agent = runtime.registry.getLive(trimRequired(params.agent_id, "agent_id"));

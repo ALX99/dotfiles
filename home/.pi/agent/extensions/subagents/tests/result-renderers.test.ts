@@ -11,9 +11,11 @@ const summary = {
 	profile: "fast",
 	model: "provider/model",
 	effective_thinking: "low",
-	depth: 1,
 	generation: 1,
+	retained: false,
 	status: "idle" as const,
+	started_at: 0,
+	usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 };
 const minimalTheme = {
 	fg(_color: string, text: string): string {

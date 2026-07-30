@@ -6,9 +6,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { toError } from "../_shared/errors.ts";
 import type { AgentSummary } from "./agent-types.ts";
+import type { CapacitySnapshot } from "./spawn-admission.ts";
 
 export interface AgentSummaryDetails {
 	readonly summaries: readonly AgentSummary[];
+	readonly capacity?: CapacitySnapshot;
 }
 
 export type WaitOutcomeStatus = "settled" | "waiting_input" | "deferred" | "timed_out" | "cancelled" | "failed";
@@ -25,8 +27,11 @@ export interface WaitDetails extends AgentSummaryDetails {
 	readonly outcomes: readonly WaitOutcome[];
 }
 
-export function agentSummaryDetails(summaries: readonly AgentSummary[]): AgentSummaryDetails {
-	return { summaries };
+export function agentSummaryDetails(
+	summaries: readonly AgentSummary[],
+	capacity?: CapacitySnapshot,
+): AgentSummaryDetails {
+	return { summaries, ...(capacity === undefined ? {} : { capacity }) };
 }
 
 export function formatPendingQuestion(summary: AgentSummary): string | undefined {
@@ -65,7 +70,7 @@ export function waitDetails(
 export function textResult<TDetails>(text: string, details: TDetails): AgentToolResult<TDetails> {
 	const bounded = truncateHead(text, { maxBytes: DEFAULT_MAX_BYTES - 512, maxLines: DEFAULT_MAX_LINES - 2 });
 	const output = bounded.truncated
-		? `${bounded.content}\n\n[Management output truncated; query fewer agents.]`
+		? `${bounded.content}\n\n[Management preview truncated; query fewer agents or use read_agent_result to page an exact terminal result.]`
 		: bounded.content;
 	return { content: [{ type: "text", text: output }], details };
 }

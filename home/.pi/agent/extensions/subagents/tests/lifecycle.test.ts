@@ -1,11 +1,22 @@
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
-import { test } from "node:test";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
 import { transitionLifecycle } from "../agent-types.ts";
-import { ManagedAgent } from "../managed-agent.ts";
+import { ManagedAgent as ProductionManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
 import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
+
+const testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-lifecycle-test-"));
+after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
+
+class ManagedAgent extends ProductionManagedAgent {
+	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
+		super({ ...options, agentDir: testAgentDir });
+	}
+}
 
 const config: AgentConfig = {
 	name: "general",
@@ -21,11 +32,8 @@ const resolvedRun = {
 	contextWindow: 128_000,
 };
 const childContext = {
-	treeId: "lifecycle-test",
-	depth: 1,
 	agent: "general",
 	profile: "balanced",
-	childSpawnBudget: 0,
 } as const;
 
 function fakeSpawner(script: string): SpawnRpcProcess {
@@ -39,7 +47,7 @@ function agent(id: string, script = "process.stdin.resume(); setInterval(() => {
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: fakeSpawner(script),
 	});
 }
@@ -111,7 +119,7 @@ process.stdin.on('data', chunk => {
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: fakeSpawner(script),
 		onBackgroundComplete: (summary) => completed.push(summary.agent_id),
 	});
@@ -120,6 +128,46 @@ process.stdin.on('data', chunk => {
 	await managed.wait(1_000);
 	await new Promise((resolve) => setImmediate(resolve));
 	assert.deepEqual(completed, ["duplicate"]);
+});
+
+test("one-shot agents archive after foreground settlement and free capacity", async (t) => {
+	const script = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionFile: '/tmp/one-shot.jsonl' } : undefined;
+    process.stdout.write(JSON.stringify({ type: 'response', id: command.id, success: true, data }) + '\n');
+    if (command.type === 'prompt') {
+      process.stdout.write('{"type":"agent_start"}\n');
+      process.stdout.write(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'done' }], stopReason: 'stop' } }) + '\n');
+      process.stdout.write('{"type":"agent_settled"}\n');
+    }
+  }
+});
+`;
+	const managed = new ManagedAgent({
+		id: "one-shot",
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		childContext,
+		retain: false,
+		spawnProcess: fakeSpawner(script),
+	});
+	const registry = new AgentRegistry();
+	await registry.add(managed);
+	t.after(() => registry.closeAll());
+	const settled = await managed.start("work", undefined, "work", false);
+	assert.equal(settled.status, "idle");
+	assert.equal(registry.summary(managed.id).status, "closed");
+	assert.equal(registry.capacity().length, 0);
+	assert.throws(() => registry.getLive(managed.id), /closed/);
+	await registry.close(managed.id);
+	assert.equal(registry.summary(managed.id).result?.source, "assistant_fallback");
 });
 
 test("a cancelled foreground wait promotes the eventual child completion", async (t) => {
@@ -150,7 +198,7 @@ process.stdin.on('data', chunk => {
 		agent: config,
 		resolvedRun,
 		childContext,
-		subagentToolsEnabled: false,
+		retain: true,
 		spawnProcess: fakeSpawner(script),
 		onBackgroundComplete: (summary) => completed.push(summary.final_text ?? ""),
 	});

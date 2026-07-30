@@ -3,7 +3,7 @@ import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderManagementCall } from "../render.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
-import { FollowupAgentParamsSchema, trimOptional, trimRequired } from "../schemas.ts";
+import { FollowupAgentParamsSchema, preserveRequired, trimOptional, trimRequired } from "../schemas.ts";
 import { formatPendingQuestion, textResult } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 
@@ -13,11 +13,12 @@ export function createFollowupAgentTool(
 	return defineTool<typeof FollowupAgentParamsSchema, ReadonlyRunDetails>({
 		name: "followup_agent",
 		label: "Follow Up Agent",
-		description: "Give an existing subagent another task using its retained context. Foreground by default.",
+		description:
+			"Give a retained live subagent another task using its retained context. One-shot or archived agents cannot be followed up. Foreground by default.",
 		parameters: FollowupAgentParamsSchema,
 		async execute(_id, params, signal, onUpdate) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
-			const message = trimRequired(params.message, "message");
+			const message = preserveRequired(params.message, "message");
 			const agent = runtime.registry.getLive(agentId);
 			const background = params.background === true;
 			const unsubscribe = onUpdate
