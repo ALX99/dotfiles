@@ -5,12 +5,12 @@ import type { AgentSummary } from "../agent-types.ts";
 import {
 	AnswerAgentParamsSchema,
 	createSpawnAgentSchema,
-	prepareSpawnArguments,
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
 import { createAnswerAgentTool } from "../tools/answer-agent.ts";
 import { createListAgentsTool } from "../tools/list-agents.ts";
+import { spawnGuidelines } from "../tools/spawn-agent.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
 
 const summary: AgentSummary = {
@@ -42,25 +42,24 @@ test("semantic message, handoff, and answer fields have no arbitrary character c
 	);
 });
 
-test("spawn compatibility ignores only zero legacy nested budgets and preserves persistence", () => {
-	assert.deepEqual(prepareSpawnArguments({ message: "work", agent: "scout", child_spawn_budget: 0 }), {
-		message: "work",
-		agent: "scout",
-		retain: true,
-	});
-	assert.throws(
-		() => prepareSpawnArguments({ message: "work", agent: "scout", child_spawn_budget: 1 }),
-		/Positive child_spawn_budget values are no longer supported/,
-	);
+test("spawn schema rejects removed nested budgets and exposes explicit retention", () => {
 	const schema = createSpawnAgentSchema({ agents: ["scout"], profiles: ["fast"] });
 	assert.equal(Object.hasOwn(schema.properties, "child_spawn_budget"), false);
 	assert.equal(Object.hasOwn(schema.properties, "retain"), true);
+	assert.equal(Check(schema, { message: "work", agent: "scout", child_spawn_budget: 0 }), false);
 });
 
 test("wait schema exposes a bounded caller-selected timeout", () => {
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 1 }), true);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 }), true);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 + 1 }), false);
+});
+
+test("spawn guidance defers management tool names until spawn activates them", () => {
+	assert.doesNotMatch(
+		spawnGuidelines([], [], 1, 1).join("\n"),
+		/\b(?:answer_agent|send_agent|followup_agent|wait_agent|list_agents|read_agent_result|interrupt_agent|close_agent)\b/,
+	);
 });
 
 test("wait_agent trims a wave, forwards its timeout, and consumes matching delivery once", async () => {
@@ -79,7 +78,6 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 					effectiveThinking: "low",
 					exitCode: 0,
 					finalText: "done",
-					transcriptPreview: "",
 					stderr: "",
 					startTime: 0,
 					toolCount: 0,

@@ -1,7 +1,14 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import { OutputSpool } from "../output-spool.ts";
-import { argsPreview, foldAgentEvent, initRunData, snapshotRunData, type MutableRunData } from "../run-state.ts";
+import {
+	argsPreview,
+	foldAgentEvent,
+	initRunData,
+	runUsageTotalTokens,
+	snapshotRunData,
+	toPiUsage,
+	type MutableRunData,
+} from "../run-state.ts";
 
 function details(): MutableRunData {
 	return initRunData({
@@ -19,11 +26,9 @@ function details(): MutableRunData {
 	});
 }
 
-test("assistant narration updates transcript state but never terminal finalText", async (t) => {
+test("assistant narration retains fallback text but never terminal finalText", () => {
 	const run = details();
-	const output = new OutputSpool();
-	t.after(() => output.close());
-	await foldAgentEvent(
+	foldAgentEvent(
 		{
 			type: "message_end",
 			message: {
@@ -34,20 +39,47 @@ test("assistant narration updates transcript state but never terminal finalText"
 			},
 		},
 		run,
-		output,
 	);
 	assert.equal(run.finalText, "");
-	assert.equal(run.transcriptPreview, "working narration");
 	assert.equal(run.lastAssistantText, "working narration");
 	assert.equal(run.usage.input, 10);
 	assert.equal(run.tokens, 15);
 });
 
-test("event folding retains bounded tool observability and counts mutation-capable completions", async (t) => {
+test("child aggregate usage preserves total cost without double-counting reasoning", () => {
+	const usage = {
+		input: 10,
+		output: 5,
+		reasoning: 3,
+		cacheRead: 2,
+		cacheWrite: 1,
+		cost: 0.25,
+		turns: 1,
+	};
+	assert.equal(runUsageTotalTokens(usage), 18);
+	assert.deepEqual(toPiUsage(usage), {
+		input: 10,
+		output: 5,
+		reasoning: 3,
+		cacheRead: 2,
+		cacheWrite: 1,
+		totalTokens: 18,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.25 },
+	});
 	const run = details();
-	const output = new OutputSpool();
-	t.after(() => output.close());
-	await foldAgentEvent(
+	foldAgentEvent(
+		{
+			type: "message_end",
+			message: { role: "assistant", content: [], stopReason: "stop", usage: { ...usage, cost: { total: usage.cost } } },
+		},
+		run,
+	);
+	assert.equal(run.tokens, 18);
+});
+
+test("event folding retains bounded tool observability and counts mutation-capable completions", () => {
+	const run = details();
+	foldAgentEvent(
 		{
 			type: "message_end",
 			message: {
@@ -60,12 +92,10 @@ test("event folding retains bounded tool observability and counts mutation-capab
 			},
 		},
 		run,
-		output,
 	);
-	await foldAgentEvent(
+	foldAgentEvent(
 		{ type: "tool_execution_end", toolCallId: "call-1", toolName: "edit", result: {}, isError: false },
 		run,
-		output,
 	);
 	assert.equal(run.toolCount, 1);
 	assert.equal(run.mutationToolCalls, 1);
@@ -73,26 +103,22 @@ test("event folding retains bounded tool observability and counts mutation-capab
 	assert.equal(run.lastMessage, "Applying the change");
 });
 
-test("provider errors are recorded and cleared by a later successful assistant message", async (t) => {
+test("provider errors are recorded and cleared by a later successful assistant message", () => {
 	const run = details();
-	const output = new OutputSpool();
-	t.after(() => output.close());
-	await foldAgentEvent(
+	foldAgentEvent(
 		{
 			type: "message_end",
 			message: { role: "assistant", content: [], stopReason: "error", errorMessage: "quota exhausted" },
 		},
 		run,
-		output,
 	);
 	assert.equal(run.assistantError, "quota exhausted");
-	await foldAgentEvent(
+	foldAgentEvent(
 		{
 			type: "message_end",
 			message: { role: "assistant", content: [{ type: "text", text: "recovered" }], stopReason: "stop" },
 		},
 		run,
-		output,
 	);
 	assert.equal(run.assistantError, undefined);
 });

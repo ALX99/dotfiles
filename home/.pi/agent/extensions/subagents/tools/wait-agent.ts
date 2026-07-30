@@ -1,4 +1,4 @@
-import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderWaitCall } from "../render.ts";
 import { uniqueAgentIds, WaitAgentParamsSchema } from "../schemas.ts";
@@ -11,8 +11,10 @@ import {
 } from "../tool-results.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
 import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
-import type { ReadonlyRunDetails } from "../run-state.ts";
+import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
+import { sumRunUsage, toPiUsage } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
+import { activateForSubagentState } from "../tool-activation.ts";
 
 export const DEFAULT_WAIT_MS = 15 * 60 * 1_000;
 
@@ -25,6 +27,7 @@ interface WaitExecutionRuntime {
 }
 
 export function createWaitAgentTool(
+	pi: ExtensionAPI,
 	runtime: SubagentRuntime,
 	now: () => number = Date.now,
 ): ToolDefinition<typeof WaitAgentParamsSchema, WaitDetails> {
@@ -35,7 +38,22 @@ export function createWaitAgentTool(
 			"Wait as one multi-agent barrier for specified subagents to settle or request input. A matching queued completion is consumed exactly once.",
 		parameters: WaitAgentParamsSchema,
 		async execute(_id, params, signal) {
-			return executeWaitAgent(params, runtime, signal, now);
+			const result = await executeWaitAgent(params, runtime, signal, now);
+			const accountedGenerations: Array<{ agentId: string; generation: number }> = [];
+			const usages: Readonly<RunUsage>[] = [];
+			for (const summary of result.details.summaries) {
+				activateForSubagentState(pi, summary, false);
+				const usage = runtime.claimUsage(summary);
+				if (!usage) continue;
+				usages.push(usage);
+				accountedGenerations.push({ agentId: summary.agent_id, generation: summary.generation });
+			}
+			if (usages.length === 0) return result;
+			return {
+				...result,
+				details: { ...result.details, accountedGenerations },
+				usage: toPiUsage(sumRunUsage(usages)),
+			};
 		},
 		renderCall(args, theme) {
 			return renderWaitCall(

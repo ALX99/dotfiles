@@ -13,11 +13,6 @@ export function createAnswerAgentTool(
 		label: "Answer Agent",
 		description:
 			"Answer a pending multiple-choice question from a direct child. Use the reported question_id and provide either a listed option or a custom answer.",
-		promptSnippet: "Answer a pending question from a direct child subagent",
-		promptGuidelines: [
-			"Use answer_agent, not send_agent, to answer a pending subagent question.",
-			"If a subagent question requires external input, call ask_question first with only the substantive alternatives, then pass that answer to answer_agent.",
-		],
 		parameters: AnswerAgentParamsSchema,
 		async execute(_id, params) {
 			const agentId = trimRequired(params.agent_id, "agent_id");

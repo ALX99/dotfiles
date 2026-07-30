@@ -55,7 +55,7 @@ test("context marker parsing rejects malformed and non-private artifacts", async
 		agentId: "worker-1",
 		generation: 1,
 		resultId: "c".repeat(64),
-		kind: "answer",
+		kind: "assignment",
 		agentDir,
 	});
 	const token = parseContextMarker(created.marker);
