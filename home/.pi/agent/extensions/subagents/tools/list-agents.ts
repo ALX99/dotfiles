@@ -15,7 +15,8 @@ export function createListAgentsTool(
 		parameters: ListAgentsParamsSchema,
 		async execute() {
 			const summaries = runtime.registry.list();
-			return jsonResult(summaries, agentSummaryDetails(summaries));
+			const capacity = runtime.admission.capacity();
+			return jsonResult({ capacity, agents: summaries }, agentSummaryDetails(summaries, capacity));
 		},
 		renderCall(_args, theme, context) {
 			return renderManagementCall(

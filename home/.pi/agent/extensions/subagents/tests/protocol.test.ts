@@ -22,6 +22,7 @@ function client(
 	options: {
 		readonly onEvent?: (event: RpcEvent) => void;
 		readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
+		readonly onOversizedRecord?: () => void;
 		readonly onExit?: (error: Error | undefined) => void;
 		readonly maxFrameBytes?: number;
 		readonly requestTimeoutMs?: number;
@@ -40,6 +41,7 @@ function client(
 		env: testEnv,
 		onEvent: options.onEvent ?? (() => {}),
 		...(options.onUiRequest === undefined ? {} : { onUiRequest: options.onUiRequest }),
+		...(options.onOversizedRecord === undefined ? {} : { onOversizedRecord: options.onOversizedRecord }),
 		onExit: options.onExit ?? (() => {}),
 		...(options.maxFrameBytes === undefined ? {} : { maxFrameBytes: options.maxFrameBytes }),
 		...(options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs }),
@@ -267,17 +269,24 @@ process.stdin.on('data', chunk => {
 	});
 });
 
-test("oversized non-newline stdout fails at the configured frame limit", async (t) => {
-	const exited = Promise.withResolvers<Error | undefined>();
-	const transport = client("process.stdout.write('x'.repeat(65)); setTimeout(() => {}, 200)", {
-		maxFrameBytes: 64,
-		onExit: exited.resolve,
-	});
+test("oversized stdout records are discarded through newline and framing recovers", async (t) => {
+	const recovered = Promise.withResolvers<void>();
+	let omitted = 0;
+	const transport = client(
+		"process.stdout.write('x'.repeat(65)); setTimeout(() => process.stdout.write('\\n' + JSON.stringify({type:'recovered'}) + '\\n'), 5); setTimeout(() => {}, 200)",
+		{
+			maxFrameBytes: 64,
+			onOversizedRecord: () => omitted++,
+			onEvent: (event) => {
+				if (event.type === "recovered") recovered.resolve();
+			},
+		},
+	);
 	t.after(() => transport.close());
 	await transport.start();
-	const error = await exited.promise;
-	assert.match(error?.message ?? "", /64 byte limit/);
-	assert.equal(transport.getState(), "failed");
+	await recovered.promise;
+	assert.equal(omitted, 1);
+	assert.equal(transport.getState(), "open");
 });
 
 test("malformed known records fail the live transport and stderr keeps a bounded tail", async (t) => {

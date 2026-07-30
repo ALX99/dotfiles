@@ -23,6 +23,10 @@ const theme = {
 // These render helpers use only fg() and bold(); the focused fixture deliberately
 // omits unrelated Theme methods.
 const renderTheme = theme as never;
+const summaryStats = {
+	started_at: 0,
+	usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+};
 
 function details(): RunDetails {
 	return {
@@ -31,54 +35,23 @@ function details(): RunDetails {
 		profile: "balanced",
 		model: "opencode-go/glm-5.2",
 		effectiveThinking: "medium",
+		agentId: "general-1",
 		sessionFile: "/tmp/subagent.jsonl",
-		depth: 1,
 		exitCode: 0,
 		finalText: "",
+		transcriptPreview: "",
 		stderr: "",
 		aborted: false,
 		startTime: 0,
 		toolCount: 1,
+		mutationToolCalls: 0,
 		recentTools: [],
 		lastMessage: "",
-		nestedRuns: [
-			{
-				toolCallId: "child-a",
-				agent: "scout",
-				taskName: "locate parser",
-				depth: 2,
-				status: "running",
-				toolCount: 1,
-				recentTools: [{ name: "read", argsPreview: "src/parser.ts" }],
-				lastMessage: "",
-				nestedRuns: [],
-			},
-			{
-				toolCallId: "child-b",
-				agent: "scout",
-				taskName: "locate tests",
-				depth: 2,
-				status: "running",
-				toolCount: 1,
-				recentTools: [{ name: "grep", argsPreview: "parser" }],
-				lastMessage: "",
-				nestedRuns: [
-					{
-						toolCallId: "grandchild",
-						agent: "scout",
-						taskName: "find fixture",
-						depth: 3,
-						status: "completed",
-						toolCount: 1,
-						recentTools: [{ name: "read", argsPreview: "testdata/fixture.json" }],
-						lastMessage: "",
-						nestedRuns: [],
-					},
-				],
-			},
-		],
+		lastAssistantText: "",
 		tokens: 0,
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		resultId: "a".repeat(64),
+		omittedTelemetryRecords: 0,
 	};
 }
 
@@ -92,17 +65,6 @@ test("spawn call header always identifies async or blocking execution", () => {
 	assert.doesNotMatch(blocking.render(120).join("\n"), /· async/);
 	assert.match(asyncCall.render(120).join("\n"), /spawn_agent scout .*· async/);
 	assert.doesNotMatch(asyncCall.render(120).join("\n"), /· blocking/);
-});
-
-test("renderResultBlock shows concurrent nested subagents and their child", () => {
-	const rendered = renderResultBlock(details(), { expanded: true, isPartial: true }, renderTheme)
-		.render(120)
-		.join("\n");
-
-	assert.match(rendered, /locate parser/);
-	assert.match(rendered, /locate tests/);
-	assert.match(rendered, /find fixture/);
-	assert.match(rendered, /testdata\/fixture\.json/);
 });
 
 test("renderResultBlock keeps collapsed rows compact and expanded rows complete", () => {
@@ -120,6 +82,7 @@ test("renderResultBlock keeps collapsed rows compact and expanded rows complete"
 	assert.doesNotMatch(collapsed, /four/);
 	assert.doesNotMatch(collapsed, /src\/parser\.ts/);
 	assert.match(expanded, /opencode-go\/glm-5\.2/);
+	assert.match(expanded, /general-1/);
 	assert.match(expanded, /src\/parser\.ts/);
 	assert.match(expanded, /four/);
 });
@@ -127,15 +90,16 @@ test("renderResultBlock keeps collapsed rows compact and expanded rows complete"
 test("management renderers identify targets and replace raw summary JSON", () => {
 	const summaries = [
 		{
-			agent_id: "agent-12345678",
+			...summaryStats,
+			agent_id: "general-1",
 			agent: "scout",
 			task_name: "inspect parser",
 			profile: "fast",
 			model: "opencode-go/deepseek-v4-flash",
 			effective_thinking: "low",
 			session_file: "/tmp/scout.jsonl",
-			depth: 1,
 			generation: 1,
+			retained: false,
 			status: "running" as const,
 		},
 	];
@@ -168,32 +132,33 @@ test("management renderers identify targets and replace raw summary JSON", () =>
 		.join("\n");
 	const result = renderAgentSummaries("list_agents", summaries, false, renderTheme).render(120).join("\n");
 
-	assert.match(call, /send_agent · inspect parser · agent-1/);
+	assert.match(call, /send_agent · inspect parser · general-1/);
 	assert.match(call, /check errors/);
-	assert.match(asyncFollowUp, /followup_agent · inspect parser · agent-12 · async/);
-	assert.match(blockingFollowUp, /followup_agent · inspect parser · agent-12 · blocking/);
+	assert.match(asyncFollowUp, /followup_agent · inspect parser · general-1 · async/);
+	assert.match(blockingFollowUp, /followup_agent · inspect parser · general-1 · blocking/);
 	assert.match(result, /list_agents · 1 agent/);
-	assert.match(result, /inspect parser · scout · fast · opencode-go\/deepseek-v4-flash · low · agent-12 · running/);
+	assert.match(result, /inspect parser · scout · fast · opencode-go\/deepseek-v4-flash · low · general-1 · running/);
 });
 
 test("renderWaitCall names the tasks, count, and timeout", () => {
 	const summaries = [
 		{
-			agent_id: "agent-12345678",
+			...summaryStats,
+			agent_id: "general-1",
 			agent: "scout",
 			task_name: "inspect parser",
 			profile: "fast",
 			model: "opencode-go/deepseek-v4-flash",
 			effective_thinking: "low",
-			depth: 1,
 			generation: 1,
+			retained: false,
 			status: "running" as const,
 		},
 	];
-	const rendered = renderWaitCall(["agent-12345678"], 5_000, summaries, renderTheme).render(120).join("\n");
+	const rendered = renderWaitCall(["general-1"], 5_000, summaries, renderTheme).render(120).join("\n");
 
 	assert.match(rendered, /waiting for 1 agent to settle · up to 5\.0s/);
-	assert.match(rendered, /inspect parser · agent-1/);
+	assert.match(rendered, /inspect parser · general-1/);
 });
 
 test("renderWaitResult distinguishes settled and still-running agents", () => {
@@ -207,26 +172,28 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 			],
 			summaries: [
 				{
+					...summaryStats,
 					agent_id: "done-12345678",
 					agent: "scout",
 					task_name: "inspect parser",
 					profile: "fast",
 					model: "opencode-go/deepseek-v4-flash",
 					effective_thinking: "low",
-					depth: 1,
 					generation: 1,
+					retained: false,
 					status: "idle",
 					final_text: "Parser finding",
 				},
 				{
+					...summaryStats,
 					agent_id: "running-12345678",
 					agent: "worker",
 					task_name: "fix parser",
 					profile: "balanced",
 					model: "opencode-go/glm-5.2",
 					effective_thinking: "medium",
-					depth: 1,
 					generation: 1,
+					retained: false,
 					status: "running",
 				},
 			],

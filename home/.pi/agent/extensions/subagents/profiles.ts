@@ -2,7 +2,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ScopedModel } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, type Api, type Model, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
@@ -49,39 +49,20 @@ export const ModelCandidateSchema = z
 
 export const ProfileSchema = z.strictObject({
 	description: nonEmptyString("description"),
-	delegationEnabled: z.boolean(),
 	countsTowardDeepAgentCap: z.boolean(),
 	modelPriority: z.array(ModelCandidateSchema).min(1, "modelPriority must contain at least one candidate"),
 });
-
-const LeafDelegationSchema = z.strictObject({
-	mode: z.literal("leaf"),
-});
-
-const GrantRequiredDelegationSchema = z.strictObject({
-	mode: z.literal("grant-required"),
-	maxLifetimeChildSpawns: z.number().int().min(1),
-	allowedChildAgents: z.array(nonEmptyString("allowedChildAgents item")).min(1),
-	allowedChildProfiles: z.array(nonEmptyString("allowedChildProfiles item")).min(1),
-});
-
-export const DelegationPolicySchema = z.discriminatedUnion("mode", [
-	LeafDelegationSchema,
-	GrantRequiredDelegationSchema,
-]);
 
 export const AgentPolicySchema = z.strictObject({
 	defaultProfile: nonEmptyString("defaultProfile"),
 	allowedProfiles: z
 		.array(nonEmptyString("allowedProfiles item"))
 		.min(1, "allowedProfiles must contain at least one profile"),
-	delegation: DelegationPolicySchema,
 });
 
 export const RootPolicySchema = z.strictObject({
 	maxConcurrentRootAgents: z.number().int().min(1),
 	maxConcurrentDeepAgents: z.number().int().min(1),
-	maxSpawnBudgetPerChild: z.number().int().min(0),
 });
 
 export const ProfilesSchema = z.strictObject({
@@ -119,6 +100,7 @@ export interface ResolvedRun {
 export interface ResolveRunOptions {
 	config: ProfilesConfig;
 	modelRegistry: AvailableModelRegistry;
+	scopedModels?: readonly ScopedModel[];
 	agent: string | NamedAgent;
 	profile?: string;
 	requestedThinking?: ModelThinkingLevel;
@@ -221,38 +203,6 @@ export function validateProfiles(
 				`${filePath}: agentPolicies.${printPathPart(agentName)}.defaultProfile: must appear in allowedProfiles`,
 			);
 		}
-		if (policy.delegation.mode === "grant-required") {
-			validateUniqueReferences(
-				policy.delegation.allowedChildAgents,
-				agentNames,
-				`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildAgents`,
-				"agent",
-				errors,
-			);
-			validateUniqueReferences(
-				policy.delegation.allowedChildProfiles,
-				profileNames,
-				`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildProfiles`,
-				"profile",
-				errors,
-			);
-			for (const [agentIndex, childAgent] of policy.delegation.allowedChildAgents.entries()) {
-				const childPolicy = config.agentPolicies[childAgent];
-				if (!childPolicy) continue;
-				for (const [profileIndex, childProfile] of policy.delegation.allowedChildProfiles.entries()) {
-					if (!childPolicy.allowedProfiles.includes(childProfile)) {
-						errors.push(
-							`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.allowedChildProfiles.${profileIndex}: profile '${childProfile}' is advertised with child agent '${childAgent}' at allowedChildAgents.${agentIndex}, but that agent does not allow it`,
-						);
-					}
-				}
-			}
-			if (policy.delegation.maxLifetimeChildSpawns > config.rootPolicy.maxSpawnBudgetPerChild) {
-				errors.push(
-					`${filePath}: agentPolicies.${printPathPart(agentName)}.delegation.maxLifetimeChildSpawns: must not exceed rootPolicy.maxSpawnBudgetPerChild`,
-				);
-			}
-		}
 	}
 	for (const agentName of agentNames) {
 		if (!Object.hasOwn(config.agentPolicies, agentName)) {
@@ -308,6 +258,15 @@ export function loadProfiles(
  * return a model for which the user has no configured authentication.
  */
 export function resolveRun(options: ResolveRunOptions): ResolvedRun {
+	return resolveRuns(options)[0];
+}
+
+/**
+ * Resolve every authenticated candidate in configured order. The first run
+ * preserves resolveRun's validation behavior; later candidates that cannot
+ * honor the requested thinking level are omitted from runtime fallback.
+ */
+export function resolveRuns(options: ResolveRunOptions): readonly [ResolvedRun, ...ResolvedRun[]] {
 	const agent = typeof options.agent === "string" ? options.agent : options.agent.name;
 	const policy = options.config.agentPolicies[agent];
 	if (!policy) throw new Error(`No profile policy is configured for agent '${agent}'.`);
@@ -321,41 +280,81 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 	const profile = options.config.profiles[profileName];
 	if (!profile) throw new Error(`Profile '${profileName}' configured for agent '${agent}' does not exist.`);
 
-	const available = options.modelRegistry.getAvailable();
-	const selected = profile.modelPriority.find((candidate) => {
+	const available =
+		options.scopedModels && options.scopedModels.length > 0
+			? options.scopedModels
+			: options.modelRegistry.getAvailable().map((model): ScopedModel => ({ model }));
+	const authenticated = profile.modelPriority.flatMap((candidate) => {
 		const [provider, modelId] = splitModelId(candidate.id);
-		return available.some((model) => model.provider === provider && model.id === modelId);
+		const scopedModel = available.find(({ model }) => model.provider === provider && model.id === modelId);
+		return scopedModel ? [{ candidate, ...scopedModel }] : [];
 	});
-	if (!selected) {
+	if (authenticated.length === 0) {
 		throw new Error(
-			`No authenticated model is available for profile '${profileName}'. Configured startup priority: ${profile.modelPriority.map((candidate) => candidate.id).join(", ")}.`,
+			`No authenticated model is available for profile '${profileName}'. Configured model priority: ${profile.modelPriority.map((candidate) => candidate.id).join(", ")}.`,
 		);
 	}
-	const [provider, modelId] = splitModelId(selected.id);
-	const model = available.find((candidate) => candidate.provider === provider && candidate.id === modelId);
-	if (!model) throw new Error(`Selected model '${selected.id}' disappeared from the available registry.`);
 
-	const requested = options.requestedThinking ?? selected.defaultThinking;
-	assertThinkingLevel(requested);
-	if (thinkingRank(requested) > thinkingRank(selected.maxThinking)) {
-		throw new Error(
-			`Requested thinking '${requested}' exceeds profile '${profileName}' candidate '${selected.id}' cap '${selected.maxThinking}'.`,
+	const [primary, ...fallbacks] = authenticated;
+	if (!primary) throw new Error(`Profile '${profileName}' has no authenticated model candidates.`);
+	const resolved = [
+		resolveCandidate(
+			agent,
+			profileName,
+			primary.candidate,
+			primary.model,
+			options.requestedThinking,
+			primary.thinkingLevel,
+		),
+	];
+	for (const fallback of fallbacks) {
+		const requested = fallback.thinkingLevel ?? options.requestedThinking ?? fallback.candidate.defaultThinking;
+		if (thinkingRank(requested) > thinkingRank(fallback.candidate.maxThinking)) continue;
+		const effectiveThinking = supportedThinkingAtOrBelow(fallback.model, requested);
+		if (!effectiveThinking) continue;
+		resolved.push(
+			freezeResolvedRun(agent, profileName, fallback.candidate.id, effectiveThinking, fallback.model.contextWindow),
 		);
 	}
-	const effectiveThinking = getSupportedThinkingLevels(model)
+	return Object.freeze(resolved) as readonly [ResolvedRun, ...ResolvedRun[]];
+}
+
+function resolveCandidate(
+	agent: string,
+	profileName: string,
+	candidate: ProfilesConfig["profiles"][string]["modelPriority"][number],
+	model: Model<Api>,
+	requestedThinking: ModelThinkingLevel | undefined,
+	scopedThinking: ModelThinkingLevel | undefined,
+): ResolvedRun {
+	const requested = scopedThinking ?? requestedThinking ?? candidate.defaultThinking;
+	assertThinkingLevel(requested);
+	if (thinkingRank(requested) > thinkingRank(candidate.maxThinking)) {
+		throw new Error(
+			`Requested thinking '${requested}' exceeds profile '${profileName}' candidate '${candidate.id}' cap '${candidate.maxThinking}'.`,
+		);
+	}
+	const effectiveThinking = supportedThinkingAtOrBelow(model, requested);
+	if (!effectiveThinking) {
+		throw new Error(`Model '${candidate.id}' supports no thinking level at or below requested '${requested}'.`);
+	}
+	return freezeResolvedRun(agent, profileName, candidate.id, effectiveThinking, model.contextWindow);
+}
+
+function supportedThinkingAtOrBelow(model: Model<Api>, requested: ModelThinkingLevel): ModelThinkingLevel | undefined {
+	return getSupportedThinkingLevels(model)
 		.filter((level) => thinkingRank(level) <= thinkingRank(requested))
 		.at(-1);
-	if (!effectiveThinking) {
-		throw new Error(`Model '${selected.id}' supports no thinking level at or below requested '${requested}'.`);
-	}
+}
 
-	return Object.freeze({
-		agent,
-		profile: profileName,
-		model: selected.id,
-		effectiveThinking,
-		contextWindow: model.contextWindow,
-	});
+function freezeResolvedRun(
+	agent: string,
+	profile: string,
+	model: string,
+	effectiveThinking: ModelThinkingLevel,
+	contextWindow: number,
+): ResolvedRun {
+	return Object.freeze({ agent, profile, model, effectiveThinking, contextWindow });
 }
 
 function splitModelId(id: string): [string, string] {
@@ -384,25 +383,4 @@ function printPathPart(part: PropertyKey): string {
 		: /^[A-Za-z_$][\w$-]*$/.test(String(part))
 			? String(part)
 			: `[${JSON.stringify(String(part))}]`;
-}
-
-function validateUniqueReferences(
-	values: string[],
-	known: Set<string>,
-	pathPrefix: string,
-	label: string,
-	errors: string[],
-): void {
-	const seen = new Map<string, number>();
-	for (const [index, value] of values.entries()) {
-		const previous = seen.get(value);
-		if (previous !== undefined) {
-			errors.push(`${pathPrefix}.${index}: duplicate allowed ${label} '${value}' (first at ${previous})`);
-		} else {
-			seen.set(value, index);
-		}
-		if (known.size > 0 && !known.has(value)) {
-			errors.push(`${pathPrefix}.${index}: references unknown ${label} '${value}'`);
-		}
-	}
 }

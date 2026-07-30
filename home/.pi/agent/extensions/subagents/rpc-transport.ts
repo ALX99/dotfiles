@@ -2,7 +2,6 @@ import { truncateTail } from "@earendil-works/pi-coding-agent";
 import { execa } from "execa";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { parseJson } from "../_shared/json.ts";
-import { ByteBoundedJsonlFramer } from "../_shared/jsonl.ts";
 import type { AgentEvent } from "./event-schema.ts";
 import { parseRpcRecord, type ExtensionUiRequest, type RpcEvent } from "./protocol.ts";
 
@@ -110,6 +109,7 @@ export interface RpcTransportOptions {
 	readonly onEvent: (event: RpcEvent) => void;
 	readonly onAgentEvent?: (event: AgentEvent) => void;
 	readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
+	readonly onOversizedRecord?: () => void;
 	readonly onExit: (error: Error | undefined) => void;
 	readonly maxFrameBytes?: number;
 	readonly maxStderrBytes?: number;
@@ -276,21 +276,25 @@ export class RpcTransport {
 	}
 
 	private attachJsonl(child: RpcSubprocess): void {
-		const framer = new ByteBoundedJsonlFramer(this.maxFrameBytes());
+		const framer = new RecoveringJsonlFramer(this.maxFrameBytes());
 		child.stdout.on("data", (raw: Buffer | string) => {
 			if (this.state === "failed" || this.state === "closed") return;
-			try {
-				for (const line of framer.push(raw)) {
-					this.handleLine(line);
-					if (this.isFailed()) return;
-				}
-			} catch {
-				this.fail(new Error(`Subagent RPC frame exceeds the ${this.maxFrameBytes()} byte limit.`));
+			const framed = framer.push(raw);
+			for (let omitted = 0; omitted < framed.omittedRecords; omitted++) {
+				this.options.onOversizedRecord?.();
+			}
+			for (const line of framed.lines) {
+				this.handleLine(line);
+				if (this.isFailed()) return;
 			}
 		});
 		child.stdout.on("end", () => {
 			if (this.state === "failed" || this.state === "closed") return;
-			for (const line of framer.end()) this.handleLine(line);
+			const framed = framer.end();
+			for (let omitted = 0; omitted < framed.omittedRecords; omitted++) {
+				this.options.onOversizedRecord?.();
+			}
+			for (const line of framed.lines) this.handleLine(line);
 		});
 	}
 
@@ -447,6 +451,77 @@ export class RpcTransport {
 
 	private isFailed(): boolean {
 		return this.state === "failed";
+	}
+}
+
+export interface FramedJsonl {
+	readonly lines: readonly string[];
+	readonly omittedRecords: number;
+}
+
+/** Byte-bounded LF framer that drops one oversized record through its newline,
+ * then resumes at the next record without decoding partial UTF-8. */
+export class RecoveringJsonlFramer {
+	private segments: Buffer[] = [];
+	private bufferedBytes = 0;
+	private discarding = false;
+	private readonly maxFrameBytes: number;
+
+	constructor(maxFrameBytes: number) {
+		if (!Number.isInteger(maxFrameBytes) || maxFrameBytes < 1) {
+			throw new Error("maxFrameBytes must be a positive integer.");
+		}
+		this.maxFrameBytes = maxFrameBytes;
+	}
+
+	push(raw: Buffer | string): FramedJsonl {
+		const chunk = typeof raw === "string" ? Buffer.from(raw) : raw;
+		const lines: string[] = [];
+		let omittedRecords = 0;
+		let offset = 0;
+		while (offset < chunk.byteLength) {
+			const newline = chunk.indexOf(0x0a, offset);
+			const end = newline < 0 ? chunk.byteLength : newline;
+			if (!this.discarding) {
+				const segment = chunk.subarray(offset, end);
+				if (this.bufferedBytes + segment.byteLength > this.maxFrameBytes) {
+					this.segments = [];
+					this.bufferedBytes = 0;
+					this.discarding = true;
+					omittedRecords++;
+				} else if (segment.byteLength > 0) {
+					this.segments.push(segment);
+					this.bufferedBytes += segment.byteLength;
+				}
+			}
+			if (newline < 0) break;
+			if (this.discarding) {
+				this.discarding = false;
+			} else {
+				lines.push(this.takeLine());
+			}
+			offset = newline + 1;
+		}
+		return { lines, omittedRecords };
+	}
+
+	end(): FramedJsonl {
+		if (this.discarding) {
+			this.discarding = false;
+			return { lines: [], omittedRecords: 0 };
+		}
+		return {
+			lines: this.bufferedBytes === 0 ? [] : [this.takeLine()],
+			omittedRecords: 0,
+		};
+	}
+
+	private takeLine(): string {
+		let line = Buffer.concat(this.segments, this.bufferedBytes);
+		if (line.at(-1) === 0x0d) line = line.subarray(0, -1);
+		this.segments = [];
+		this.bufferedBytes = 0;
+		return line.toString("utf8");
 	}
 }
 

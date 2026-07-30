@@ -11,7 +11,11 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 		pi.registerShortcut(shortcut.shortcut, {
 			description: `Switch to ${shortcut.model}`,
 			handler: async (ctx) => {
-				const model = ctx.modelRegistry.find(shortcut.provider, shortcut.model);
+				const scoped = ctx.scopedModels.find(
+					({ model }) => model.provider === shortcut.provider && model.id === shortcut.model,
+				);
+				const model =
+					ctx.scopedModels.length > 0 ? scoped?.model : ctx.modelRegistry.find(shortcut.provider, shortcut.model);
 				if (!model) {
 					if (ctx.hasUI) {
 						ctx.ui.notify(`Model not found: ${shortcut.provider}/${shortcut.model}`, "warning");
@@ -26,6 +30,7 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 					}
 					return;
 				}
+				if (scoped?.thinkingLevel !== undefined) pi.setThinkingLevel(scoped.thinkingLevel);
 
 				if (ctx.hasUI) {
 					ctx.ui.notify(`Switched to ${shortcut.provider}/${shortcut.model}`, "info");

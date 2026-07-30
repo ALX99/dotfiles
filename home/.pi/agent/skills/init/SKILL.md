@@ -1,7 +1,6 @@
 ---
 name: init
 description: Generate AGENTS.md — a contributor guide for this repository
-disable-model-invocation: true
 ---
 
 Generate a file named AGENTS.md that serves as a contributor guide for this repository.

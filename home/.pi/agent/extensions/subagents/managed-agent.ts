@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { createHash, randomBytes } from "node:crypto";
+import { truncateHead } from "@earendil-works/pi-coding-agent";
 import { OTHER_OPTION } from "../ask-question/choices.ts";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
@@ -19,6 +20,7 @@ import {
 import type { AgentEvent } from "./event-schema.ts";
 import { OutputSpool } from "./output-spool.ts";
 import type { ResolvedRun } from "./profiles.ts";
+import { createContextArtifact, removeContextArtifact, type ContextArtifactKind } from "./context-artifacts.ts";
 import {
 	CHILD_CONTEXT_ENV,
 	composeRoleSystemPrompt,
@@ -35,10 +37,30 @@ import {
 	type ReadonlyRunDetails,
 	type RunStatus,
 } from "./run-state.ts";
+import {
+	paginateStoredResult,
+	readChildAssistantError,
+	readChildRunStats,
+	readChildTranscript,
+	readStoredAgentResult,
+	resultReference,
+	type ResultPage,
+	type StoredAgentResult,
+} from "./result-store.ts";
 import { isInputUiRequest, isSelectUiRequest, type ExtensionUiRequest, type InputUiRequest } from "./protocol.ts";
 import { RpcTransport, type SpawnRpcProcess } from "./rpc-transport.ts";
 
 let nextAgentId = 1;
+
+export function reserveManagedAgentIds(agentIds: Iterable<string>): void {
+	for (const agentId of agentIds) {
+		const suffix = /-(\d+)$/.exec(agentId)?.[1];
+		if (suffix === undefined) continue;
+		const value = Number(suffix);
+		if (Number.isSafeInteger(value) && value >= nextAgentId) nextAgentId = value + 1;
+	}
+}
+
 const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	// Agent sockets authorize use of credentials independently of the tool
 	// allowlist. Scouts do not need either agent, so do not hand them these
@@ -48,16 +70,7 @@ const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	"SSH_AGENT_PID",
 	"GPG_AGENT_INFO",
 ]);
-const SUBAGENT_TOOL_NAMES = [
-	"spawn_agent",
-	"send_agent",
-	"followup_agent",
-	"wait_agent",
-	"list_agents",
-	"interrupt_agent",
-	"close_agent",
-	"answer_agent",
-] as const;
+const CHILD_RESULT_TOOL_NAME = "submit_agent_result";
 
 interface Deferred {
 	readonly generation: number;
@@ -81,24 +94,25 @@ interface QueuedCustomAnswer {
 
 export interface ManagedAgentOptions {
 	readonly id?: string;
+	readonly agentDir: string;
 	readonly defaultCwd: string;
 	readonly cwd?: string;
 	readonly agent: AgentConfig;
 	readonly resolvedRun: ResolvedRun;
+	readonly fallbackRuns?: readonly ResolvedRun[];
 	readonly childContext: ChildExecutionContext;
-	readonly subagentToolsEnabled: boolean;
+	readonly retain: boolean;
 	readonly spawnProcess?: SpawnRpcProcess;
 	readonly onUpdate?: (details: ReadonlyRunDetails) => void;
-	readonly onStartupComplete?: () => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
 
 export class ManagedAgent {
 	readonly id: string;
-	readonly depth: number;
 	private transport: RpcTransport | undefined;
 	private promptDir: string | undefined;
+	private promptPath: string | undefined;
 	private output = new OutputSpool();
 	private deferred: Deferred | undefined;
 	private lifecycle: AgentLifecycle = { phase: "created" };
@@ -116,11 +130,18 @@ export class ManagedAgent {
 	private eventTail: Promise<void> = Promise.resolve();
 	private closePromise: Promise<void> | undefined;
 	private readonly options: ManagedAgentOptions;
+	private readonly resolvedRuns: readonly ResolvedRun[];
+	private readonly agentDir: string;
+	private activeResolvedRunIndex = 0;
+	private replacingTransport = false;
+	private failing = false;
+	private readonly resultIds = new Map<number, string>();
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
-		this.id = options.id ?? `agent-${nextAgentId++}`;
-		this.depth = options.childContext.depth;
+		this.agentDir = options.agentDir;
+		this.resolvedRuns = Object.freeze([options.resolvedRun, ...(options.fallbackRuns ?? [])]);
+		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
 		this.onUpdate = options.onUpdate;
 		this.run = this.freshRun();
 	}
@@ -145,6 +166,7 @@ export class ManagedAgent {
 				const prompt = composeRoleSystemPrompt(
 					this.options.agent.systemPrompt,
 					this.options.cwd ?? this.options.defaultCwd,
+					this.agentDir,
 				);
 				const written = await writeTempPrompt(this.options.agent.name, prompt);
 				if (this.isClosing()) {
@@ -152,9 +174,10 @@ export class ManagedAgent {
 					throw new Error(`Agent ${this.id} was closed during startup.`);
 				}
 				this.promptDir = written.dir;
+				this.promptPath = written.path;
 				promptPath = written.path;
 			}
-			const sessionDir = path.join(getAgentDir(), "subagent-sessions");
+			const sessionDir = path.join(this.agentDir, "subagent-sessions");
 			// Session JSONL files intentionally outlive this process.
 			await fs.promises.mkdir(sessionDir, { recursive: true });
 			const args = this.rpcArguments(sessionDir, promptPath);
@@ -163,12 +186,15 @@ export class ManagedAgent {
 				command: invocation.command,
 				args: invocation.args,
 				cwd: this.options.cwd ?? this.options.defaultCwd,
-				env: childEnvironment(this.options.childContext),
+				env: childEnvironment({ ...this.options.childContext, agentId: this.id }),
 				...(this.options.spawnProcess === undefined ? {} : { spawnProcess: this.options.spawnProcess }),
 				onEvent: () => {},
 				onAgentEvent: (event) => this.queueEvent(event),
 				onUiRequest: (request) => this.handleUiRequest(request),
-				onExit: (error) => this.onExit(error),
+				onOversizedRecord: () => this.recordOmittedTelemetry(),
+				onExit: (error) => {
+					if (this.transport === transport) this.onExit(error);
+				},
 			});
 			this.transport = transport;
 			await transport.start();
@@ -183,8 +209,7 @@ export class ManagedAgent {
 				this.activeWaiters++;
 				foregroundQuestionGuard = true;
 			}
-			await transport.request({ type: "prompt", message: task });
-			this.options.onStartupComplete?.();
+			await this.sendContextPrompt(task, "assignment", transport);
 		} catch (cause) {
 			if (foregroundQuestionGuard) {
 				this.activeWaiters--;
@@ -207,6 +232,7 @@ export class ManagedAgent {
 			return await this.waitForGeneration(run.generation, signal);
 		} finally {
 			if (foregroundQuestionGuard) this.activeWaiters--;
+			if (!this.options.retain && run.settled) await this.close();
 		}
 	}
 
@@ -219,7 +245,7 @@ export class ManagedAgent {
 				`Agent ${this.id} is waiting for an answer to question '${this.pendingQuestion.question_id}'; use answer_agent.`,
 			);
 		}
-		await this.rpc().request({ type: "steer", message });
+		await this.sendContextPrompt(message, "steer", this.rpc(), "steer");
 	}
 
 	async answerQuestion(questionId: string, answer: string): Promise<void> {
@@ -231,19 +257,16 @@ export class ManagedAgent {
 			throw new Error(`Provide the custom answer itself instead of the reserved '${OTHER_OPTION}' option.`);
 		}
 
-		const isListedOption = question.options.includes(answer);
-		if (!isListedOption && !question.options.includes(OTHER_OPTION)) {
+		if (!question.options.includes(answer) && !question.options.includes(OTHER_OPTION)) {
 			throw new Error(`Answer must match one of the options for question '${questionId}'.`);
 		}
-		if (!isListedOption) {
-			this.queuedCustomAnswer = { generation: this.generation, answer };
-		}
+		this.queuedCustomAnswer = { generation: this.generation, answer };
 		this.pendingQuestion = undefined;
 		this.questionSignal = this.newQuestionSignal(this.generation);
 		this.emit();
 
 		try {
-			await this.rpc().respondToUi(questionId, { value: isListedOption ? answer : OTHER_OPTION });
+			await this.rpc().respondToUi(questionId, { value: OTHER_OPTION });
 		} catch (cause) {
 			this.failRun(cause);
 			throw cause;
@@ -251,15 +274,31 @@ export class ManagedAgent {
 	}
 
 	async getMessages(): Promise<unknown[]> {
-		const response = await this.rpc().request({ type: "get_messages" });
-		if (!isRecord(response) || !Array.isArray(response.messages)) {
-			throw new Error(`Agent ${this.id} returned an invalid transcript response.`);
-		}
-		return response.messages;
+		const sessionFile = this.run.sessionFile;
+		if (!sessionFile) throw new Error(`Agent ${this.id} has no persisted session.`);
+		return readChildTranscript(sessionFile, this.agentDir);
 	}
 
 	async loadFullOutput(): Promise<string> {
-		return this.output.loadFullOutput();
+		return (await this.readStoredResult()).text;
+	}
+
+	async readResult(
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+	): Promise<ResultPage> {
+		const generation = options.generation ?? this.generation;
+		if (generation === this.generation && this.deferred && !this.deferred.settled) {
+			throw new Error(`Agent ${this.id} generation ${generation} is still running; wait for settlement first.`);
+		}
+		const resultId = this.resultIds.get(generation);
+		if (!resultId) throw new Error(`Agent ${this.id} has no result identity for generation ${generation}.`);
+		const result = await this.readStoredResult(generation, resultId);
+		return paginateStoredResult(this.id, result, options);
 	}
 
 	async followUp(
@@ -268,6 +307,9 @@ export class ManagedAgent {
 		background: boolean,
 		signal?: AbortSignal,
 	): Promise<ReadonlyRunDetails> {
+		if (!this.options.retain) {
+			throw new Error(`Agent ${this.id} is one-shot. Spawn with retain:true before using followup_agent.`);
+		}
 		// Process events already received from the child before deciding whether
 		// this continues an active run. In particular, a queued settlement must
 		// not resolve a deferred reused for a new follow-up.
@@ -288,7 +330,7 @@ export class ManagedAgent {
 				this.activeWaiters++;
 				foregroundQuestionGuard = true;
 			}
-			await this.rpc().request({ type: wasRunning ? "follow_up" : "prompt", message });
+			await this.sendContextPrompt(message, "followup", this.rpc(), wasRunning ? "followUp" : undefined);
 		} catch (cause) {
 			if (foregroundQuestionGuard) {
 				this.activeWaiters--;
@@ -321,6 +363,10 @@ export class ManagedAgent {
 		this.pendingQuestion = undefined;
 		this.queuedCustomAnswer = undefined;
 		this.emit();
+		if (this.replacingTransport && this.transport?.getState() !== "open") {
+			this.settleCurrent({ kind: "resolve" });
+			return;
+		}
 		try {
 			if (pendingQuestion) {
 				await this.rpc().respondToUi(pendingQuestion.question_id, { cancelled: true });
@@ -342,19 +388,28 @@ export class ManagedAgent {
 	summary(): AgentSummary {
 		const status = lifecycleStatus(this.lifecycle);
 		const error = this.lifecycle.phase === "failed" ? this.lifecycle.error.message : this.run.assistantError;
+		const resolvedRun = this.activeResolvedRun();
+		const failure = this.lifecycle.phase === "failed" ? failureMetadata(this.lifecycle.error) : undefined;
+		const durationMs = this.run.endTime === undefined ? undefined : Math.max(0, this.run.endTime - this.run.startTime);
 		return {
 			agent_id: this.id,
-			agent: this.options.resolvedRun.agent,
+			agent: resolvedRun.agent,
 			task_name: this.taskName,
-			profile: this.options.resolvedRun.profile,
-			model: this.options.resolvedRun.model,
-			effective_thinking: this.options.resolvedRun.effectiveThinking,
+			profile: resolvedRun.profile,
+			model: resolvedRun.model,
+			effective_thinking: resolvedRun.effectiveThinking,
 			...(this.run.sessionFile ? { session_file: this.run.sessionFile } : {}),
-			depth: this.depth,
 			generation: this.generation,
+			retained: this.options.retain,
 			status,
+			started_at: this.run.startTime,
+			...(this.run.endTime === undefined ? {} : { ended_at: this.run.endTime }),
+			...(durationMs === undefined ? {} : { duration_ms: durationMs }),
+			usage: { ...this.run.usage },
 			...(this.run.finalText ? { final_text: this.run.finalText } : {}),
+			...(this.run.result ? { result: this.run.result } : {}),
 			...(error ? { error } : {}),
+			...(failure ? { failure } : {}),
 			...(this.pendingQuestion ? { pending_question: snapshotQuestion(this.pendingQuestion) } : {}),
 		};
 	}
@@ -377,6 +432,13 @@ export class ManagedAgent {
 	/** Whether this entry still occupies a spawn-concurrency slot. */
 	occupiesCapacity(): boolean {
 		const transportState = this.transport?.getState();
+		if (
+			this.transport === undefined &&
+			!this.replacingTransport &&
+			(this.lifecycle.phase === "failed" || this.lifecycle.phase === "aborted")
+		) {
+			return false;
+		}
 		return (
 			this.lifecycle.phase !== "closing" &&
 			this.lifecycle.phase !== "closed" &&
@@ -406,6 +468,7 @@ export class ManagedAgent {
 		this.taskName = taskName;
 		this.setLifecycle({ phase: "starting" });
 		this.run = this.freshRun();
+		this.resultIds.set(generation, this.run.resultId);
 		const { promise, resolve, reject } = Promise.withResolvers<ReadonlyRunDetails>();
 		void promise.catch(() => {});
 		const deferred = { generation, promise, resolve, reject, settled: false };
@@ -478,12 +541,35 @@ export class ManagedAgent {
 			this.pendingQuestion = undefined;
 			this.queuedCustomAnswer = undefined;
 			this.run.endTime = Date.now();
+			await this.captureTerminalResult();
+			if (this.run.result && !this.run.result.complete && !this.run.assistantError) {
+				this.run.assistantError =
+					"The child settled without a final submit_agent_result page; its exact submitted checkpoint remains readable.";
+			}
 			if (this.lifecycle.phase === "aborted") {
 				this.settleCurrent({ kind: "resolve" });
 			} else if (this.run.assistantError) {
-				const error = new Error(this.run.assistantError);
-				this.setLifecycle({ phase: "failed", error });
-				this.settleCurrent({ kind: "reject", error });
+				const error = await this.retryWithFallback(generation, new Error(this.run.assistantError));
+				if (error === undefined) {
+					this.emit();
+					return;
+				}
+				if (this.isAborted()) {
+					this.settleCurrent({ kind: "resolve" });
+					this.emit();
+					return;
+				}
+				if (this.isClosing()) return;
+				const failure =
+					error instanceof RecoverableAgentFailure
+						? error
+						: new RecoverableAgentFailure(
+								"provider_failure",
+								`${error.message} The persisted child session and any submitted result checkpoint remain available.`,
+								error,
+							);
+				this.setLifecycle({ phase: "failed", error: failure });
+				this.settleCurrent({ kind: "reject", error: failure });
 			} else {
 				this.setLifecycle({ phase: "idle" });
 				this.settleCurrent({ kind: "resolve" });
@@ -494,11 +580,19 @@ export class ManagedAgent {
 
 	private onExit(error: Error | undefined): void {
 		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed") return;
-		this.failRun(error ?? new Error("Subagent process exited."));
+		const cause = error ?? new Error("Subagent process exited.");
+		this.failRun(
+			new RecoverableAgentFailure(
+				"transport_failure",
+				`${cause.message} The persisted child session and any submitted result checkpoint remain available.`,
+				cause,
+			),
+		);
 	}
 
 	private failRun(cause: unknown): void {
-		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed") return;
+		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed" || this.failing) return;
+		this.failing = true;
 		const error = toError(cause);
 		if (this.lifecycle.phase !== "failed") {
 			this.setLifecycle({ phase: "failed", error });
@@ -508,8 +602,16 @@ export class ManagedAgent {
 		this.run.exitCode = 1;
 		this.run.stderr = error.message;
 		this.run.endTime = Date.now();
-		this.settleCurrent({ kind: "reject", error });
 		this.emit();
+		void this.captureTerminalResult()
+			.catch((captureCause) => {
+				this.run.stderr = `${this.run.stderr}\nResult recovery failed: ${toError(captureCause).message}`;
+			})
+			.finally(() => {
+				this.failing = false;
+				this.settleCurrent({ kind: "reject", error });
+				this.emit();
+			});
 	}
 
 	private async closeInternal(): Promise<void> {
@@ -548,6 +650,7 @@ export class ManagedAgent {
 				failures.push(error);
 			} finally {
 				this.promptDir = undefined;
+				this.promptPath = undefined;
 				this.setLifecycle({ phase: "closed" });
 				this.emit();
 				this.listeners.clear();
@@ -557,17 +660,135 @@ export class ManagedAgent {
 	}
 
 	private freshRun(): MutableRunData {
+		const resolvedRun = this.activeResolvedRun();
 		const run = initRunData({
 			agent: this.options.agent,
 			taskName: this.taskName,
-			profile: this.options.resolvedRun.profile,
-			model: this.options.resolvedRun.model,
-			effectiveThinking: this.options.resolvedRun.effectiveThinking,
+			profile: resolvedRun.profile,
+			model: resolvedRun.model,
+			effectiveThinking: resolvedRun.effectiveThinking,
 			...(this.run?.sessionFile === undefined ? {} : { sessionFile: this.run.sessionFile }),
-			parentDepth: this.options.childContext.depth - 1,
+			resultId: randomBytes(32).toString("hex"),
 		});
-		run.contextWindow = this.options.resolvedRun.contextWindow;
+		run.contextWindow = resolvedRun.contextWindow;
 		return run;
+	}
+
+	private async retryWithFallback(generation: number, originalError: Error): Promise<Error | undefined> {
+		if (this.activeResolvedRunIndex + 1 >= this.resolvedRuns.length) return originalError;
+		if (this.options.agent.name !== "scout" && this.run.mutationToolCalls > 0) {
+			return new RecoverableAgentFailure(
+				"mutation_replay_blocked",
+				`${originalError.message} Automatic model fallback was not attempted because the agent completed ${this.run.mutationToolCalls} mutation-capable tool call(s). Inspect its persisted session and result checkpoint before deciding whether to resume.`,
+				originalError,
+			);
+		}
+		const quotaProvider = isAccountQuotaError(originalError.message)
+			? providerOf(this.activeResolvedRun().model)
+			: undefined;
+		this.replacingTransport = true;
+		try {
+			const fallbackErrors: Error[] = [];
+			const previousTransport = this.transport;
+			this.transport = undefined;
+			try {
+				await previousTransport?.close();
+			} catch (cause) {
+				fallbackErrors.push(toError(cause));
+			}
+			if (!this.canRetryGeneration(generation)) return originalError;
+			const sessionFile = this.run.sessionFile;
+			if (!sessionFile) {
+				return new AggregateError(
+					[originalError, ...fallbackErrors],
+					`${originalError.message} Model fallback could not resume because the child session file is unavailable.`,
+				);
+			}
+			const sessionDir = path.join(this.agentDir, "subagent-sessions");
+			let nextIndex = this.activeResolvedRunIndex + 1;
+			while (nextIndex < this.resolvedRuns.length) {
+				const fallback = this.resolvedRuns[nextIndex];
+				if (!fallback) break;
+				if (quotaProvider && providerOf(fallback.model) === quotaProvider) {
+					nextIndex++;
+					continue;
+				}
+				let transport: RpcTransport | undefined;
+				let committed = false;
+				try {
+					this.assertCanRetryGeneration(generation);
+					const args = this.rpcArguments(sessionDir, this.promptPath, fallback, sessionFile);
+					const invocation = getPiInvocation(args);
+					transport = new RpcTransport({
+						command: invocation.command,
+						args: invocation.args,
+						cwd: this.options.cwd ?? this.options.defaultCwd,
+						env: childEnvironment({ ...this.options.childContext, agentId: this.id }),
+						...(this.options.spawnProcess === undefined ? {} : { spawnProcess: this.options.spawnProcess }),
+						onEvent: () => {},
+						onAgentEvent: (event) => this.queueEvent(event),
+						onUiRequest: (request) => this.handleUiRequest(request),
+						onOversizedRecord: () => this.recordOmittedTelemetry(),
+						onExit: (error) => {
+							if (committed && this.transport === transport) this.onExit(error);
+						},
+					});
+					this.transport = transport;
+					await transport.start();
+					this.assertTransport(transport);
+					const state = await transport.request({ type: "get_state" });
+					if (!isRecord(state) || state.sessionFile !== sessionFile) {
+						throw new Error(`Agent ${this.id} could not resume its session during model fallback.`);
+					}
+					this.assertCanRetryGeneration(generation);
+
+					this.activeResolvedRunIndex = nextIndex;
+					this.startedGeneration = undefined;
+					this.run.model = fallback.model;
+					this.run.effectiveThinking = fallback.effectiveThinking;
+					this.run.contextWindow = fallback.contextWindow;
+					this.run.exitCode = 0;
+					this.run.stderr = "";
+					delete this.run.assistantError;
+					delete this.run.endTime;
+					await this.sendContextPrompt(
+						"Continue the current task after the previous model failed. Preserve completed work and verify the final result.",
+						"fallback",
+						transport,
+					);
+					committed = true;
+					return undefined;
+				} catch (cause) {
+					const interrupted = cause instanceof ModelFallbackInterruptedError;
+					if (!interrupted) fallbackErrors.push(toError(cause));
+					if (this.transport === transport) this.transport = undefined;
+					try {
+						await transport?.close();
+					} catch (cleanupCause) {
+						fallbackErrors.push(toError(cleanupCause));
+					}
+					if (interrupted || !this.canRetryGeneration(generation)) return originalError;
+					nextIndex++;
+				}
+			}
+			if (fallbackErrors.length === 0) return originalError;
+			return new AggregateError(
+				[originalError, ...fallbackErrors],
+				`${originalError.message} Model fallbacks failed: ${fallbackErrors.map((error) => error.message).join("; ")}`,
+			);
+		} finally {
+			this.replacingTransport = false;
+		}
+	}
+
+	private canRetryGeneration(generation: number): boolean {
+		return (
+			generation === this.generation && (this.lifecycle.phase === "starting" || this.lifecycle.phase === "running")
+		);
+	}
+
+	private assertCanRetryGeneration(generation: number): void {
+		if (!this.canRetryGeneration(generation)) throw new ModelFallbackInterruptedError();
 	}
 
 	private setLifecycle(next: AgentLifecycle): void {
@@ -601,6 +822,7 @@ export class ManagedAgent {
 			() => {
 				const summary = this.summary();
 				if (summary.status === "idle") this.options.onBackgroundComplete?.(summary);
+				if (!this.options.retain) void this.close().catch(() => {});
 			},
 			(error: Error) => {
 				if (
@@ -610,6 +832,7 @@ export class ManagedAgent {
 				) {
 					this.options.onBackgroundComplete?.({ ...this.summary(), status: "failed", error: error.message });
 				}
+				if (!this.options.retain) void this.close().catch(() => {});
 			},
 		);
 	}
@@ -678,6 +901,104 @@ export class ManagedAgent {
 		}
 	}
 
+	private async sendContextPrompt(
+		content: string,
+		kind: Exclude<ContextArtifactKind, "answer">,
+		transport: RpcTransport,
+		streamingBehavior?: "steer" | "followUp",
+	): Promise<void> {
+		const artifact = await createContextArtifact(content, {
+			agentId: this.id,
+			...(this.options.childContext.parentSessionId === undefined
+				? {}
+				: { parentSessionId: this.options.childContext.parentSessionId }),
+			generation: this.generation,
+			resultId: this.run.resultId,
+			kind,
+			agentDir: this.agentDir,
+		});
+		let requestFailed = false;
+		try {
+			await transport.request({
+				type: "prompt",
+				message: artifact.marker,
+				...(streamingBehavior === undefined ? {} : { streamingBehavior }),
+			});
+		} catch (cause) {
+			requestFailed = true;
+			throw cause;
+		} finally {
+			try {
+				await removeContextArtifact(artifact.marker, this.agentDir);
+			} catch (cause) {
+				const warning = `Context artifact cleanup failed: ${toError(cause).message}`;
+				this.run.stderr = this.run.stderr ? `${this.run.stderr}\n${warning}` : warning;
+				if (!requestFailed) this.emit();
+			}
+		}
+	}
+
+	private async captureTerminalResult(): Promise<void> {
+		const result = await this.readStoredResult();
+		this.run.result = resultReference(result);
+		this.run.finalText = resultPreview(result);
+		if (this.run.sessionFile) {
+			try {
+				const stats = await readChildRunStats(this.run.sessionFile, this.generation, this.run.resultId, this.agentDir);
+				this.run.usage = { ...stats.usage };
+				this.run.tokens =
+					stats.usage.input +
+					stats.usage.output +
+					(stats.usage.reasoning ?? 0) +
+					stats.usage.cacheRead +
+					stats.usage.cacheWrite;
+				if (stats.startTime !== undefined) this.run.startTime = stats.startTime;
+				if (stats.endTime !== undefined) this.run.endTime = stats.endTime;
+				this.run.mutationToolCalls = stats.mutationToolCalls;
+			} catch {
+				// Bounded live telemetry remains the compatibility fallback for
+				// old, unavailable, or test-only child sessions.
+			}
+			try {
+				const assistantError = await readChildAssistantError(this.run.sessionFile, this.agentDir);
+				if (assistantError) this.run.assistantError = assistantError;
+			} catch {
+				// The validated session is authoritative when available; the
+				// bounded live event remains the compatibility fallback.
+			}
+		}
+	}
+
+	private async readStoredResult(
+		generation = this.generation,
+		resultId = this.run.resultId,
+	): Promise<StoredAgentResult> {
+		const sessionFile = this.run.sessionFile;
+		if (sessionFile) {
+			try {
+				return await readStoredAgentResult(sessionFile, generation, resultId, this.agentDir);
+			} catch (cause) {
+				if (generation !== this.generation || (!this.run.lastAssistantText && this.run.result)) throw cause;
+			}
+		}
+		const text = this.run.lastAssistantText;
+		return Object.freeze({
+			generation,
+			resultId,
+			text,
+			pageCount: 0,
+			complete: true,
+			totalBytes: Buffer.byteLength(text, "utf8"),
+			sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+			source: "assistant_fallback" as const,
+		});
+	}
+
+	private recordOmittedTelemetry(): void {
+		this.run.omittedTelemetryRecords++;
+		this.emit();
+	}
+
 	private rpc(): RpcTransport {
 		if (!this.transport || this.transport.getState() !== "open") {
 			throw new Error(`Agent ${this.id} is not available.`);
@@ -695,6 +1016,10 @@ export class ManagedAgent {
 		return this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed";
 	}
 
+	private isAborted(): boolean {
+		return this.lifecycle.phase === "aborted";
+	}
+
 	private assertAvailableForFollowUp(): void {
 		if (this.transport?.getState() !== "open") {
 			throw new Error(`Agent ${this.id} process is dead; close it and spawn a replacement before following up.`);
@@ -710,28 +1035,40 @@ export class ManagedAgent {
 		this.rpc();
 	}
 
-	private rpcArguments(sessionDir: string, promptPath: string | undefined): string[] {
+	private rpcArguments(
+		sessionDir: string,
+		promptPath: string | undefined,
+		resolvedRun = this.activeResolvedRun(),
+		sessionFile?: string,
+	): string[] {
 		const args = [
 			"--mode",
 			"rpc",
 			"--model",
-			this.options.resolvedRun.model,
+			resolvedRun.model,
 			"--thinking",
-			this.options.resolvedRun.effectiveThinking,
+			resolvedRun.effectiveThinking,
 			"--session-dir",
 			sessionDir,
 		];
+		if (sessionFile) args.push("--session", sessionFile);
 		const tools = new Set(this.options.agent.tools);
-		if (this.options.subagentToolsEnabled) for (const tool of SUBAGENT_TOOL_NAMES) tools.add(tool);
+		tools.add(CHILD_RESULT_TOOL_NAME);
 		args.push("--tools", [...tools].join(","));
 		if (promptPath) args.push("--append-system-prompt", promptPath);
 		return args;
+	}
+
+	private activeResolvedRun(): ResolvedRun {
+		const resolved = this.resolvedRuns[this.activeResolvedRunIndex];
+		if (!resolved) throw new Error(`Agent ${this.id} has no active resolved run.`);
+		return resolved;
 	}
 }
 
 export function buildInitialTask(message: string, handoff: string | undefined): string {
 	return handoff?.trim()
-		? `Task: ${message}\n\nParent context (may be incomplete; use it to understand the assignment and verify factual claims when material):\n${handoff.trim()}`
+		? `Task: ${message}\n\nParent context (may be incomplete; use it to understand the assignment and verify factual claims when material):\n${handoff}`
 		: `Task: ${message}`;
 }
 
@@ -751,4 +1088,44 @@ export function childEnvironment(
 
 function snapshotQuestion(question: AgentQuestion): AgentQuestion {
 	return { ...question, options: [...question.options] };
+}
+
+class ModelFallbackInterruptedError extends Error {}
+
+class RecoverableAgentFailure extends Error {
+	readonly kind: string;
+	readonly recoverable = true;
+
+	constructor(kind: string, message: string, cause: Error) {
+		super(message, { cause });
+		this.name = "RecoverableAgentFailure";
+		this.kind = kind;
+	}
+}
+
+function failureMetadata(error: Error): { readonly kind: string; readonly recoverable: boolean } {
+	return error instanceof RecoverableAgentFailure
+		? { kind: error.kind, recoverable: true }
+		: { kind: "subagent_failure", recoverable: false };
+}
+
+function isAccountQuotaError(message: string): boolean {
+	return /\b(insufficient[_ -]?quota|account[^.\n]*quota|quota[^.\n]*(exhausted|exceeded)|billing hard limit|credit balance|usage limit)\b/iu.test(
+		message,
+	);
+}
+
+function providerOf(model: string): string {
+	const slash = model.indexOf("/");
+	return slash < 0 ? model : model.slice(0, slash);
+}
+
+function resultPreview(result: StoredAgentResult): string {
+	const bounded = truncateHead(result.text, {
+		maxBytes: 8 * 1024,
+		maxLines: 200,
+	});
+	if (!bounded.truncated && result.complete) return bounded.content;
+	const state = result.complete ? "Result preview" : "Incomplete result checkpoint preview";
+	return `${bounded.content}\n\n[${state}; canonical ${result.totalBytes} byte result ${result.resultId} is persisted. Use read_agent_result with agent_id and generation ${result.generation} to page it exactly.]`;
 }

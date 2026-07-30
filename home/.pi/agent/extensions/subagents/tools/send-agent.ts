@@ -1,7 +1,7 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderManagementCall } from "../render.ts";
-import { SendAgentParamsSchema, trimRequired } from "../schemas.ts";
+import { preserveRequired, SendAgentParamsSchema, trimRequired } from "../schemas.ts";
 import { agentSummaryDetails, textResult, type AgentSummaryDetails } from "../tool-results.ts";
 import { renderSummaryToolResult } from "../ui/result-renderers.ts";
 
@@ -15,7 +15,7 @@ export function createSendAgentTool(
 		parameters: SendAgentParamsSchema,
 		async execute(_id, params) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
-			const message = trimRequired(params.message, "message");
+			const message = preserveRequired(params.message, "message");
 			const agent = runtime.registry.getLive(agentId);
 			await agent.steer(message);
 			return textResult(`Steering message accepted by ${agentId}.`, agentSummaryDetails([agent.summary()]));

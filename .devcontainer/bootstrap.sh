@@ -12,7 +12,6 @@ if [[ -d "$HOME/.ssh" ]]; then
 fi
 
 just install-pi
-npm --prefix "$repo_dir/pi-web" ci
 
 gh config set git_protocol https --host github.com
 

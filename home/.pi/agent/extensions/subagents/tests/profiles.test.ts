@@ -7,6 +7,7 @@ import {
 	parseAndValidateProfiles,
 	parseProfilesJson,
 	resolveRun,
+	resolveRuns,
 	validateProfiles,
 	type ProfilesConfig,
 } from "../profiles.ts";
@@ -15,12 +16,10 @@ const config: ProfilesConfig = {
 	rootPolicy: {
 		maxConcurrentRootAgents: 4,
 		maxConcurrentDeepAgents: 1,
-		maxSpawnBudgetPerChild: 2,
 	},
 	profiles: {
 		fast: {
 			description: "Fast work",
-			delegationEnabled: true,
 			countsTowardDeepAgentCap: false,
 			modelPriority: [
 				{ id: "provider/first/model", defaultThinking: "low", maxThinking: "low" },
@@ -29,14 +28,13 @@ const config: ProfilesConfig = {
 		},
 		deep: {
 			description: "Deep work",
-			delegationEnabled: false,
 			countsTowardDeepAgentCap: true,
 			modelPriority: [{ id: "provider/deep", defaultThinking: "high", maxThinking: "xhigh" }],
 		},
 	},
 	agentPolicies: {
-		scout: { defaultProfile: "fast", allowedProfiles: ["fast"], delegation: { mode: "leaf" } },
-		worker: { defaultProfile: "fast", allowedProfiles: ["fast", "deep"], delegation: { mode: "leaf" } },
+		scout: { defaultProfile: "fast", allowedProfiles: ["fast"] },
+		worker: { defaultProfile: "fast", allowedProfiles: ["fast", "deep"] },
 	},
 };
 
@@ -109,9 +107,8 @@ test("validateProfiles aggregates duplicate and cross-reference errors", () => {
 	invalid.agentPolicies.scout = {
 		defaultProfile: "missing",
 		allowedProfiles: ["deep", "deep"],
-		delegation: { mode: "leaf" },
 	};
-	invalid.agentPolicies.unknown = { defaultProfile: "fast", allowedProfiles: ["fast"], delegation: { mode: "leaf" } };
+	invalid.agentPolicies.unknown = { defaultProfile: "fast", allowedProfiles: ["fast"] };
 
 	const errors = validateProfiles(invalid, ["scout", "worker", "general"], "fixture.json");
 	assert.ok(errors.some((error) => error.includes("modelPriority.2.id: duplicate candidate model id")));
@@ -137,62 +134,6 @@ test("profile parsing rejects whitespace-bearing profile and agent-policy keys",
 		const result = parseProfilesJson(invalid, "fixture.json");
 		assert.equal(result.success, false, `${section}.${JSON.stringify(key)} should be rejected`);
 		if (!result.success) assert.ok(result.errors.some((error) => error.includes("Invalid key in record")));
-	}
-});
-
-test("delegation rejects every advertised child agent/profile pair the child policy does not allow", () => {
-	const cases = [
-		{ childAgent: "scout", childProfiles: ["fast", "deep"], allowedProfiles: ["fast"], incompatible: "deep" },
-		{ childAgent: "worker", childProfiles: ["fast"], allowedProfiles: ["deep"], incompatible: "fast" },
-	] as const;
-
-	for (const fixture of cases) {
-		const invalid = structuredClone(config);
-		const childPolicy = invalid.agentPolicies[fixture.childAgent];
-		assert.ok(childPolicy);
-		childPolicy.defaultProfile = fixture.allowedProfiles[0];
-		childPolicy.allowedProfiles = [...fixture.allowedProfiles];
-		const parentPolicy = invalid.agentPolicies.worker;
-		assert.ok(parentPolicy);
-		parentPolicy.delegation = {
-			mode: "grant-required",
-			maxLifetimeChildSpawns: 1,
-			allowedChildAgents: [fixture.childAgent],
-			allowedChildProfiles: [...fixture.childProfiles],
-		};
-
-		const errors = validateProfiles(invalid, ["scout", "worker"], "fixture.json");
-		assert.ok(
-			errors.some(
-				(error) =>
-					error.includes(`profile '${fixture.incompatible}'`) &&
-					error.includes(`child agent '${fixture.childAgent}'`) &&
-					error.includes("does not allow it"),
-			),
-		);
-	}
-});
-
-test("every child agent/profile combination exposed by a valid delegation policy is compatible", () => {
-	const valid = structuredClone(config);
-	const parentPolicy = valid.agentPolicies.worker;
-	assert.ok(parentPolicy);
-	parentPolicy.delegation = {
-		mode: "grant-required",
-		maxLifetimeChildSpawns: 2,
-		allowedChildAgents: ["scout", "worker"],
-		allowedChildProfiles: ["fast"],
-	};
-	assert.deepEqual(validateProfiles(valid, ["scout", "worker"], "fixture.json"), []);
-
-	const delegation = parentPolicy.delegation;
-	assert.equal(delegation.mode, "grant-required");
-	for (const childAgent of delegation.allowedChildAgents) {
-		const policy = valid.agentPolicies[childAgent];
-		assert.ok(policy);
-		for (const childProfile of delegation.allowedChildProfiles) {
-			assert.ok(policy.allowedProfiles.includes(childProfile), `${childAgent}/${childProfile} must resolve`);
-		}
 	}
 });
 
@@ -235,6 +176,57 @@ test("resolveRun uses defaultThinking when thinking is omitted", () => {
 	assert.equal(run.effectiveThinking, "low");
 });
 
+test("resolveRuns returns authenticated fallback candidates in configured order", () => {
+	const runs = resolveRuns({
+		config,
+		agent: "scout",
+		modelRegistry: {
+			getAvailable: () => [model("provider", "second", 64_000), model("provider", "first/model", 96_000)],
+		},
+	});
+
+	assert.deepEqual(
+		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking, contextWindow: run.contextWindow })),
+		[
+			{ model: "provider/first/model", thinking: "low", contextWindow: 96_000 },
+			{ model: "provider/second", thinking: "medium", contextWindow: 64_000 },
+		],
+	);
+	assert.ok(Object.isFrozen(runs));
+	assert.ok(runs.every(Object.isFrozen));
+});
+
+test("resolveRuns restricts candidates to scoped models and respects their thinking pins", () => {
+	let availableCalls = 0;
+	const runs = resolveRuns({
+		config,
+		agent: "scout",
+		modelRegistry: {
+			getAvailable: () => {
+				availableCalls += 1;
+				return [model("provider", "first/model")];
+			},
+		},
+		scopedModels: [{ model: model("provider", "second"), thinkingLevel: "high" }],
+	});
+
+	assert.deepEqual(
+		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking })),
+		[{ model: "provider/second", thinking: "high" }],
+	);
+	assert.equal(availableCalls, 0);
+	assert.throws(
+		() =>
+			resolveRun({
+				config,
+				agent: "scout",
+				modelRegistry: { getAvailable: () => [] },
+				scopedModels: [{ model: model("provider", "first/model"), thinkingLevel: "high" }],
+			}),
+		/exceeds profile .* cap/,
+	);
+});
+
 test("resolveRun permits allowed profile overrides and rejects disallowed overrides or requests above a cap", () => {
 	const registry = {
 		getAvailable: () => [
@@ -259,10 +251,10 @@ test("resolveRun permits allowed profile overrides and rejects disallowed overri
 	);
 });
 
-test("wait uses a fixed fifteen-minute timeout without exposing an override", () => {
+test("wait defaults to fifteen minutes and exposes a bounded caller override", () => {
 	assert.equal(DEFAULT_WAIT_MS, 900_000);
 	const schema = createWaitAgentSchema();
-	assert.deepEqual(Object.keys(schema.properties), ["agent_ids"]);
+	assert.deepEqual(Object.keys(schema.properties), ["agent_ids", "timeout_ms"]);
 	assert.deepEqual(schema.required, ["agent_ids"]);
 });
 
@@ -270,7 +262,6 @@ test("root spawn schema exposes only configured agents and profiles", () => {
 	const schema = createSpawnAgentSchema({
 		agents: Object.keys(config.agentPolicies),
 		profiles: Object.keys(config.profiles),
-		maxSpawnBudgetPerChild: config.rootPolicy.maxSpawnBudgetPerChild,
 	});
 	const schemaJson = JSON.parse(JSON.stringify(schema)) as {
 		properties: { agent: { enum: string[] }; profile: { enum: string[] } };
@@ -281,7 +272,8 @@ test("root spawn schema exposes only configured agents and profiles", () => {
 	assert.deepEqual(schemaJson.properties.profile.enum, ["fast", "deep"]);
 	assert.ok(Object.hasOwn(schema.properties, "profile"));
 	assert.ok(Object.hasOwn(schema.properties, "thinking"));
-	assert.ok(Object.hasOwn(schema.properties, "child_spawn_budget"));
+	assert.ok(Object.hasOwn(schema.properties, "retain"));
+	assert.equal(Object.hasOwn(schema.properties, "child_spawn_budget"), false);
 	assert.equal(Object.hasOwn(schema.properties, "agent_type"), false);
 	assert.equal(Object.hasOwn(schema.properties, "reasoning_effort"), false);
 	assert.equal(Object.hasOwn(schema.properties, "model"), false);
@@ -329,7 +321,6 @@ test("resolveRun always honors configured candidate priority regardless of regis
 				profiles: {
 					generated: {
 						description: "Generated profile",
-						delegationEnabled: false,
 						countsTowardDeepAgentCap: false,
 						modelPriority: candidates.map((candidate) => ({
 							id: `provider/model-${candidate}`,
@@ -342,7 +333,6 @@ test("resolveRun always honors configured candidate priority regardless of regis
 					general: {
 						defaultProfile: "generated",
 						allowedProfiles: ["generated"],
-						delegation: { mode: "leaf" },
 					},
 				},
 			};

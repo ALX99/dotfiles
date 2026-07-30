@@ -4,12 +4,10 @@ on:
   push:
     paths:
       - "home/.pi/agent/extensions/**"
-      - "misc/pi-patches/**"
       - ".github/workflows/extensions.yml"
   pull_request:
     paths:
       - "home/.pi/agent/extensions/**"
-      - "misc/pi-patches/**"
       - ".github/workflows/extensions.yml"
 
 permissions:
@@ -29,9 +27,4 @@ jobs:
           cache: pnpm
           cache-dependency-path: home/.pi/agent/extensions/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run compatibility:check
-      - run: pnpm run peers:check
-      - run: pnpm run format:check
-      - run: pnpm run typecheck
-      - run: pnpm run lint
-      - run: pnpm test
+      - run: pnpm run check

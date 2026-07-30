@@ -4,6 +4,7 @@ import { toError } from "../_shared/errors.ts";
 import { clipTextAtWord, sanitizeTerminalLine, sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import type { AgentRegistry } from "./agent-registry.ts";
 import type { AgentView } from "./agent-types.ts";
+import { validateChildSessionPath } from "./result-store.ts";
 import {
 	MAX_VISIBLE_AGENTS,
 	allowedDashboardActions,
@@ -53,6 +54,11 @@ export interface DashboardAgentReader {
 export interface DashboardDataSource {
 	views(): AgentView[];
 	getLive(id: string): DashboardAgentReader;
+	readTranscript(id: string): Promise<unknown[]>;
+	readResult(
+		id: string,
+		options?: { readonly generation?: number; readonly cursor?: string },
+	): Promise<{ readonly text: string; readonly done: boolean; readonly next_cursor?: string }>;
 	subscribe(listener: () => void): () => void;
 }
 
@@ -311,7 +317,7 @@ export class Dashboard {
 		this.transcript = { status: "loading", agentId: id, generation };
 		this.invalidate();
 		try {
-			const messages = await this.registry.getLive(id).getMessages();
+			const messages = await this.registry.readTranscript(id);
 			this.finishLoad("transcript", id, generation, formatTranscript(messages));
 		} catch (error) {
 			this.failLoad("transcript", id, generation, error);
@@ -327,7 +333,16 @@ export class Dashboard {
 		this.output = { status: "loading", agentId: id, generation };
 		this.invalidate();
 		try {
-			const output = await this.registry.getLive(id).loadFullOutput();
+			let output = "";
+			let cursor: string | undefined;
+			do {
+				const page = await this.registry.readResult(id, {
+					generation,
+					...(cursor === undefined ? {} : { cursor }),
+				});
+				output += page.text;
+				cursor = page.done ? undefined : page.next_cursor;
+			} while (cursor !== undefined);
 			const current = this.currentView(id);
 			const retained = output || current?.details.finalText || "";
 			const lines = retained ? retained.split(/\r?\n/).map(sanitizeTerminalLine) : [];
@@ -449,13 +464,14 @@ async function executeOperation(
 					throw new Error("Interrupt the subagent before taking over its session.");
 				}
 				if (!summary.session_file) throw new Error("This subagent has no session file.");
+				const sessionFile = await validateChildSessionPath(summary.session_file);
 				const confirmed = await ctx.ui.confirm(
 					"Take over subagent session?",
 					"This leaves the parent session and closes every retained subagent.",
 				);
 				if (!confirmed) return;
 				await registry.close(operation.agentId);
-				await ctx.switchSession(summary.session_file);
+				await ctx.switchSession(sessionFile);
 			}
 		}
 	} catch (error) {
