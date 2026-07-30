@@ -4,6 +4,7 @@ import type { AgentSummary } from "../agent-types.ts";
 import {
 	activateForSubagentState,
 	activateSubagentTools,
+	missingSubagentTools,
 	resetSubagentTools,
 	requiresExactResultRead,
 	SUBAGENT_TOOL_NAMES,
@@ -47,6 +48,17 @@ test("session initialization retains non-subagent tools and leaves only spawn_ag
 	assert.equal(
 		api.active().some((name) => SUBAGENT_TOOL_NAMES.includes(name as never) && name !== "spawn_agent"),
 		false,
+	);
+});
+
+test("deferred tool diagnostics detect host allowlist filtering", () => {
+	const complete = {
+		getAllTools: () => SUBAGENT_TOOL_NAMES.map((name) => ({ name })),
+	};
+	assert.deepEqual(missingSubagentTools(complete as never), []);
+	assert.deepEqual(
+		missingSubagentTools({ getAllTools: () => [{ name: "spawn_agent" }, { name: "read_agent_result" }] } as never),
+		["answer_agent", "send_agent", "followup_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"],
 	);
 });
 
@@ -101,7 +113,7 @@ test("spawn state activates only controls made useful by background and retained
 	]);
 });
 
-test("routed questions and clipped results activate their matching tool", () => {
+test("routed questions and oversized results activate their matching tool", () => {
 	const question = toolApi(["spawn_agent"]);
 	activateForSubagentState(
 		question as never,
@@ -118,21 +130,20 @@ test("routed questions and clipped results activate their matching tool", () => 
 		"send_agent",
 	]);
 
-	const clipped = summary({
-		final_text:
-			"partial\n\n[Result preview; canonical 9000 byte result is persisted. Use read_agent_result with agent_id and generation 1 to page it exactly.]",
+	const oversized = summary({
+		final_text: "x".repeat(50 * 1024),
 		result: {
 			generation: 1,
 			result_id: "a".repeat(64),
 			pages: 1,
 			complete: true,
-			total_bytes: 9_000,
+			total_bytes: 50 * 1024,
 			sha256: "a".repeat(64),
 			source: "pages",
 		},
 	});
-	assert.equal(requiresExactResultRead(clipped), true);
+	assert.equal(requiresExactResultRead(oversized), true);
 	const result = toolApi(["spawn_agent"]);
-	activateForSubagentState(result as never, clipped, false);
+	activateForSubagentState(result as never, oversized, false);
 	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
 });

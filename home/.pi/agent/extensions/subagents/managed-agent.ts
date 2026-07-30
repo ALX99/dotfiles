@@ -1,11 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
-import { truncateHead } from "@earendil-works/pi-coding-agent";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { OTHER_OPTION } from "../ask-question/choices.ts";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
-import { isRecord } from "../_shared/json.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitDeferredReason,
@@ -19,7 +18,6 @@ import {
 } from "./agent-types.ts";
 import type { AgentEvent } from "./event-schema.ts";
 import type { ResolvedRun } from "./profiles.ts";
-import { createContextArtifact, removeContextArtifact, type ContextArtifactKind } from "./context-artifacts.ts";
 import {
 	CHILD_CONTEXT_ENV,
 	composeRoleSystemPrompt,
@@ -38,15 +36,26 @@ import {
 	type RunStatus,
 } from "./run-state.ts";
 import {
+	captureGeneration,
 	paginateStoredResult,
-	readChildAssistantError,
-	readChildRunStats,
 	readChildTranscript,
+	readLocatedAgentResult,
 	readStoredAgentResult,
 	resultReference,
+	validateChildSessionIdentity,
+	type CapturedGeneration,
+	type GenerationResultLocator,
 	type ResultPage,
 	type StoredAgentResult,
 } from "./result-store.ts";
+import {
+	assertSameChildSession,
+	getRpcSessionEntries,
+	parseChildSessionIdentity,
+	readChildSessionEntriesSince,
+	type ChildSessionIdentity,
+	type SessionCheckpoint,
+} from "./session-cursors.ts";
 import { isInputUiRequest, isSelectUiRequest, type ExtensionUiRequest, type InputUiRequest } from "./protocol.ts";
 import { RpcTransport, type SpawnRpcProcess } from "./rpc-transport.ts";
 
@@ -61,6 +70,9 @@ export function reserveManagedAgentIds(agentIds: Iterable<string>): void {
 	}
 }
 
+/** Leaves room for JSON framing inside RpcTransport's 1 MiB hard limit. */
+export const MAX_DIRECT_RPC_PROMPT_BYTES = 512 * 1024;
+
 const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	// Agent sockets authorize use of credentials independently of the tool
 	// allowlist. Scouts do not need either agent, so do not hand them these
@@ -70,7 +82,7 @@ const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	"SSH_AGENT_PID",
 	"GPG_AGENT_INFO",
 ]);
-const CHILD_RESULT_TOOL_NAME = "submit_agent_result";
+const EMPTY_SESSION_CHECKPOINT: SessionCheckpoint = Object.freeze({ appendCursor: null, leafId: null });
 
 interface Deferred {
 	readonly generation: number;
@@ -103,6 +115,11 @@ export interface ManagedAgentOptions {
 	readonly childContext: ChildExecutionContext;
 	readonly retain: boolean;
 	readonly spawnProcess?: SpawnRpcProcess;
+	/** Test seam; production callers omit this and validate the native file. */
+	readonly validateSessionIdentity?: (
+		identity: ChildSessionIdentity,
+		agentDir: string,
+	) => Promise<ChildSessionIdentity>;
 	readonly onUpdate?: (details: ReadonlyRunDetails) => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
@@ -135,6 +152,12 @@ export class ManagedAgent {
 	private replacingTransport = false;
 	private failing = false;
 	private readonly resultIds = new Map<number, string>();
+	private readonly resultLocators = new Map<number, GenerationResultLocator>();
+	private sessionIdentity: ChildSessionIdentity | undefined;
+	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
+	private generationStart: SessionCheckpoint | undefined;
+	private generationEnd: SessionCheckpoint | undefined;
+	private generationEntries: SessionEntry[] = [];
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
@@ -199,16 +222,17 @@ export class ManagedAgent {
 			await transport.start();
 			this.assertTransport(transport);
 			const state = await transport.request({ type: "get_state" });
-			if (!isRecord(state) || typeof state.sessionFile !== "string" || !state.sessionFile.trim()) {
-				throw new Error(`Agent ${this.id} returned an invalid session state.`);
-			}
-			this.run.sessionFile = state.sessionFile;
+			const identity = await this.validateSessionIdentity(parseChildSessionIdentity(state));
+			this.sessionIdentity = identity;
+			this.run.sessionId = identity.sessionId;
+			this.run.sessionFile = identity.sessionFile;
+			await this.prepareGenerationBoundary(transport);
 			const task = buildInitialTask(message, handoff);
 			if (!background) {
 				this.activeWaiters++;
 				foregroundQuestionGuard = true;
 			}
-			await this.sendContextPrompt(task, "assignment", transport);
+			await this.sendPrompt(task, transport);
 		} catch (cause) {
 			if (foregroundQuestionGuard) {
 				this.activeWaiters--;
@@ -244,7 +268,7 @@ export class ManagedAgent {
 				`Agent ${this.id} is waiting for an answer to question '${this.pendingQuestion.question_id}'; use answer_agent.`,
 			);
 		}
-		await this.sendContextPrompt(message, "steer", this.rpc(), "steer");
+		await this.sendPrompt(message, this.rpc(), "steer");
 	}
 
 	async answerQuestion(questionId: string, answer: string): Promise<void> {
@@ -290,9 +314,11 @@ export class ManagedAgent {
 		if (generation === this.generation && this.deferred && !this.deferred.settled) {
 			throw new Error(`Agent ${this.id} generation ${generation} is still running; wait for settlement first.`);
 		}
-		const resultId = this.resultIds.get(generation);
-		if (!resultId) throw new Error(`Agent ${this.id} has no result identity for generation ${generation}.`);
-		const result = await this.readStoredResult(generation, resultId);
+		const locator = this.resultLocators.get(generation);
+		const result =
+			locator === undefined
+				? await this.readLegacyStoredResult(generation)
+				: await readLocatedAgentResult(locator, this.agentDir);
 		return paginateStoredResult(this.id, result, options);
 	}
 
@@ -325,7 +351,8 @@ export class ManagedAgent {
 				this.activeWaiters++;
 				foregroundQuestionGuard = true;
 			}
-			await this.sendContextPrompt(message, "followup", this.rpc(), wasRunning ? "followUp" : undefined);
+			if (!wasRunning) await this.prepareGenerationBoundary(this.rpc());
+			await this.sendPrompt(message, this.rpc(), wasRunning ? "followUp" : undefined);
 		} catch (cause) {
 			if (foregroundQuestionGuard) {
 				this.activeWaiters--;
@@ -393,6 +420,7 @@ export class ManagedAgent {
 			profile: resolvedRun.profile,
 			model: resolvedRun.model,
 			effective_thinking: resolvedRun.effectiveThinking,
+			...(this.run.sessionId ? { session_id: this.run.sessionId } : {}),
 			...(this.run.sessionFile ? { session_file: this.run.sessionFile } : {}),
 			generation: this.generation,
 			retained: this.options.retain,
@@ -403,6 +431,7 @@ export class ManagedAgent {
 			usage: { ...this.run.usage },
 			...(this.run.finalText ? { final_text: this.run.finalText } : {}),
 			...(this.run.result ? { result: this.run.result } : {}),
+			...(this.run.resultLocator ? { result_locator: this.run.resultLocator } : {}),
 			...(error ? { error } : {}),
 			...(failure ? { failure } : {}),
 			...(this.pendingQuestion ? { pending_question: snapshotQuestion(this.pendingQuestion) } : {}),
@@ -411,6 +440,10 @@ export class ManagedAgent {
 
 	getDetails(): ReadonlyRunDetails {
 		return this.snapshot();
+	}
+
+	getResultLocators(): ReadonlyMap<number, GenerationResultLocator> {
+		return new Map(this.resultLocators);
 	}
 
 	subscribe(listener: () => void): () => void {
@@ -452,6 +485,9 @@ export class ManagedAgent {
 		const generation = this.generation + 1;
 		this.generation = generation;
 		this.startedGeneration = undefined;
+		this.generationStart = undefined;
+		this.generationEnd = undefined;
+		this.generationEntries = [];
 		this.pendingQuestion = undefined;
 		this.queuedCustomAnswer = undefined;
 		this.questionSignal = this.newQuestionSignal(generation);
@@ -514,11 +550,6 @@ export class ManagedAgent {
 		if (generation !== this.generation || this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed") {
 			return;
 		}
-		// RPC events do not carry a turn or request id. A settlement received
-		// before this generation's agent_start therefore cannot be proven to
-		// belong to this run (Pi can deliver a delayed duplicate settlement from
-		// the preceding turn). agent_start is the strongest protocol boundary
-		// available, so only it arms settlement for a newly prompted generation.
 		if (event.type === "agent_settled" && this.startedGeneration !== generation) return;
 		foldAgentEvent(event, this.run);
 		if (generation !== this.generation) return;
@@ -531,12 +562,9 @@ export class ManagedAgent {
 			this.pendingQuestion = undefined;
 			this.queuedCustomAnswer = undefined;
 			this.run.endTime = Date.now();
-			await this.captureTerminalResult();
-			if (this.run.result && !this.run.result.complete && !this.run.assistantError) {
-				this.run.assistantError =
-					"The child settled without a final submit_agent_result page; its exact submitted checkpoint remains readable.";
-			}
+			const captured = await this.captureSettlement(this.rpc());
 			if (this.lifecycle.phase === "aborted") {
+				this.finalizeGeneration(captured);
 				this.settleCurrent({ kind: "resolve" });
 			} else if (this.run.assistantError) {
 				const error = await this.retryWithFallback(generation, new Error(this.run.assistantError));
@@ -545,6 +573,7 @@ export class ManagedAgent {
 					return;
 				}
 				if (this.isAborted()) {
+					this.finalizeGeneration(captured);
 					this.settleCurrent({ kind: "resolve" });
 					this.emit();
 					return;
@@ -558,9 +587,11 @@ export class ManagedAgent {
 								`${error.message} The persisted child session and any submitted result checkpoint remain available.`,
 								error,
 							);
+				this.finalizeGeneration(captured);
 				this.setLifecycle({ phase: "failed", error: failure });
 				this.settleCurrent({ kind: "reject", error: failure });
 			} else {
+				this.finalizeGeneration(captured);
 				this.setLifecycle({ phase: "idle" });
 				this.settleCurrent({ kind: "resolve" });
 			}
@@ -593,7 +624,7 @@ export class ManagedAgent {
 		this.run.stderr = error.message;
 		this.run.endTime = Date.now();
 		this.emit();
-		void this.captureTerminalResult()
+		void this.captureFailedGeneration()
 			.catch((captureCause) => {
 				this.run.stderr = `${this.run.stderr}\nResult recovery failed: ${toError(captureCause).message}`;
 			})
@@ -651,6 +682,7 @@ export class ManagedAgent {
 			profile: resolvedRun.profile,
 			model: resolvedRun.model,
 			effectiveThinking: resolvedRun.effectiveThinking,
+			...(this.run?.sessionId === undefined ? {} : { sessionId: this.run.sessionId }),
 			...(this.run?.sessionFile === undefined ? {} : { sessionFile: this.run.sessionFile }),
 			resultId: randomBytes(32).toString("hex"),
 		});
@@ -688,6 +720,13 @@ export class ManagedAgent {
 					`${originalError.message} Model fallback could not resume because the child session file is unavailable.`,
 				);
 			}
+			const identity = this.sessionIdentity;
+			if (!identity) {
+				return new AggregateError(
+					[originalError, ...fallbackErrors],
+					`${originalError.message} Model fallback could not resume because the child session identity is unavailable.`,
+				);
+			}
 			const sessionDir = path.join(this.agentDir, "subagent-sessions");
 			let nextIndex = this.activeResolvedRunIndex + 1;
 			while (nextIndex < this.resolvedRuns.length) {
@@ -720,11 +759,12 @@ export class ManagedAgent {
 					this.transport = transport;
 					await transport.start();
 					this.assertTransport(transport);
-					const state = await transport.request({ type: "get_state" });
-					if (!isRecord(state) || state.sessionFile !== sessionFile) {
-						throw new Error(`Agent ${this.id} could not resume its session during model fallback.`);
-					}
+					const resumed = await this.validateSessionIdentity(
+						parseChildSessionIdentity(await transport.request({ type: "get_state" })),
+					);
+					assertSameChildSession(identity, resumed);
 					this.assertCanRetryGeneration(generation);
+					await this.observeSessionEntries(transport);
 
 					this.activeResolvedRunIndex = nextIndex;
 					this.startedGeneration = undefined;
@@ -735,9 +775,8 @@ export class ManagedAgent {
 					this.run.stderr = "";
 					delete this.run.assistantError;
 					delete this.run.endTime;
-					await this.sendContextPrompt(
+					await this.sendPrompt(
 						"Continue the current task after the previous model failed. Preserve completed work and verify the final result.",
-						"fallback",
 						transport,
 					);
 					committed = true;
@@ -885,73 +924,110 @@ export class ManagedAgent {
 		}
 	}
 
-	private async sendContextPrompt(
+	private async sendPrompt(
 		content: string,
-		kind: ContextArtifactKind,
 		transport: RpcTransport,
 		streamingBehavior?: "steer" | "followUp",
 	): Promise<void> {
-		const artifact = await createContextArtifact(content, {
-			agentId: this.id,
-			...(this.options.childContext.parentSessionId === undefined
-				? {}
-				: { parentSessionId: this.options.childContext.parentSessionId }),
-			generation: this.generation,
-			resultId: this.run.resultId,
-			kind,
-			agentDir: this.agentDir,
+		const bytes = Buffer.byteLength(content, "utf8");
+		if (bytes > MAX_DIRECT_RPC_PROMPT_BYTES) {
+			throw new Error(
+				`Subagent RPC prompt is ${bytes} UTF-8 bytes; the direct prompt limit is ${MAX_DIRECT_RPC_PROMPT_BYTES}.`,
+			);
+		}
+		await transport.request({
+			type: "prompt",
+			message: content,
+			...(streamingBehavior === undefined ? {} : { streamingBehavior }),
 		});
-		let requestFailed = false;
-		try {
-			await transport.request({
-				type: "prompt",
-				message: artifact.marker,
-				...(streamingBehavior === undefined ? {} : { streamingBehavior }),
-			});
-		} catch (cause) {
-			requestFailed = true;
-			throw cause;
-		} finally {
-			try {
-				await removeContextArtifact(artifact.marker, this.agentDir);
-			} catch (cause) {
-				const warning = `Context artifact cleanup failed: ${toError(cause).message}`;
-				this.run.stderr = this.run.stderr ? `${this.run.stderr}\n${warning}` : warning;
-				if (!requestFailed) this.emit();
-			}
-		}
 	}
 
-	private async captureTerminalResult(): Promise<void> {
-		const result = await this.readStoredResult();
+	private async prepareGenerationBoundary(transport: RpcTransport): Promise<void> {
+		if (!this.sessionIdentity) throw new Error(`Agent ${this.id} has no validated session identity.`);
+		const captured = await getRpcSessionEntries(transport, this.sessionCheckpoint);
+		this.sessionCheckpoint = captured.checkpoint;
+		this.generationStart = captured.checkpoint;
+		this.generationEnd = captured.checkpoint;
+		this.generationEntries = [];
+	}
+
+	/** Advance one active generation's append observation without moving its start. */
+	private async observeSessionEntries(transport: RpcTransport): Promise<void> {
+		const start = this.generationStart;
+		const identity = this.sessionIdentity;
+		if (!start || !identity) throw new Error(`Agent ${this.id} generation has no validated session checkpoint.`);
+		const captured = await getRpcSessionEntries(transport, this.sessionCheckpoint);
+		this.generationEntries.push(...captured.entries);
+		this.sessionCheckpoint = captured.checkpoint;
+		this.generationEnd = captured.checkpoint;
+	}
+
+	private async captureSettlement(transport: RpcTransport): Promise<CapturedGeneration> {
+		const start = this.generationStart;
+		const previous = this.generationEnd;
+		const identity = this.sessionIdentity;
+		if (!start || !previous || !identity) {
+			throw new Error(`Agent ${this.id} generation ${this.generation} has no validated session checkpoint.`);
+		}
+		const captured = await getRpcSessionEntries(transport, previous);
+		return this.captureGenerationEntries(identity, start, captured.checkpoint, captured.entries);
+	}
+
+	private captureGenerationEntries(
+		identity: ChildSessionIdentity,
+		start: SessionCheckpoint,
+		end: SessionCheckpoint,
+		entries: readonly SessionEntry[],
+	): CapturedGeneration {
+		this.generationEntries.push(...entries);
+		this.generationEnd = end;
+		this.sessionCheckpoint = end;
+		const captured = captureGeneration(
+			identity,
+			this.generation,
+			this.run.resultId,
+			start,
+			end,
+			this.generationEntries,
+		);
+		this.run.result = resultReference(captured.result);
+		this.run.finalText = captured.result.text;
+		this.run.usage = { ...captured.stats.usage };
+		this.run.tokens = runUsageTotalTokens(captured.stats.usage);
+		if (captured.stats.startTime !== undefined) this.run.startTime = captured.stats.startTime;
+		if (captured.stats.endTime !== undefined) this.run.endTime = captured.stats.endTime;
+		this.run.mutationToolCalls = captured.stats.mutationToolCalls;
+		if (captured.assistantError === undefined) delete this.run.assistantError;
+		else this.run.assistantError = captured.assistantError;
+		return captured;
+	}
+
+	private finalizeGeneration(captured: CapturedGeneration): void {
+		this.resultLocators.set(this.generation, captured.locator);
+		this.run.resultLocator = captured.locator;
+	}
+
+	private async captureFailedGeneration(): Promise<void> {
+		const start = this.generationStart;
+		const previous = this.generationEnd;
+		const identity = this.sessionIdentity;
+		if (start && previous && identity) {
+			const transport = this.transport;
+			const captured =
+				transport?.getState() === "open"
+					? await getRpcSessionEntries(transport, previous)
+					: await readChildSessionEntriesSince(identity.sessionFile, previous, this.agentDir);
+			this.finalizeGeneration(this.captureGenerationEntries(identity, start, captured.checkpoint, captured.entries));
+			return;
+		}
+		const result = await this.readLegacyStoredResult(this.generation);
 		this.run.result = resultReference(result);
-		this.run.finalText = resultPreview(result);
-		if (this.run.sessionFile) {
-			try {
-				const stats = await readChildRunStats(this.run.sessionFile, this.generation, this.run.resultId, this.agentDir);
-				this.run.usage = { ...stats.usage };
-				this.run.tokens = runUsageTotalTokens(stats.usage);
-				if (stats.startTime !== undefined) this.run.startTime = stats.startTime;
-				if (stats.endTime !== undefined) this.run.endTime = stats.endTime;
-				this.run.mutationToolCalls = stats.mutationToolCalls;
-			} catch {
-				// Bounded live telemetry remains the compatibility fallback for
-				// old, unavailable, or test-only child sessions.
-			}
-			try {
-				const assistantError = await readChildAssistantError(this.run.sessionFile, this.agentDir);
-				if (assistantError) this.run.assistantError = assistantError;
-			} catch {
-				// The validated session is authoritative when available; the
-				// bounded live event remains the compatibility fallback.
-			}
-		}
+		this.run.finalText = result.text;
 	}
 
-	private async readStoredResult(
-		generation = this.generation,
-		resultId = this.run.resultId,
-	): Promise<StoredAgentResult> {
+	private async readLegacyStoredResult(generation: number): Promise<StoredAgentResult> {
+		const resultId = this.resultIds.get(generation);
+		if (!resultId) throw new Error(`Agent ${this.id} has no result identity for generation ${generation}.`);
 		const sessionFile = this.run.sessionFile;
 		if (sessionFile) {
 			try {
@@ -969,7 +1045,7 @@ export class ManagedAgent {
 			complete: true,
 			totalBytes: Buffer.byteLength(text, "utf8"),
 			sha256: createHash("sha256").update(text, "utf8").digest("hex"),
-			source: "assistant_fallback" as const,
+			source: "assistant" as const,
 		});
 	}
 
@@ -1032,8 +1108,8 @@ export class ManagedAgent {
 		];
 		if (sessionFile) args.push("--session", sessionFile);
 		const tools = new Set(this.options.agent.tools);
-		tools.add(CHILD_RESULT_TOOL_NAME);
-		args.push("--tools", [...tools].join(","));
+		if (tools.size > 0) args.push("--tools", [...tools].join(","));
+		else args.push("--no-tools");
 		if (promptPath) args.push("--append-system-prompt", promptPath);
 		return args;
 	}
@@ -1042,6 +1118,10 @@ export class ManagedAgent {
 		const resolved = this.resolvedRuns[this.activeResolvedRunIndex];
 		if (!resolved) throw new Error(`Agent ${this.id} has no active resolved run.`);
 		return resolved;
+	}
+
+	private validateSessionIdentity(identity: ChildSessionIdentity): Promise<ChildSessionIdentity> {
+		return (this.options.validateSessionIdentity ?? validateChildSessionIdentity)(identity, this.agentDir);
 	}
 }
 
@@ -1097,14 +1177,4 @@ function isAccountQuotaError(message: string): boolean {
 function providerOf(model: string): string {
 	const slash = model.indexOf("/");
 	return slash < 0 ? model : model.slice(0, slash);
-}
-
-function resultPreview(result: StoredAgentResult): string {
-	const bounded = truncateHead(result.text, {
-		maxBytes: 8 * 1024,
-		maxLines: 200,
-	});
-	if (!bounded.truncated && result.complete) return bounded.content;
-	const state = result.complete ? "Result preview" : "Incomplete result checkpoint preview";
-	return `${bounded.content}\n\n[${state}; canonical ${result.totalBytes} byte result ${result.resultId} is persisted. Use read_agent_result with agent_id and generation ${result.generation} to page it exactly.]`;
 }

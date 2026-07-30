@@ -5,7 +5,7 @@ import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
-import { ManagedAgent } from "../managed-agent.ts";
+import { ManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
 import { resolveRuns } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
@@ -24,6 +24,8 @@ import type { SpawnRpcProcess } from "../rpc-transport.ts";
 
 export interface SpawnAgentToolOptions {
 	readonly spawnProcess?: SpawnRpcProcess;
+	/** Test-only native-session validation seam. */
+	readonly validateSessionIdentity?: ManagedAgentOptions["validateSessionIdentity"];
 }
 
 export function createSpawnAgentTool(
@@ -108,6 +110,9 @@ export function createSpawnAgentTool(
 					childContext,
 					retain: params.retain === true,
 					...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
+					...(options.validateSessionIdentity === undefined
+						? {}
+						: { validateSessionIdentity: options.validateSessionIdentity }),
 					...(onUpdate
 						? {
 								onUpdate: (details) => {

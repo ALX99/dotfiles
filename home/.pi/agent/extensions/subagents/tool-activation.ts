@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentSummary } from "./agent-types.ts";
 
 export const SUBAGENT_TOOL_NAMES = [
@@ -19,9 +19,17 @@ const RETAINED_CHILD_TOOLS = ["followup_agent", "send_agent", "list_agents", "in
 const ANSWER_TOOL = ["answer_agent"];
 const READ_RESULT_TOOL = ["read_agent_result"];
 const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES);
-const EXACT_RESULT_NOTICE = "Use read_agent_result with agent_id and generation";
+const RESULT_TOOL_BYTE_RESERVE = 1024;
+const RESULT_TOOL_LINE_RESERVE = 10;
 
 type ToolActivationAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
+type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
+
+/** Deferred tools must survive the host's tool allowlist to be activated later. */
+export function missingSubagentTools(pi: ToolRegistryAPI): readonly string[] {
+	const available = new Set(pi.getAllTools().map((tool) => tool.name));
+	return SUBAGENT_TOOL_NAMES.filter((name) => !available.has(name));
+}
 
 /** Start each session with the loader tool only, without disturbing other extensions. */
 export function resetSubagentTools(pi: ToolActivationAPI): void {
@@ -52,10 +60,13 @@ export function activateForSubagentState(
 	return activateSubagentTools(pi, names);
 }
 
-/** A complete short result is already in the parent context; clipped/checkpoint results are not. */
+/** Native tool-output bounds may still require exact retrieval of an otherwise complete result. */
 export function requiresExactResultRead(summary: AgentSummary): boolean {
+	if (!summary.result) return false;
+	if (!summary.result.complete) return true;
+	const text = summary.final_text ?? "";
 	return (
-		summary.result !== undefined &&
-		(!summary.result.complete || summary.final_text?.includes(EXACT_RESULT_NOTICE) === true)
+		Buffer.byteLength(text, "utf8") > DEFAULT_MAX_BYTES - RESULT_TOOL_BYTE_RESERVE ||
+		text.split("\n").length > DEFAULT_MAX_LINES - RESULT_TOOL_LINE_RESERVE
 	);
 }

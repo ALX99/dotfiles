@@ -3,7 +3,15 @@ import { isRecord } from "../_shared/json.ts";
 import { CleanupAggregateError, type AgentSummary, type AgentView } from "./agent-types.ts";
 import { ManagedAgent, reserveManagedAgentIds } from "./managed-agent.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
-import { paginateStoredResult, readChildTranscript, readStoredAgentResult, type ResultPage } from "./result-store.ts";
+import {
+	paginateStoredResult,
+	parseGenerationResultLocator,
+	readChildTranscript,
+	readLocatedAgentResult,
+	readStoredAgentResult,
+	type GenerationResultLocator,
+	type ResultPage,
+} from "./result-store.ts";
 
 /** Closed agents retain dashboard and tool result metadata, but no process resources. */
 export const DEFAULT_MAX_CLOSED_AGENT_HISTORY = 32;
@@ -17,11 +25,12 @@ interface ResultLocator {
 	readonly sessionFile: string;
 	readonly generation: number;
 	readonly resultId?: string;
+	readonly native?: GenerationResultLocator;
 }
 
 export class AgentRegistry {
 	private readonly entries = new Map<string, RegistryEntry>();
-	private readonly resultLocators = new Map<string, ResultLocator>();
+	private readonly resultLocators = new Map<string, Map<number, ResultLocator>>();
 	private readonly agentUnsubscribers = new Map<string, () => void>();
 	private readonly closedAgentIds: string[] = [];
 	private readonly listeners = new Set<() => void>();
@@ -86,20 +95,26 @@ export class AgentRegistry {
 	): Promise<ResultPage> {
 		const entry = this.entries.get(id);
 		if (!entry) {
-			const locator = this.resultLocators.get(id);
-			if (!locator) throw new Error(`Unknown agent_id '${id}'.`);
-			const generation = options.generation ?? locator.generation;
-			const result = await readStoredAgentResult(
-				locator.sessionFile,
-				generation,
-				generation === locator.generation ? locator.resultId : undefined,
-				this.agentDir,
-			);
+			const locators = this.resultLocators.get(id);
+			if (!locators) throw new Error(`Unknown agent_id '${id}'.`);
+			const generation = options.generation ?? latestGeneration(locators);
+			const locator = locators.get(generation);
+			if (!locator) throw new Error(`Agent ${id} has no result locator for generation ${generation}.`);
+			const result = locator.native
+				? await readLocatedAgentResult(locator.native, this.agentDir)
+				: await readStoredAgentResult(locator.sessionFile, generation, locator.resultId, this.agentDir);
 			return paginateStoredResult(id, result, options);
 		}
 		if (entry.kind === "live") return entry.agent.readResult(options);
 		const summary = entry.view.summary;
 		const generation = options.generation ?? summary.generation;
+		const locator = this.resultLocators.get(id)?.get(generation);
+		if (locator) {
+			const result = locator.native
+				? await readLocatedAgentResult(locator.native, this.agentDir)
+				: await readStoredAgentResult(locator.sessionFile, generation, locator.resultId, this.agentDir);
+			return paginateStoredResult(id, result, options);
+		}
 		const sessionFile = summary.session_file;
 		const resultId =
 			generation === summary.generation ? (summary.result?.result_id ?? entry.view.details.resultId) : undefined;
@@ -112,11 +127,11 @@ export class AgentRegistry {
 		this.resultLocators.clear();
 		for (const entry of entries) {
 			for (const candidate of locatorCandidates(entry)) {
-				this.resultLocators.set(candidate.agentId, candidate.locator);
+				this.storeResultLocator(candidate.agentId, candidate.locator);
 			}
 		}
 		reserveManagedAgentIds(this.resultLocators.keys());
-		return this.resultLocators.size;
+		return [...this.resultLocators.values()].reduce((count, generations) => count + generations.size, 0);
 	}
 
 	list(): AgentSummary[] {
@@ -200,11 +215,20 @@ export class AgentRegistry {
 			summary: { ...agent.summary(), status: "closed" },
 			details: { ...agent.getDetails(), status: "closed", aborted: false },
 		};
+		for (const locator of agent.getResultLocators().values()) {
+			this.storeResultLocator(agent.id, {
+				sessionFile: locator.sessionFile,
+				generation: locator.generation,
+				resultId: locator.resultId,
+				native: locator,
+			});
+		}
 		if (view.summary.session_file) {
-			this.resultLocators.set(agent.id, {
+			this.storeResultLocator(agent.id, {
 				sessionFile: view.summary.session_file,
 				generation: view.summary.generation,
 				...(view.summary.result?.result_id === undefined ? {} : { resultId: view.summary.result.result_id }),
+				...(view.summary.result_locator === undefined ? {} : { native: view.summary.result_locator }),
 			});
 		}
 		this.entries.set(agent.id, { kind: "archived", view });
@@ -222,6 +246,15 @@ export class AgentRegistry {
 	private removeClosedAgentId(id: string): void {
 		const index = this.closedAgentIds.indexOf(id);
 		if (index >= 0) this.closedAgentIds.splice(index, 1);
+	}
+
+	private storeResultLocator(agentId: string, locator: ResultLocator): void {
+		let generations = this.resultLocators.get(agentId);
+		if (!generations) {
+			generations = new Map();
+			this.resultLocators.set(agentId, generations);
+		}
+		generations.set(locator.generation, locator);
 	}
 
 	private emit(): void {
@@ -265,6 +298,23 @@ function collectLocatorCandidates(
 		? value.summaries.flatMap((item) => collectLocatorCandidates(item))
 		: [];
 	const agentId = stringField(value, "agent_id", "agentId");
+	const nativeValue = value.result_locator ?? value.resultLocator;
+	if (nativeValue !== undefined) {
+		const native = parseGenerationResultLocator(nativeValue);
+		if (agentId === undefined || native === undefined) return nested;
+		return [
+			...nested,
+			{
+				agentId,
+				locator: {
+					sessionFile: native.sessionFile,
+					generation: native.generation,
+					resultId: native.resultId,
+					native,
+				},
+			},
+		];
+	}
 	const sessionFile = stringField(value, "session_file", "sessionFile");
 	const generation = value.generation;
 	if (
@@ -290,6 +340,12 @@ function collectLocatorCandidates(
 			},
 		},
 	];
+}
+
+function latestGeneration(locators: ReadonlyMap<number, ResultLocator>): number {
+	const generations = [...locators.keys()];
+	if (generations.length === 0) throw new Error("Stored agent has no result locators.");
+	return Math.max(...generations);
 }
 
 function stringField(value: Readonly<Record<string, unknown>>, ...names: string[]): string | undefined {

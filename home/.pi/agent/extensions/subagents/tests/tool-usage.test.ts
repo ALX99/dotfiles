@@ -46,6 +46,8 @@ const model: Model<Api> = {
 const rpcScript = String.raw`
 let buffer = '';
 let generation = 0;
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
 process.stdin.on('data', chunk => {
@@ -53,15 +55,15 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/tool-usage.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'tool-usage', sessionFile: '/tmp/tool-usage.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, success: true, data });
     if (command.type !== 'prompt') continue;
     const run = ++generation;
     send({ type: 'agent_start' });
     setTimeout(() => {
-      send({
-        type: 'message_end',
-        message: {
+      const message = {
           role: 'assistant',
           content: [{ type: 'text', text: 'done:' + run }],
           stopReason: 'stop',
@@ -74,8 +76,10 @@ process.stdin.on('data', chunk => {
             totalTokens: run * 10 + 8,
             cost: { total: run / 4 }
           }
-        }
-      });
+        };
+      const id = 'usage-' + run;
+      entries.push({ type: 'message', id, parentId: leafId, timestamp: new Date().toISOString(), message }); leafId = id;
+      send({ type: 'message_end', message });
       send({ type: 'agent_settled' });
     }, 25);
   }
@@ -153,7 +157,10 @@ function fixture(t: { after(callback: () => void | Promise<void>): void }) {
 
 test("foreground spawn and follow-up report each completed generation's nested usage", async (t) => {
 	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, { spawnProcess: spawnProcess() });
+	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(),
+		validateSessionIdentity: async (identity) => identity,
+	});
 	const started = await spawn.execute(
 		"spawn-1",
 		{ agent: "worker", message: "first", retain: true },
@@ -192,7 +199,10 @@ test("foreground spawn and follow-up report each completed generation's nested u
 
 test("background spawn and follow-up return no usage at launch", async (t) => {
 	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, { spawnProcess: spawnProcess() });
+	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(),
+		validateSessionIdentity: async (identity) => identity,
+	});
 	const launched = await spawn.execute(
 		"spawn-1",
 		{ agent: "worker", message: "background", background: true },
@@ -224,7 +234,10 @@ test("background spawn and follow-up return no usage at launch", async (t) => {
 
 test("cancelled foreground spawn activates controls for the child left running", async (t) => {
 	const { pi, runtime, context, activeTools } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, { spawnProcess: spawnProcess() });
+	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(),
+		validateSessionIdentity: async (identity) => identity,
+	});
 	const controller = new AbortController();
 	controller.abort(new Error("cancelled by parent"));
 	await assert.rejects(
@@ -249,7 +262,10 @@ test("cancelled foreground spawn activates controls for the child left running",
 
 test("the first background wait reports usage and repeated waits do not double count it", async (t) => {
 	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, { spawnProcess: spawnProcess() });
+	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(),
+		validateSessionIdentity: async (identity) => identity,
+	});
 	const launched = await spawn.execute(
 		"spawn-1",
 		{ agent: "worker", message: "background", background: true },
