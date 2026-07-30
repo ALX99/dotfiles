@@ -3,21 +3,17 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { getAgentDir, SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { z } from "zod";
-import {
-	ACCEPTED_CONTEXT_CUSTOM_TYPE,
-	parseAcceptedContextData,
-	type AcceptedContextData,
-} from "./context-artifacts.ts";
 import type { RunUsage } from "./run-state.ts";
+import type { ChildSessionIdentity, SessionCheckpoint } from "./session-cursors.ts";
 
 export const RESULT_PAGE_CUSTOM_TYPE = "subagent-result-page";
 export const RESULT_PAGE_MAX_BYTES = 32 * 1024;
 export const RESULT_READ_MIN_BYTES = 4;
 export const RESULT_READ_DEFAULT_BYTES = 6 * 1024;
 export const RESULT_READ_MAX_BYTES = 6 * 1024;
-const MUTATION_CAPABLE_TOOLS = new Set(["bash", "edit", "write", "apply_patch"]);
 
 const RESULT_ID_PATTERN = /^[0-9a-f]{64}$/;
+const MUTATION_CAPABLE_TOOLS = new Set(["bash", "edit", "write", "apply_patch"]);
 const ResultPageDataSchema = z.strictObject({
 	version: z.literal(1),
 	generation: z.number().int().positive(),
@@ -31,8 +27,6 @@ const ResultPageDataSchema = z.strictObject({
 	totalSha256: z.string().regex(RESULT_ID_PATTERN),
 });
 
-export type ResultPageData = Readonly<z.infer<typeof ResultPageDataSchema>>;
-
 export interface StoredAgentResult {
 	readonly generation: number;
 	readonly resultId: string;
@@ -41,7 +35,26 @@ export interface StoredAgentResult {
 	readonly complete: boolean;
 	readonly totalBytes: number;
 	readonly sha256: string;
-	readonly source: "pages" | "assistant_fallback";
+	readonly source: "pages" | "assistant";
+}
+
+export interface GenerationResultLocator {
+	readonly version: 1;
+	readonly generation: number;
+	readonly resultId: string;
+	readonly sessionId: string;
+	readonly sessionFile: string;
+	readonly start: SessionCheckpoint;
+	readonly end: SessionCheckpoint;
+	readonly resultEntryId: string | null;
+	readonly resultSha256: string;
+}
+
+export interface CapturedGeneration {
+	readonly result: StoredAgentResult;
+	readonly locator: GenerationResultLocator;
+	readonly stats: ChildRunStats;
+	readonly assistantError?: string;
 }
 
 export interface AgentResultReference {
@@ -89,44 +102,84 @@ export function resultReference(result: StoredAgentResult): AgentResultReference
 	});
 }
 
-export function createResultPageData(
-	entries: readonly SessionEntry[],
-	input: {
-		readonly generation: number;
-		readonly resultId: string;
-		readonly pageIndex: number;
-		readonly page: string;
-		readonly final: boolean;
-	},
-): ResultPageData {
-	assertResultId(input.resultId);
-	const existing = assembleResultPages(entries, input.generation, input.resultId);
-	if (existing.complete) throw new Error("The terminal result is already complete.");
-	if (input.pageIndex !== existing.pageCount) {
-		throw new Error(`Result page_index must be ${existing.pageCount}; received ${input.pageIndex}.`);
+export function parseGenerationResultLocator(value: unknown): GenerationResultLocator | undefined {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+	const record = value as Readonly<Record<string, unknown>>;
+	const start = parseStoredCheckpoint(record.start);
+	const end = parseStoredCheckpoint(record.end);
+	if (
+		record.version !== 1 ||
+		typeof record.generation !== "number" ||
+		!Number.isSafeInteger(record.generation) ||
+		record.generation < 1 ||
+		typeof record.resultId !== "string" ||
+		!RESULT_ID_PATTERN.test(record.resultId) ||
+		typeof record.sessionId !== "string" ||
+		!record.sessionId.trim() ||
+		typeof record.sessionFile !== "string" ||
+		!record.sessionFile.trim() ||
+		start === undefined ||
+		end === undefined ||
+		(record.resultEntryId !== null &&
+			(typeof record.resultEntryId !== "string" || record.resultEntryId.length === 0)) ||
+		typeof record.resultSha256 !== "string" ||
+		!RESULT_ID_PATTERN.test(record.resultSha256)
+	) {
+		return undefined;
 	}
-	const pageBytes = Buffer.byteLength(input.page, "utf8");
-	if (pageBytes > RESULT_PAGE_MAX_BYTES) {
-		throw new Error(
-			`Result page is ${pageBytes} UTF-8 bytes; the transport page limit is ${RESULT_PAGE_MAX_BYTES} bytes. Split it without truncating the result.`,
-		);
-	}
-	const text = existing.text + input.page;
 	return Object.freeze({
 		version: 1,
-		generation: input.generation,
-		resultId: input.resultId,
-		pageIndex: input.pageIndex,
-		final: input.final,
-		page: input.page,
-		pageBytes,
-		pageSha256: sha256(input.page),
-		totalBytes: Buffer.byteLength(text, "utf8"),
-		totalSha256: sha256(text),
+		generation: record.generation,
+		resultId: record.resultId,
+		sessionId: record.sessionId,
+		sessionFile: record.sessionFile,
+		start,
+		end,
+		resultEntryId: record.resultEntryId,
+		resultSha256: record.resultSha256,
 	});
 }
 
-export function assembleResultPages(
+export function captureGeneration(
+	identity: ChildSessionIdentity,
+	generation: number,
+	resultId: string,
+	start: SessionCheckpoint,
+	end: SessionCheckpoint,
+	appendedEntries: readonly SessionEntry[],
+): CapturedGeneration {
+	assertResultId(resultId);
+	const activeEntries = activeGenerationEntries(appendedEntries, start, end);
+	const result = storedResultFromActiveBranch(activeEntries, generation, resultId);
+	const nativeStats = childRunStats(appendedEntries);
+	const stats = Object.freeze({
+		usage: nativeStats.usage,
+		...(nativeStats.startTime === undefined ? {} : { startTime: nativeStats.startTime }),
+		...(nativeStats.endTime === undefined ? {} : { endTime: nativeStats.endTime }),
+		mutationToolCalls: nativeStats.mutationToolCalls,
+	});
+	const assistantError = activeBranchAssistantError(activeEntries);
+	const locator: GenerationResultLocator = Object.freeze({
+		version: 1,
+		generation,
+		resultId,
+		sessionId: identity.sessionId,
+		sessionFile: identity.sessionFile,
+		start: Object.freeze({ ...start }),
+		end: Object.freeze({ ...end }),
+		resultEntryId: resultEntryId(activeEntries),
+		resultSha256: result.sha256,
+	});
+	return Object.freeze({
+		result,
+		locator,
+		stats,
+		...(assistantError === undefined ? {} : { assistantError }),
+	});
+}
+
+/** Isolated compatibility reader for pre-migration custom result pages. */
+export function readLegacyResultPages(
 	entries: readonly SessionEntry[],
 	generation: number,
 	resultId: string,
@@ -171,88 +224,184 @@ export async function readStoredAgentResult(
 	agentDir = getAgentDir(),
 ): Promise<StoredAgentResult> {
 	const manager = await openValidatedChildSession(sessionFile, agentDir);
-	const branch = manager.getBranch();
-	const resolvedResultId = resultId ?? resultIdForGeneration(branch, generation);
-	const runEntries = entriesForRun(branch, generation, resolvedResultId).entries;
-	const paged = assembleResultPages(runEntries, generation, resolvedResultId);
-	if (paged.pageCount > 0) return paged;
-	const text = lastAssistantText(runEntries) ?? "";
+	const entries = manager.getEntries();
+	const resolvedResultId = resultId ?? resultIdForGeneration(entries, generation);
+	const legacy = readLegacyResultPages(entries, generation, resolvedResultId);
+	if (legacy.pageCount > 0) return legacy;
+	return storedResultFromActiveBranch(manager.getBranch(), generation, resolvedResultId);
+}
+
+export async function readLocatedAgentResult(
+	locator: GenerationResultLocator,
+	agentDir = getAgentDir(),
+): Promise<StoredAgentResult> {
+	const manager = await openValidatedChildSession(locator.sessionFile, agentDir);
+	if (
+		manager.getSessionId() !== locator.sessionId ||
+		path.resolve(manager.getSessionFile() ?? "") !== path.resolve(locator.sessionFile)
+	) {
+		throw new Error("Stored subagent locator session identity or file does not match.");
+	}
+	const entries = manager.getEntries();
+	const appended = appendEntriesBetween(entries, locator.start, locator.end);
+	const active = activeGenerationEntries(appended, locator.start, locator.end);
+	const result = storedResultFromActiveBranch(active, locator.generation, locator.resultId);
+	if (resultEntryId(active) !== locator.resultEntryId || result.sha256 !== locator.resultSha256) {
+		throw new Error("Stored subagent result locator failed its native entry integrity check.");
+	}
+	return result;
+}
+
+function storedResult(
+	generation: number,
+	resultId: string,
+	text: string,
+	pageCount: number,
+	complete: boolean,
+	source: StoredAgentResult["source"],
+): StoredAgentResult {
 	return Object.freeze({
 		generation,
-		resultId: resolvedResultId,
+		resultId,
 		text,
-		pageCount: 0,
-		complete: true,
+		pageCount,
+		complete,
 		totalBytes: Buffer.byteLength(text, "utf8"),
 		sha256: sha256(text),
-		source: "assistant_fallback",
+		source,
 	});
+}
+
+function storedResultFromActiveBranch(
+	entries: readonly SessionEntry[],
+	generation: number,
+	resultId: string,
+): StoredAgentResult {
+	const assistant = lastAssistantEntry(entries);
+	const text = assistantText(assistant) ?? lastAssistantText(entries) ?? "";
+	const complete =
+		assistant?.type === "message" && assistant.message.role === "assistant" && assistant.message.stopReason === "stop";
+	return storedResult(generation, resultId, text, 0, complete, "assistant");
+}
+
+function resultEntryId(entries: readonly SessionEntry[]): string | null {
+	return lastAssistantEntry(entries)?.id ?? null;
+}
+
+function activeBranchAssistantError(entries: readonly SessionEntry[]): string | undefined {
+	const assistant = lastAssistantEntry(entries);
+	if (assistant?.type !== "message" || assistant.message.role !== "assistant") return undefined;
+	switch (assistant.message.stopReason) {
+		case "error":
+			return assistant.message.errorMessage?.trim() || "Subagent assistant stopped with an error.";
+		case "length":
+			return "Subagent assistant stopped at its output limit before completing the terminal result.";
+		case "aborted":
+			return "Subagent assistant was aborted before completing the terminal result.";
+		case "pending":
+			return "Subagent assistant remained pending without a terminal result.";
+		case "toolUse":
+			return "Subagent assistant ended with a tool call instead of a terminal result.";
+		case "stop":
+			return undefined;
+	}
+}
+
+function lastAssistantEntry(entries: readonly SessionEntry[]): SessionEntry | undefined {
+	return entries.findLast((entry) => entry.type === "message" && entry.message.role === "assistant");
+}
+
+function lastAssistantText(entries: readonly SessionEntry[]): string | undefined {
+	for (const entry of entries.toReversed()) {
+		const text = assistantText(entry);
+		if (text !== undefined) return text;
+	}
+	return undefined;
+}
+
+function assistantText(entry: SessionEntry | undefined): string | undefined {
+	if (entry?.type !== "message" || entry.message.role !== "assistant") return undefined;
+	const parts = entry.message.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
+	return parts.length === 0 ? undefined : parts.join("\n");
+}
+
+function activeGenerationEntries(
+	appendedEntries: readonly SessionEntry[],
+	start: SessionCheckpoint,
+	end: SessionCheckpoint,
+): readonly SessionEntry[] {
+	const expectedAppendCursor = appendedEntries.at(-1)?.id ?? start.appendCursor;
+	if (end.appendCursor !== expectedAppendCursor) {
+		throw new Error("Generation end append cursor does not match its append-ordered entries.");
+	}
+	const byId = new Map<string, SessionEntry>();
+	for (const entry of appendedEntries) {
+		if (byId.has(entry.id) || entry.id === start.appendCursor) {
+			throw new Error("Generation append entries contain an invalid or duplicate cursor.");
+		}
+		byId.set(entry.id, entry);
+	}
+	const reversed: SessionEntry[] = [];
+	let cursor = end.leafId;
+	while (cursor !== start.leafId) {
+		if (cursor === null) {
+			throw new Error("Generation end leaf is not descended from its start leaf.");
+		}
+		const entry = byId.get(cursor);
+		if (!entry) {
+			throw new Error(`Generation active-branch cursor '${cursor}' is outside its append range.`);
+		}
+		reversed.push(entry);
+		cursor = entry.parentId;
+	}
+	return Object.freeze(reversed.reverse());
+}
+
+function appendEntriesBetween(
+	entries: readonly SessionEntry[],
+	start: SessionCheckpoint,
+	end: SessionCheckpoint,
+): readonly SessionEntry[] {
+	const startIndex = checkpointIndex(entries, start, "start");
+	const endIndex = checkpointIndex(entries, end, "end");
+	if (endIndex < startIndex) throw new Error("Stored subagent locator end cursor precedes its start cursor.");
+	return Object.freeze(entries.slice(startIndex + 1, endIndex + 1));
+}
+
+function checkpointIndex(
+	entries: readonly SessionEntry[],
+	checkpoint: SessionCheckpoint,
+	label: "start" | "end",
+): number {
+	const appendIndex = entryIndex(entries, checkpoint.appendCursor, `${label} append`);
+	const leafIndex = entryIndex(entries, checkpoint.leafId, `${label} leaf`);
+	if (leafIndex > appendIndex) {
+		throw new Error(`Stored subagent locator ${label} leaf is after its append cursor.`);
+	}
+	return appendIndex;
+}
+
+function entryIndex(entries: readonly SessionEntry[], cursor: string | null, label: string): number {
+	if (cursor === null) return -1;
+	const index = entries.findIndex((entry) => entry.id === cursor);
+	if (index < 0) throw new Error(`Stored subagent locator ${label} cursor '${cursor}' does not exist.`);
+	return index;
+}
+
+function parseStoredCheckpoint(value: unknown): SessionCheckpoint | undefined {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+	const record = value as Readonly<Record<string, unknown>>;
+	if (!isStoredEntryCursor(record.appendCursor) || !isStoredEntryCursor(record.leafId)) return undefined;
+	return Object.freeze({ appendCursor: record.appendCursor, leafId: record.leafId });
+}
+
+function isStoredEntryCursor(value: unknown): value is string | null {
+	return value === null || (typeof value === "string" && value.length > 0);
 }
 
 export async function readChildTranscript(sessionFile: string, agentDir = getAgentDir()): Promise<unknown[]> {
 	const manager = await openValidatedChildSession(sessionFile, agentDir);
 	return manager.buildSessionContext().messages;
-}
-
-export async function readChildRunStats(
-	sessionFile: string,
-	generation: number,
-	resultId: string,
-	agentDir = getAgentDir(),
-): Promise<ChildRunStats> {
-	const manager = await openValidatedChildSession(sessionFile, agentDir);
-	const range = entriesForRun(manager.getBranch(), generation, resultId);
-	if (!range.start) {
-		throw new Error(`Child session has no persisted run boundary for generation ${generation}.`);
-	}
-	const usage: RunUsage = {
-		input: 0,
-		output: 0,
-		reasoning: 0,
-		cacheRead: 0,
-		cacheWrite: 0,
-		cost: 0,
-		turns: 0,
-	};
-	let mutationToolCalls = 0;
-	for (const entry of range.entries) {
-		if (entry.type === "message" && entry.message.role === "assistant") {
-			addStoredUsage(usage, entry.message.usage);
-			usage.turns++;
-		} else if (entry.type === "compaction" || entry.type === "branch_summary") {
-			addStoredUsage(usage, entry.usage);
-		} else if (
-			entry.type === "message" &&
-			entry.message.role === "toolResult" &&
-			MUTATION_CAPABLE_TOOLS.has(entry.message.toolName)
-		) {
-			mutationToolCalls++;
-		}
-	}
-	const first = range.start ?? range.entries[0];
-	const last = range.entries.at(-1);
-	const startTime = first ? parseEntryTime(first.timestamp) : undefined;
-	const endTime = last ? parseEntryTime(last.timestamp) : undefined;
-	return Object.freeze({
-		usage: Object.freeze(usage),
-		...(startTime === undefined ? {} : { startTime }),
-		...(endTime === undefined ? {} : { endTime }),
-		mutationToolCalls,
-	});
-}
-
-export async function readChildAssistantError(
-	sessionFile: string,
-	agentDir = getAgentDir(),
-): Promise<string | undefined> {
-	const manager = await openValidatedChildSession(sessionFile, agentDir);
-	for (const entry of manager.getBranch().toReversed()) {
-		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
-		return entry.message.stopReason === "error"
-			? (entry.message.errorMessage ?? "Subagent assistant stopped with an error.")
-			: undefined;
-	}
-	return undefined;
 }
 
 export function paginateStoredResult(
@@ -312,12 +461,7 @@ export function formatResultCursor(resultId: string, offset: number): string {
 }
 
 export async function validateChildSessionPath(sessionFile: string, agentDir = getAgentDir()): Promise<string> {
-	const sessionDirectory = path.resolve(agentDir, "subagent-sessions");
-	const candidate = path.resolve(sessionFile);
-	const relative = path.relative(sessionDirectory, candidate);
-	if (relative.startsWith("..") || path.isAbsolute(relative)) {
-		throw new Error("Child session path escapes the managed subagent session directory.");
-	}
+	const candidate = resolveChildSessionPath(sessionFile, agentDir);
 	const stats = await fs.promises.lstat(candidate);
 	if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Child session is not a regular file.");
 	const uid = process.getuid?.();
@@ -325,18 +469,46 @@ export async function validateChildSessionPath(sessionFile: string, agentDir = g
 	return candidate;
 }
 
+function resolveChildSessionPath(sessionFile: string, agentDir: string): string {
+	const sessionDirectory = path.resolve(agentDir, "subagent-sessions");
+	const candidate = path.resolve(sessionFile);
+	const relative = path.relative(sessionDirectory, candidate);
+	if (relative.startsWith("..") || path.isAbsolute(relative)) {
+		throw new Error("Child session path escapes the managed subagent session directory.");
+	}
+	return candidate;
+}
+
+/**
+ * Bind the RPC identity to the managed session directory.
+ *
+ * Pi does not create a new session file until its first assistant message is
+ * flushed, so startup validation must also admit the prospective path. Every
+ * later result read validates the created regular file and its persisted id.
+ */
+export async function validateChildSessionIdentity(
+	identity: ChildSessionIdentity,
+	agentDir = getAgentDir(),
+): Promise<ChildSessionIdentity> {
+	const sessionFile = resolveChildSessionPath(identity.sessionFile, agentDir);
+	let manager: SessionManager;
+	try {
+		manager = await openValidatedChildSession(sessionFile, agentDir);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return Object.freeze({ ...identity, sessionFile });
+		}
+		throw error;
+	}
+	if (manager.getSessionId() !== identity.sessionId || manager.getSessionFile() !== sessionFile) {
+		throw new Error("Child session identity or file does not match its validated session.");
+	}
+	return Object.freeze({ ...identity, sessionFile });
+}
+
 async function openValidatedChildSession(sessionFile: string, agentDir: string): Promise<SessionManager> {
 	const validated = await validateChildSessionPath(sessionFile, agentDir);
 	return SessionManager.open(validated);
-}
-
-function lastAssistantText(entries: readonly SessionEntry[]): string | undefined {
-	for (let index = entries.length - 1; index >= 0; index--) {
-		const entry = entries[index];
-		if (entry?.type !== "message" || entry.message.role !== "assistant") continue;
-		return entry.message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
-	}
-	return undefined;
 }
 
 function resultIdForGeneration(entries: readonly SessionEntry[], generation: number): string {
@@ -346,10 +518,6 @@ function resultIdForGeneration(entries: readonly SessionEntry[], generation: num
 			const parsed = ResultPageDataSchema.safeParse(entry.data);
 			if (!parsed.success) throw new Error("Stored result page metadata is malformed.");
 			if (parsed.data.generation === generation) resultIds.add(parsed.data.resultId);
-		} else if (entry.type === "custom" && entry.customType === ACCEPTED_CONTEXT_CUSTOM_TYPE) {
-			const accepted = parseAcceptedContextData(entry.data);
-			if (!accepted) throw new Error("Stored accepted-context metadata is malformed.");
-			if (accepted.generation === generation) resultIds.add(accepted.resultId);
 		}
 	}
 	if (resultIds.size !== 1) {
@@ -362,46 +530,47 @@ function resultIdForGeneration(entries: readonly SessionEntry[], generation: num
 	return [...resultIds][0]!;
 }
 
-function entriesForRun(
-	entries: readonly SessionEntry[],
-	generation: number,
-	resultId: string,
-): { readonly entries: readonly SessionEntry[]; readonly start?: SessionEntry } {
-	let startIndex = -1;
-	let endIndex = entries.length;
-	for (const [index, entry] of entries.entries()) {
-		const accepted = acceptedContextEntry(entry);
-		if (!accepted || !startsRun(accepted)) continue;
-		if (startIndex < 0) {
-			if (accepted.generation === generation && accepted.resultId === resultId) startIndex = index;
-			continue;
-		}
-		if (accepted.generation !== generation || accepted.resultId !== resultId) {
-			endIndex = index;
-			break;
+function childRunStats(entries: readonly SessionEntry[]): {
+	readonly usage: Readonly<RunUsage>;
+	readonly mutationToolCalls: number;
+	readonly startTime?: number;
+	readonly endTime?: number;
+} {
+	const usage: RunUsage = {
+		input: 0,
+		output: 0,
+		reasoning: 0,
+		cacheRead: 0,
+		cacheWrite: 0,
+		cost: 0,
+		turns: 0,
+	};
+	let mutationToolCalls = 0;
+	for (const entry of entries) {
+		if (entry.type === "message" && entry.message.role === "assistant") {
+			addUsage(usage, entry.message.usage);
+			usage.turns++;
+		} else if (entry.type === "compaction" || entry.type === "branch_summary") {
+			addUsage(usage, entry.usage);
+		} else if (
+			entry.type === "message" &&
+			entry.message.role === "toolResult" &&
+			MUTATION_CAPABLE_TOOLS.has(entry.message.toolName)
+		) {
+			mutationToolCalls++;
 		}
 	}
-	if (startIndex < 0) return { entries };
-	const start = entries[startIndex];
-	if (!start) return { entries };
-	return {
-		entries: entries.slice(startIndex, endIndex),
-		start,
-	};
+	const startTime = entryTime(entries[0]);
+	const endTime = entryTime(entries.at(-1));
+	return Object.freeze({
+		usage: Object.freeze(usage),
+		mutationToolCalls,
+		...(startTime === undefined ? {} : { startTime }),
+		...(endTime === undefined ? {} : { endTime }),
+	});
 }
 
-function acceptedContextEntry(entry: SessionEntry): AcceptedContextData | undefined {
-	if (entry.type !== "custom" || entry.customType !== ACCEPTED_CONTEXT_CUSTOM_TYPE) return undefined;
-	const accepted = parseAcceptedContextData(entry.data);
-	if (!accepted) throw new Error("Stored accepted-context metadata is malformed.");
-	return accepted;
-}
-
-function startsRun(accepted: AcceptedContextData): boolean {
-	return accepted.kind === "assignment" || accepted.kind === "followup" || accepted.kind === "fallback";
-}
-
-function addStoredUsage(
+function addUsage(
 	target: RunUsage,
 	usage:
 		| {
@@ -415,20 +584,21 @@ function addStoredUsage(
 		| undefined,
 ): void {
 	if (!usage) return;
-	target.input += finiteUsageValue(usage.input);
-	target.output += finiteUsageValue(usage.output);
-	target.reasoning = (target.reasoning ?? 0) + finiteUsageValue(usage.reasoning);
-	target.cacheRead += finiteUsageValue(usage.cacheRead);
-	target.cacheWrite += finiteUsageValue(usage.cacheWrite);
-	target.cost += finiteUsageValue(usage.cost?.total);
+	target.input += usageValue(usage.input);
+	target.output += usageValue(usage.output);
+	target.reasoning = (target.reasoning ?? 0) + usageValue(usage.reasoning);
+	target.cacheRead += usageValue(usage.cacheRead);
+	target.cacheWrite += usageValue(usage.cacheWrite);
+	target.cost += usageValue(usage.cost?.total);
 }
 
-function finiteUsageValue(value: number | undefined): number {
+function usageValue(value: number | undefined): number {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function parseEntryTime(value: string): number | undefined {
-	const parsed = Date.parse(value);
+function entryTime(entry: SessionEntry | undefined): number | undefined {
+	if (!entry) return undefined;
+	const parsed = Date.parse(entry.timestamp);
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
 

@@ -5,12 +5,12 @@ import { parseJson } from "../_shared/json.ts";
 import type { AgentEvent } from "./event-schema.ts";
 import { parseRpcRecord, type ExtensionUiRequest, type RpcEvent } from "./protocol.ts";
 
-export const DEFAULT_RPC_MAX_FRAME_BYTES = 1024 * 1024;
+export const DEFAULT_RPC_MAX_FRAME_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_RPC_MAX_STDERR_BYTES = 64 * 1024;
 export const DEFAULT_RPC_MAX_STDERR_LINES = 200;
 export const DEFAULT_RPC_REQUEST_TIMEOUT_MS = 30_000;
 export const DEFAULT_RPC_CLOSE_GRACE_MS = 1_000;
-export const DEFAULT_RPC_MAX_QUEUED_WRITE_BYTES = 1024 * 1024;
+export const DEFAULT_RPC_MAX_QUEUED_WRITE_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_RPC_SPAWN_TIMEOUT_MS = 30_000;
 
 interface SpawnRpcProcessOptions {

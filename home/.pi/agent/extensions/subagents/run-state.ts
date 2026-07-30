@@ -4,7 +4,7 @@ import type { Usage } from "@earendil-works/pi-ai";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentEvent, WireMessage } from "./event-schema.ts";
-import type { AgentResultReference } from "./result-store.ts";
+import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
 
 const MAX_RECENT_TOOLS = 50;
 export const MAX_ARGUMENT_PREVIEW_CHARACTERS = 500;
@@ -62,6 +62,7 @@ export interface MutableRunData {
 	profile: string;
 	model: string;
 	effectiveThinking: string;
+	sessionId?: string;
 	sessionFile?: string;
 	exitCode: number;
 	/** Bounded presentation/transport preview of the settled terminal result. */
@@ -80,6 +81,7 @@ export interface MutableRunData {
 	contextWindow?: number;
 	resultId: string;
 	result?: AgentResultReference;
+	resultLocator?: GenerationResultLocator;
 	omittedTelemetryRecords: number;
 }
 
@@ -104,6 +106,7 @@ export interface InitRunDetailsParams {
 	readonly profile: string;
 	readonly model: string;
 	readonly effectiveThinking: string;
+	readonly sessionId?: string;
 	readonly sessionFile?: string;
 	readonly resultId: string;
 }
@@ -115,6 +118,7 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		profile: params.profile,
 		model: params.model,
 		effectiveThinking: params.effectiveThinking,
+		...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
 		...(params.sessionFile === undefined ? {} : { sessionFile: params.sessionFile }),
 		exitCode: 0,
 		finalText: "",

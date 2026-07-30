@@ -7,10 +7,10 @@ import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry } from "../agent-registry.ts";
 import {
 	childEnvironment,
+	MAX_DIRECT_RPC_PROMPT_BYTES,
 	ManagedAgent as ProductionManagedAgent,
 	type ManagedAgentOptions,
 } from "../managed-agent.ts";
-import { contextArtifactDirectory } from "../context-artifacts.ts";
 import type { RpcEvent } from "../protocol.ts";
 import { RpcTransport, spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
@@ -19,7 +19,7 @@ after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
 
 class ManagedAgent extends ProductionManagedAgent {
 	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
-		super({ ...options, agentDir: testAgentDir });
+		super({ ...options, agentDir: testAgentDir, validateSessionIdentity: async (identity) => identity });
 	}
 }
 
@@ -27,16 +27,22 @@ const rpcScript = String.raw`
 const fs = require('node:fs');
 const path = require('node:path');
 let buffer = '';
+let entries = [];
+let leafId = null;
+let nextEntry = 1;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
-function expand(value) {
-  const match = /^\[\[pi-subagent-context:v1:([0-9a-f]{64})\]\]$/.exec(value);
-  return match ? fs.readFileSync(path.join(process.env.TEST_CONTEXT_DIR, match[1] + '.context'), 'utf8') : value;
+function append(message) {
+  const entry = { type: 'message', id: 'entry-' + nextEntry++, parentId: leafId, timestamp: new Date().toISOString(), message };
+  entries.push(entry); leafId = entry.id;
 }
+function expand(value) { return value; }
 function complete(text) {
   send({ type: 'agent_start' });
   const failed = text === 'done:assistant-error';
-  send({ type: 'message_end', message: { role: 'assistant', content: failed ? [] : [{ type: 'text', text }], usage: { input: 2, output: 1, totalTokens: 3 }, stopReason: failed ? 'error' : 'stop', errorMessage: failed ? 'provider exploded' : undefined } });
+  const message = { role: 'assistant', content: failed ? [] : [{ type: 'text', text }], usage: { input: 2, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 }, totalTokens: 3 }, stopReason: failed ? 'error' : 'stop', errorMessage: failed ? 'provider exploded' : undefined };
+  append(message);
+  send({ type: 'message_end', message });
   if (!text.endsWith('slow')) setTimeout(() => send({ type: 'agent_settled' }), 5);
 }
 process.stdin.on('data', chunk => {
@@ -50,7 +56,9 @@ process.stdin.on('data', chunk => {
     if (command.type === 'never') { setTimeout(() => process.exit(9), 5); continue; }
     const data = command.type === 'get_messages'
       ? { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'transcript' }] }] }
-      : command.type === 'get_state' ? { sessionFile: '/tmp/subagent-session.jsonl' } : undefined;
+      : command.type === 'get_state' ? { sessionId: 'subagent-session', sessionFile: '/tmp/subagent-session.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, command: command.type, success: true, data });
     if (command.type === 'prompt') complete('done:' + expand(command.message));
     if (command.type === 'follow_up') complete('follow:' + expand(command.message));
@@ -68,7 +76,7 @@ const spawnRpcFake: SpawnRpcProcess = (_command, args, options) => {
 	spawnedContexts.push(JSON.parse(String(options.env?.PI_SUBAGENT_CONTEXT)));
 	return spawnRpcProcess(process.execPath, ["-e", rpcScript], {
 		...options,
-		env: { ...options.env, TEST_CONTEXT_DIR: contextArtifactDirectory(testAgentDir) },
+		env: { ...options.env },
 	});
 };
 
@@ -76,14 +84,16 @@ const questionRpcScript = String.raw`
 const fs = require('node:fs');
 const path = require('node:path');
 let buffer = '';
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
-function expand(value) {
-  const match = /^\[\[pi-subagent-context:v1:([0-9a-f]{64})\]\]$/.exec(value);
-  return match ? fs.readFileSync(path.join(process.env.TEST_CONTEXT_DIR, match[1] + '.context'), 'utf8') : value;
-}
+function expand(value) { return value; }
 function finish(answer) {
-  send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'answer:' + expand(answer) }], stopReason: 'stop' } });
+  const message = { role: 'assistant', content: [{ type: 'text', text: 'answer:' + expand(answer) }], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: 'stop' };
+  const entry = { type: 'message', id: 'answer-entry', parentId: leafId, timestamp: new Date().toISOString(), message };
+  entries.push(entry); leafId = entry.id;
+  send({ type: 'message_end', message });
   send({ type: 'agent_settled' });
 }
 process.stdin.on('data', chunk => {
@@ -101,7 +111,9 @@ process.stdin.on('data', chunk => {
       }
       continue;
     }
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-question.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'subagent-question', sessionFile: '/tmp/subagent-question.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, command: command.type, success: true, data });
     if (command.type === 'prompt') {
       send({ type: 'agent_start' });
@@ -122,7 +134,7 @@ process.stdin.on('data', chunk => {
 const spawnQuestionRpcFake: SpawnRpcProcess = (_command, _args, options) =>
 	spawnRpcProcess(process.execPath, ["-e", questionRpcScript], {
 		...options,
-		env: { ...options.env, TEST_CONTEXT_DIR: contextArtifactDirectory(testAgentDir) },
+		env: { ...options.env },
 	});
 
 const testEnv: Record<string, string> = Object.fromEntries(
@@ -244,7 +256,7 @@ test("ManagedAgent passes an explicit scout allowlist and no shell capability", 
 	spawnedArgs.length = 0;
 	await agent.start("inspect", undefined, "inspect", false);
 	const invocation = spawnedArgs[0] ?? [];
-	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep,ask_question,submit_agent_result");
+	assert.equal(invocation[invocation.indexOf("--tools") + 1], "read,find,grep,ask_question");
 	assert.equal(invocation.includes("--exclude-tools"), false);
 	assert.equal(invocation.includes("bash"), false);
 });
@@ -272,11 +284,11 @@ test("ManagedAgent passes role-provided custom tool names to the child", async (
 		spawnedArgs.length = 0;
 		await agent.start("implement", undefined, "implement", false);
 		const invocation = spawnedArgs[0] ?? [];
-		assert.equal(invocation[invocation.indexOf("--tools") + 1], [...tools, "submit_agent_result"].join(","));
+		assert.equal(invocation[invocation.indexOf("--tools") + 1], tools.join(","));
 	}
 });
 
-test("children are leaves and receive only the terminal result extension tool", async (t) => {
+test("children are leaves and receive only their role tools", async (t) => {
 	const agent = new ManagedAgent({
 		defaultCwd: process.cwd(),
 		agent: {
@@ -298,7 +310,7 @@ test("children are leaves and receive only the terminal result extension tool", 
 	const invocation = spawnedArgs[0] ?? [];
 	const tools = (invocation[invocation.indexOf("--tools") + 1] ?? "").split(",");
 	assert.equal(tools.includes("ask_question"), true);
-	assert.equal(tools.includes("submit_agent_result"), true);
+	assert.equal(tools.includes("submit_agent_result"), false);
 	assert.equal(tools.includes("answer_agent"), false);
 	assert.equal(tools.includes("spawn_agent"), false);
 });
@@ -358,25 +370,9 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	]);
 	assert.match(invocation[invocation.indexOf("--session-dir") + 1] ?? "", /subagent-sessions$/);
 	assert.equal(invocation.includes("--exclude-tools"), false);
-	const tools = invocation[invocation.indexOf("--tools") + 1] ?? "";
-	assert.equal(tools, "submit_agent_result", "the only implicit child tool is terminal result submission");
-	assert.equal(invocation.filter((arg) => arg === "--tools").length, 1);
-	// The test fixture deliberately has no role tool allowlist, but nested
-	// delegation must still be denied unless it is explicitly admitted.
-	for (const tool of [
-		"spawn_agent",
-		"send_agent",
-		"followup_agent",
-		"wait_agent",
-		"list_agents",
-		"interrupt_agent",
-		"close_agent",
-		"answer_agent",
-	]) {
-		assert.doesNotMatch(tools, new RegExp(`(?:^|,)${tool}(?:,|$)`));
-	}
+	assert.equal(invocation.includes("--tools"), false);
+	assert.equal(invocation.includes("--no-tools"), true);
 	assert.deepEqual(spawnedContexts, [{ ...childContext, agentId: id }]);
-	assert.deepEqual(await fs.promises.readdir(contextArtifactDirectory(testAgentDir)), []);
 	assert.equal(first.sessionFile, "/tmp/subagent-session.jsonl");
 	assert.equal(first.finalText, "done:Task: first");
 	assert.equal(agent.summary().agent_id, id);
@@ -384,13 +380,15 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().retained, true);
 	assert.equal(agent.summary().status, "idle");
 	assert.equal(agent.summary().final_text, "done:Task: first");
-	assert.equal(agent.summary().result?.source, "assistant_fallback");
+	assert.equal(agent.summary().result?.source, "assistant");
+	assert.deepEqual(agent.summary().result_locator?.start, { appendCursor: null, leafId: null });
 
 	const second = await agent.followUp("second", "second task", false);
 	assert.equal(agent.id, id);
 	assert.equal(spawnedArgs.length, 1, "follow-ups must reuse the same configured child process");
 	assert.equal(second.finalText, "done:second");
 	assert.equal(agent.summary().generation, 2);
+	assert.equal(agent.summary().result_locator?.start.appendCursor, "entry-1");
 	await assert.rejects(agent.getMessages(), /managed subagent session directory|Child session/);
 
 	const launched = await agent.followUp("third", "third task", true);
@@ -423,10 +421,151 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().status, "closed");
 });
 
+test("queued follow-up prompts stay in one logical generation", async (t) => {
+	const script = String.raw`
+let buffer = '';
+let prompts = 0;
+let entries = [];
+let leafId = null;
+function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
+function append(text) {
+  const message = {role:'assistant', content:[{type:'text', text}], stopReason:'stop'};
+  const id = 'queued-' + prompts;
+  entries.push({type:'message', id, parentId:leafId, timestamp:new Date().toISOString(), message}); leafId = id;
+  send({type:'message_end', message});
+}
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? {sessionId:'queued', sessionFile:'/tmp/queued.jsonl'}
+      : command.type === 'get_entries' ? {entries:entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId}
+      : undefined;
+    send({type:'response', id:command.id, success:true, data});
+    if (command.type !== 'prompt') continue;
+    prompts++;
+    if (prompts === 1) {
+      send({type:'agent_start'});
+      append('first turn');
+    } else {
+      append('queued:' + command.message);
+      send({type:'agent_settled'});
+    }
+  }
+});
+`;
+	const managed = new ManagedAgent({
+		defaultCwd: process.cwd(),
+		agent: { name: "general", description: "test", systemPrompt: "", filePath: "general.md" },
+		resolvedRun,
+		childContext,
+		retain: true,
+		spawnProcess: (_command, _args, options) => spawnRpcProcess(process.execPath, ["-e", script], options),
+	});
+	t.after(() => managed.close());
+
+	await managed.start("first", undefined, "first", true);
+	for (let attempt = 0; managed.summary().status !== "running" && attempt < 100; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+	const queued = await managed.followUp("second", "second", true);
+	assert.equal(queued.generation, 1);
+	const settled = await managed.wait(1_000);
+	assert.equal(settled.generation, 1);
+	assert.equal(settled.finalText, "queued:second");
+	assert.equal(managed.summary().result_locator?.start.appendCursor, null);
+});
+
+test("direct RPC context accepts bounded large Unicode text without an artifact marker", async (t) => {
+	const directConfig: AgentConfig = {
+		name: "general",
+		description: "test",
+		systemPrompt: "",
+		filePath: "general.md",
+	};
+	const agent = new ManagedAgent({
+		id: "unicode-direct",
+		defaultCwd: process.cwd(),
+		agent: directConfig,
+		resolvedRun,
+		childContext,
+		retain: false,
+		spawnProcess: spawnRpcFake,
+	});
+	t.after(() => agent.close());
+	const message = "🙂界".repeat(60_000);
+	assert.ok(Buffer.byteLength(message, "utf8") < MAX_DIRECT_RPC_PROMPT_BYTES);
+	const settled = await agent.start(message, undefined, "unicode", false);
+	assert.equal(settled.status, "idle");
+	const expected = `done:Task: ${message}`;
+	assert.equal(settled.finalText, expected);
+	assert.equal(settled.result?.total_bytes, Buffer.byteLength(expected, "utf8"));
+	const oversized = new ManagedAgent({
+		id: "unicode-too-large",
+		defaultCwd: process.cwd(),
+		agent: directConfig,
+		resolvedRun,
+		childContext,
+		retain: false,
+		spawnProcess: spawnRpcFake,
+	});
+	t.after(() => oversized.close());
+	await assert.rejects(
+		oversized.start("x".repeat(MAX_DIRECT_RPC_PROMPT_BYTES + 1), undefined, "too large", false),
+		/direct prompt limit/,
+	);
+});
+
+test("steer and queued follow-up retain one generation checkpoint range", async (t) => {
+	const script = String.raw`
+let buffer = '', leafId = null, count = 0, entries = [];
+process.stdin.setEncoding('utf8');
+const send = value => process.stdout.write(JSON.stringify(value) + '\n');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n'), command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionId: 'same-generation', sessionFile: '/tmp/same-generation.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
+    send({ type: 'response', id: command.id, success: true, data });
+    if (command.type !== 'prompt') continue;
+    count++;
+    if (count === 1) send({ type: 'agent_start' });
+    if (count !== 3) continue;
+    const message = { role: 'assistant', content: [{ type: 'text', text: 'settled once' }], stopReason: 'stop',
+      usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { total: 0 } } };
+    const entry = { type: 'message', id: 'same-result', parentId: leafId, timestamp: new Date().toISOString(), message };
+    entries.push(entry); leafId = entry.id;
+    send({ type: 'message_end', message }); send({ type: 'agent_settled' });
+  }
+});`;
+	const agent = new ManagedAgent({
+		id: "same-generation",
+		defaultCwd: process.cwd(),
+		agent: { name: "general", description: "test", systemPrompt: "", filePath: "general.md" },
+		resolvedRun,
+		childContext,
+		retain: true,
+		spawnProcess: (_command, _args, options) =>
+			spawnRpcProcess(process.execPath, ["-e", script], { ...options, env: { ...options.env } }),
+	});
+	t.after(() => agent.close());
+	await agent.start("initial", undefined, "initial", true);
+	await agent.steer("steer");
+	const settled = await agent.followUp("queued", "queued", false);
+	assert.equal(settled.generation, 1);
+	assert.deepEqual(agent.summary().result_locator?.start, { appendCursor: null, leafId: null });
+});
+
 test("ManagedAgent retries a settled assistant error with the next model candidate", async (t) => {
 	const fallbackScript = String.raw`
 let buffer = '';
 const model = process.env.TEST_MODEL;
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
 process.stdin.on('data', chunk => {
@@ -434,14 +573,20 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-fallback.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'subagent-fallback', sessionFile: '/tmp/subagent-fallback.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, command: command.type, success: true, data });
     if (command.type !== 'prompt') continue;
     send({ type: 'agent_start' });
     if (model === 'provider/primary') {
-      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' } });
+      const message = { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' };
+      entries.push({ type: 'message', id: 'primary-entry', parentId: null, timestamp: new Date().toISOString(), message }); leafId = 'primary-entry';
+      send({ type: 'message_end', message });
     } else {
-      send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'fallback succeeded' }], stopReason: 'stop' } });
+      const message = { role: 'assistant', content: [{ type: 'text', text: 'fallback succeeded' }], stopReason: 'stop' };
+      entries.push({ type: 'message', id: 'fallback-entry', parentId: null, timestamp: new Date().toISOString(), message }); leafId = 'fallback-entry';
+      send({ type: 'message_end', message });
     }
     send({ type: 'agent_settled' });
   }
@@ -505,13 +650,15 @@ process.stdin.on('data', chunk => {
 	assert.equal(managed.summary().generation, 1);
 	assert.equal(managed.summary().status, "idle");
 	assert.equal(managed.summary().final_text, "fallback succeeded");
-	assert.equal(managed.summary().result?.source, "assistant_fallback");
+	assert.equal(managed.summary().result?.source, "assistant");
 });
 
 test("account quota fallback skips models on the exhausted provider", async (t) => {
 	const script = String.raw`
 let buffer = '';
 const model = process.env.TEST_MODEL;
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
 process.stdin.on('data', chunk => {
@@ -519,14 +666,20 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/quota-fallback.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'quota-fallback', sessionFile: '/tmp/quota-fallback.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, success: true, data });
     if (command.type !== 'prompt') continue;
     send({ type: 'agent_start' });
     if (model.startsWith('same-provider/')) {
-      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'account quota exhausted' } });
+      const message = { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'account quota exhausted' };
+      entries.push({ type: 'message', id: 'quota-primary', parentId: null, timestamp: new Date().toISOString(), message }); leafId = 'quota-primary';
+      send({ type: 'message_end', message });
     } else {
-      send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'other provider succeeded' }], stopReason: 'stop' } });
+      const message = { role: 'assistant', content: [{ type: 'text', text: 'other provider succeeded' }], stopReason: 'stop' };
+      entries.push({ type: 'message', id: 'quota-recovery', parentId: null, timestamp: new Date().toISOString(), message }); leafId = 'quota-recovery';
+      send({ type: 'message_end', message });
     }
     send({ type: 'agent_settled' });
   }
@@ -561,6 +714,8 @@ process.stdin.on('data', chunk => {
 test("mutating workers report recoverable failure instead of replaying on fallback", async (t) => {
 	const script = String.raw`
 let buffer = '';
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
 process.stdin.on('data', chunk => {
@@ -568,12 +723,17 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/mutating-worker.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'mutating-worker', sessionFile: '/tmp/mutating-worker.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, success: true, data });
     if (command.type !== 'prompt') continue;
     send({ type: 'agent_start' });
     send({ type: 'tool_execution_end', toolCallId: 'edit-1', toolName: 'edit', result: {}, isError: false });
-    send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'provider failed after edit' } });
+    entries.push({ type: 'message', id: 'edit-result', parentId: null, timestamp: new Date().toISOString(), message: { role: 'toolResult', toolCallId: 'edit-1', toolName: 'edit', content: [], isError: false, timestamp: 0 } }); leafId = 'edit-result';
+    const message = { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'provider failed after edit' };
+    entries.push({ type: 'message', id: 'mutation-error', parentId: leafId, timestamp: new Date().toISOString(), message }); leafId = 'mutation-error';
+    send({ type: 'message_end', message });
     send({ type: 'agent_settled' });
   }
 });
@@ -605,6 +765,8 @@ process.stdin.on('data', chunk => {
 test("interrupting a model fallback handover aborts without releasing capacity", async (t) => {
 	const script = String.raw`
 let buffer = '';
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 function send(value) { process.stdout.write(JSON.stringify(value) + '\n'); }
 process.stdin.on('data', chunk => {
@@ -612,11 +774,15 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/subagent-interrupted-fallback.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'subagent-interrupted-fallback', sessionFile: '/tmp/subagent-interrupted-fallback.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId }
+      : undefined;
     send({ type: 'response', id: command.id, command: command.type, success: true, data });
     if (command.type === 'prompt') {
       send({ type: 'agent_start' });
-      send({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' } });
+      const message = { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'primary failed' };
+      entries.push({ type: 'message', id: 'interrupted-primary', parentId: null, timestamp: new Date().toISOString(), message }); leafId = 'interrupted-primary';
+      send({ type: 'message_end', message });
       setTimeout(() => send({ type: 'agent_settled' }), 10);
     }
   }

@@ -25,6 +25,9 @@ Perform discovery and narrow evidence synthesis only. Verify factual claims
 against the code when practical. Do not implement changes or make final review,
 design, correctness, severity, or issue verdicts.
 
+Follow an assignment's requested output format. If it requests exact text,
+return only that text without a label or surrounding report.
+
 Work read-only. Do not attempt state-changing actions.
 
 Unless the parent requests another format, return:
@@ -40,7 +43,4 @@ Unless the parent requests another format, return:
 
 Omit empty sections.
 
-Submit the terminal report with `submit_agent_result`. Split the exact report
-into consecutive pages of at most the tool's UTF-8 page bound, starting at page
-0 and setting `final: true` only on the last page. This is transport chunking,
-not result truncation; concatenating pages must reproduce the exact report.
+Return the terminal report as your final assistant response.
