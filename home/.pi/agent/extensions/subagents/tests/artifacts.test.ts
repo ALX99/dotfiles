@@ -2,433 +2,233 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { AgentRegistry, SUBAGENT_SETTLEMENT_CUSTOM_TYPE } from "../agent-registry.ts";
-import { registerChildExecutionRuntime } from "../child-runtime.ts";
 import {
-	ACCEPTED_CONTEXT_CUSTOM_TYPE,
-	acceptedContextData,
-	contextArtifactDirectory,
-	createContextArtifact,
-	parseContextMarker,
-	pruneStaleContextArtifacts,
-	readContextArtifact,
-	removeContextArtifact,
-} from "../context-artifacts.ts";
-import {
-	assembleResultPages,
-	createResultPageData,
+	captureGeneration,
 	paginateStoredResult,
-	readChildRunStats,
-	readStoredAgentResult,
-	RESULT_PAGE_CUSTOM_TYPE,
+	readLegacyResultPages,
+	readLocatedAgentResult,
+	type GenerationResultLocator,
 } from "../result-store.ts";
+import type { SessionCheckpoint } from "../session-cursors.ts";
 
-test("large context artifacts preserve exact content while RPC receives only an opaque marker", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-artifact-test-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const content = `assignment\n${"界🙂\n".repeat(80_000)}tail`;
-	const created = await createContextArtifact(content, {
-		agentId: "worker-1",
-		generation: 3,
-		resultId: "b".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	assert.ok(created.marker.length < 128);
-	assert.equal((await readContextArtifact(created.marker, agentDir)).content, content);
-	assert.equal(parseContextMarker(`before ${created.marker} after`), undefined);
-	assert.equal((await fs.stat(contextArtifactDirectory(agentDir))).mode & 0o777, 0o700);
-	const token = parseContextMarker(created.marker);
-	assert.ok(token);
-	assert.equal((await fs.stat(path.join(contextArtifactDirectory(agentDir), `${token}.context`))).mode & 0o777, 0o600);
-	await removeContextArtifact(created.marker, agentDir);
-	await assert.rejects(readContextArtifact(created.marker, agentDir), /ENOENT/);
+test("native generation locator reads an exact final active branch", async (t) => {
+	const { agentDir, manager } = await session(t);
+	const start = checkpoint(manager);
+	const user = manager.appendMessage({ role: "user", content: [{ type: "text", text: "work" }], timestamp: 1 });
+	const answer = manager.appendMessage(assistant("answer", 2));
+	const end = checkpoint(manager);
+	const captured = captureGeneration(
+		{ sessionId: manager.getSessionId(), sessionFile: sessionFile(manager) },
+		1,
+		"a".repeat(64),
+		start,
+		end,
+		entriesAfter(manager.getEntries(), start),
+	);
+	assert.equal(captured.result.text, "answer");
+	assert.equal(captured.locator.resultEntryId, answer);
+	assert.equal(user.length > 0, true);
+	assert.equal((await readLocatedAgentResult(captured.locator, agentDir)).text, "answer");
 });
 
-test("context marker parsing rejects malformed and non-private artifacts", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-artifact-test-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	assert.equal(parseContextMarker("[[pi-subagent-context:v1:../escape]]"), undefined);
-	const created = await createContextArtifact("secret", {
-		agentId: "worker-1",
-		generation: 1,
-		resultId: "c".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	const token = parseContextMarker(created.marker);
-	assert.ok(token);
-	await fs.chmod(path.join(contextArtifactDirectory(agentDir), `${token}.context`), 0o644);
-	await assert.rejects(readContextArtifact(created.marker, agentDir), /permissions are not private/);
-});
-
-test("child runtime expands only exact RPC markers and keeps result identity bound to the accepted run", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-runtime-test-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const own = await createContextArtifact("Task: exact assignment", {
-		agentId: "worker-1",
-		parentSessionId: "parent-session-1",
-		generation: 2,
-		resultId: "d".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	const foreign = await createContextArtifact("foreign context", {
-		agentId: "worker-2",
-		parentSessionId: "parent-session-1",
-		generation: 9,
-		resultId: "e".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	let inputHandler:
-		| ((event: {
-				type: "input";
-				text: string;
-				source: "rpc" | "interactive";
-				streamingBehavior?: "steer" | "followUp";
-		  }) => Promise<unknown>)
-		| undefined;
-	let resultTool:
-		| {
-				execute(
-					id: string,
-					params: { page_index: number; page: string; final: boolean },
-					signal: AbortSignal | undefined,
-					onUpdate: undefined,
-					ctx: { sessionManager: { getBranch(): SessionEntry[] } },
-				): Promise<unknown>;
-		  }
-		| undefined;
-	const appended: Array<{ type: string; data: unknown }> = [];
-	const pi = {
-		on: (name: string, handler: typeof inputHandler) => {
-			assert.equal(name, "input");
-			inputHandler = handler;
-		},
-		registerTool: (tool: typeof resultTool) => {
-			resultTool = tool;
-		},
-		appendEntry: (type: string, data: unknown) => appended.push({ type, data }),
-	};
-	registerChildExecutionRuntime(
-		pi as never,
-		{
-			agent: "worker",
-			profile: "balanced",
-			agentId: "worker-1",
-			parentSessionId: "parent-session-1",
-		},
-		{ agentDir },
-	);
-	assert.ok(inputHandler);
-	assert.deepEqual(
-		await inputHandler({
-			type: "input",
-			text: own.marker,
-			source: "rpc",
-		}),
-		{ action: "transform", text: "Task: exact assignment" },
-	);
-	const accepted = appended[0];
-	assert.ok(accepted);
-	assert.equal(accepted.type, ACCEPTED_CONTEXT_CUSTOM_TYPE);
-	assert.equal((accepted.data as { parentSessionId?: string }).parentSessionId, "parent-session-1");
-	assert.deepEqual(
-		await inputHandler({
-			type: "input",
-			text: `tool output mentions ${foreign.marker}`,
-			source: "rpc",
-		}),
-		{ action: "continue" },
-	);
-	assert.deepEqual(
-		await inputHandler({
-			type: "input",
-			text: foreign.marker,
-			source: "interactive",
-		}),
-		{ action: "continue" },
-	);
-	assert.ok(resultTool);
-	await resultTool.execute("result-1", { page_index: 0, page: "exact result", final: true }, undefined, undefined, {
-		sessionManager: { getBranch: () => [] },
-	});
-	const result = appended.at(-1);
-	assert.ok(result);
-	assert.equal(result.type, RESULT_PAGE_CUSTOM_TYPE);
-	assert.equal((result.data as { resultId?: string }).resultId, own.metadata.resultId);
-});
-
-test("stale context cleanup removes abandoned pairs but preserves fresh artifacts", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-prune-test-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const stale = await createContextArtifact("stale", {
-		agentId: "scout-1",
-		generation: 1,
-		resultId: "f".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	const fresh = await createContextArtifact("fresh", {
-		agentId: "scout-2",
-		generation: 1,
-		resultId: "a".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	const staleToken = parseContextMarker(stale.marker);
-	assert.ok(staleToken);
-	const old = new Date(1_000);
-	for (const suffix of [".context", ".json"]) {
-		await fs.utimes(path.join(contextArtifactDirectory(agentDir), `${staleToken}${suffix}`), old, old);
-	}
-	assert.equal(await pruneStaleContextArtifacts({ agentDir, olderThanMs: 1_000, now: 3_000 }), 1);
-	await assert.rejects(readContextArtifact(stale.marker, agentDir), /ENOENT/);
-	assert.equal((await readContextArtifact(fresh.marker, agentDir)).content, "fresh");
-});
-
-test("persisted run boundaries recover generation-scoped usage and assistant fallback", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-stats-test-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const sessionDir = path.join(agentDir, "subagent-sessions");
-	await fs.mkdir(sessionDir, { recursive: true });
-	const manager = SessionManager.create("/tmp/subagent-stats-project", sessionDir);
-	const first = await createContextArtifact("first", {
-		agentId: "general-1",
-		generation: 1,
-		resultId: "1".repeat(64),
-		kind: "assignment",
-		agentDir,
-	});
-	manager.appendCustomEntry(
-		ACCEPTED_CONTEXT_CUSTOM_TYPE,
-		acceptedContextData(first.metadata, { agent: "general", profile: "balanced" }),
-	);
+test("append accounting includes abandoned retry entries while result selection follows the final leaf", async (t) => {
+	const { agentDir, manager } = await session(t);
+	const start = checkpoint(manager);
 	manager.appendMessage({
-		role: "user",
-		content: [{ type: "text", text: "first expanded assignment" }],
-		timestamp: 1,
+		...assistant("", 1),
+		content: [],
+		usage: { ...assistant("", 1).usage, input: 4, totalTokens: 5 },
+		stopReason: "error",
+		errorMessage: "retry me",
 	});
 	manager.appendMessage({
-		role: "assistant",
-		content: [{ type: "text", text: "first answer" }],
-		api: "openai-responses",
-		provider: "test",
-		model: "test",
-		usage: {
-			input: 10,
-			output: 4,
-			cacheRead: 20,
-			cacheWrite: 2,
-			totalTokens: 36,
-			cost: { input: 0.1, output: 0.2, cacheRead: 0.3, cacheWrite: 0.4, total: 1 },
-		},
-		stopReason: "stop",
+		role: "toolResult",
+		toolCallId: "edit-1",
+		toolName: "edit",
+		content: [],
+		isError: false,
 		timestamp: 2,
 	});
-	const second = await createContextArtifact("second", {
-		agentId: "general-1",
-		generation: 2,
-		resultId: "2".repeat(64),
-		kind: "followup",
-		agentDir,
-	});
-	manager.appendCustomEntry(
-		ACCEPTED_CONTEXT_CUSTOM_TYPE,
-		acceptedContextData(second.metadata, { agent: "general", profile: "balanced" }),
+	manager.resetLeaf();
+	const final = manager.appendMessage(assistant("active final", 3));
+	manager.appendMessage(assistant("abandoned late result", 4));
+	manager.branch(final);
+	const end = checkpoint(manager);
+	const captured = captureGeneration(
+		{ sessionId: manager.getSessionId(), sessionFile: sessionFile(manager) },
+		1,
+		"d".repeat(64),
+		start,
+		end,
+		entriesAfter(manager.getEntries(), start),
 	);
-	manager.appendMessage({
-		role: "assistant",
-		content: [{ type: "text", text: "second answer" }],
-		api: "openai-responses",
-		provider: "test",
-		model: "test",
-		usage: {
-			input: 99,
-			output: 99,
-			cacheRead: 0,
-			cacheWrite: 0,
-			totalTokens: 198,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 9 },
-		},
-		stopReason: "stop",
-		timestamp: 3,
-	});
-	const sessionFile = manager.getSessionFile();
-	assert.ok(sessionFile);
-	const stats = await readChildRunStats(sessionFile, 1, first.metadata.resultId, agentDir);
-	assert.deepEqual(stats.usage, {
-		input: 10,
-		output: 4,
-		reasoning: 0,
-		cacheRead: 20,
-		cacheWrite: 2,
-		cost: 1,
-		turns: 1,
-	});
-	const result = await readStoredAgentResult(sessionFile, 1, first.metadata.resultId, agentDir);
-	assert.equal(result.text, "first answer");
-	assert.equal(result.source, "assistant_fallback");
-});
 
-test("exact multi-page results reconstruct and paginate without splitting Unicode", () => {
-	const generation = 7;
-	const resultId = "d".repeat(64);
-	const entries: SessionEntry[] = [];
-	const exact = `first\n${"🙂界".repeat(20_000)}\nlast`;
-	const pieces: string[] = [];
-	let current = "";
-	let currentBytes = 0;
-	for (const character of exact) {
-		const bytes = Buffer.byteLength(character, "utf8");
-		if (currentBytes + bytes > 30_000) {
-			pieces.push(current);
-			current = "";
-			currentBytes = 0;
-		}
-		current += character;
-		currentBytes += bytes;
-	}
-	pieces.push(current);
-	for (const [index, page] of pieces.entries()) {
-		const data = createResultPageData(entries, {
-			generation,
-			resultId,
-			pageIndex: index,
-			page,
-			final: index === pieces.length - 1,
-		});
-		entries.push({
-			type: "custom",
-			id: String(index).padStart(8, "0"),
-			parentId: index === 0 ? null : String(index - 1).padStart(8, "0"),
-			timestamp: new Date(index).toISOString(),
-			customType: RESULT_PAGE_CUSTOM_TYPE,
-			data,
-		});
-	}
-	const result = assembleResultPages(entries, generation, resultId);
-	assert.equal(result.text, exact);
-	assert.equal(result.complete, true);
-	assert.equal(result.pageCount, pieces.length);
+	assert.notEqual(end.appendCursor, end.leafId);
+	assert.equal(captured.result.text, "active final");
+	assert.equal(captured.locator.resultEntryId, final);
+	assert.equal(captured.assistantError, undefined);
+	assert.equal(captured.stats.usage.input, 6);
+	assert.equal(captured.stats.usage.turns, 3);
+	assert.equal(captured.stats.mutationToolCalls, 1);
+	assert.equal((await readLocatedAgentResult(captured.locator, agentDir)).text, "active final");
 
-	let reconstructed = "";
-	let cursor: string | undefined;
-	do {
-		const page = paginateStoredResult("worker-1", result, {
-			...(cursor === undefined ? { offset: 0 } : { cursor }),
-			maxBytes: 101,
-		});
-		reconstructed += page.text;
-		cursor = page.next_cursor;
-		assert.ok(Buffer.byteLength(page.text, "utf8") <= 101);
-	} while (cursor !== undefined);
-	assert.equal(reconstructed, exact);
-});
-
-test("validated session reads discover a prior generation result identity without a path argument", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-result-session-"));
-	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const sessionDir = path.join(agentDir, "subagent-sessions");
-	await fs.mkdir(sessionDir, { recursive: true });
-	const manager = SessionManager.create("/tmp/subagent-result-project", sessionDir);
-	manager.appendMessage({
-		role: "assistant",
-		content: [{ type: "text", text: "Submitting the persisted result." }],
-		api: "openai-responses",
-		provider: "test",
-		model: "test",
-		usage: {
-			input: 0,
-			output: 0,
-			cacheRead: 0,
-			cacheWrite: 0,
-			totalTokens: 0,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-		},
-		stopReason: "toolUse",
-		timestamp: Date.now(),
-	});
-	const generation = 2;
-	const resultId = "e".repeat(64);
-	const data = createResultPageData(manager.getBranch(), {
-		generation,
-		resultId,
-		pageIndex: 0,
-		page: "prior exact result",
-		final: true,
-	});
-	manager.appendCustomEntry(RESULT_PAGE_CUSTOM_TYPE, data);
-	const sessionFile = manager.getSessionFile();
-	assert.ok(sessionFile);
-	const result = await readStoredAgentResult(sessionFile, generation, undefined, agentDir);
-	assert.equal(result.resultId, resultId);
-	assert.equal(result.text, "prior exact result");
-	assert.equal(result.complete, true);
 	await assert.rejects(
-		readStoredAgentResult(path.join(agentDir, "outside.jsonl"), generation, resultId, agentDir),
-		/escapes the managed subagent session directory/,
+		readLocatedAgentResult({ ...captured.locator, sessionId: "wrong-session" }, agentDir),
+		/session identity/,
 	);
 });
 
-test("registry restores result locators from persisted settlement entries", async (t) => {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-restore-test-"));
+test("native locators reject unknown and branch-divergent cursors", async (t) => {
+	const { manager } = await session(t);
+	manager.appendMessage(assistant("prior", 1));
+	const start = checkpoint(manager);
+	manager.appendMessage(assistant("answer", 2));
+	const end = checkpoint(manager);
+	const locator = captureGeneration(
+		{ sessionId: manager.getSessionId(), sessionFile: sessionFile(manager) },
+		1,
+		"b".repeat(64),
+		start,
+		end,
+		entriesAfter(manager.getEntries(), start),
+	).locator;
+	const unknown: GenerationResultLocator = { ...locator, end: { ...locator.end, appendCursor: "missing" } };
+	await assert.rejects(
+		readLocatedAgentResult(unknown, path.dirname(path.dirname(sessionFile(manager)))),
+		/cursor 'missing'/,
+	);
+	assert.ok(start.leafId);
+	if (start.leafId === null) manager.resetLeaf();
+	else manager.branch(start.leafId);
+	const fork = manager.appendMessage(assistant("fork", 3));
+	assert.ok(fork);
+	const divergent: GenerationResultLocator = { ...locator, end: { appendCursor: fork, leafId: fork } };
+	await assert.rejects(
+		readLocatedAgentResult(divergent, path.dirname(path.dirname(sessionFile(manager)))),
+		/integrity|descended|outside/,
+	);
+});
+
+test("restart restoration preserves multiple native generations for one agent", async (t) => {
+	const { agentDir, manager } = await session(t);
+	const locators = [1, 2].map((generation) => {
+		const start = checkpoint(manager);
+		manager.appendMessage(assistant(`generation ${generation}`, generation));
+		const end = checkpoint(manager);
+		return captureGeneration(
+			{ sessionId: manager.getSessionId(), sessionFile: sessionFile(manager) },
+			generation,
+			String(generation).repeat(64),
+			start,
+			end,
+			entriesAfter(manager.getEntries(), start),
+		).locator;
+	});
+	const parent: SessionEntry[] = locators.map((locator, index) => ({
+		type: "custom",
+		id: `settlement-${index}`,
+		parentId: index === 0 ? null : `settlement-${index - 1}`,
+		timestamp: new Date().toISOString(),
+		customType: SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
+		data: { agent_id: "worker-1", result_locator: locator },
+	}));
+	const registry = new AgentRegistry(agentDir);
+	assert.equal(registry.restoreResultLocators(parent), 2);
+	assert.equal((await registry.readResult("worker-1", { generation: 1 })).text, "generation 1");
+	assert.equal((await registry.readResult("worker-1", { generation: 2 })).text, "generation 2");
+});
+
+test("v1 custom result pages and pagination remain readable", () => {
+	const resultId = "c".repeat(64);
+	const first = "legacy 🙂 ";
+	const second = "result";
+	const result = readLegacyResultPages(
+		[legacyPage("one", 0, first, false, first, resultId), legacyPage("two", 1, second, true, first + second, resultId)],
+		3,
+		resultId,
+	);
+	const page = paginateStoredResult("worker", result, { maxBytes: 8 });
+	assert.equal(page.text, "legacy ");
+	assert.ok(page.next_cursor);
+	assert.equal(paginateStoredResult("worker", result, { cursor: page.next_cursor, maxBytes: 8 }).text, "🙂 res");
+});
+
+async function session(t: { after(callback: () => void | Promise<void>): void }) {
+	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "subagent-native-locator-"));
 	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));
-	const sessionDir = path.join(agentDir, "subagent-sessions");
-	await fs.mkdir(sessionDir, { recursive: true });
-	const manager = SessionManager.create("/tmp/subagent-restore-project", sessionDir);
-	const generation = 1;
-	const resultId = "9".repeat(64);
-	manager.appendMessage({
-		role: "assistant",
-		content: [{ type: "text", text: "submitting" }],
+	const manager = SessionManager.create(process.cwd(), path.join(agentDir, "subagent-sessions"));
+	return { agentDir, manager };
+}
+
+function checkpoint(manager: SessionManager): SessionCheckpoint {
+	const entries = manager.getEntries();
+	return { appendCursor: entries.at(-1)?.id ?? null, leafId: manager.getLeafId() };
+}
+
+function entriesAfter(entries: readonly SessionEntry[], start: SessionCheckpoint): readonly SessionEntry[] {
+	const index = start.appendCursor === null ? -1 : entries.findIndex((entry) => entry.id === start.appendCursor);
+	return entries.slice(index + 1);
+}
+
+function assistant(text: string, timestamp: number) {
+	return {
+		role: "assistant" as const,
+		content: [{ type: "text" as const, text }],
 		api: "openai-responses",
 		provider: "test",
 		model: "test",
 		usage: {
-			input: 0,
-			output: 0,
+			input: 1,
+			output: 1,
 			cacheRead: 0,
 			cacheWrite: 0,
-			totalTokens: 0,
+			totalTokens: 2,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
-		stopReason: "toolUse",
-		timestamp: Date.now(),
-	});
-	manager.appendCustomEntry(
-		RESULT_PAGE_CUSTOM_TYPE,
-		createResultPageData(manager.getBranch(), {
-			generation,
+		stopReason: "stop" as const,
+		timestamp,
+	};
+}
+
+function legacyPage(
+	id: string,
+	pageIndex: number,
+	page: string,
+	final: boolean,
+	total: string,
+	resultId: string,
+): SessionEntry {
+	return {
+		type: "custom",
+		id,
+		parentId: null,
+		timestamp: new Date().toISOString(),
+		customType: "subagent-result-page",
+		data: {
+			version: 1,
+			generation: 3,
 			resultId,
-			pageIndex: 0,
-			page: "restored exact result",
-			final: true,
-		}),
-	);
-	const sessionFile = manager.getSessionFile();
-	assert.ok(sessionFile);
-	const parentEntries: SessionEntry[] = [
-		{
-			type: "custom",
-			id: "settlement",
-			parentId: null,
-			timestamp: new Date().toISOString(),
-			customType: SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
-			data: {
-				agent_id: "worker-999999",
-				session_file: sessionFile,
-				generation,
-				result: { result_id: resultId },
-			},
+			pageIndex,
+			final,
+			page,
+			pageBytes: Buffer.byteLength(page),
+			pageSha256: hash(page),
+			totalBytes: Buffer.byteLength(total),
+			totalSha256: hash(total),
 		},
-	];
-	const registry = new AgentRegistry(agentDir);
-	assert.equal(registry.restoreResultLocators(parentEntries), 1);
-	const restored = await registry.readResult("worker-999999");
-	assert.equal(restored.text, "restored exact result");
-	assert.equal(restored.done, true);
-});
+	};
+}
+
+function hash(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
+}
+
+function sessionFile(manager: SessionManager): string {
+	const file = manager.getSessionFile();
+	assert.ok(file);
+	return file;
+}

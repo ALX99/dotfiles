@@ -14,7 +14,7 @@ after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
 
 class ManagedAgent extends ProductionManagedAgent {
 	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
-		super({ ...options, agentDir: testAgentDir });
+		super({ ...options, agentDir: testAgentDir, validateSessionIdentity: async (identity) => identity });
 	}
 }
 
@@ -105,7 +105,8 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const i = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1);
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/duplicate.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'duplicate', sessionFile:'/tmp/duplicate.jsonl'}
+      : command.type === 'get_entries' ? {entries:[], leafId:null} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type === 'prompt') {
       process.stdout.write('{"type":"agent_start"}\n{"type":"agent_settled"}\n{"type":"agent_settled"}\n');
@@ -133,17 +134,22 @@ process.stdin.on('data', chunk => {
 test("one-shot agents archive after foreground settlement and free capacity", async (t) => {
 	const script = String.raw`
 let buffer = '';
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
   buffer += chunk;
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? { sessionFile: '/tmp/one-shot.jsonl' } : undefined;
+    const data = command.type === 'get_state' ? { sessionId: 'one-shot', sessionFile: '/tmp/one-shot.jsonl' }
+      : command.type === 'get_entries' ? { entries: entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId } : undefined;
     process.stdout.write(JSON.stringify({ type: 'response', id: command.id, success: true, data }) + '\n');
     if (command.type === 'prompt') {
       process.stdout.write('{"type":"agent_start"}\n');
-      process.stdout.write(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'done' }], stopReason: 'stop' } }) + '\n');
+      const message = { role: 'assistant', content: [{ type: 'text', text: 'done' }], stopReason: 'stop' };
+      entries.push({type:'message', id:'done', parentId:null, timestamp:new Date().toISOString(), message}); leafId = 'done';
+      process.stdout.write(JSON.stringify({ type: 'message_end', message }) + '\n');
       process.stdout.write('{"type":"agent_settled"}\n');
     }
   }
@@ -167,24 +173,29 @@ process.stdin.on('data', chunk => {
 	assert.equal(registry.capacity().length, 0);
 	assert.throws(() => registry.getLive(managed.id), /closed/);
 	await registry.close(managed.id);
-	assert.equal(registry.summary(managed.id).result?.source, "assistant_fallback");
+	assert.equal(registry.summary(managed.id).result?.source, "assistant");
 });
 
 test("a cancelled foreground wait promotes the eventual child completion", async (t) => {
 	const script = String.raw`
 let buffer = '';
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
   buffer += chunk;
   while (buffer.includes('\n')) {
     const index = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/cancelled-wait.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'cancelled-wait', sessionFile:'/tmp/cancelled-wait.jsonl'}
+      : command.type === 'get_entries' ? {entries:entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type === 'prompt') {
       process.stdout.write('{"type":"agent_start"}\n');
       setTimeout(() => {
-        process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:'finished'}]}}) + '\n');
+        const message = {role:'assistant', content:[{type:'text', text:'finished'}], stopReason:'stop'};
+        entries.push({type:'message', id:'finished', parentId:null, timestamp:new Date().toISOString(), message}); leafId = 'finished';
+        process.stdout.write(JSON.stringify({type:'message_end', message}) + '\n');
         process.stdout.write('{"type":"agent_settled"}\n');
       }, 20);
     }
@@ -221,7 +232,8 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const i = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1);
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/dead.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'dead', sessionFile:'/tmp/dead.jsonl'}
+      : command.type === 'get_entries' ? {entries:[], leafId:null} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type === 'prompt') {
       process.stdout.write('{"type":"agent_start"}\n{"type":"agent_settled"}\n');
@@ -251,7 +263,8 @@ process.stdin.on('data', chunk => {
   while (buffer.includes('\n')) {
     const i = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1);
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/abort-death.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'abort-death', sessionFile:'/tmp/abort-death.jsonl'}
+      : command.type === 'get_entries' ? {entries:[], leafId:null} : undefined;
     if (command.type !== 'abort') {
       process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     }
@@ -275,6 +288,8 @@ test("abort RPC failure fails and settles the run, then permits a deterministic 
 	const script = String.raw`
 let buffer = '';
 let promptCount = 0;
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
   buffer += chunk;
@@ -285,14 +300,18 @@ process.stdin.on('data', chunk => {
       process.stdout.write(JSON.stringify({type:'response', id:command.id, success:false, error:'abort exploded'}) + '\n');
       continue;
     }
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/abort-rpc.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'abort-rpc', sessionFile:'/tmp/abort-rpc.jsonl'}
+      : command.type === 'get_entries' ? {entries:entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type === 'prompt') {
       promptCount++;
       process.stdout.write('{"type":"agent_start"}\n');
     }
     if ((command.type === 'prompt' && promptCount > 1) || command.type === 'follow_up') {
-      process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:'recovered'}]}}) + '\n');
+      const message = {role:'assistant', content:[{type:'text', text:'recovered'}], stopReason:'stop'};
+      const id = 'recovered-' + promptCount;
+      entries.push({type:'message', id, parentId:leafId, timestamp:new Date().toISOString(), message}); leafId = id;
+      process.stdout.write(JSON.stringify({type:'message_end', message}) + '\n');
       process.stdout.write('{"type":"agent_settled"}\n');
     }
   }
@@ -314,19 +333,25 @@ test("a delayed settlement from the previous turn cannot settle a newer generati
 	const script = String.raw`
 let buffer = '';
 let prompts = 0;
+let entries = [];
+let leafId = null;
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
   buffer += chunk;
   while (buffer.includes('\n')) {
     const i = buffer.indexOf('\n');
     const command = JSON.parse(buffer.slice(0, i)); buffer = buffer.slice(i + 1);
-    const data = command.type === 'get_state' ? {sessionFile:'/tmp/stale-settlement.jsonl'} : undefined;
+    const data = command.type === 'get_state' ? {sessionId:'stale-settlement', sessionFile:'/tmp/stale-settlement.jsonl'}
+      : command.type === 'get_entries' ? {entries:entries.slice(command.since ? entries.findIndex(entry => entry.id === command.since) + 1 : 0), leafId} : undefined;
     process.stdout.write(JSON.stringify({type:'response', id:command.id, success:true, data}) + '\n');
     if (command.type !== 'prompt' && command.type !== 'follow_up') continue;
     prompts++;
     if (prompts === 2) process.stdout.write('{"type":"agent_settled"}\n');
     process.stdout.write('{"type":"agent_start"}\n');
-    process.stdout.write(JSON.stringify({type:'message_end', message:{role:'assistant', content:[{type:'text', text:prompts === 1 ? 'first' : 'second'}]}}) + '\n');
+    const message = {role:'assistant', content:[{type:'text', text:prompts === 1 ? 'first' : 'second'}], stopReason:'stop'};
+    const id = 'stale-' + prompts;
+    entries.push({type:'message', id, parentId:leafId, timestamp:new Date().toISOString(), message}); leafId = id;
+    process.stdout.write(JSON.stringify({type:'message_end', message}) + '\n');
     process.stdout.write('{"type":"agent_settled"}\n');
   }
 });

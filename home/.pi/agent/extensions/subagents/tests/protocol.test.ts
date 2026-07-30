@@ -538,5 +538,5 @@ test("close escalates an ignored SIGTERM, waits for exit, and is idempotent", as
 });
 
 test("default frame bound is explicit and finite", () => {
-	assert.equal(DEFAULT_RPC_MAX_FRAME_BYTES, 1024 * 1024);
+	assert.equal(DEFAULT_RPC_MAX_FRAME_BYTES, 4 * 1024 * 1024);
 });
