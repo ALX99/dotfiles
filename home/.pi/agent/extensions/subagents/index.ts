@@ -14,6 +14,7 @@ import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
 import { createSendAgentTool } from "./tools/send-agent.ts";
 import { createSpawnAgentTool } from "./tools/spawn-agent.ts";
 import { createWaitAgentTool } from "./tools/wait-agent.ts";
+import { resetSubagentTools } from "./tool-activation.ts";
 
 export { isCompletionSuperseded } from "./bootstrap.ts";
 export { createSpawnAgentSchema, createWaitAgentSchema, WaitAgentParamsSchema } from "./schemas.ts";
@@ -28,6 +29,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	const runtime = bootstrapSubagents();
 
 	registerSubagentLifecycle(pi, runtime);
+	pi.on("session_start", () => resetSubagentTools(pi));
 	pi.registerCommand("agents", {
 		description: "Inspect and manage subagents owned by this session",
 		handler: async (_args, ctx) => showAgentDashboard(ctx, runtime.registry),
@@ -36,8 +38,8 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	pi.registerTool(createSpawnAgentTool(pi, runtime));
 	pi.registerTool(createAnswerAgentTool(runtime));
 	pi.registerTool(createSendAgentTool(runtime));
-	pi.registerTool(createFollowupAgentTool(runtime));
-	pi.registerTool(createWaitAgentTool(runtime));
+	pi.registerTool(createFollowupAgentTool(pi, runtime));
+	pi.registerTool(createWaitAgentTool(pi, runtime));
 	pi.registerTool(createListAgentsTool(runtime));
 	pi.registerTool(createReadAgentResultTool(runtime));
 	pi.registerTool(createInterruptAgentTool(runtime));

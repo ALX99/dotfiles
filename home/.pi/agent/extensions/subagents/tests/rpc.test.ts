@@ -386,16 +386,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().final_text, "done:Task: first");
 	assert.equal(agent.summary().result?.source, "assistant_fallback");
 
-	const internal = agent as unknown as { output: { close(): Promise<void> } };
-	const closeFirstOutput = internal.output.close.bind(internal.output);
-	let oldOutputCleanupAttempted = false;
-	internal.output.close = async () => {
-		oldOutputCleanupAttempted = true;
-		await closeFirstOutput();
-		throw new Error("injected old spool cleanup failure");
-	};
 	const second = await agent.followUp("second", "second task", false);
-	assert.equal(oldOutputCleanupAttempted, true);
 	assert.equal(agent.id, id);
 	assert.equal(spawnedArgs.length, 1, "follow-ups must reuse the same configured child process");
 	assert.equal(second.finalText, "done:second");

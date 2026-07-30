@@ -13,7 +13,7 @@ import {
 	type DashboardRenderState,
 	type DashboardTheme,
 } from "../dashboard-render.ts";
-import { Dashboard, type DashboardAgentReader, type DashboardClock, type DashboardDataSource } from "../dashboard.ts";
+import { Dashboard, type DashboardClock, type DashboardDataSource } from "../dashboard.ts";
 import type { AgentView } from "../agent-types.ts";
 import { formatTranscript } from "../transcript.ts";
 
@@ -47,7 +47,6 @@ function view(
 			effectiveThinking: "low",
 			exitCode: 0,
 			finalText,
-			transcriptPreview: "",
 			stderr: "",
 			aborted: status === "aborted",
 			startTime: 0,
@@ -63,7 +62,7 @@ function view(
 	};
 }
 
-class FakeAgent implements DashboardAgentReader {
+class FakeAgent {
 	messages: unknown[] = [];
 	output = "";
 	messageReads = 0;
@@ -73,14 +72,14 @@ class FakeAgent implements DashboardAgentReader {
 	messageLoader: (() => Promise<unknown[]>) | undefined;
 	outputLoader: (() => Promise<string>) | undefined;
 
-	async getMessages(): Promise<unknown[]> {
+	async readTranscript(): Promise<unknown[]> {
 		this.messageReads++;
 		if (this.messageLoader) return this.messageLoader();
 		if (this.messageError) throw this.messageError;
 		return this.messages;
 	}
 
-	async loadFullOutput(): Promise<string> {
+	async readResult(): Promise<string> {
 		this.outputReads++;
 		if (this.outputLoader) return this.outputLoader();
 		if (this.outputError) throw this.outputError;
@@ -104,18 +103,18 @@ class FakeDataSource implements DashboardDataSource {
 		return this.currentViews;
 	}
 
-	getLive(id: string): FakeAgent {
+	agent(id: string): FakeAgent {
 		const agent = this.agents.get(id);
 		if (!agent) throw new Error(`Missing fake agent ${id}.`);
 		return agent;
 	}
 
 	async readTranscript(id: string): Promise<unknown[]> {
-		return this.getLive(id).getMessages();
+		return this.agent(id).readTranscript();
 	}
 
 	async readResult(id: string): Promise<{ text: string; done: true }> {
-		return { text: await this.getLive(id).loadFullOutput(), done: true };
+		return { text: await this.agent(id).readResult(), done: true };
 	}
 
 	subscribe(listener: () => void): () => void {
@@ -279,7 +278,7 @@ test("pure renderer respects narrow terminal widths", () => {
 
 test("active output returns to the current preview after an explicit full-output refresh", async () => {
 	const source = new FakeDataSource([view("running", "one", 1, undefined, "first preview")]);
-	const agent = source.getLive("one");
+	const agent = source.agent("one");
 	agent.output = "full output snapshot";
 	const dashboard = new Dashboard(source, { onOperation() {} });
 	dashboard.attach(
@@ -303,9 +302,9 @@ test("active output returns to the current preview after an explicit full-output
 	dashboard.dispose();
 });
 
-test("settled output loads the full spool and explicit refresh records read failures", async () => {
+test("settled output loads the persisted result and explicit refresh records read failures", async () => {
 	const source = new FakeDataSource([view("idle", "one", 1, undefined, "preview")]);
-	const agent = source.getLive("one");
+	const agent = source.agent("one");
 	agent.output = "safe\u001b[2J\nsecond";
 	const dashboard = new Dashboard(source, { onOperation() {} });
 	dashboard.handleInput("\r");
@@ -327,7 +326,7 @@ test("settled output loads the full spool and explicit refresh records read fail
 
 test("transcript is an explicit snapshot that refreshes on r and once when the run settles", async () => {
 	const source = new FakeDataSource([view("running", "one", 1)]);
-	const agent = source.getLive("one");
+	const agent = source.agent("one");
 	agent.messages = [{ role: "assistant", content: [{ type: "text", text: "first" }] }];
 	const dashboard = new Dashboard(source, { onOperation() {} });
 	dashboard.attach(
@@ -358,7 +357,7 @@ test("transcript is an explicit snapshot that refreshes on r and once when the r
 
 test("stale transcript and output loads cannot replace a newer generation", async () => {
 	const source = new FakeDataSource([view("running", "one", 1)]);
-	const agent = source.getLive("one");
+	const agent = source.agent("one");
 	const oldTranscript = Promise.withResolvers<unknown[]>();
 	const newTranscript = Promise.withResolvers<unknown[]>();
 	const transcriptLoads = [oldTranscript.promise, newTranscript.promise];

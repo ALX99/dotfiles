@@ -103,6 +103,8 @@ test("simultaneous idle background completions are delivered in one debounced fo
 	const pi = {
 		sendMessage: (message: unknown) => messages.push(message),
 		appendEntry: (_type: string, data: unknown) => settlements.push(data),
+		getActiveTools: () => [],
+		setActiveTools: () => {},
 	} as never;
 	t.after(() => runtime.shutdown());
 
@@ -140,6 +142,8 @@ test("consuming completions removes only the matching settled generation", async
 	const pi = {
 		sendMessage: (message: unknown) => messages.push(message),
 		appendEntry: () => {},
+		getActiveTools: () => [],
+		setActiveTools: () => {},
 	} as never;
 
 	runtime.handleBackgroundComplete(pi, summary(1));
@@ -170,11 +174,16 @@ test("background questions steer the parent immediately", async (t) => {
 		message: { customType: string; content: string };
 		options: { deliverAs: string; triggerTurn: boolean };
 	}> = [];
+	let activeTools = ["spawn_agent"];
 	const pi = {
 		sendMessage: (
 			message: { customType: string; content: string },
 			options: { deliverAs: string; triggerTurn: boolean },
 		) => messages.push({ message, options }),
+		getActiveTools: () => activeTools,
+		setActiveTools: (next: string[]) => {
+			activeTools = next;
+		},
 	} as never;
 	t.after(() => runtime.shutdown());
 
@@ -189,4 +198,45 @@ test("background questions steer the parent immediately", async (t) => {
 	assert.match(messages[0]?.message.content ?? "", /question-1[\s\S]*Choose/);
 	assert.match(messages[0]?.message.content ?? "", /answer_agent/);
 	assert.deepEqual(messages[0]?.options, { deliverAs: "steer", triggerTurn: true });
+	assert.deepEqual(activeTools, [
+		"spawn_agent",
+		"answer_agent",
+		"wait_agent",
+		"list_agents",
+		"interrupt_agent",
+		"close_agent",
+		"send_agent",
+	]);
+});
+
+test("usage claims restore from persisted wait results across session reload", async (t) => {
+	const runtime = new DefaultSubagentRuntime(
+		[],
+		{
+			rootPolicy: { maxConcurrentRootAgents: 1, maxConcurrentDeepAgents: 1 },
+			profiles: {},
+			agentPolicies: {},
+		} as ProfilesConfig,
+		testAgentDir,
+	);
+	t.after(() => runtime.shutdown());
+	await runtime.startSession({
+		sessionManager: {
+			getBranch: () => [
+				{
+					type: "message",
+					message: {
+						role: "toolResult",
+						toolName: "wait_agent",
+						details: {
+							accountedGenerations: [{ agentId: "agent-1", generation: 1 }],
+						},
+					},
+				},
+			],
+		},
+		ui: { notify: () => {}, setStatus: () => {}, setWidget: () => {} },
+	} as never);
+	assert.equal(runtime.claimUsage(summary(1)), undefined);
+	assert.deepEqual(runtime.claimUsage(summary(2)), summary(2).usage);
 });

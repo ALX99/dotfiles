@@ -46,14 +46,8 @@ const SYSTEM_CLOCK: DashboardClock = {
 	},
 };
 
-export interface DashboardAgentReader {
-	getMessages(): Promise<unknown[]>;
-	loadFullOutput(): Promise<string>;
-}
-
 export interface DashboardDataSource {
 	views(): AgentView[];
-	getLive(id: string): DashboardAgentReader;
 	readTranscript(id: string): Promise<unknown[]>;
 	readResult(
 		id: string,
