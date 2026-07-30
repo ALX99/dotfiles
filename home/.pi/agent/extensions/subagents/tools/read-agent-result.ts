@@ -49,7 +49,6 @@ export function createReadAgentResultTool(
 		label: "Read Agent Result",
 		description:
 			"Read an exact persisted subagent terminal result by agent_id, with opaque-cursor or offset pagination. No filesystem path is accepted.",
-		promptSnippet: "Page through an exact persisted subagent terminal result",
 		parameters: ReadAgentResultParamsSchema,
 		async execute(_id, params: ReadAgentResultParams) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
