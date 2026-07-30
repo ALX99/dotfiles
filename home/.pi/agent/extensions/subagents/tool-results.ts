@@ -7,6 +7,7 @@ import {
 import { toError } from "../_shared/errors.ts";
 import type { AgentSummary } from "./agent-types.ts";
 import type { CapacitySnapshot } from "./spawn-admission.ts";
+import { toPiUsage, type ReadonlyRunDetails, type RunUsage } from "./run-state.ts";
 
 export interface AgentSummaryDetails {
 	readonly summaries: readonly AgentSummary[];
@@ -25,6 +26,10 @@ export interface WaitDetails extends AgentSummaryDetails {
 	readonly elapsedMs: number;
 	readonly timeoutMs?: number;
 	readonly outcomes: readonly WaitOutcome[];
+	readonly accountedGenerations?: readonly {
+		readonly agentId: string;
+		readonly generation: number;
+	}[];
 }
 
 export function agentSummaryDetails(
@@ -47,7 +52,7 @@ ${question.question}
 Options:
 ${question.options.map((option) => `- ${option}`).join("\n")}
 
-Answer with answer_agent. If external input is required, call ask_question first with only the substantive alternatives; it adds 'Compare options' and 'Something else' automatically.`;
+Answer with answer_agent, then use wait_agent to collect the resumed run. If external input is required, call ask_question first with only the substantive alternatives; it adds 'Compare options' and 'Something else' automatically.`;
 }
 
 export function waitDetails(
@@ -73,6 +78,16 @@ export function textResult<TDetails>(text: string, details: TDetails): AgentTool
 		? `${bounded.content}\n\n[Management preview truncated; query fewer agents or use read_agent_result to page an exact terminal result.]`
 		: bounded.content;
 	return { content: [{ type: "text", text: output }], details };
+}
+
+/** Include nested child usage only when this tool call synchronously completed its generation. */
+export function completedRunResult(
+	text: string,
+	details: ReadonlyRunDetails,
+	usage: Readonly<RunUsage> | undefined,
+): AgentToolResult<ReadonlyRunDetails> {
+	const result = textResult(text, details);
+	return usage === undefined ? result : { ...result, usage: toPiUsage(usage) };
 }
 
 export function jsonResult<TDetails>(value: unknown, details: TDetails): AgentToolResult<TDetails> {

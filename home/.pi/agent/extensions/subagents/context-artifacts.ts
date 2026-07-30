@@ -22,7 +22,7 @@ const ContextArtifactMetadataSchema = z.strictObject({
 	parentSessionId: z.string().trim().min(1).max(128).optional(),
 	generation: z.number().int().positive(),
 	resultId: z.string().regex(new RegExp(`^${TOKEN_PATTERN}$`)),
-	kind: z.enum(["assignment", "followup", "steer", "answer", "fallback"]),
+	kind: z.enum(["assignment", "followup", "steer", "fallback"]),
 	bytes: z.number().int().nonnegative(),
 	sha256: z.string().regex(new RegExp(`^${TOKEN_PATTERN}$`)),
 });

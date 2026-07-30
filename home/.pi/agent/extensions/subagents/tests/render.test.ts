@@ -39,7 +39,6 @@ function details(): RunDetails {
 		sessionFile: "/tmp/subagent.jsonl",
 		exitCode: 0,
 		finalText: "",
-		transcriptPreview: "",
 		stderr: "",
 		aborted: false,
 		startTime: 0,

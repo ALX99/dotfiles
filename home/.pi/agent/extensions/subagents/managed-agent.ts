@@ -18,7 +18,6 @@ import {
 	type AgentSummary,
 } from "./agent-types.ts";
 import type { AgentEvent } from "./event-schema.ts";
-import { OutputSpool } from "./output-spool.ts";
 import type { ResolvedRun } from "./profiles.ts";
 import { createContextArtifact, removeContextArtifact, type ContextArtifactKind } from "./context-artifacts.ts";
 import {
@@ -33,6 +32,7 @@ import {
 	foldAgentEvent,
 	initRunData,
 	snapshotRunData,
+	runUsageTotalTokens,
 	type MutableRunData,
 	type ReadonlyRunDetails,
 	type RunStatus,
@@ -113,7 +113,6 @@ export class ManagedAgent {
 	private transport: RpcTransport | undefined;
 	private promptDir: string | undefined;
 	private promptPath: string | undefined;
-	private output = new OutputSpool();
 	private deferred: Deferred | undefined;
 	private lifecycle: AgentLifecycle = { phase: "created" };
 	private generation = 0;
@@ -277,10 +276,6 @@ export class ManagedAgent {
 		const sessionFile = this.run.sessionFile;
 		if (!sessionFile) throw new Error(`Agent ${this.id} has no persisted session.`);
 		return readChildTranscript(sessionFile, this.agentDir);
-	}
-
-	async loadFullOutput(): Promise<string> {
-		return (await this.readStoredResult()).text;
 	}
 
 	async readResult(
@@ -454,11 +449,6 @@ export class ManagedAgent {
 				error: new Error("Agent received a newer run before the previous run settled."),
 			});
 		}
-		const previousOutput = this.output;
-		this.output = new OutputSpool();
-		void previousOutput.close().catch(() => {
-			// Old temporary output is best-effort cleanup and must not block a new run.
-		});
 		const generation = this.generation + 1;
 		this.generation = generation;
 		this.startedGeneration = undefined;
@@ -530,7 +520,7 @@ export class ManagedAgent {
 		// the preceding turn). agent_start is the strongest protocol boundary
 		// available, so only it arms settlement for a newly prompted generation.
 		if (event.type === "agent_settled" && this.startedGeneration !== generation) return;
-		await foldAgentEvent(event, this.run, this.output);
+		foldAgentEvent(event, this.run);
 		if (generation !== this.generation) return;
 		if (event.type === "agent_start") {
 			this.startedGeneration = generation;
@@ -634,12 +624,6 @@ export class ManagedAgent {
 			}
 			try {
 				await this.eventTail;
-			} catch (error) {
-				failures.push(error);
-			}
-			try {
-				await this.output.close();
-				delete this.run.outputFile;
 			} catch (error) {
 				failures.push(error);
 			}
@@ -903,7 +887,7 @@ export class ManagedAgent {
 
 	private async sendContextPrompt(
 		content: string,
-		kind: Exclude<ContextArtifactKind, "answer">,
+		kind: ContextArtifactKind,
 		transport: RpcTransport,
 		streamingBehavior?: "steer" | "followUp",
 	): Promise<void> {
@@ -946,12 +930,7 @@ export class ManagedAgent {
 			try {
 				const stats = await readChildRunStats(this.run.sessionFile, this.generation, this.run.resultId, this.agentDir);
 				this.run.usage = { ...stats.usage };
-				this.run.tokens =
-					stats.usage.input +
-					stats.usage.output +
-					(stats.usage.reasoning ?? 0) +
-					stats.usage.cacheRead +
-					stats.usage.cacheWrite;
+				this.run.tokens = runUsageTotalTokens(stats.usage);
 				if (stats.startTime !== undefined) this.run.startTime = stats.startTime;
 				if (stats.endTime !== undefined) this.run.endTime = stats.endTime;
 				this.run.mutationToolCalls = stats.mutationToolCalls;

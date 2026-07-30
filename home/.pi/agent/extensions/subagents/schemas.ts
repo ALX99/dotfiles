@@ -166,28 +166,3 @@ export function preserveOptional(value: string | undefined): string | undefined 
 export function uniqueAgentIds(values: readonly string[]): string[] {
 	return [...new Set(values.map((value) => trimRequired(value, "agent_id")))];
 }
-
-export function prepareSpawnArguments(args: unknown): Static<ReturnType<typeof createSpawnAgentSchema>> {
-	if (!args || typeof args !== "object" || Array.isArray(args)) {
-		return args as Static<ReturnType<typeof createSpawnAgentSchema>>;
-	}
-	const input = args as Record<string, unknown>;
-	if (!Object.hasOwn(input, "child_spawn_budget")) {
-		return args as Static<ReturnType<typeof createSpawnAgentSchema>>;
-	}
-	const legacyBudget = input.child_spawn_budget;
-	if (legacyBudget !== 0) {
-		if (typeof legacyBudget === "number" && legacyBudget > 0) {
-			throw new Error(
-				"Positive child_spawn_budget values are no longer supported because subagents are leaves. Remove child_spawn_budget.",
-			);
-		}
-		throw new Error("Legacy child_spawn_budget compatibility accepts only 0. Remove child_spawn_budget.");
-	}
-	const prepared = { ...input };
-	Reflect.deleteProperty(prepared, "child_spawn_budget");
-	// A legacy call carrying the old zero budget came from the persistent-agent
-	// schema. Keep that stored call resumable with its original lifecycle.
-	if (prepared.retain === undefined) prepared.retain = true;
-	return prepared as Static<ReturnType<typeof createSpawnAgentSchema>>;
-}

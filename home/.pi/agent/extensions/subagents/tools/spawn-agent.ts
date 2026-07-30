@@ -10,16 +10,16 @@ import { resolveRuns } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
 	createSpawnAgentSchema,
-	prepareSpawnArguments,
 	preserveOptional,
 	preserveRequired,
 	type SpawnAgentSchemaOptions,
 	trimOptional,
 	trimRequired,
 } from "../schemas.ts";
-import { formatPendingQuestion, textResult, toolError } from "../tool-results.ts";
+import { completedRunResult, formatPendingQuestion, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
+import { activateForSubagentState, requiresExactResultRead } from "../tool-activation.ts";
 import type { SpawnRpcProcess } from "../rpc-transport.ts";
 
 export interface SpawnAgentToolOptions {
@@ -63,7 +63,6 @@ export function createSpawnAgentTool(
 			runtime.profiles.rootPolicy.maxConcurrentDeepAgents,
 		),
 		parameters: schema,
-		prepareArguments: prepareSpawnArguments,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const message = preserveRequired(params.message, "message");
 			const requestedAgent = trimRequired(params.agent, "agent");
@@ -128,11 +127,19 @@ export function createSpawnAgentTool(
 					background ? undefined : signal,
 				);
 				const summary = managed.summary();
-				return textResult(
+				activateForSubagentState(pi, summary, background);
+				return completedRunResult(
 					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatCompletion(summary)),
 					details,
+					background ? undefined : runtime.claimUsage(summary),
 				);
 			} catch (error) {
+				if (managed) {
+					const summary = managed.summary();
+					if (summary.status === "starting" || summary.status === "running") {
+						activateForSubagentState(pi, summary, true);
+					}
+				}
 				throw toolError(managed ? `Agent ${managed.id} failed` : "Agent startup failed", error);
 			}
 		},
@@ -186,9 +193,9 @@ export function spawnGuidelines(
 		...(rootLimit === undefined || deepLimit === undefined
 			? []
 			: [
-					`Live-process capacity is ${rootLimit} root children total and ${deepLimit} deep-profile child. list_agents reports current usage. Profile/model/thinking are preflighted before capacity is occupied.`,
+					`Live-process capacity is ${rootLimit} root children total and ${deepLimit} deep-profile child. Profile/model/thinking are preflighted before capacity is occupied.`,
 				]),
-		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then call wait_agent once with that wave's IDs and a suitable timeout; do not build repeated automatic turns or a task scheduler.",
+		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch as one barrier with that wave's IDs and a suitable timeout; do not build repeated automatic turns or a task scheduler.",
 		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. Once work is delegated, do not duplicate its assigned scope: while the subagent runs, address only non-overlapping needs or wait for its result. The current agent owns synthesis and proportionate, risk-based final verification.",
 		"When prior investigation or decisions matter, use handoff for only non-derivable facts, decisions, exact excerpts, constraints, and relevant paths. Do not paste the parent transcript or repeat the assignment.",
 		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
@@ -197,9 +204,12 @@ export function spawnGuidelines(
 }
 
 function formatLaunch(summary: ReturnType<ManagedAgent["summary"]>): string {
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. One-shot agents archive after settlement; use read_agent_result to page the exact result.`;
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. One-shot agents archive after settlement.`;
 }
 
 function formatCompletion(summary: ReturnType<ManagedAgent["summary"]>): string {
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\n${summary.final_text || summary.error || "(no output)"}\n\nUse read_agent_result for exact cursor-paged reconstruction.`;
+	const exactResultGuidance = requiresExactResultRead(summary)
+		? "\n\nUse read_agent_result for exact cursor-paged reconstruction."
+		: "";
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\n${summary.final_text || summary.error || "(no output)"}${exactResultGuidance}`;
 }

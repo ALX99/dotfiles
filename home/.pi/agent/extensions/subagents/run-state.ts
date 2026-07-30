@@ -1,9 +1,9 @@
 import { clipText } from "../_shared/terminal-text.ts";
 import { isRecord } from "../_shared/json.ts";
+import type { Usage } from "@earendil-works/pi-ai";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentEvent, WireMessage } from "./event-schema.ts";
-import type { OutputSpool } from "./output-spool.ts";
 import type { AgentResultReference } from "./result-store.ts";
 
 const MAX_RECENT_TOOLS = 50;
@@ -22,6 +22,38 @@ export interface RunUsage {
 	turns: number;
 }
 
+/** Pi reports reasoning as a breakdown of output, rather than additional tokens. */
+export function runUsageTotalTokens(usage: Readonly<RunUsage>): number {
+	return usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+}
+
+/** Convert aggregate child accounting to Pi's standard tool-result usage shape. */
+export function toPiUsage(usage: Readonly<RunUsage>): Usage {
+	return {
+		input: usage.input,
+		output: usage.output,
+		cacheRead: usage.cacheRead,
+		cacheWrite: usage.cacheWrite,
+		...(usage.reasoning === undefined ? {} : { reasoning: usage.reasoning }),
+		totalTokens: runUsageTotalTokens(usage),
+		// Aggregate child accounting retains only total cost, so category costs
+		// remain unknown instead of being invented.
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: usage.cost },
+	};
+}
+
+export function sumRunUsage(usages: readonly Readonly<RunUsage>[]): RunUsage {
+	return {
+		input: usages.reduce((total, usage) => total + usage.input, 0),
+		output: usages.reduce((total, usage) => total + usage.output, 0),
+		reasoning: usages.reduce((total, usage) => total + (usage.reasoning ?? 0), 0),
+		cacheRead: usages.reduce((total, usage) => total + usage.cacheRead, 0),
+		cacheWrite: usages.reduce((total, usage) => total + usage.cacheWrite, 0),
+		cost: usages.reduce((total, usage) => total + usage.cost, 0),
+		turns: usages.reduce((total, usage) => total + usage.turns, 0),
+	};
+}
+
 export type RunStatus = "starting" | "running" | "idle" | "failed" | "aborted" | "closed" | "launched";
 
 export interface MutableRunData {
@@ -34,9 +66,6 @@ export interface MutableRunData {
 	exitCode: number;
 	/** Bounded presentation/transport preview of the settled terminal result. */
 	finalText: string;
-	/** Bounded presentation preview of live assistant narration. */
-	transcriptPreview: string;
-	outputFile?: string;
 	stderr: string;
 	assistantError?: string;
 	startTime: number;
@@ -89,7 +118,6 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		...(params.sessionFile === undefined ? {} : { sessionFile: params.sessionFile }),
 		exitCode: 0,
 		finalText: "",
-		transcriptPreview: "",
 		stderr: "",
 		startTime: Date.now(),
 		toolCount: 0,
@@ -125,7 +153,7 @@ export function snapshotRunData(details: MutableRunData, state: RunSnapshotState
 
 /** Fold bounded live telemetry. Canonical terminal results are captured from
  * persisted result pages only after the child settles. */
-export async function foldAgentEvent(event: AgentEvent, details: MutableRunData, output: OutputSpool): Promise<void> {
+export function foldAgentEvent(event: AgentEvent, details: MutableRunData): void {
 	switch (event.type) {
 		case "agent_start":
 		case "agent_settled":
@@ -141,7 +169,7 @@ export async function foldAgentEvent(event: AgentEvent, details: MutableRunData,
 					delete details.assistantError;
 				}
 			}
-			await ingestMessage(message, details, output);
+			ingestMessage(message, details);
 			return;
 		}
 		case "tool_execution_end":
@@ -153,7 +181,7 @@ export async function foldAgentEvent(event: AgentEvent, details: MutableRunData,
 	}
 }
 
-async function ingestMessage(msg: WireMessage, details: MutableRunData, output: OutputSpool): Promise<void> {
+function ingestMessage(msg: WireMessage, details: MutableRunData): void {
 	if (msg.role !== "assistant") return;
 	const usage = msg.usage;
 	if (usage) {
@@ -165,12 +193,7 @@ async function ingestMessage(msg: WireMessage, details: MutableRunData, output: 
 		details.usage.cacheWrite += usage.cacheWrite ?? 0;
 		details.usage.cost += usage.cost?.total ?? 0;
 		details.tokens =
-			usage.totalTokens ??
-			(usage.input ?? 0) +
-				(usage.output ?? 0) +
-				(usage.reasoning ?? 0) +
-				(usage.cacheRead ?? 0) +
-				(usage.cacheWrite ?? 0);
+			usage.totalTokens ?? (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
 	}
 
 	const textParts: string[] = [];
@@ -190,10 +213,6 @@ async function ingestMessage(msg: WireMessage, details: MutableRunData, output: 
 	}
 	if (textParts.length === 0) return;
 	details.lastAssistantText = textParts.join("\n");
-	const preview = await output.append(textParts.join("\n\n"));
-	details.transcriptPreview = preview.text;
-	if (preview.outputFile) details.outputFile = preview.outputFile;
-	else delete details.outputFile;
 }
 
 export function argsPreview(args: unknown): string {
