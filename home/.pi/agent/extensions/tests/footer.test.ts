@@ -4,8 +4,8 @@ import { test } from "node:test";
 import {
 	buildFooterViewModel,
 	contextGradientColor,
-	renderContextBar,
 	renderContextBorder,
+	renderContextPercentage,
 	shortenCwd,
 } from "../footer.ts";
 
@@ -17,7 +17,7 @@ const theme = {
 		return "truecolor";
 	},
 };
-// renderContextBar uses only fg(); the focused fixture omits unrelated Theme methods.
+// Context renderers only need fg() and getColorMode() from the full theme.
 const renderTheme = theme as never;
 
 const ansiEscapeSequence = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
@@ -26,16 +26,16 @@ function stripAnsi(text: string): string {
 	return text.replace(ansiEscapeSequence, "");
 }
 
-test("renderContextBar renders only the percentage above the context window", () => {
+test("renderContextPercentage renders only the percentage above the context window", () => {
 	assert.doesNotThrow(() => {
-		renderContextBar({ tokens: 210, contextWindow: 100, percent: 210 }, renderTheme);
+		renderContextPercentage({ tokens: 210, percent: 210 }, renderTheme);
 	});
 
-	assert.equal(stripAnsi(renderContextBar({ tokens: 210, contextWindow: 100, percent: 210 }, renderTheme)), "210%");
+	assert.equal(stripAnsi(renderContextPercentage({ tokens: 210, percent: 210 }, renderTheme)), "210%");
 });
 
-test("renderContextBar renders negative percentages", () => {
-	assert.equal(stripAnsi(renderContextBar({ tokens: 0, contextWindow: 100, percent: -5 }, renderTheme)), "-5%");
+test("renderContextPercentage renders negative percentages", () => {
+	assert.equal(stripAnsi(renderContextPercentage({ tokens: 0, percent: -5 }, renderTheme)), "-5%");
 });
 
 test("contextGradientColor interpolates through green, yellow, orange, and red", () => {
@@ -64,7 +64,7 @@ test("narrow footer keeps the context percentage and active model", () => {
 	const view = buildFooterViewModel({
 		width: 18,
 		leftParts: ["~/project", "git:main", "model"],
-		contextBar: "99%",
+		contextPercentage: "99%",
 	});
 
 	assert.equal(view.left, "model");
@@ -76,7 +76,7 @@ test("wide footer shows only the context percentage on the right", () => {
 	const view = buildFooterViewModel({
 		width: 100,
 		leftParts: ["~/project", "git:main", "model/max"],
-		contextBar: "55%",
+		contextPercentage: "55%",
 	});
 
 	assert.equal(view.left, "~/project · git:main · model/max");
@@ -87,7 +87,7 @@ test("narrow footers prioritize the active model over location details", () => {
 	const view = buildFooterViewModel({
 		width: 25,
 		leftParts: ["~/very/long/project", "git:feature", "model/max"],
-		contextBar: "55%",
+		contextPercentage: "55%",
 	});
 
 	assert.equal(view.left, "model/max");
