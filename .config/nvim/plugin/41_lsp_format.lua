@@ -90,6 +90,7 @@ local function organize_go_imports(buf, client)
       vim.log.levels.WARN)
     return
   end
+  if response.result == vim.NIL then return end
 
   for _, action in ipairs(response.result or {}) do
     if action.edit then
