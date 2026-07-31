@@ -19,8 +19,8 @@ show_help() {
 args=($READLINE_LINE)
 ((${#args[@]})) || exit 0
 
-if bash -ic "alias ${args[0]}" &>/dev/null; then
-  expanded="$(bash -ic "alias ${args[0]}" | sed "s/^alias [^=]*='//; s/'$//")"
+if bash -ic 'alias "$1"' _ "${args[0]}" &>/dev/null; then
+  expanded="$(bash -ic 'alias "$1"' _ "${args[0]}" | sed "s/^alias [^=]*='//; s/'$//")"
   echo "Expanded alias: ${args[0]} -> $expanded"
   # shellcheck disable=SC2206
   args=($expanded)
