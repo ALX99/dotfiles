@@ -83,10 +83,11 @@ end, { noremap = true, expr = true })
 -- Makes * and # search the literal selection (handles /*foo*/ cleanly).
 local function vset_search()
   local temp = vim.fn.getreg('s')
+  local temp_type = vim.fn.getregtype('s')
   vim.cmd('normal! gv"sy')
   local s = vim.fn.getreg('s'):gsub('\\', '\\\\'):gsub('\n', '\\n')
   vim.fn.setreg('/', [[\V]] .. s)
-  vim.fn.setreg('s', temp)
+  vim.fn.setreg('s', temp, temp_type)
 end
 
 local function vsearch(direction)
