@@ -154,10 +154,8 @@ main() {
     shift
     read -ra pkgs <<<"$(read_pkgs "$@" | tr ',' '\n')"
 
-    yay -Rns "${pkgs[@]}" &&
-      remove_tracked "${pkgs[@]}"
-
-    exit 0
+    yay -Rns "${pkgs[@]}" || exit $?
+    remove_tracked "${pkgs[@]}"
     ;;
   -la | --list-all)
     pacman -Qq | fzf --preview 'pacman -Qil {}' --bind 'enter:execute(pacman -Qil {} | less)'
@@ -177,10 +175,8 @@ main() {
     done < <("${preview[@]}" -m < <(get_tracked))
     [ ${#pkgs[@]} -eq 0 ] && exit
 
-    yay -Rns "${pkgs[@]}" &&
-      remove_tracked "${pkgs[@]}"
-
-    exit 0
+    yay -Rns "${pkgs[@]}" || exit $?
+    remove_tracked "${pkgs[@]}"
     ;;
   -ru | --remove-untracked)
     while IFS= read -r pkg; do
