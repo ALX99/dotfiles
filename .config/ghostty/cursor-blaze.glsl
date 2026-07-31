@@ -10,8 +10,8 @@
 
 #define PI 3.14159265358979323846
 
-// These are shared in spirit with quiet-star.glsl: a cool white corona
-// surrounding a slightly warmer stellar photosphere.
+// These complement stellar-drift.glsl: a cool white corona around a slightly
+// warmer stellar core.
 const vec3 DEEP_NAVY = vec3(0.012, 0.027, 0.058);
 const vec3 CORONAL_BLUE = vec3(0.320, 0.600, 0.940);
 const vec3 CORONA_WHITE = vec3(0.720, 0.850, 1.000);

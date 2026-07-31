@@ -7,7 +7,7 @@ window-inherit-font-size = true
 mouse-hide-while-typing = true
 
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
-custom-shader = ~/.config/ghostty/quiet-star.glsl
+custom-shader = ~/.config/ghostty/stellar-drift.glsl
 custom-shader-animation = true
 
 # PS1 / LS_COLORS theme
