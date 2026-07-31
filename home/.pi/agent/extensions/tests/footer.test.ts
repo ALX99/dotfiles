@@ -1,26 +1,57 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { branchRevision, buildFooterViewModel, renderContextBar, shortenCwd } from "../footer.ts";
+import {
+	buildFooterViewModel,
+	contextGradientColor,
+	renderContextBar,
+	renderContextBorder,
+	shortenCwd,
+} from "../footer.ts";
 
 const theme = {
 	fg(_color: string, text: string): string {
 		return text;
 	},
+	getColorMode(): "truecolor" {
+		return "truecolor";
+	},
 };
 // renderContextBar uses only fg(); the focused fixture omits unrelated Theme methods.
 const renderTheme = theme as never;
 
-test("renderContextBar clamps percentages above 100 to the bar width", () => {
+const ansiEscapeSequence = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
+
+function stripAnsi(text: string): string {
+	return text.replace(ansiEscapeSequence, "");
+}
+
+test("renderContextBar renders only the percentage above the context window", () => {
 	assert.doesNotThrow(() => {
 		renderContextBar({ tokens: 210, contextWindow: 100, percent: 210 }, renderTheme);
 	});
 
-	assert.equal(renderContextBar({ tokens: 210, contextWindow: 100, percent: 210 }, renderTheme), "[██████████]210%");
+	assert.equal(stripAnsi(renderContextBar({ tokens: 210, contextWindow: 100, percent: 210 }, renderTheme)), "210%");
 });
 
-test("renderContextBar clamps negative percentages to the empty bar", () => {
-	assert.equal(renderContextBar({ tokens: 0, contextWindow: 100, percent: -5 }, renderTheme), "[░░░░░░░░░░]-5%");
+test("renderContextBar renders negative percentages", () => {
+	assert.equal(stripAnsi(renderContextBar({ tokens: 0, contextWindow: 100, percent: -5 }, renderTheme)), "-5%");
+});
+
+test("contextGradientColor interpolates through green, yellow, orange, and red", () => {
+	assert.deepEqual(contextGradientColor(0), [86, 211, 100]);
+	assert.deepEqual(contextGradientColor(55), [227, 179, 65]);
+	assert.deepEqual(contextGradientColor(78), [240, 136, 62]);
+	assert.deepEqual(contextGradientColor(100), [248, 81, 73]);
+	assert.notDeepEqual(contextGradientColor(60), contextGradientColor(70));
+});
+
+test("renderContextBorder fills smoothly across the available width", () => {
+	assert.equal(stripAnsi(renderContextBorder(90, 10, renderTheme)), "━━━━━━━━━─");
+});
+
+test("renderContextBorder stays muted until context usage is available", () => {
+	assert.equal(stripAnsi(renderContextBorder(null, 10, renderTheme)), "──────────");
 });
 
 test("shortenCwd only substitutes an actual home-directory boundary", () => {
@@ -29,37 +60,35 @@ test("shortenCwd only substitutes an actual home-directory boundary", () => {
 	assert.equal(shortenCwd("/Users/alexander/project", "/Users/alex"), "/Users/alexander/project");
 });
 
-test("branch revision changes when switching to a same-length branch", () => {
-	assert.notEqual(branchRevision([{ id: "root" }, { id: "left" }]), branchRevision([{ id: "root" }, { id: "right" }]));
-});
-
-test("narrow footer keeps context pressure before token, age, and extension status", () => {
+test("narrow footer keeps the context percentage and active model", () => {
 	const view = buildFooterViewModel({
 		width: 18,
-		leftParts: ["~/project", "(main)", "model"],
-		contextBar: "[██████████]99%",
-		tokens: "↑12k/↓3k/CH80%",
-		sessionLength: "2h",
-		statuses: ["extension warning"],
+		leftParts: ["~/project", "git:main", "model"],
+		contextBar: "99%",
 	});
 
-	assert.equal(view.left, "");
-	assert.equal(view.right, "[██████████]99%");
-	assert.equal(view.line, "[██████████]99%");
+	assert.equal(view.left, "model");
+	assert.equal(view.right, "99%");
+	assert.equal(view.line, "model          99%");
 });
 
-test("wide footer retains token and secondary right-side information", () => {
+test("wide footer shows only the context percentage on the right", () => {
 	const view = buildFooterViewModel({
 		width: 100,
-		leftParts: ["~/project", "(main)"],
-		contextBar: "[██████████]55%",
-		tokens: "↑12k/↓3k/CH80%",
-		sessionLength: "2h",
-		statuses: ["extension ready"],
+		leftParts: ["~/project", "git:main", "model/max"],
+		contextBar: "55%",
 	});
 
-	assert.match(view.right, /↑12k/);
-	assert.match(view.right, /55%/);
-	assert.match(view.right, /2h/);
-	assert.match(view.right, /extension ready/);
+	assert.equal(view.left, "~/project · git:main · model/max");
+	assert.equal(view.right, "55%");
+});
+
+test("narrow footers prioritize the active model over location details", () => {
+	const view = buildFooterViewModel({
+		width: 25,
+		leftParts: ["~/very/long/project", "git:feature", "model/max"],
+		contextBar: "55%",
+	});
+
+	assert.equal(view.left, "model/max");
 });
