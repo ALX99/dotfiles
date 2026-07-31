@@ -75,8 +75,14 @@ local function formatting_client(buf, notify)
 end
 
 local function organize_go_imports(buf, client)
-  local params = vim.lsp.util.make_range_params(nil, client.offset_encoding)
-  params.context = { only = { 'source.organizeImports' } }
+  local params = {
+    textDocument = vim.lsp.util.make_text_document_params(buf),
+    range = {
+      start = { line = 0, character = 0 },
+      ['end'] = { line = 0, character = 0 },
+    },
+    context = { only = { 'source.organizeImports' } },
+  }
   local response, request_err = client:request_sync('textDocument/codeAction', params, 1000, buf)
 
   if not response or response.err then
