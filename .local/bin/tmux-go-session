@@ -12,13 +12,13 @@ emit_picker_rows() {
   printf '%s\n' "$session_data" | sort -t $'\t' -k1,1nr -k2,2nr |
     awk -F '\t' '$3 !~ /^_/ { printf "session\t\033[38;5;75m[session]\033[0m %s\t%s\t%s\n", $3, $3, $4 }'
 
-  declare -A existing base_count seen
+  declare -a existing_names=() seen_names=() seen_paths=()
   while IFS=$'\t' read -r _ _ name _; do
     [[ $name == _* || -z $name ]] && continue
-    existing["$name"]=1
+    existing_names+=("$name")
   done <<<"$session_data"
 
-  declare -a paths bases
+  declare -a paths=() bases=()
   local d sub
   for d in $PROJ_DIR; do
     [[ -d $d ]] || continue
@@ -31,12 +31,16 @@ emit_picker_rows() {
   done
   paths+=("$HOME/dotfiles" "$HOME/.claude")
   bases+=("dotfiles" ".claude")
-  for k in "${bases[@]}"; do base_count["$k"]=$(( ${base_count["$k"]:-0} + 1 )); done
 
-  local i path b unsanitized s collision=0
+  local i k path b unsanitized s collision=0 base_count
+  local seen_index seen_path
   for i in "${!paths[@]}"; do
     path="${paths[$i]}"; b="${bases[$i]}"
-    if (( base_count["$b"] > 1 )); then
+    base_count=0
+    for k in "${bases[@]}"; do
+      [[ $k == "$b" ]] && base_count=$((base_count + 1))
+    done
+    if (( base_count > 1 )); then
       unsanitized="${path%/*}_${b}"; unsanitized="${unsanitized##*/}"
     else
       unsanitized="$b"
@@ -46,15 +50,32 @@ emit_picker_rows() {
     while [[ $s == *_ ]]; do s="${s%_}"; done
     [[ -z $s ]] && { echo "Cannot derive a tmux session name for project: $path" >&2; return 1; }
 
-    if [[ -n ${seen[$s]:-} && ${seen[$s]:-} != "$path" ]]; then
+    seen_index=-1
+    for k in "${!seen_names[@]}"; do
+      if [[ ${seen_names[$k]} == "$s" ]]; then
+        seen_index=$k
+        break
+      fi
+    done
+    if (( seen_index >= 0 )); then
+      seen_path="${seen_paths[$seen_index]}"
+    else
+      seen_path=
+    fi
+    if [[ -n $seen_path && $seen_path != "$path" ]]; then
       (( collision )) || echo "Project paths derive the same tmux session name after sanitization:" >&2
-      echo "  $s: ${seen[$s]:-} and $path" >&2
+      echo "  $s: $seen_path and $path" >&2
       collision=1
       continue
     fi
-    seen[$s]="$path"
+    seen_names+=("$s")
+    seen_paths+=("$path")
 
-    [[ -z ${existing[$s]:-} ]] &&
+    local existing_name=0
+    for k in "${existing_names[@]-}"; do
+      [[ $k == "$s" ]] && existing_name=1
+    done
+    (( existing_name )) ||
       printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n" "$unsanitized" "$s" "$path"
   done
 
