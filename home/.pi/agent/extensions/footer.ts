@@ -44,7 +44,7 @@ export const THINKING_COLOR = {
 export interface FooterViewInput {
 	readonly width: number;
 	readonly leftParts: readonly string[];
-	readonly contextBar?: string;
+	readonly contextPercentage?: string;
 }
 
 export interface FooterViewModel {
@@ -53,10 +53,18 @@ export interface FooterViewModel {
 	readonly line: string;
 }
 
+/* ─── context gradient ─── */
+
 const PART_SEPARATOR = " · ";
 const CONTEXT_GRADIENT_STEPS = 24;
 
+type FooterTheme = ExtensionContext["ui"]["theme"];
 type Rgb = readonly [red: number, green: number, blue: number];
+
+interface ContextUsage {
+	readonly tokens: number | null;
+	readonly percent: number | null;
+}
 
 const CONTEXT_GRADIENT = [
 	{ percent: 0, color: [86, 211, 100] },
@@ -78,6 +86,18 @@ function fitLeftParts(parts: readonly string[], width: number): string {
 function clampPercent(percent: number): number {
 	if (!Number.isFinite(percent)) return 0;
 	return Math.min(100, Math.max(0, percent));
+}
+
+function columnCount(width: number): number {
+	return Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
+}
+
+function filledColumns(percent: number, width: number): number {
+	return Math.round((clampPercent(percent) / 100) * width);
+}
+
+function quantizeGradientPosition(percent: number): number {
+	return (Math.round((percent / 100) * (CONTEXT_GRADIENT_STEPS - 1)) / (CONTEXT_GRADIENT_STEPS - 1)) * 100;
 }
 
 /** Returns the green → yellow → orange → red color for a context percentage. */
@@ -103,22 +123,24 @@ function sameRgb(left: Rgb | undefined, right: Rgb): boolean {
 	return left?.[0] === right[0] && left[1] === right[1] && left[2] === right[2];
 }
 
-function colorizeRgb(text: string, color: Rgb, theme: ExtensionContext["ui"]["theme"]): string {
+function rgbToAnsi256(color: Rgb): number {
+	const [red, green, blue] = color;
+	const redIndex = Math.round((red / 255) * 5);
+	const greenIndex = Math.round((green / 255) * 5);
+	const blueIndex = Math.round((blue / 255) * 5);
+	return 16 + 36 * redIndex + 6 * greenIndex + blueIndex;
+}
+
+function colorizeRgb(text: string, color: Rgb, theme: FooterTheme): string {
 	const [red, green, blue] = color;
 	const ansi =
-		theme.getColorMode() === "truecolor"
-			? `\x1b[38;2;${red};${green};${blue}m`
-			: `\x1b[38;5;${16 + 36 * Math.round((red / 255) * 5) + 6 * Math.round((green / 255) * 5) + Math.round((blue / 255) * 5)}m`;
+		theme.getColorMode() === "truecolor" ? `\x1b[38;2;${red};${green};${blue}m` : `\x1b[38;5;${rgbToAnsi256(color)}m`;
 	return `${ansi}${text}\x1b[39m`;
 }
 
-function renderContextGradient(
-	percent: number,
-	width: number,
-	filledCharacter: string,
-	theme: ExtensionContext["ui"]["theme"],
-): string {
-	const filled = Math.min(width, Math.max(0, Math.round((clampPercent(percent) / 100) * width)));
+function renderGradientFill(percent: number, width: number, filledCharacter: string, theme: FooterTheme): string {
+	const columns = columnCount(width);
+	const filled = filledColumns(percent, columns);
 	let result = "";
 	let segment = "";
 	let segmentColor: Rgb | undefined;
@@ -129,10 +151,8 @@ function renderContextGradient(
 	};
 
 	for (let index = 0; index < filled; index++) {
-		const position = width <= 1 ? clampPercent(percent) : (index / (width - 1)) * 100;
-		const quantizedPosition =
-			(Math.round((position / 100) * (CONTEXT_GRADIENT_STEPS - 1)) / (CONTEXT_GRADIENT_STEPS - 1)) * 100;
-		const color = contextGradientColor(quantizedPosition);
+		const position = columns <= 1 ? clampPercent(percent) : (index / (columns - 1)) * 100;
+		const color = contextGradientColor(quantizeGradientPosition(position));
 		if (!sameRgb(segmentColor, color)) {
 			flush();
 			segmentColor = color;
@@ -144,10 +164,12 @@ function renderContextGradient(
 	return result;
 }
 
+/* ─── footer layout ─── */
+
 /** Chooses footer content without reading session/UI state. */
 export function buildFooterViewModel(input: FooterViewInput): FooterViewModel {
-	const width = Math.max(0, input.width);
-	const right = input.contextBar ? truncateToWidth(input.contextBar, width) : "";
+	const width = columnCount(input.width);
+	const right = input.contextPercentage ? truncateToWidth(input.contextPercentage, width) : "";
 
 	if (right === "") {
 		const left = fitLeftParts(input.leftParts, width);
@@ -173,10 +195,7 @@ export function buildFooterViewModel(input: FooterViewInput): FooterViewModel {
 
 /* ─── context percentage ─── */
 
-export function renderContextBar(
-	usage: { tokens: number | null; contextWindow: number; percent: number | null },
-	theme: ExtensionContext["ui"]["theme"],
-): string {
+export function renderContextPercentage(usage: ContextUsage, theme: FooterTheme): string {
 	if (usage.tokens === null || usage.percent === null) {
 		return theme.fg("dim", "--%");
 	}
@@ -190,20 +209,16 @@ export function renderContextBar(
  * grows through a smooth green → yellow → orange → red ramp. The footer
  * remains the precise percentage readout.
  */
-export function renderContextBorder(
-	percent: number | null | undefined,
-	width: number,
-	theme: ExtensionContext["ui"]["theme"],
-): string {
-	const borderWidth = Math.max(0, Math.floor(width));
+export function renderContextBorder(percent: number | null | undefined, width: number, theme: FooterTheme): string {
+	const borderWidth = columnCount(width);
 	if (percent === null || percent === undefined || !Number.isFinite(percent)) {
 		return theme.fg("borderMuted", "─".repeat(borderWidth));
 	}
 
 	const normalizedPercent = clampPercent(percent);
-	const filled = Math.min(borderWidth, Math.max(0, Math.round((normalizedPercent / 100) * borderWidth)));
+	const filled = filledColumns(normalizedPercent, borderWidth);
 	return (
-		renderContextGradient(normalizedPercent, borderWidth, "━", theme) +
+		renderGradientFill(normalizedPercent, borderWidth, "━", theme) +
 		theme.fg("borderMuted", "─".repeat(borderWidth - filled))
 	);
 }
@@ -232,7 +247,7 @@ function setupContextBorder(ctx: ExtensionContext): void {
 			// borders so editing, scrolling, and autocomplete continue to work.
 			this.borderColor = (text) => text;
 			const lines = super.render(width);
-			const plainBorder = "─".repeat(Math.max(0, Math.floor(width)));
+			const plainBorder = "─".repeat(columnCount(width));
 			const contextBorder = renderContextBorder(ctx.getContextUsage()?.percent, width, ctx.ui.theme);
 
 			if (lines[0] === plainBorder) lines[0] = contextBorder;
@@ -291,7 +306,7 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 				const viewInput: FooterViewInput = {
 					width,
 					leftParts,
-					...(ctxUsage ? { contextBar: renderContextBar(ctxUsage, theme) } : {}),
+					...(ctxUsage ? { contextPercentage: renderContextPercentage(ctxUsage, theme) } : {}),
 				};
 				const view = buildFooterViewModel(viewInput);
 				return [view.line];
