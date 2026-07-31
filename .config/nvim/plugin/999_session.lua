@@ -45,10 +45,11 @@ end
 local function discard_deleted_file_buffers()
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     local name = vim.api.nvim_buf_get_name(bufnr)
-    if vim.bo[bufnr].buftype == "" and name ~= ""
-      and vim.fn.filereadable(name) == 0
-      and vim.fn.isdirectory(name) == 0 then
-      vim.api.nvim_buf_delete(bufnr, { force = true })
+    if vim.bo[bufnr].buftype == "" and name ~= "" then
+      local stat, _, err_name = vim.uv.fs_stat(name)
+      if not stat and err_name == "ENOENT" then
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+      end
     end
   end
 end
