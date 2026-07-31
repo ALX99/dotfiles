@@ -4,14 +4,18 @@ if vim.g.vscode then
 end
 local session_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "sessions")
 
+local function canonical_path(path)
+  return vim.fs.normalize(vim.fn.resolve(path))
+end
+
 -- Directories where sessions should not be saved
 local skip_dirs = {
-  vim.env.HOME,
-  "/",
-  "/tmp",
-  vim.fn.stdpath("state"),
-  vim.fn.stdpath("data"),
-  vim.fn.stdpath("config"),
+  canonical_path(vim.env.HOME),
+  canonical_path("/"),
+  canonical_path("/tmp"),
+  canonical_path(vim.fn.stdpath("state")),
+  canonical_path(vim.fn.stdpath("data")),
+  canonical_path(vim.fn.stdpath("config")),
 }
 
 local function should_save_session()
@@ -23,7 +27,7 @@ local function should_save_session()
   end
 
   -- Don't save in skip directories
-  if vim.tbl_contains(skip_dirs, cwd) then
+  if vim.tbl_contains(skip_dirs, canonical_path(cwd)) then
     return false
   end
 

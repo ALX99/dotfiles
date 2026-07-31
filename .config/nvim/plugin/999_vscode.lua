@@ -91,15 +91,15 @@ map("n", "gt", function()
 end, { desc = "Go to type definition" })
 
 map("n", "gS", function()
-  vscode.action("workbench.action.gotoSymbol")
+  vscode.action("workbench.action.showAllSymbols")
 end, { desc = "Go to workspace symbols" })
 
 map("n", "gs", function()
-  vscode.action("workbench.action.showSymbolPicker")
+  vscode.action("workbench.action.gotoSymbol")
 end, { desc = "Go to symbols" })
 
 map("i", "<C-k>", function()
-  vscode.action("editor.action.triggerSignatureHelp")
+  vscode.action("editor.action.triggerParameterHints")
 end, { desc = "Signature help" })
 
 map("n", "<leader>rn", function()

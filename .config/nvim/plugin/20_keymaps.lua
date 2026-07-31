@@ -79,24 +79,37 @@ map("n", "dd", function()
   end
 end, { noremap = true, expr = true })
 
--- Visual-mode "very nomagic" search: yank selection into /, then re-run * or #.
--- Makes * and # search the literal selection (handles /*foo*/ cleanly).
+-- Visual-mode "very nomagic" search. Makes * and # search the literal
+-- selection (handles /*foo*/ cleanly).
 local function vset_search()
-  local temp = vim.fn.getreg('s')
-  local temp_type = vim.fn.getregtype('s')
-  vim.cmd('normal! gv"sy')
-  local s = vim.fn.getreg('s'):gsub('\\', '\\\\'):gsub('\n', '\\n')
+  local start_pos = vim.fn.getpos('v')
+  local end_pos = vim.fn.getpos('.')
+  local mode = vim.api.nvim_get_mode().mode
+  local s = table.concat(vim.fn.getregion(start_pos, end_pos, { type = mode }), '\n')
+  s = s:gsub('\\', '\\\\'):gsub('\n', '\\n')
   vim.fn.setreg('/', [[\V]] .. s)
-  vim.fn.setreg('s', temp, temp_type)
+  return start_pos, end_pos
+end
+
+local function comes_before(first, second)
+  return first[2] < second[2] or (first[2] == second[2] and first[3] < second[3])
 end
 
 local function vsearch(direction)
-  vset_search()
-  return direction .. vim.fn.getreg('/') .. '<CR>'
+  local start_pos, end_pos = vset_search()
+  vim.api.nvim_feedkeys(vim.keycode('<Esc>'), 'nx', false)
+  local pos
+  if direction == '?' then
+    pos = comes_before(start_pos, end_pos) and start_pos or end_pos
+  else
+    pos = comes_before(start_pos, end_pos) and end_pos or start_pos
+  end
+  vim.api.nvim_win_set_cursor(0, { pos[2], pos[3] - 1 })
+  vim.api.nvim_feedkeys(vim.keycode(direction .. '<C-r>/<CR>'), 'nx', false)
 end
 
-map('x', '*', function() return vsearch('/') end, { expr = true })
-map('x', '#', function() return vsearch('?') end, { expr = true })
+map('x', '*', function() vsearch('/') end)
+map('x', '#', function() vsearch('?') end)
 
 -- Search inside visual selection
 -- https://www.reddit.com/r/neovim/comments/1mxeghf/using_as_a_multipurpose_search_tool/
