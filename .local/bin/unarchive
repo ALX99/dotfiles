@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Extract archive into a directory named after the archive, unless the
 # archive already contains a single top-level entry (in which case it
-# extracts in place).  tar's --one-top-level handles the first case natively.
+# extracts in place). GNU tar handles the multi-root case with
+# --one-top-level; BSD tar needs the destination selected explicitly.
 
 set -euo pipefail
 
@@ -21,13 +22,43 @@ case "$name" in
   *)          name="${name%.*}" ;;
 esac
 
-# --one-top-level is GNU tar. macOS ships bsdtar; homebrew installs gtar.
-TAR=tar
-command -v gtar >/dev/null 2>&1 && TAR=gtar
+extract_tar() {
+  if command -v gtar >/dev/null 2>&1; then
+    gtar xf "$1" --one-top-level="$name"
+    return
+  fi
+
+  # BSD tar has no --one-top-level. Count distinct top-level entries so that
+  # archives with one root are extracted in place and multi-root archives are
+  # kept together under the archive name.
+  local top_level_count
+  top_level_count=$(
+    tar tf "$1" |
+      awk '
+        {
+          entry = $0
+          sub(/^(\.\/)+/, "", entry)
+          split(entry, components, "/")
+          root = components[1]
+          if (root != "" && root != "." && !seen[root]++) {
+            count++
+          }
+        }
+        END { print count + 0 }
+      '
+  )
+
+  if (( top_level_count > 1 )); then
+    mkdir -p "$name"
+    tar xf "$1" -C "$name"
+  else
+    tar xf "$1"
+  fi
+}
 
 case "$1" in
   *.tar|*.tar.bz2|*.tar.gz|*.tbz2|*.tgz|*.tar.xz|*.tar.zst|*.tar.zstd)
-    "$TAR" xf "$1" --one-top-level="$name"
+    extract_tar "$1"
     ;;
   *.zip)
     mkdir -p "$name" && unzip "$1" -d "$name"
