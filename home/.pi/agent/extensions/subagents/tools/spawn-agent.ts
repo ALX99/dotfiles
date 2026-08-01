@@ -1,12 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { ManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
-import { resolveRuns } from "../profiles.ts";
+import { resolveRuns, type ProfilesConfig } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
 	createSpawnAgentSchema,
@@ -21,6 +22,8 @@ import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import { activateForSubagentState, requiresExactResultRead } from "../tool-activation.ts";
 import type { SpawnRpcProcess } from "../rpc-transport.ts";
+
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export interface SpawnAgentToolOptions {
 	readonly spawnProcess?: SpawnRpcProcess;
@@ -47,7 +50,7 @@ export function createSpawnAgentTool(
 			? [
 					{
 						name,
-						description: `${profile.description}. The effective model and thinking cap are resolved from the currently enabled scoped models.`,
+						description: `${profile.description}. The effective model and permitted thinking range are resolved from the currently enabled scoped models.`,
 					},
 				]
 			: [];
@@ -170,7 +173,33 @@ function spawnSchemaOptions(runtime: SubagentRuntime): SpawnAgentSchemaOptions {
 	return {
 		agents,
 		profiles,
+		thinkingLevels: thinkingLevelsForProfiles(runtime.profiles, profiles),
 	};
+}
+
+export function thinkingLevelsForProfiles(
+	config: ProfilesConfig,
+	profiles: readonly string[],
+): readonly ModelThinkingLevel[] {
+	if (profiles.length === 0) throw new Error("No profiles are available for thinking-level advertisement.");
+	const minimumRank = Math.min(
+		...profiles.flatMap((name) => {
+			const profile = config.profiles[name];
+			if (!profile) throw new Error(`Profile '${name}' is not configured.`);
+			return profile.modelPriority.map((candidate) => THINKING_LEVELS.indexOf(candidate.defaultThinking));
+		}),
+	);
+	const maximumRank = Math.min(
+		...profiles.map((name) => {
+			const profile = config.profiles[name];
+			if (!profile) throw new Error(`Profile '${name}' is not configured.`);
+			return Math.min(...profile.modelPriority.map((candidate) => THINKING_LEVELS.indexOf(candidate.maxThinking)));
+		}),
+	);
+	if (minimumRank < 0 || maximumRank < 0) throw new Error("Configured profile has an unknown thinking-level range.");
+	if (minimumRank > maximumRank)
+		throw new Error("Configured profiles have no common thinking level for advertisement.");
+	return THINKING_LEVELS.slice(minimumRank, maximumRank + 1);
 }
 
 export function spawnGuidelines(
