@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
@@ -11,6 +12,7 @@ import {
 	validateProfiles,
 	type ProfilesConfig,
 } from "../profiles.ts";
+import { thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
 
 const config: ProfilesConfig = {
 	rootPolicy: {
@@ -176,6 +178,27 @@ test("resolveRun uses defaultThinking when thinking is omitted", () => {
 	assert.equal(run.effectiveThinking, "low");
 });
 
+test("resolveRun rejects a thinking request below the candidate default", () => {
+	const restricted = structuredClone(config);
+	const fast = restricted.profiles.fast;
+	assert.ok(fast);
+	const candidate = fast.modelPriority[0];
+	assert.ok(candidate);
+	candidate.defaultThinking = "medium";
+	candidate.maxThinking = "high";
+
+	assert.throws(
+		() =>
+			resolveRun({
+				config: restricted,
+				agent: "scout",
+				requestedThinking: "low",
+				modelRegistry: { getAvailable: () => [model("provider", "first/model")] },
+			}),
+		/below .* minimum/,
+	);
+});
+
 test("resolveRuns returns authenticated fallback candidates in configured order", () => {
 	const runs = resolveRuns({
 		config,
@@ -194,6 +217,22 @@ test("resolveRuns returns authenticated fallback candidates in configured order"
 	);
 	assert.ok(Object.isFrozen(runs));
 	assert.ok(runs.every(Object.isFrozen));
+});
+
+test("resolveRuns omits fallbacks whose defaults exceed a requested thinking level", () => {
+	const runs = resolveRuns({
+		config,
+		agent: "scout",
+		requestedThinking: "low",
+		modelRegistry: {
+			getAvailable: () => [model("provider", "second"), model("provider", "first/model")],
+		},
+	});
+
+	assert.deepEqual(
+		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking })),
+		[{ model: "provider/first/model", thinking: "low" }],
+	);
 });
 
 test("resolveRuns restricts candidates to scoped models and respects their thinking pins", () => {
@@ -262,6 +301,7 @@ test("root spawn schema exposes only configured agents and profiles", () => {
 	const schema = createSpawnAgentSchema({
 		agents: Object.keys(config.agentPolicies),
 		profiles: Object.keys(config.profiles),
+		thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
 	});
 	const schemaJson = JSON.parse(JSON.stringify(schema)) as {
 		properties: { agent: { enum: string[] }; profile: { enum: string[] } };
@@ -277,6 +317,37 @@ test("root spawn schema exposes only configured agents and profiles", () => {
 	assert.equal(Object.hasOwn(schema.properties, "agent_type"), false);
 	assert.equal(Object.hasOwn(schema.properties, "reasoning_effort"), false);
 	assert.equal(Object.hasOwn(schema.properties, "model"), false);
+});
+
+test("thinking-level advertisement respects configured defaults and caps", () => {
+	assert.deepEqual(thinkingLevelsForProfiles(config, ["fast", "deep"]), ["low"]);
+
+	const restricted = structuredClone(config);
+	const fast = restricted.profiles.fast;
+	assert.ok(fast);
+	const candidate = fast.modelPriority[0];
+	assert.ok(candidate);
+	candidate.defaultThinking = "medium";
+	candidate.maxThinking = "high";
+	assert.deepEqual(thinkingLevelsForProfiles(restricted, ["fast", "deep"]), ["medium", "high"]);
+});
+
+test("configured scout profile does not permit low thinking", () => {
+	const parsed = parseProfilesJson(fs.readFileSync(new URL("../profiles.json", import.meta.url), "utf8"));
+	assert.equal(parsed.success, true);
+	if (!parsed.success) return;
+
+	assert.equal(thinkingLevelsForProfiles(parsed.config, ["fast"]).includes("low"), false);
+	assert.throws(
+		() =>
+			resolveRun({
+				config: parsed.config,
+				agent: "scout",
+				requestedThinking: "low",
+				modelRegistry: { getAvailable: () => [model("openai-codex", "gpt-5.6-luna")] },
+			}),
+		/below .* minimum/,
+	);
 });
 
 test("resolveRun requires an authenticated exact match and never clamps upward", () => {
