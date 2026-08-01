@@ -154,11 +154,11 @@ urlencode() { printf "%s" "$1" | jq -sRr @uri; }
 
 dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker run --entrypoint /bin/sh --rm -it "$1"; }
 
-ksc() {
+ksc() (
   set -euo pipefail
   s="$(klc | fzf)"
   yq e -i ".current-context = \"$s\"" ~/.kube/config
-}
+)
 
 _fzf_file_insert() {
   local preview_cmd picker file
