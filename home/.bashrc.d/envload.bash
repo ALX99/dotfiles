@@ -6,7 +6,6 @@ __dotenv_active_names=()
 __dotenv_active_values=()
 __dotenv_active_had_values=()
 __dotenv_active_exported=()
-__dotenv_last_pwd=
 
 __dotenv_find() {
   local __dotenv__dir=$PWD
@@ -190,11 +189,6 @@ __dotenv_load() {
 
 __dotenv_update() {
   local __dotenv__force=${1:-} __dotenv__signature
-
-  if [[ -z $__dotenv__force && $__dotenv_last_pwd == "$PWD" ]]; then
-    return
-  fi
-  __dotenv_last_pwd=$PWD
 
   __dotenv_find
   if [[ -n $__dotenv_found_file ]]; then
