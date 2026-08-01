@@ -14,6 +14,7 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	const spawn = createSpawnAgentSchema({
 		agents: ["scout", "worker"],
 		profiles: ["fast", "balanced"],
+		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
 	});
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect" }), true);
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect", extra: true }), false);
@@ -38,8 +39,16 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	assert.equal(Check(SendAgentParamsSchema, { agent_id: "a", message: "x".repeat(100_001) }), true);
 });
 
-test("spawn schema exposes one-shot retention and no nested delegation fields", () => {
-	const spawn = createSpawnAgentSchema({ agents: ["scout"], profiles: ["fast"] });
+test("spawn schema exposes configured thinking levels, retention, and no nested delegation fields", () => {
+	const spawn = createSpawnAgentSchema({
+		agents: ["scout"],
+		profiles: ["fast"],
+		thinkingLevels: ["low", "high"],
+	});
+	const schemaJson = JSON.parse(JSON.stringify(spawn)) as {
+		properties: { thinking: { enum: string[] } };
+	};
+	assert.deepEqual(schemaJson.properties.thinking.enum, ["low", "high"]);
 	assert.equal(Object.hasOwn(spawn.properties, "child_spawn_budget"), false);
 	assert.equal(Object.hasOwn(spawn.properties, "retain"), true);
 	assert.equal(Check(spawn, { agent: "scout", profile: "fast", message: "inspect" }), true);

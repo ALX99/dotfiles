@@ -1,4 +1,4 @@
-import { StringEnum } from "@earendil-works/pi-ai";
+import { StringEnum, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { type Static, Type } from "typebox";
 
 export const MAX_TASK_NAME_CHARS = 200;
@@ -25,11 +25,14 @@ const message = Type.String({
 export interface SpawnAgentSchemaOptions {
 	readonly agents: readonly string[];
 	readonly profiles: readonly string[];
+	/** Thinking overrides advertised from the configured profile ranges. */
+	readonly thinkingLevels: readonly ModelThinkingLevel[];
 }
 
 export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 	if (options.agents.length === 0) throw new Error("spawn schema requires at least one allowed agent");
 	if (options.profiles.length === 0) throw new Error("spawn schema requires at least one allowed profile");
+	if (options.thinkingLevels.length === 0) throw new Error("spawn schema requires at least one allowed thinking level");
 	const schema = Type.Object(
 		{
 			message: Type.String({
@@ -60,8 +63,9 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 				}),
 			),
 			thinking: Type.Optional(
-				StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
-					description: "Optional thinking request; must not exceed the selected profile candidate's cap.",
+				StringEnum(options.thinkingLevels, {
+					description:
+						"Optional thinking request. The selected model candidate enforces its configured default-to-cap range; omitted requests use that default.",
 				}),
 			),
 			cwd: Type.Optional(

@@ -28,7 +28,11 @@ const summary: AgentSummary = {
 };
 
 test("semantic message, handoff, and answer fields have no arbitrary character cap", () => {
-	const spawn = createSpawnAgentSchema({ agents: ["scout"], profiles: ["fast"] });
+	const spawn = createSpawnAgentSchema({
+		agents: ["scout"],
+		profiles: ["fast"],
+		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
+	});
 	const large = "界".repeat(200_000);
 	assert.equal(Check(spawn, { message: large, handoff: large, agent: "scout" }), true);
 	assert.equal(Check(SendAgentParamsSchema, { agent_id: "scout-1", message: large }), true);
@@ -43,7 +47,11 @@ test("semantic message, handoff, and answer fields have no arbitrary character c
 });
 
 test("spawn schema rejects removed nested budgets and exposes explicit retention", () => {
-	const schema = createSpawnAgentSchema({ agents: ["scout"], profiles: ["fast"] });
+	const schema = createSpawnAgentSchema({
+		agents: ["scout"],
+		profiles: ["fast"],
+		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
+	});
 	assert.equal(Object.hasOwn(schema.properties, "child_spawn_budget"), false);
 	assert.equal(Object.hasOwn(schema.properties, "retain"), true);
 	assert.equal(Check(schema, { message: "work", agent: "scout", child_spawn_budget: 0 }), false);

@@ -34,6 +34,7 @@ export const ModelCandidateSchema = z
 			const slash = id.indexOf("/");
 			return slash > 0 && slash < id.length - 1;
 		}, "model id must be provider/model-id"),
+		/** The omitted-request default and lowest permitted explicit override. */
 		defaultThinking: ThinkingLevelSchema,
 		maxThinking: ThinkingLevelSchema,
 	})
@@ -309,7 +310,11 @@ export function resolveRuns(options: ResolveRunOptions): readonly [ResolvedRun, 
 	];
 	for (const fallback of fallbacks) {
 		const requested = fallback.thinkingLevel ?? options.requestedThinking ?? fallback.candidate.defaultThinking;
-		if (thinkingRank(requested) > thinkingRank(fallback.candidate.maxThinking)) continue;
+		if (
+			thinkingRank(requested) < thinkingRank(fallback.candidate.defaultThinking) ||
+			thinkingRank(requested) > thinkingRank(fallback.candidate.maxThinking)
+		)
+			continue;
 		const effectiveThinking = supportedThinkingAtOrBelow(fallback.model, requested);
 		if (!effectiveThinking) continue;
 		resolved.push(
@@ -329,6 +334,11 @@ function resolveCandidate(
 ): ResolvedRun {
 	const requested = scopedThinking ?? requestedThinking ?? candidate.defaultThinking;
 	assertThinkingLevel(requested);
+	if (thinkingRank(requested) < thinkingRank(candidate.defaultThinking)) {
+		throw new Error(
+			`Requested thinking '${requested}' is below profile '${profileName}' candidate '${candidate.id}' minimum '${candidate.defaultThinking}'.`,
+		);
+	}
 	if (thinkingRank(requested) > thinkingRank(candidate.maxThinking)) {
 		throw new Error(
 			`Requested thinking '${requested}' exceeds profile '${profileName}' candidate '${candidate.id}' cap '${candidate.maxThinking}'.`,
