@@ -23,17 +23,17 @@ case "$name" in
 esac
 
 extract_tar() {
+  local tar_command=tar
   if command -v gtar >/dev/null 2>&1; then
-    gtar xf "$1" --one-top-level="$name"
-    return
+    tar_command=gtar
   fi
 
-  # BSD tar has no --one-top-level. Count distinct top-level entries so that
-  # archives with one root are extracted in place and multi-root archives are
-  # kept together under the archive name.
+  # Count distinct top-level entries so that archives with one root are
+  # extracted in place and multi-root archives are kept together under the
+  # archive name.
   local top_level_count
   top_level_count=$(
-    tar tf "$1" |
+    "$tar_command" tf "$1" |
       awk '
         {
           entry = $0
@@ -49,10 +49,14 @@ extract_tar() {
   )
 
   if (( top_level_count > 1 )); then
-    mkdir -p "$name"
-    tar xf "$1" -C "$name"
+    if [[ $tar_command == gtar ]]; then
+      "$tar_command" xf "$1" --one-top-level="$name"
+    else
+      mkdir -p "$name"
+      "$tar_command" xf "$1" -C "$name"
+    fi
   else
-    tar xf "$1"
+    "$tar_command" xf "$1"
   fi
 }
 
