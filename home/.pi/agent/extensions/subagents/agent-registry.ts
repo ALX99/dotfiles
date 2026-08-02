@@ -56,7 +56,7 @@ export class AgentRegistry {
 
 	view(id: string): AgentView {
 		const entry = this.requireEntry(id);
-		return entry.kind === "live" ? { summary: entry.agent.summary(), details: entry.agent.getDetails() } : entry.view;
+		return entry.kind === "live" ? liveAgentView(entry.agent) : entry.view;
 	}
 
 	summary(id: string): AgentSummary {
@@ -87,16 +87,16 @@ export class AgentRegistry {
 	): Promise<ResultPage> {
 		const entry = this.entries.get(id);
 		if (!entry) return this.resultCatalog.readResult(id, options);
-		const fallback = resultLocator(entry);
-		const generation =
-			options.generation ?? (entry.kind === "live" ? entry.agent.summary().generation : fallback?.generation);
+		const view = entry.kind === "live" ? liveAgentView(entry.agent) : entry.view;
+		const fallback = resultLocator(view);
+		const generation = options.generation ?? view.summary.generation;
 		if (entry.kind === "live" && generation !== undefined && entry.agent.hasPendingResult(generation)) {
 			return entry.agent.readLiveResultPreview(options);
 		}
 		if (
 			entry.kind === "live" &&
 			generation !== undefined &&
-			generation === entry.agent.summary().generation &&
+			generation === view.summary.generation &&
 			!this.resultCatalog.has(id, generation)
 		) {
 			return entry.agent.readSettledResult(options);
@@ -181,7 +181,7 @@ export class AgentRegistry {
 		if (agent.getLifecycle().phase === "closed") this.archive(agent);
 		else {
 			if (agent.getLifecycle().phase === "failed") {
-				const fallback = resultLocator({ kind: "live", agent });
+				const fallback = resultLocator(liveAgentView(agent));
 				if (fallback) this.resultCatalog.record(agent.id, fallback);
 			}
 			this.emit();
@@ -193,11 +193,12 @@ export class AgentRegistry {
 		if (current?.kind !== "live" || current.agent !== agent) return;
 		this.agentUnsubscribers.get(agent.id)?.();
 		this.agentUnsubscribers.delete(agent.id);
+		const liveView = liveAgentView(agent);
 		const view: AgentView = {
-			summary: { ...agent.summary(), status: "closed" },
-			details: { ...agent.getDetails(), status: "closed", aborted: false },
+			summary: { ...liveView.summary, status: "closed" },
+			details: { ...liveView.details, status: "closed", aborted: false },
 		};
-		const fallback = resultLocator({ kind: "archived", view });
+		const fallback = resultLocator(view);
 		if (fallback) this.resultCatalog.record(agent.id, fallback);
 		this.entries.set(agent.id, { kind: "archived", view });
 		this.removeClosedAgentId(agent.id);
@@ -221,9 +222,11 @@ export class AgentRegistry {
 	}
 }
 
-function resultLocator(entry: RegistryEntry): ResultLocator | undefined {
-	const view =
-		entry.kind === "live" ? { summary: entry.agent.summary(), details: entry.agent.getDetails() } : entry.view;
+function liveAgentView(agent: ManagedAgent): AgentView {
+	return { summary: agent.summary(), details: agent.getDetails() };
+}
+
+function resultLocator(view: AgentView): ResultLocator | undefined {
 	const sessionFile = view.summary.session_file;
 	if (!sessionFile) return undefined;
 	return {
