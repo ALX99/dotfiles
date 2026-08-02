@@ -144,14 +144,6 @@ export class AgentRegistry {
 		}
 	}
 
-	delete(id: string): void {
-		this.agentUnsubscribers.get(id)?.();
-		this.agentUnsubscribers.delete(id);
-		this.entries.delete(id);
-		this.removeClosedAgentId(id);
-		this.emit();
-	}
-
 	async closeAll(): Promise<void> {
 		const failures: unknown[] = [];
 		try {
