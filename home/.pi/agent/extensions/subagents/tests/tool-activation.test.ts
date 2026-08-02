@@ -147,3 +147,24 @@ test("routed questions and oversized results activate their matching tool", () =
 	activateForSubagentState(result as never, oversized, false);
 	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
 });
+
+test("every settled result activates exact reading, including small results", () => {
+	const result = toolApi(["spawn_agent"]);
+	activateForSubagentState(
+		result as never,
+		summary({
+			final_text: "small preview",
+			result: {
+				generation: 1,
+				result_id: "a".repeat(64),
+				pages: 1,
+				complete: true,
+				total_bytes: 13,
+				sha256: "b".repeat(64),
+				source: "assistant",
+			},
+		}),
+		false,
+	);
+	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
+});

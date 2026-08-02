@@ -10,7 +10,6 @@ const MAX_RECENT_TOOLS = 50;
 export const MAX_ARGUMENT_PREVIEW_CHARACTERS = 500;
 export const MAX_RETAINED_EVENT_TEXT_CHARACTERS = 500;
 export const MAX_RETAINED_IDENTITY_CHARACTERS = 200;
-const MUTATION_CAPABLE_TOOLS = new Set(["bash", "edit", "write", "apply_patch"]);
 
 export interface RunUsage {
 	input: number;
@@ -72,7 +71,6 @@ export interface MutableRunData {
 	startTime: number;
 	endTime?: number;
 	toolCount: number;
-	mutationToolCalls: number;
 	recentTools: Array<{ name: string; argsPreview: string }>;
 	lastMessage: string;
 	lastAssistantText: string;
@@ -125,7 +123,6 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		stderr: "",
 		startTime: Date.now(),
 		toolCount: 0,
-		mutationToolCalls: 0,
 		recentTools: [],
 		lastMessage: "",
 		lastAssistantText: "",
@@ -176,11 +173,9 @@ export function foldAgentEvent(event: AgentEvent, details: MutableRunData): void
 			ingestMessage(message, details);
 			return;
 		}
-		case "tool_execution_end":
-			if (MUTATION_CAPABLE_TOOLS.has(event.toolName)) details.mutationToolCalls++;
-			return;
 		case "tool_execution_start":
 		case "tool_execution_update":
+		case "tool_execution_end":
 			return;
 	}
 }
