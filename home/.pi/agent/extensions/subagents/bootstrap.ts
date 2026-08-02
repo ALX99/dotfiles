@@ -25,12 +25,16 @@ export class DefaultSubagentRuntime {
 	private uiBinding: RegistryUiBinding | undefined;
 	private completionTimer: NodeJS.Timeout | undefined;
 	private readonly accountedUsage = new Set<string>();
+	private readonly registryUnsubscribe: () => void;
 
 	constructor(agents: AgentConfig[], profiles: ProfilesConfig, agentDir = getAgentDir()) {
 		this.agents = agents;
 		this.profiles = profiles;
 		this.agentDir = agentDir;
 		this.registry = new AgentRegistry(agentDir);
+		this.registryUnsubscribe = this.registry.subscribe(() => {
+			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
+		});
 		this.admission = new SpawnAdmissionController(profiles, this.registry);
 	}
 
@@ -41,9 +45,7 @@ export class DefaultSubagentRuntime {
 		this.accountedUsage.clear();
 		restoreAccountedUsage(branch, this.accountedUsage);
 		this.uiBinding?.close();
-		this.uiBinding = bindRegistryUi(ctx, this.registry, () => {
-			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
-		});
+		this.uiBinding = bindRegistryUi(ctx, this.registry);
 		this.uiBinding.refresh();
 	}
 
@@ -101,6 +103,7 @@ export class DefaultSubagentRuntime {
 		this.clearCompletionTimer();
 		const failures: unknown[] = [];
 		try {
+			this.registryUnsubscribe();
 			this.uiBinding?.close();
 		} catch (error) {
 			failures.push(error);
