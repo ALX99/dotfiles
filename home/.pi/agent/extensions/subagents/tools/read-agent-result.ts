@@ -1,6 +1,6 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
-import type { SubagentRuntime } from "../bootstrap.ts";
+import type { AgentRegistry } from "../agent-registry.ts";
 import {
 	RESULT_READ_DEFAULT_BYTES,
 	RESULT_READ_MAX_BYTES,
@@ -41,8 +41,10 @@ export const ReadAgentResultParamsSchema = Type.Object(
 
 type ReadAgentResultParams = Static<typeof ReadAgentResultParamsSchema>;
 
+export type ReadAgentResultDependencies = Pick<AgentRegistry, "readResult" | "list">;
+
 export function createReadAgentResultTool(
-	runtime: SubagentRuntime,
+	dependencies: ReadAgentResultDependencies,
 ): ToolDefinition<typeof ReadAgentResultParamsSchema, ResultPage> {
 	return defineTool({
 		name: "read_agent_result",
@@ -52,7 +54,7 @@ export function createReadAgentResultTool(
 		parameters: ReadAgentResultParamsSchema,
 		async execute(_id, params: ReadAgentResultParams) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
-			const page = await runtime.registry.readResult(agentId, {
+			const page = await dependencies.readResult(agentId, {
 				...(params.generation === undefined ? {} : { generation: params.generation }),
 				...(params.cursor === undefined ? {} : { cursor: params.cursor }),
 				...(params.offset === undefined ? {} : { offset: params.offset }),
@@ -66,7 +68,7 @@ export function createReadAgentResultTool(
 				args.agent_id,
 				undefined,
 				context.expanded,
-				runtime.registry.list(),
+				dependencies.list(),
 				theme,
 			);
 		},

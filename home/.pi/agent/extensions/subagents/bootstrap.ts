@@ -11,22 +11,7 @@ import { bindRegistryUi, notifyCompletion, type RegistryUiBinding } from "./ui/w
 
 export const BACKGROUND_COMPLETION_DEBOUNCE_MS = 50;
 
-export interface SubagentRuntime {
-	readonly agents: AgentConfig[];
-	readonly profiles: ProfilesConfig;
-	readonly agentDir: string;
-	readonly registry: AgentRegistry;
-	readonly admission: SpawnAdmissionController;
-	readonly ticks: Map<string, NodeJS.Timeout>;
-	readonly shuttingDown: boolean;
-	readonly restoredResultCount: number;
-	handleBackgroundComplete(pi: ExtensionAPI, summary: AgentSummary): void;
-	handleQuestion(pi: ExtensionAPI, summary: AgentSummary, question: AgentQuestion): void;
-	consumeSettledCompletions(summaries: readonly AgentSummary[]): void;
-	claimUsage(summary: AgentSummary): Readonly<RunUsage> | undefined;
-}
-
-export class DefaultSubagentRuntime implements SubagentRuntime {
+export class DefaultSubagentRuntime {
 	readonly agents: AgentConfig[];
 	readonly profiles: ProfilesConfig;
 	readonly agentDir: string;
