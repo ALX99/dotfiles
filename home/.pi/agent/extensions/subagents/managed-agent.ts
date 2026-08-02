@@ -819,17 +819,6 @@ export class ManagedAgent {
 		this.generationEntries = [];
 	}
 
-	/** Advance one active generation's append observation without moving its start. */
-	private async observeSessionEntries(transport: RpcTransport): Promise<void> {
-		const start = this.generationStart;
-		const identity = this.sessionIdentity;
-		if (!start || !identity) throw new Error(`Agent ${this.id} generation has no validated session checkpoint.`);
-		const captured = await getRpcSessionEntries(transport, this.sessionCheckpoint);
-		this.generationEntries.push(...captured.entries);
-		this.sessionCheckpoint = captured.checkpoint;
-		this.generationEnd = captured.checkpoint;
-	}
-
 	private async captureSettlement(transport: RpcTransport): Promise<CapturedGeneration> {
 		const start = this.generationStart;
 		const previous = this.generationEnd;
@@ -936,10 +925,6 @@ export class ManagedAgent {
 
 	private isClosing(): boolean {
 		return this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed";
-	}
-
-	private isAborted(): boolean {
-		return this.lifecycle.phase === "aborted";
 	}
 
 	private assertAvailableForFollowUp(): void {
