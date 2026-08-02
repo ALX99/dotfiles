@@ -9,6 +9,7 @@ import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitDeferredReason,
 	AgentWaitInterruptedError,
+	AgentWaitTimeoutReason,
 	CleanupAggregateError,
 	lifecycleStatus,
 	transitionLifecycle,
@@ -41,6 +42,7 @@ import {
 	readChildTranscript,
 	readLocatedAgentResult,
 	readStoredAgentResult,
+	resultPreview,
 	resultReference,
 	validateChildSessionIdentity,
 	type CapturedGeneration,
@@ -49,7 +51,6 @@ import {
 	type StoredAgentResult,
 } from "./result-store.ts";
 import {
-	assertSameChildSession,
 	getRpcSessionEntries,
 	parseChildSessionIdentity,
 	readChildSessionEntriesSince,
@@ -111,7 +112,6 @@ export interface ManagedAgentOptions {
 	readonly cwd?: string;
 	readonly agent: AgentConfig;
 	readonly resolvedRun: ResolvedRun;
-	readonly fallbackRuns?: readonly ResolvedRun[];
 	readonly childContext: ChildExecutionContext;
 	readonly retain: boolean;
 	readonly spawnProcess?: SpawnRpcProcess;
@@ -146,10 +146,7 @@ export class ManagedAgent {
 	private eventTail: Promise<void> = Promise.resolve();
 	private closePromise: Promise<void> | undefined;
 	private readonly options: ManagedAgentOptions;
-	private readonly resolvedRuns: readonly ResolvedRun[];
 	private readonly agentDir: string;
-	private activeResolvedRunIndex = 0;
-	private replacingTransport = false;
 	private failing = false;
 	private readonly resultIds = new Map<number, string>();
 	private readonly resultLocators = new Map<number, GenerationResultLocator>();
@@ -162,7 +159,6 @@ export class ManagedAgent {
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
 		this.agentDir = options.agentDir;
-		this.resolvedRuns = Object.freeze([options.resolvedRun, ...(options.fallbackRuns ?? [])]);
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
 		this.onUpdate = options.onUpdate;
 		this.run = this.freshRun();
@@ -280,16 +276,20 @@ export class ManagedAgent {
 			throw new Error(`Provide the custom answer itself instead of the reserved '${OTHER_OPTION}' option.`);
 		}
 
-		if (!question.options.includes(answer) && !question.options.includes(OTHER_OPTION)) {
+		const isListedAnswer = question.options.includes(answer);
+		if (!isListedAnswer && !question.options.includes(OTHER_OPTION)) {
 			throw new Error(`Answer must match one of the options for question '${questionId}'.`);
 		}
-		this.queuedCustomAnswer = { generation: this.generation, answer };
+		// A listed choice belongs to the child's select request. Only an
+		// unlisted answer takes the "Something else" path and is delivered to
+		// the subsequent input request.
+		if (!isListedAnswer) this.queuedCustomAnswer = { generation: this.generation, answer };
 		this.pendingQuestion = undefined;
 		this.questionSignal = this.newQuestionSignal(this.generation);
 		this.emit();
 
 		try {
-			await this.rpc().respondToUi(questionId, { value: OTHER_OPTION });
+			await this.rpc().respondToUi(questionId, { value: isListedAnswer ? answer : OTHER_OPTION });
 		} catch (cause) {
 			this.failRun(cause);
 			throw cause;
@@ -312,7 +312,18 @@ export class ManagedAgent {
 	): Promise<ResultPage> {
 		const generation = options.generation ?? this.generation;
 		if (generation === this.generation && this.deferred && !this.deferred.settled) {
-			throw new Error(`Agent ${this.id} generation ${generation} is still running; wait for settlement first.`);
+			const preview = resultPreview(this.run.lastAssistantText);
+			const live: StoredAgentResult = {
+				generation,
+				resultId: this.run.resultId,
+				text: preview,
+				pageCount: 0,
+				complete: false,
+				totalBytes: Buffer.byteLength(preview, "utf8"),
+				sha256: createHash("sha256").update(preview, "utf8").digest("hex"),
+				source: "assistant",
+			};
+			return paginateStoredResult(this.id, live, options);
 		}
 		const locator = this.resultLocators.get(generation);
 		const result =
@@ -385,10 +396,6 @@ export class ManagedAgent {
 		this.pendingQuestion = undefined;
 		this.queuedCustomAnswer = undefined;
 		this.emit();
-		if (this.replacingTransport && this.transport?.getState() !== "open") {
-			this.settleCurrent({ kind: "resolve" });
-			return;
-		}
 		try {
 			if (pendingQuestion) {
 				await this.rpc().respondToUi(pendingQuestion.question_id, { cancelled: true });
@@ -460,11 +467,7 @@ export class ManagedAgent {
 	/** Whether this entry still occupies a spawn-concurrency slot. */
 	occupiesCapacity(): boolean {
 		const transportState = this.transport?.getState();
-		if (
-			this.transport === undefined &&
-			!this.replacingTransport &&
-			(this.lifecycle.phase === "failed" || this.lifecycle.phase === "aborted")
-		) {
+		if (this.transport === undefined && (this.lifecycle.phase === "failed" || this.lifecycle.phase === "aborted")) {
 			return false;
 		}
 		return (
@@ -567,26 +570,13 @@ export class ManagedAgent {
 				this.finalizeGeneration(captured);
 				this.settleCurrent({ kind: "resolve" });
 			} else if (this.run.assistantError) {
-				const error = await this.retryWithFallback(generation, new Error(this.run.assistantError));
-				if (error === undefined) {
-					this.emit();
-					return;
-				}
-				if (this.isAborted()) {
-					this.finalizeGeneration(captured);
-					this.settleCurrent({ kind: "resolve" });
-					this.emit();
-					return;
-				}
 				if (this.isClosing()) return;
-				const failure =
-					error instanceof RecoverableAgentFailure
-						? error
-						: new RecoverableAgentFailure(
-								"provider_failure",
-								`${error.message} The persisted child session and any submitted result checkpoint remain available.`,
-								error,
-							);
+				const cause = new Error(this.run.assistantError);
+				const failure = new RecoverableAgentFailure(
+					"provider_failure",
+					`${cause.message} The persisted child session and any submitted result checkpoint remain available.`,
+					cause,
+				);
 				this.finalizeGeneration(captured);
 				this.setLifecycle({ phase: "failed", error: failure });
 				this.settleCurrent({ kind: "reject", error: failure });
@@ -690,130 +680,6 @@ export class ManagedAgent {
 		return run;
 	}
 
-	private async retryWithFallback(generation: number, originalError: Error): Promise<Error | undefined> {
-		if (this.activeResolvedRunIndex + 1 >= this.resolvedRuns.length) return originalError;
-		if (this.options.agent.name !== "scout" && this.run.mutationToolCalls > 0) {
-			return new RecoverableAgentFailure(
-				"mutation_replay_blocked",
-				`${originalError.message} Automatic model fallback was not attempted because the agent completed ${this.run.mutationToolCalls} mutation-capable tool call(s). Inspect its persisted session and result checkpoint before deciding whether to resume.`,
-				originalError,
-			);
-		}
-		const quotaProvider = isAccountQuotaError(originalError.message)
-			? providerOf(this.activeResolvedRun().model)
-			: undefined;
-		this.replacingTransport = true;
-		try {
-			const fallbackErrors: Error[] = [];
-			const previousTransport = this.transport;
-			this.transport = undefined;
-			try {
-				await previousTransport?.close();
-			} catch (cause) {
-				fallbackErrors.push(toError(cause));
-			}
-			if (!this.canRetryGeneration(generation)) return originalError;
-			const sessionFile = this.run.sessionFile;
-			if (!sessionFile) {
-				return new AggregateError(
-					[originalError, ...fallbackErrors],
-					`${originalError.message} Model fallback could not resume because the child session file is unavailable.`,
-				);
-			}
-			const identity = this.sessionIdentity;
-			if (!identity) {
-				return new AggregateError(
-					[originalError, ...fallbackErrors],
-					`${originalError.message} Model fallback could not resume because the child session identity is unavailable.`,
-				);
-			}
-			const sessionDir = path.join(this.agentDir, "subagent-sessions");
-			let nextIndex = this.activeResolvedRunIndex + 1;
-			while (nextIndex < this.resolvedRuns.length) {
-				const fallback = this.resolvedRuns[nextIndex];
-				if (!fallback) break;
-				if (quotaProvider && providerOf(fallback.model) === quotaProvider) {
-					nextIndex++;
-					continue;
-				}
-				let transport: RpcTransport | undefined;
-				let committed = false;
-				try {
-					this.assertCanRetryGeneration(generation);
-					const args = this.rpcArguments(sessionDir, this.promptPath, fallback, sessionFile);
-					const invocation = getPiInvocation(args);
-					transport = new RpcTransport({
-						command: invocation.command,
-						args: invocation.args,
-						cwd: this.options.cwd ?? this.options.defaultCwd,
-						env: childEnvironment({ ...this.options.childContext, agentId: this.id }),
-						...(this.options.spawnProcess === undefined ? {} : { spawnProcess: this.options.spawnProcess }),
-						onEvent: () => {},
-						onAgentEvent: (event) => this.queueEvent(event),
-						onUiRequest: (request) => this.handleUiRequest(request),
-						onOversizedRecord: () => this.recordOmittedTelemetry(),
-						onExit: (error) => {
-							if (committed && this.transport === transport) this.onExit(error);
-						},
-					});
-					this.transport = transport;
-					await transport.start();
-					this.assertTransport(transport);
-					const resumed = await this.validateSessionIdentity(
-						parseChildSessionIdentity(await transport.request({ type: "get_state" })),
-					);
-					assertSameChildSession(identity, resumed);
-					this.assertCanRetryGeneration(generation);
-					await this.observeSessionEntries(transport);
-
-					this.activeResolvedRunIndex = nextIndex;
-					this.startedGeneration = undefined;
-					this.run.model = fallback.model;
-					this.run.effectiveThinking = fallback.effectiveThinking;
-					this.run.contextWindow = fallback.contextWindow;
-					this.run.exitCode = 0;
-					this.run.stderr = "";
-					delete this.run.assistantError;
-					delete this.run.endTime;
-					await this.sendPrompt(
-						"Continue the current task after the previous model failed. Preserve completed work and verify the final result.",
-						transport,
-					);
-					committed = true;
-					return undefined;
-				} catch (cause) {
-					const interrupted = cause instanceof ModelFallbackInterruptedError;
-					if (!interrupted) fallbackErrors.push(toError(cause));
-					if (this.transport === transport) this.transport = undefined;
-					try {
-						await transport?.close();
-					} catch (cleanupCause) {
-						fallbackErrors.push(toError(cleanupCause));
-					}
-					if (interrupted || !this.canRetryGeneration(generation)) return originalError;
-					nextIndex++;
-				}
-			}
-			if (fallbackErrors.length === 0) return originalError;
-			return new AggregateError(
-				[originalError, ...fallbackErrors],
-				`${originalError.message} Model fallbacks failed: ${fallbackErrors.map((error) => error.message).join("; ")}`,
-			);
-		} finally {
-			this.replacingTransport = false;
-		}
-	}
-
-	private canRetryGeneration(generation: number): boolean {
-		return (
-			generation === this.generation && (this.lifecycle.phase === "starting" || this.lifecycle.phase === "running")
-		);
-	}
-
-	private assertCanRetryGeneration(generation: number): void {
-		if (!this.canRetryGeneration(generation)) throw new ModelFallbackInterruptedError();
-	}
-
 	private setLifecycle(next: AgentLifecycle): void {
 		this.lifecycle = transitionLifecycle(this.lifecycle, next);
 	}
@@ -906,7 +772,9 @@ export class ManagedAgent {
 								? "timed_out"
 								: guard.signal.reason instanceof AgentWaitDeferredReason
 									? "deferred"
-									: "cancelled";
+									: guard.signal.reason instanceof AgentWaitTimeoutReason
+										? "timed_out"
+										: "cancelled";
 							reject(new AgentWaitInterruptedError(kind, this.id, guard.signal.reason));
 						});
 					});
@@ -991,12 +859,11 @@ export class ManagedAgent {
 			this.generationEntries,
 		);
 		this.run.result = resultReference(captured.result);
-		this.run.finalText = captured.result.text;
+		this.run.finalText = resultPreview(captured.result.text);
 		this.run.usage = { ...captured.stats.usage };
 		this.run.tokens = runUsageTotalTokens(captured.stats.usage);
 		if (captured.stats.startTime !== undefined) this.run.startTime = captured.stats.startTime;
 		if (captured.stats.endTime !== undefined) this.run.endTime = captured.stats.endTime;
-		this.run.mutationToolCalls = captured.stats.mutationToolCalls;
 		if (captured.assistantError === undefined) delete this.run.assistantError;
 		else this.run.assistantError = captured.assistantError;
 		return captured;
@@ -1022,7 +889,7 @@ export class ManagedAgent {
 		}
 		const result = await this.readLegacyStoredResult(this.generation);
 		this.run.result = resultReference(result);
-		this.run.finalText = result.text;
+		this.run.finalText = resultPreview(result.text);
 	}
 
 	private async readLegacyStoredResult(generation: number): Promise<StoredAgentResult> {
@@ -1115,9 +982,7 @@ export class ManagedAgent {
 	}
 
 	private activeResolvedRun(): ResolvedRun {
-		const resolved = this.resolvedRuns[this.activeResolvedRunIndex];
-		if (!resolved) throw new Error(`Agent ${this.id} has no active resolved run.`);
-		return resolved;
+		return this.options.resolvedRun;
 	}
 
 	private validateSessionIdentity(identity: ChildSessionIdentity): Promise<ChildSessionIdentity> {
@@ -1149,8 +1014,6 @@ function snapshotQuestion(question: AgentQuestion): AgentQuestion {
 	return { ...question, options: [...question.options] };
 }
 
-class ModelFallbackInterruptedError extends Error {}
-
 class RecoverableAgentFailure extends Error {
 	readonly kind: string;
 	readonly recoverable = true;
@@ -1166,15 +1029,4 @@ function failureMetadata(error: Error): { readonly kind: string; readonly recove
 	return error instanceof RecoverableAgentFailure
 		? { kind: error.kind, recoverable: true }
 		: { kind: "subagent_failure", recoverable: false };
-}
-
-function isAccountQuotaError(message: string): boolean {
-	return /\b(insufficient[_ -]?quota|account[^.\n]*quota|quota[^.\n]*(exhausted|exceeded)|billing hard limit|credit balance|usage limit)\b/iu.test(
-		message,
-	);
-}
-
-function providerOf(model: string): string {
-	const slash = model.indexOf("/");
-	return slash < 0 ? model : model.slice(0, slash);
 }

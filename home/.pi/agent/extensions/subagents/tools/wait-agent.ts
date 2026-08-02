@@ -10,7 +10,12 @@ import {
 	type WaitOutcomeStatus,
 } from "../tool-results.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
-import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
+import {
+	AgentWaitDeferredReason,
+	AgentWaitInterruptedError,
+	AgentWaitTimeoutReason,
+	type AgentSummary,
+} from "../agent-types.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { sumRunUsage, toPiUsage } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
@@ -83,9 +88,13 @@ export async function executeWaitAgent(
 	for (const id of requested) runtime.registry.summary(id);
 	const startTime = now();
 	const wave = new AbortController();
-	const waitSignal = signal ? AbortSignal.any([signal, wave.signal]) : wave.signal;
+	const deadline = new AbortController();
+	const deadlineTimer = setTimeout(() => deadline.abort(new AgentWaitTimeoutReason()), timeoutMs);
+	const waitSignal = AbortSignal.any([wave.signal, deadline.signal, ...(signal ? [signal] : [])]);
 	const waits = Promise.allSettled(
 		requested.map(async (id) => {
+			// The wave owns one absolute deadline. This prevents the timeout
+			// from being restarted or measured independently for each child.
 			const details = await runtime.registry.wait(id, timeoutMs, waitSignal);
 			if (details.pendingQuestion && !wave.signal.aborted) {
 				wave.abort(new AgentWaitDeferredReason());
@@ -93,13 +102,17 @@ export async function executeWaitAgent(
 			return details;
 		}),
 	);
-	await waitForSettlementsOrAbort(waits, signal);
-	signal?.throwIfAborted();
-	const summaries = requested.map((id) => runtime.registry.summary(id));
-	const outcomes = (await waits).map((outcome, index) => waitOutcome(requested[index]!, outcome));
-	runtime.consumeSettledCompletions(summaries);
-	const details = waitDetails(summaries, now() - startTime, timeoutMs, outcomes);
-	return jsonResult({ summaries, outcomes }, details);
+	try {
+		await waitForSettlementsOrAbort(waits, signal);
+		signal?.throwIfAborted();
+		const summaries = requested.map((id) => runtime.registry.summary(id));
+		const outcomes = (await waits).map((outcome, index) => waitOutcome(requested[index]!, outcome));
+		runtime.consumeSettledCompletions(summaries);
+		const details = waitDetails(summaries, Math.max(0, now() - startTime), timeoutMs, outcomes);
+		return jsonResult({ summaries, outcomes }, details);
+	} finally {
+		clearTimeout(deadlineTimer);
+	}
 }
 
 async function waitForSettlementsOrAbort(

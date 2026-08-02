@@ -259,15 +259,6 @@ export function loadProfiles(
  * return a model for which the user has no configured authentication.
  */
 export function resolveRun(options: ResolveRunOptions): ResolvedRun {
-	return resolveRuns(options)[0];
-}
-
-/**
- * Resolve every authenticated candidate in configured order. The first run
- * preserves resolveRun's validation behavior; later candidates that cannot
- * honor the requested thinking level are omitted from runtime fallback.
- */
-export function resolveRuns(options: ResolveRunOptions): readonly [ResolvedRun, ...ResolvedRun[]] {
 	const agent = typeof options.agent === "string" ? options.agent : options.agent.name;
 	const policy = options.config.agentPolicies[agent];
 	if (!policy) throw new Error(`No profile policy is configured for agent '${agent}'.`);
@@ -296,32 +287,18 @@ export function resolveRuns(options: ResolveRunOptions): readonly [ResolvedRun, 
 		);
 	}
 
-	const [primary, ...fallbacks] = authenticated;
-	if (!primary) throw new Error(`Profile '${profileName}' has no authenticated model candidates.`);
-	const resolved = [
-		resolveCandidate(
-			agent,
-			profileName,
-			primary.candidate,
-			primary.model,
-			options.requestedThinking,
-			primary.thinkingLevel,
-		),
-	];
-	for (const fallback of fallbacks) {
-		const requested = fallback.thinkingLevel ?? options.requestedThinking ?? fallback.candidate.defaultThinking;
-		if (
-			thinkingRank(requested) < thinkingRank(fallback.candidate.defaultThinking) ||
-			thinkingRank(requested) > thinkingRank(fallback.candidate.maxThinking)
-		)
-			continue;
-		const effectiveThinking = supportedThinkingAtOrBelow(fallback.model, requested);
-		if (!effectiveThinking) continue;
-		resolved.push(
-			freezeResolvedRun(agent, profileName, fallback.candidate.id, effectiveThinking, fallback.model.contextWindow),
-		);
+	const candidate = authenticated[0];
+	if (!candidate) {
+		throw new Error(`Profile '${profileName}' has no authenticated model candidates.`);
 	}
-	return Object.freeze(resolved) as readonly [ResolvedRun, ...ResolvedRun[]];
+	return resolveCandidate(
+		agent,
+		profileName,
+		candidate.candidate,
+		candidate.model,
+		options.requestedThinking,
+		candidate.thinkingLevel,
+	);
 }
 
 function resolveCandidate(

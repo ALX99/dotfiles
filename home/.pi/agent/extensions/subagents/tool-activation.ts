@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentSummary } from "./agent-types.ts";
 
 export const SUBAGENT_TOOL_NAMES = [
@@ -19,9 +19,6 @@ const RETAINED_CHILD_TOOLS = ["followup_agent", "send_agent", "list_agents", "in
 const ANSWER_TOOL = ["answer_agent"];
 const READ_RESULT_TOOL = ["read_agent_result"];
 const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES);
-const RESULT_TOOL_BYTE_RESERVE = 1024;
-const RESULT_TOOL_LINE_RESERVE = 10;
-
 type ToolActivationAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
 type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
 
@@ -62,11 +59,7 @@ export function activateForSubagentState(
 
 /** Native tool-output bounds may still require exact retrieval of an otherwise complete result. */
 export function requiresExactResultRead(summary: AgentSummary): boolean {
-	if (!summary.result) return false;
-	if (!summary.result.complete) return true;
-	const text = summary.final_text ?? "";
-	return (
-		Buffer.byteLength(text, "utf8") > DEFAULT_MAX_BYTES - RESULT_TOOL_BYTE_RESERVE ||
-		text.split("\n").length > DEFAULT_MAX_LINES - RESULT_TOOL_LINE_RESERVE
-	);
+	// Summaries intentionally contain only a preview, even for small results.
+	// The persisted terminal text is always reconstructed through the reader.
+	return summary.result !== undefined;
 }
