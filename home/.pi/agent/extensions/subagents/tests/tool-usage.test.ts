@@ -8,7 +8,7 @@ import type { ManagedAgent } from "../managed-agent.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 import { createFollowupAgentTool } from "../tools/followup-agent.ts";
-import { createSpawnAgentTool } from "../tools/spawn-agent.ts";
+import { createSpawnAgentTool, type SpawnAgentDependencies } from "../tools/spawn-agent.ts";
 import { createWaitAgentTool } from "../tools/wait-agent.ts";
 
 const agentConfig = {
@@ -150,18 +150,29 @@ function fixture(t: { after(callback: () => void | Promise<void>): void }) {
 			return summary.usage;
 		},
 	};
+	const spawnDependencies: SpawnAgentDependencies = {
+		agents: runtime.agents,
+		profiles: runtime.profiles,
+		agentDir: runtime.agentDir,
+		admission: runtime.admission,
+		registry: { add: runtime.registry.add },
+		ticks: new Map(),
+		onBackgroundComplete: runtime.handleBackgroundComplete,
+		onQuestion: runtime.handleQuestion,
+		claimUsage: (summary) => runtime.claimUsage(summary),
+	};
 	const context = {
 		cwd: process.cwd(),
 		modelRegistry: { getAvailable: () => [model] },
 		scopedModels: [],
 		sessionManager: { getSessionId: () => "parent-session" },
 	};
-	return { pi, runtime, context, activeTools: () => activeTools };
+	return { pi, runtime, spawnDependencies, context, activeTools: () => activeTools };
 }
 
 test("foreground spawn and follow-up report each completed generation's nested usage", async (t) => {
-	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const { pi, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -202,8 +213,8 @@ test("foreground spawn and follow-up report each completed generation's nested u
 });
 
 test("background spawn and follow-up return no usage at launch", async (t) => {
-	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const { pi, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -237,9 +248,9 @@ test("background spawn and follow-up return no usage at launch", async (t) => {
 });
 
 test("spawn and follow-up progress subscriptions do not outlive their invocations", async (t) => {
-	const { pi, runtime, context } = fixture(t);
+	const { pi, runtime, spawnDependencies, context } = fixture(t);
 	const spawnUpdates: unknown[] = [];
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -286,7 +297,7 @@ test("spawn and follow-up progress subscriptions do not outlive their invocation
 	assert.equal(backgroundUpdates.length, afterBackground);
 
 	const abortedUpdates: unknown[] = [];
-	const slowSpawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const slowSpawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(500),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -325,8 +336,8 @@ test("spawn and follow-up progress subscriptions do not outlive their invocation
 });
 
 test("cancelled foreground spawn activates controls for the child left running", async (t) => {
-	const { pi, runtime, context, activeTools } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const { pi, spawnDependencies, context, activeTools } = fixture(t);
+	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -353,8 +364,8 @@ test("cancelled foreground spawn activates controls for the child left running",
 });
 
 test("the first background wait reports usage and repeated waits do not double count it", async (t) => {
-	const { pi, runtime, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+	const { pi, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
