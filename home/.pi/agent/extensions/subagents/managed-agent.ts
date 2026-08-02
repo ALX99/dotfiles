@@ -40,13 +40,11 @@ import {
 	captureGeneration,
 	paginateStoredResult,
 	readChildTranscript,
-	readLocatedAgentResult,
 	readStoredAgentResult,
 	resultPreview,
 	resultReference,
 	validateChildSessionIdentity,
 	type CapturedGeneration,
-	type GenerationResultLocator,
 	type ResultPage,
 	type StoredAgentResult,
 } from "./result-store.ts";
@@ -148,8 +146,7 @@ export class ManagedAgent {
 	private readonly options: ManagedAgentOptions;
 	private readonly agentDir: string;
 	private failing = false;
-	private readonly resultIds = new Map<number, string>();
-	private readonly resultLocators = new Map<number, GenerationResultLocator>();
+	private resultSink: (captured: CapturedGeneration) => void = () => {};
 	private sessionIdentity: ChildSessionIdentity | undefined;
 	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
 	private generationStart: SessionCheckpoint | undefined;
@@ -162,6 +159,10 @@ export class ManagedAgent {
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
 		this.onUpdate = options.onUpdate;
 		this.run = this.freshRun();
+	}
+
+	attachResultSink(sink: (captured: CapturedGeneration) => void): void {
+		this.resultSink = sink;
 	}
 
 	getLifecycle(): AgentLifecycle {
@@ -302,7 +303,7 @@ export class ManagedAgent {
 		return readChildTranscript(sessionFile, this.agentDir);
 	}
 
-	async readResult(
+	async readLiveResultPreview(
 		options: {
 			readonly generation?: number;
 			readonly cursor?: string;
@@ -325,12 +326,22 @@ export class ManagedAgent {
 			};
 			return paginateStoredResult(this.id, live, options);
 		}
-		const locator = this.resultLocators.get(generation);
-		const result =
-			locator === undefined
-				? await this.readLegacyStoredResult(generation)
-				: await readLocatedAgentResult(locator, this.agentDir);
-		return paginateStoredResult(this.id, result, options);
+		throw new Error(`Agent ${this.id} has no live result preview for generation ${generation}.`);
+	}
+
+	async readSettledResult(
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+	): Promise<ResultPage> {
+		const generation = options.generation ?? this.generation;
+		if (generation !== this.generation) {
+			throw new Error(`Agent ${this.id} has no fallback result for generation ${generation}.`);
+		}
+		return paginateStoredResult(this.id, await this.readLegacyStoredResult(), options);
 	}
 
 	async followUp(
@@ -449,8 +460,8 @@ export class ManagedAgent {
 		return this.snapshot();
 	}
 
-	getResultLocators(): ReadonlyMap<number, GenerationResultLocator> {
-		return new Map(this.resultLocators);
+	hasPendingResult(generation: number): boolean {
+		return generation === this.generation && this.deferred !== undefined && !this.deferred.settled;
 	}
 
 	subscribe(listener: () => void): () => void {
@@ -497,7 +508,6 @@ export class ManagedAgent {
 		this.taskName = taskName;
 		this.setLifecycle({ phase: "starting" });
 		this.run = this.freshRun();
-		this.resultIds.set(generation, this.run.resultId);
 		const { promise, resolve, reject } = Promise.withResolvers<ReadonlyRunDetails>();
 		void promise.catch(() => {});
 		const deferred = { generation, promise, resolve, reject, settled: false };
@@ -859,7 +869,7 @@ export class ManagedAgent {
 	}
 
 	private finalizeGeneration(captured: CapturedGeneration): void {
-		this.resultLocators.set(this.generation, captured.locator);
+		this.resultSink(captured);
 		this.run.resultLocator = captured.locator;
 	}
 
@@ -876,25 +886,24 @@ export class ManagedAgent {
 			this.finalizeGeneration(this.captureGenerationEntries(identity, start, captured.checkpoint, captured.entries));
 			return;
 		}
-		const result = await this.readLegacyStoredResult(this.generation);
+		const result = await this.readLegacyStoredResult();
 		this.run.result = resultReference(result);
 		this.run.finalText = resultPreview(result.text);
 	}
 
-	private async readLegacyStoredResult(generation: number): Promise<StoredAgentResult> {
-		const resultId = this.resultIds.get(generation);
-		if (!resultId) throw new Error(`Agent ${this.id} has no result identity for generation ${generation}.`);
+	private async readLegacyStoredResult(): Promise<StoredAgentResult> {
+		const resultId = this.run.resultId;
 		const sessionFile = this.run.sessionFile;
 		if (sessionFile) {
 			try {
-				return await readStoredAgentResult(sessionFile, generation, resultId, this.agentDir);
+				return await readStoredAgentResult(sessionFile, this.generation, resultId, this.agentDir);
 			} catch (cause) {
-				if (generation !== this.generation || (!this.run.lastAssistantText && this.run.result)) throw cause;
+				if (!this.run.lastAssistantText && this.run.result) throw cause;
 			}
 		}
 		const text = this.run.lastAssistantText;
 		return Object.freeze({
-			generation,
+			generation: this.generation,
 			resultId,
 			text,
 			pageCount: 0,

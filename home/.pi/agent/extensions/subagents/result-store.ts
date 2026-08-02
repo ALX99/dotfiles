@@ -7,6 +7,7 @@ import type { RunUsage } from "./run-state.ts";
 import type { ChildSessionIdentity, SessionCheckpoint } from "./session-cursors.ts";
 
 export const RESULT_PAGE_CUSTOM_TYPE = "subagent-result-page";
+export const SUBAGENT_SETTLEMENT_CUSTOM_TYPE = "subagent-settlement";
 export const RESULT_PAGE_MAX_BYTES = 32 * 1024;
 export const RESULT_READ_MIN_BYTES = 4;
 export const RESULT_READ_DEFAULT_BYTES = 6 * 1024;
@@ -49,6 +50,14 @@ export interface GenerationResultLocator {
 	readonly end: SessionCheckpoint;
 	readonly resultEntryId: string | null;
 	readonly resultSha256: string;
+}
+
+/** Historical locator owned by the result catalog. */
+export interface ResultLocator {
+	readonly sessionFile: string;
+	readonly generation: number;
+	readonly resultId?: string;
+	readonly native?: GenerationResultLocator;
 }
 
 export interface CapturedGeneration {
@@ -158,6 +167,163 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 		resultEntryId: record.resultEntryId,
 		resultSha256: record.resultSha256,
 	});
+}
+
+export class ResultCatalog {
+	private readonly locators = new Map<string, Map<number, ResultLocator>>();
+	private readonly agentDir: string;
+
+	constructor(agentDir = getAgentDir()) {
+		this.agentDir = agentDir;
+	}
+
+	record(agentId: string, locator: ResultLocator): void {
+		let generations = this.locators.get(agentId);
+		if (!generations) {
+			generations = new Map();
+			this.locators.set(agentId, generations);
+		}
+		generations.set(locator.generation, locator);
+	}
+
+	recordGeneration(agentId: string, captured: CapturedGeneration): void {
+		this.record(agentId, {
+			sessionFile: captured.locator.sessionFile,
+			generation: captured.locator.generation,
+			resultId: captured.locator.resultId,
+			native: captured.locator,
+		});
+	}
+
+	forget(agentId: string): void {
+		this.locators.delete(agentId);
+	}
+
+	clear(): void {
+		this.locators.clear();
+	}
+
+	has(agentId: string, generation: number): boolean {
+		return this.locators.get(agentId)?.has(generation) ?? false;
+	}
+
+	restore(entries: readonly SessionEntry[]): number {
+		this.locators.clear();
+		for (const entry of entries) {
+			for (const candidate of locatorCandidates(entry)) this.record(candidate.agentId, candidate.locator);
+		}
+		return [...this.locators.values()].reduce((count, generations) => count + generations.size, 0);
+	}
+
+	agentIds(): Iterable<string> {
+		return this.locators.keys();
+	}
+
+	async readResult(
+		agentId: string,
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+		fallback?: ResultLocator,
+	): Promise<ResultPage> {
+		const generations = this.locators.get(agentId);
+		if (!generations && fallback === undefined) throw new Error(`Unknown agent_id '${agentId}'.`);
+		const generation =
+			options.generation ??
+			fallback?.generation ??
+			(generations === undefined ? undefined : this.latestGeneration(generations));
+		if (generation === undefined) throw new Error(`Agent ${agentId} has no result locator.`);
+		const locator = generations?.get(generation) ?? (fallback?.generation === generation ? fallback : undefined);
+		if (!locator) throw new Error(`Agent ${agentId} has no result locator for generation ${generation}.`);
+		const result = locator.native
+			? await readLocatedAgentResult(locator.native, this.agentDir)
+			: await readStoredAgentResult(locator.sessionFile, generation, locator.resultId, this.agentDir);
+		return paginateStoredResult(agentId, result, options);
+	}
+
+	private latestGeneration(locators: ReadonlyMap<number, ResultLocator>): number {
+		const generations = [...locators.keys()];
+		if (generations.length === 0) throw new Error("Stored agent has no result locators.");
+		return Math.max(...generations);
+	}
+}
+
+const LOCATOR_TOOL_NAMES = new Set([
+	"spawn_agent",
+	"followup_agent",
+	"wait_agent",
+	"list_agents",
+	"close_agent",
+	"interrupt_agent",
+]);
+
+function locatorCandidates(entry: SessionEntry): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+	let details: unknown;
+	if (entry.type === "custom" && entry.customType === SUBAGENT_SETTLEMENT_CUSTOM_TYPE) details = entry.data;
+	else if (entry.type === "custom_message" && entry.customType === "subagent-completion") details = entry.details;
+	else if (
+		entry.type === "message" &&
+		entry.message.role === "toolResult" &&
+		LOCATOR_TOOL_NAMES.has(entry.message.toolName)
+	) {
+		details = entry.message.details;
+	} else return [];
+	return collectLocatorCandidates(details);
+}
+
+function collectLocatorCandidates(
+	value: unknown,
+): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+	if (Array.isArray(value)) return value.flatMap((item) => collectLocatorCandidates(item));
+	if (!isRecord(value)) return [];
+	const nested = Array.isArray(value.summaries)
+		? value.summaries.flatMap((item) => collectLocatorCandidates(item))
+		: [];
+	const agentId = stringField(value, "agent_id", "agentId");
+	const nativeValue = value.result_locator ?? value.resultLocator;
+	if (nativeValue !== undefined) {
+		const native = parseGenerationResultLocator(nativeValue);
+		if (agentId === undefined || native === undefined) return nested;
+		return [
+			...nested,
+			{
+				agentId,
+				locator: { sessionFile: native.sessionFile, generation: native.generation, resultId: native.resultId, native },
+			},
+		];
+	}
+	const sessionFile = stringField(value, "session_file", "sessionFile");
+	const generation = value.generation;
+	if (
+		agentId === undefined ||
+		sessionFile === undefined ||
+		typeof generation !== "number" ||
+		!Number.isInteger(generation) ||
+		generation < 1
+	)
+		return nested;
+	const result = isRecord(value.result) ? value.result : undefined;
+	const resultId = stringField(value, "resultId") ?? (result ? stringField(result, "result_id") : undefined);
+	if (resultId !== undefined && !RESULT_ID_PATTERN.test(resultId)) return nested;
+	return [
+		...nested,
+		{ agentId, locator: { sessionFile, generation, ...(resultId === undefined ? {} : { resultId }) } },
+	];
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringField(value: Readonly<Record<string, unknown>>, ...names: string[]): string | undefined {
+	for (const name of names) {
+		const field = value[name];
+		if (typeof field === "string" && field.trim()) return field;
+	}
+	return undefined;
 }
 
 export function captureGeneration(
