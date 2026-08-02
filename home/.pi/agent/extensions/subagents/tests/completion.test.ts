@@ -60,6 +60,27 @@ test("background completions serialize child output as safe XML", () => {
 	assert.match(content, /started_at="0" ended_at="20" duration_ms="20"/);
 });
 
+test("background completions keep previews bounded and direct exact reads", () => {
+	const content = formatBackgroundCompletions([
+		{
+			...summary(1),
+			final_text: "x".repeat(50 * 1024),
+			result: {
+				generation: 1,
+				result_id: "a".repeat(64),
+				pages: 9,
+				complete: true,
+				total_bytes: 50 * 1024,
+				sha256: "b".repeat(64),
+				source: "assistant",
+			},
+		},
+	]);
+	assert.ok(Buffer.byteLength(content, "utf8") < 3 * 1024);
+	assert.match(content, /read_agent_result/);
+	assert.match(content, /result_ref/);
+});
+
 test("subagent questions serialize their routing fields as safe XML", () => {
 	const content = formatSubagentQuestion(
 		{ ...summary(2), agent_id: `worker-"<&` },

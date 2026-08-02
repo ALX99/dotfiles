@@ -61,6 +61,14 @@ export class AgentWaitDeferredReason extends Error {
 	}
 }
 
+/** Internal reason used to release every wait in a wave at one deadline. */
+export class AgentWaitTimeoutReason extends Error {
+	constructor() {
+		super("The wait-agent deadline expired.");
+		this.name = "AgentWaitTimeoutReason";
+	}
+}
+
 /** A wait ended without changing the subagent's underlying run. */
 export class AgentWaitInterruptedError extends Error {
 	readonly kind: WaitInterruptionKind;

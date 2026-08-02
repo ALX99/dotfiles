@@ -8,7 +8,6 @@ import {
 	parseAndValidateProfiles,
 	parseProfilesJson,
 	resolveRun,
-	resolveRuns,
 	validateProfiles,
 	type ProfilesConfig,
 } from "../profiles.ts";
@@ -199,45 +198,9 @@ test("resolveRun rejects a thinking request below the candidate default", () => 
 	);
 });
 
-test("resolveRuns returns authenticated fallback candidates in configured order", () => {
-	const runs = resolveRuns({
-		config,
-		agent: "scout",
-		modelRegistry: {
-			getAvailable: () => [model("provider", "second", 64_000), model("provider", "first/model", 96_000)],
-		},
-	});
-
-	assert.deepEqual(
-		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking, contextWindow: run.contextWindow })),
-		[
-			{ model: "provider/first/model", thinking: "low", contextWindow: 96_000 },
-			{ model: "provider/second", thinking: "medium", contextWindow: 64_000 },
-		],
-	);
-	assert.ok(Object.isFrozen(runs));
-	assert.ok(runs.every(Object.isFrozen));
-});
-
-test("resolveRuns omits fallbacks whose defaults exceed a requested thinking level", () => {
-	const runs = resolveRuns({
-		config,
-		agent: "scout",
-		requestedThinking: "low",
-		modelRegistry: {
-			getAvailable: () => [model("provider", "second"), model("provider", "first/model")],
-		},
-	});
-
-	assert.deepEqual(
-		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking })),
-		[{ model: "provider/first/model", thinking: "low" }],
-	);
-});
-
-test("resolveRuns restricts candidates to scoped models and respects their thinking pins", () => {
+test("resolveRun selects the first authenticated candidate", () => {
 	let availableCalls = 0;
-	const runs = resolveRuns({
+	const run = resolveRun({
 		config,
 		agent: "scout",
 		modelRegistry: {
@@ -249,10 +212,8 @@ test("resolveRuns restricts candidates to scoped models and respects their think
 		scopedModels: [{ model: model("provider", "second"), thinkingLevel: "high" }],
 	});
 
-	assert.deepEqual(
-		runs.map((run) => ({ model: run.model, thinking: run.effectiveThinking })),
-		[{ model: "provider/second", thinking: "high" }],
-	);
+	assert.equal(run.model, "provider/second");
+	assert.equal(run.effectiveThinking, "high");
 	assert.equal(availableCalls, 0);
 	assert.throws(
 		() =>

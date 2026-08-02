@@ -11,9 +11,10 @@ export const RESULT_PAGE_MAX_BYTES = 32 * 1024;
 export const RESULT_READ_MIN_BYTES = 4;
 export const RESULT_READ_DEFAULT_BYTES = 6 * 1024;
 export const RESULT_READ_MAX_BYTES = 6 * 1024;
+export const RESULT_PREVIEW_MAX_BYTES = 4 * 1024;
+export const RESULT_PREVIEW_MAX_LINES = 100;
 
 const RESULT_ID_PATTERN = /^[0-9a-f]{64}$/;
-const MUTATION_CAPABLE_TOOLS = new Set(["bash", "edit", "write", "apply_patch"]);
 const ResultPageDataSchema = z.strictObject({
 	version: z.literal(1),
 	generation: z.number().int().positive(),
@@ -83,11 +84,30 @@ export interface ResultPage {
 	readonly source: StoredAgentResult["source"];
 }
 
+/** Presentation-only text; the persisted result remains available by locator. */
+export function resultPreview(text: string): string {
+	const notice = "\n[Result preview truncated; use read_agent_result for exact output.]";
+	const maxContentBytes = RESULT_PREVIEW_MAX_BYTES - Buffer.byteLength(notice, "utf8");
+	let end = 0;
+	let bytes = 0;
+	let lines = 1;
+	for (const character of text) {
+		const characterBytes = Buffer.byteLength(character, "utf8");
+		if (bytes + characterBytes > maxContentBytes || (character === "\n" && lines >= RESULT_PREVIEW_MAX_LINES - 1)) {
+			break;
+		}
+		bytes += characterBytes;
+		end += character.length;
+		if (character === "\n") lines++;
+	}
+	if (end === text.length) return text;
+	return `${text.slice(0, end)}${notice}`;
+}
+
 export interface ChildRunStats {
 	readonly usage: Readonly<RunUsage>;
 	readonly startTime?: number;
 	readonly endTime?: number;
-	readonly mutationToolCalls: number;
 }
 
 export function resultReference(result: StoredAgentResult): AgentResultReference {
@@ -156,7 +176,6 @@ export function captureGeneration(
 		usage: nativeStats.usage,
 		...(nativeStats.startTime === undefined ? {} : { startTime: nativeStats.startTime }),
 		...(nativeStats.endTime === undefined ? {} : { endTime: nativeStats.endTime }),
-		mutationToolCalls: nativeStats.mutationToolCalls,
 	});
 	const assistantError = activeBranchAssistantError(activeEntries);
 	const locator: GenerationResultLocator = Object.freeze({
@@ -532,7 +551,6 @@ function resultIdForGeneration(entries: readonly SessionEntry[], generation: num
 
 function childRunStats(entries: readonly SessionEntry[]): {
 	readonly usage: Readonly<RunUsage>;
-	readonly mutationToolCalls: number;
 	readonly startTime?: number;
 	readonly endTime?: number;
 } {
@@ -545,26 +563,18 @@ function childRunStats(entries: readonly SessionEntry[]): {
 		cost: 0,
 		turns: 0,
 	};
-	let mutationToolCalls = 0;
 	for (const entry of entries) {
 		if (entry.type === "message" && entry.message.role === "assistant") {
 			addUsage(usage, entry.message.usage);
 			usage.turns++;
 		} else if (entry.type === "compaction" || entry.type === "branch_summary") {
 			addUsage(usage, entry.usage);
-		} else if (
-			entry.type === "message" &&
-			entry.message.role === "toolResult" &&
-			MUTATION_CAPABLE_TOOLS.has(entry.message.toolName)
-		) {
-			mutationToolCalls++;
 		}
 	}
 	const startTime = entryTime(entries[0]);
 	const endTime = entryTime(entries.at(-1));
 	return Object.freeze({
 		usage: Object.freeze(usage),
-		mutationToolCalls,
 		...(startTime === undefined ? {} : { startTime }),
 		...(endTime === undefined ? {} : { endTime }),
 	});
