@@ -12,6 +12,7 @@ import {
 	readLegacyResultPages,
 	readLocatedAgentResult,
 	resultPreview,
+	ResultCatalog,
 	type GenerationResultLocator,
 } from "../result-store.ts";
 import type { SessionCheckpoint } from "../session-cursors.ts";
@@ -162,6 +163,23 @@ test("restart restoration preserves multiple native generations for one agent", 
 	assert.equal(registry.restoreResultLocators(parent), 2);
 	assert.equal((await registry.readResult("worker-1", { generation: 1 })).text, "generation 1");
 	assert.equal((await registry.readResult("worker-1", { generation: 2 })).text, "generation 2");
+});
+
+test("catalog fallbacks keep settled results readable without native locators", async (t) => {
+	const { agentDir, manager } = await session(t);
+	manager.appendMessage(assistant("recovered", 1));
+	const catalog = new ResultCatalog(agentDir);
+	const result = await catalog.readResult(
+		"failed-agent",
+		{},
+		{
+			sessionFile: sessionFile(manager),
+			generation: 1,
+			resultId: "e".repeat(64),
+		},
+	);
+	assert.equal(result.text, "recovered");
+	assert.equal(result.complete, true);
 });
 
 test("v1 custom result pages and pagination remain readable", () => {
