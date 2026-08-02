@@ -145,7 +145,7 @@ export class ManagedAgent {
 	private closePromise: Promise<void> | undefined;
 	private readonly options: ManagedAgentOptions;
 	private readonly agentDir: string;
-	private failing = false;
+	private failureTask: Promise<void> | undefined;
 	private resultSink: (captured: CapturedGeneration) => void = () => {};
 	private sessionIdentity: ChildSessionIdentity | undefined;
 	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
@@ -361,6 +361,7 @@ export class ManagedAgent {
 		if (this.lifecycle.phase === "aborted" && this.deferred && !this.deferred.settled) {
 			await this.deferred.promise.catch(() => {});
 		}
+		if (this.failureTask) await this.failureTask;
 		const wasRunning = this.lifecycle.phase === "running" || this.lifecycle.phase === "starting";
 		const run = wasRunning && this.deferred && !this.deferred.settled ? this.deferred : this.beginRun(taskName);
 		if (wasRunning) {
@@ -496,6 +497,10 @@ export class ManagedAgent {
 				error: new Error("Agent received a newer run before the previous run settled."),
 			});
 		}
+		// Recovery belongs to the generation that just ended. Keep its task
+		// available until that generation is replaced, then allow the next
+		// generation to track its own failure independently.
+		this.failureTask = undefined;
 		const generation = this.generation + 1;
 		this.generation = generation;
 		this.startedGeneration = undefined;
@@ -612,8 +617,7 @@ export class ManagedAgent {
 	}
 
 	private failRun(cause: unknown): void {
-		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed" || this.failing) return;
-		this.failing = true;
+		if (this.lifecycle.phase === "closing" || this.lifecycle.phase === "closed" || this.failureTask) return;
 		const error = toError(cause);
 		if (this.lifecycle.phase !== "failed") {
 			this.setLifecycle({ phase: "failed", error });
@@ -623,16 +627,15 @@ export class ManagedAgent {
 		this.run.exitCode = 1;
 		this.run.stderr = error.message;
 		this.run.endTime = Date.now();
-		this.emit();
-		void this.captureFailedGeneration()
+		this.failureTask = this.captureFailedGeneration()
 			.catch((captureCause) => {
 				this.run.stderr = `${this.run.stderr}\nResult recovery failed: ${toError(captureCause).message}`;
 			})
 			.finally(() => {
-				this.failing = false;
 				this.settleCurrent({ kind: "reject", error });
 				this.emit();
 			});
+		this.emit();
 	}
 
 	private async closeInternal(): Promise<void> {
@@ -655,6 +658,11 @@ export class ManagedAgent {
 			}
 			try {
 				await this.eventTail;
+			} catch (error) {
+				failures.push(error);
+			}
+			try {
+				await this.failureTask;
 			} catch (error) {
 				failures.push(error);
 			}
