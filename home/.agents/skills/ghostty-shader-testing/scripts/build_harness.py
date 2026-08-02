@@ -26,10 +26,8 @@ def resolve_path(root: Path, path: Path) -> Path:
 
 
 def html_document(
-	cursor_source: str,
 	scene_source: str,
 	baseline_source: str | None,
-	cursor_no_bloom: str,
 	scene_label: str,
 	baseline_label: str | None,
 	width: int,
@@ -98,13 +96,11 @@ def html_document(
 		padding: 5px 0;
 	}}
 </style>
-<div id="status">Compiling Ghostty shader variants...</div>
+<div id="status">Compiling Ghostty shader...</div>
 <div class="row"></div>
 <script>
-const cursorSource = {json.dumps(cursor_source)};
 const sceneSource = {json.dumps(scene_source)};
 const baselineSource = {json.dumps(baseline_source)};
-const cursorNoBloomSource = {json.dumps(cursor_no_bloom)};
 const terminalLines = {json.dumps(lines)};
 const W = {width};
 const H = {height};
@@ -287,38 +283,22 @@ function addPanel(label, draw) {{
 
 function drawSingle(source, outputCanvas, gl) {{
 	const input = makeTexture(gl, sourceCanvas());
-	const program = makeProgram(gl, source);
-	drawPass(gl, program, input, null);
-}}
-
-function drawPipeline(scene, outputCanvas, gl, cursor = cursorSource) {{
-	const input = makeTexture(gl, sourceCanvas());
-	const intermediateTexture = makeTexture(gl, null);
-	const intermediateFramebuffer = makeFramebuffer(gl, intermediateTexture);
-	const cursorProgram = makeProgram(
+	const program = makeProgram(
 		gl,
-		cursor,
+		source,
 		"uniform vec4 iCurrentCursor; uniform vec4 iPreviousCursor; uniform float iTimeCursorChange;",
 	);
-	drawPass(gl, cursorProgram, input, intermediateFramebuffer);
-	const sceneProgram = makeProgram(gl, scene);
-	drawPass(gl, sceneProgram, intermediateTexture, null);
+	drawPass(gl, program, input, null);
 }}
 
 try {{
 {baseline_panel}
-	addPanel("Scene: {scene_label} only", (gl) => {{
+	addPanel("Shader: {scene_label}", (gl) => {{
 		drawSingle(sceneSource, null, gl);
-	}});
-	addPanel("Configured: cursor-blaze -> {scene_label}", (gl) => {{
-		drawPipeline(sceneSource, null, gl);
-	}});
-	addPanel("Diagnostic: cursor text bloom disabled -> {scene_label}", (gl) => {{
-		drawPipeline(sceneSource, null, gl, cursorNoBloomSource);
 	}});
 {reference_markup}
 	document.querySelector("#status").textContent =
-		"WebGL2 compiled and rendered all shader variants.";
+		"WebGL2 compiled and rendered the shader.";
 }} catch (error) {{
 	document.querySelector("#status").textContent = "ERROR: " + error.stack;
 	console.error(error);
@@ -353,7 +333,7 @@ def main() -> None:
 		type=Path,
 		help=(
 			"target shader path, relative to --root when not absolute "
-			"(default: .config/ghostty/stellar-drift.glsl)"
+			"(default: .config/ghostty/cursor-blaze.glsl)"
 		),
 	)
 	parser.add_argument(
@@ -383,12 +363,10 @@ def main() -> None:
 	)
 	args = parser.parse_args()
 
-	cursor_path = args.root / ".config/ghostty/cursor-blaze.glsl"
 	scene_path = resolve_path(
 		args.root,
-		args.shader or Path(".config/ghostty/stellar-drift.glsl"),
+		args.shader or Path(".config/ghostty/cursor-blaze.glsl"),
 	)
-	cursor_source = cursor_path.read_text()
 	scene_source = scene_path.read_text()
 	baseline_source = None
 	baseline_label = None
@@ -408,13 +386,8 @@ def main() -> None:
 		shutil.copy2(args.reference, args.output / reference_name)
 
 	page = html_document(
-		cursor_source,
 		scene_source,
 		baseline_source,
-		cursor_source.replace(
-			"color += bloom * 0.018;",
-			"color += bloom * 0.0;",
-		),
 		scene_path.stem,
 		baseline_label,
 		args.width,
