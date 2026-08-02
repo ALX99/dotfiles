@@ -121,7 +121,6 @@ export class ManagedAgent {
 	private lifecycle: AgentLifecycle = { phase: "created" };
 	private generation = 0;
 	private startedGeneration: number | undefined;
-	private taskName = "";
 	private run: MutableRunData;
 	private pendingQuestion: AgentQuestion | undefined;
 	private questionSignal: QuestionSignal | undefined;
@@ -353,10 +352,7 @@ export class ManagedAgent {
 		if (this.failureTask) await this.failureTask;
 		const wasRunning = this.lifecycle.phase === "running" || this.lifecycle.phase === "starting";
 		const run = wasRunning && this.deferred && !this.deferred.settled ? this.deferred : this.beginRun(taskName);
-		if (wasRunning) {
-			this.taskName = taskName;
-			this.run.taskName = taskName;
-		}
+		if (wasRunning) this.run.taskName = taskName;
 		let foregroundQuestionGuard = false;
 		try {
 			if (!background) {
@@ -424,7 +420,7 @@ export class ManagedAgent {
 		return {
 			agent_id: this.id,
 			agent: resolvedRun.agent,
-			task_name: this.taskName,
+			task_name: this.run.taskName,
 			profile: resolvedRun.profile,
 			model: resolvedRun.model,
 			effective_thinking: resolvedRun.effectiveThinking,
@@ -496,9 +492,8 @@ export class ManagedAgent {
 		this.pendingQuestion = undefined;
 		this.queuedCustomAnswer = undefined;
 		this.questionSignal = this.newQuestionSignal(generation);
-		this.taskName = taskName;
 		this.setLifecycle({ phase: "starting" });
-		this.run = this.freshRun();
+		this.run = this.freshRun(taskName);
 		const { promise, resolve, reject } = Promise.withResolvers<ReadonlyRunDetails>();
 		void promise.catch(() => {});
 		const deferred = { generation, promise, resolve, reject, settled: false };
@@ -669,11 +664,11 @@ export class ManagedAgent {
 		if (failures.length > 0) throw new CleanupAggregateError(`Agent ${this.id}`, failures);
 	}
 
-	private freshRun(): MutableRunData {
+	private freshRun(taskName = ""): MutableRunData {
 		const resolvedRun = this.activeResolvedRun();
 		const run = initRunData({
 			agent: this.options.agent,
-			taskName: this.taskName,
+			taskName,
 			profile: resolvedRun.profile,
 			model: resolvedRun.model,
 			effectiveThinking: resolvedRun.effectiveThinking,
