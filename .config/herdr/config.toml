@@ -1,5 +1,5 @@
-# Herdr configuration. The palette mirrors the xterm-256 colors used by
-# tmux.conf, Ghostty, .bashrc, and .profile.
+# Herdr configuration. Herdr supports a built-in theme plus custom token
+# overrides; this is the Stellar palette used by Pi and the Ghostty shader.
 onboarding = false
 
 [theme]
@@ -7,15 +7,19 @@ name = "terminal"
 
 [theme.custom]
 panel_bg = "reset"
-accent = "#5fafff"  # colour75
-subtext0 = "#8a8a8a" # colour245
-blue = "#5fafff"    # colour75
-green = "#87d787"   # colour114
-yellow = "#d7af5f"  # colour179
-red = "#ff5f5f"     # colour203
-mauve = "#af87ff"   # colour141
-teal = "#87afaf"    # colour109
-peach = "#d7af5f"   # colour179
+accent = "#85c2ff"     # Pi accent / coronal blue
+surface0 = "#0b172b"   # Pi user message / shader card
+surface1 = "#142b4a"   # Pi selected background
+surface_dim = "#02040d" # shader page background
+overlay0 = "#263752"   # Pi info background
+overlay1 = "#52627a"   # Pi dim gray
+subtext0 = "#7894b8"    # Pi gray
+mauve = "#9f7aea"      # nebula violet
+green = "#72d8c1"
+yellow = "#ffad61"     # shader warm star
+red = "#ff827a"
+teal = "#4cc9e8"       # shader cyan
+peach = "#ffad61"
 
 [terminal]
 shell_mode = "auto"
