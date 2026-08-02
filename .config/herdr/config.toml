@@ -1,0 +1,131 @@
+# Herdr configuration. The palette mirrors the xterm-256 colors used by
+# tmux.conf, Ghostty, .bashrc, and .profile.
+onboarding = false
+
+[theme]
+name = "terminal"
+
+[theme.custom]
+panel_bg = "reset"
+accent = "#5fafff"  # colour75
+subtext0 = "#8a8a8a" # colour245
+blue = "#5fafff"    # colour75
+green = "#87d787"   # colour114
+yellow = "#d7af5f"  # colour179
+red = "#ff5f5f"     # colour203
+mauve = "#af87ff"   # colour141
+teal = "#87afaf"    # colour109
+peach = "#d7af5f"   # colour179
+
+[terminal]
+shell_mode = "auto"
+new_cwd = "follow"
+
+[keys]
+# Match tmux's M-a prefix. Ghostty is configured to pass Option as Alt.
+prefix = "alt+a"
+
+# Keep the familiar tmux navigation and split keys.
+new_tab = "prefix+c"
+previous_tab = "prefix+m"
+next_tab = "prefix+i"
+switch_tab = "prefix+1..9"
+split_vertical = "prefix+v"
+split_horizontal = "prefix+s"
+close_pane = "prefix+x"
+zoom = ["prefix+z", "alt+f"]
+detach = "prefix+q"
+reload_config = "prefix+shift+r"
+
+# Herdr's workspace/session surfaces take the place of tmux's session switcher.
+workspace_picker = ["prefix+h", "alt+g"]
+goto = "prefix+w"
+new_worktree = "prefix+shift+y"
+settings = "prefix+shift+s"
+
+# Colemak-DH pane movement, with prefix-arrow fallbacks.
+focus_pane_left = ["prefix+left", "alt+m"]
+focus_pane_down = ["prefix+down", "alt+n"]
+focus_pane_up = ["prefix+up", "alt+e"]
+focus_pane_right = ["prefix+right", "alt+i"]
+navigate_pane_left = "m"
+navigate_pane_down = "n"
+navigate_pane_up = "e"
+navigate_pane_right = "i"
+
+# Keep the tmux pane-swap muscle memory without colliding with tab movement.
+swap_pane_down = "prefix+n"
+swap_pane_up = "prefix+e"
+swap_pane_left = "prefix+shift+left"
+swap_pane_right = "prefix+shift+right"
+edit_scrollback = "prefix+shift+h"
+last_pane = "alt+tab"
+
+# Herdr copy mode already provides tmux-style scrolling and selection.
+copy_mode = "prefix+["
+
+[ui]
+sidebar_width = 24
+sidebar_min_width = 18
+sidebar_max_width = 36
+sidebar_collapsed_mode = "compact"
+mouse_capture = true
+copy_on_select = true
+pane_borders = true
+pane_gaps = false
+show_agent_labels_on_pane_borders = false
+hide_tab_bar_when_single_tab = false
+prompt_new_tab_name = false
+agent_panel_sort = "spaces"
+accent = "#5fafff"
+
+[ui.toast]
+delivery = "herdr"
+delay_seconds = 1
+
+[ui.toast.herdr]
+position = "bottom-right"
+
+[session]
+resume_agents_on_restore = true
+
+[remote]
+manage_ssh_config = true
+
+[advanced]
+# Approximate tmux's history-limit = 200000 with a byte-based scrollback cap.
+scrollback_limit_bytes = 100_000_000
+
+[[keys.command]]
+key = "prefix+g"
+type = "popup"
+command = "lazygit"
+description = "open lazygit"
+width = "100%"
+height = "100%"
+
+[[keys.command]]
+key = "prefix+shift+g"
+type = "popup"
+command = "git status --short --branch; printf '\\nPress any key to close...'; read -r -n 1"
+description = "show git status"
+width = "90%"
+height = "80%"
+
+[[keys.command]]
+key = "alt+t"
+type = "popup"
+# Herdr forwards popup input to the child shell, so the marker lets
+# .bashrc make Cmd+T/Alt+T exit this scratch popup like tmux's popup table.
+command = 'HERDR_SCRATCH_POPUP=1 exec "${SHELL:-bash}"'
+description = "toggle scratch shell"
+width = "95%"
+height = "95%"
+
+[[keys.command]]
+key = "alt+o"
+type = "popup"
+command = 'if command -v pi >/dev/null 2>&1; then exec pi; else exec claude; fi'
+description = "open pi or claude"
+width = "95%"
+height = "95%"
