@@ -41,7 +41,19 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => showAgentDashboard(ctx, runtime.registry),
 	});
 
-	pi.registerTool(createSpawnAgentTool(pi, runtime));
+	pi.registerTool(
+		createSpawnAgentTool(pi, {
+			agents: runtime.agents,
+			profiles: runtime.profiles,
+			agentDir: runtime.agentDir,
+			admission: runtime.admission,
+			registry: runtime.registry,
+			ticks: runtime.ticks,
+			onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+			onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
+			claimUsage: (summary) => runtime.claimUsage(summary),
+		}),
+	);
 	pi.registerTool(createAnswerAgentTool({ registry: runtime.registry }));
 	pi.registerTool(createSendAgentTool({ registry: runtime.registry }));
 	pi.registerTool(
@@ -66,7 +78,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		}),
 	);
 	pi.registerTool(createListAgentsTool({ registry: runtime.registry, admission: runtime.admission }));
-	pi.registerTool(createReadAgentResultTool(runtime));
+	pi.registerTool(createReadAgentResultTool(runtime.registry));
 	pi.registerTool(createInterruptAgentTool({ registry: runtime.registry }));
 	pi.registerTool(createCloseAgentTool({ registry: runtime.registry }));
 }
