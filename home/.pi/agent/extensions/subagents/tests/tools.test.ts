@@ -70,6 +70,12 @@ test("spawn guidance defers management tool names until spawn activates them", (
 	);
 });
 
+test("spawn guidance explains compact handoffs for dependent work", () => {
+	const guidance = spawnGuidelines([], [], 1, 1).join("\n");
+	assert.match(guidance, /retry, review\/fix cycle, or replacement/);
+	assert.match(guidance, /does not inherit the parent transcript/);
+});
+
 test("wait_agent trims a wave, forwards its timeout, and consumes matching delivery once", async () => {
 	const waits: Array<{ id: string; timeout?: number }> = [];
 	const consumed: AgentSummary[][] = [];

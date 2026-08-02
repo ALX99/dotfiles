@@ -51,7 +51,6 @@ function view(
 			aborted: status === "aborted",
 			startTime: 0,
 			toolCount: 0,
-			mutationToolCalls: 0,
 			recentTools: [],
 			lastMessage: "",
 			tokens: 0,

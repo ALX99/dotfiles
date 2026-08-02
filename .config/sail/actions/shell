@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-$SHELL -i
+"${SHELL:-sh}" -i
