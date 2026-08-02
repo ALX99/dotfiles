@@ -1,5 +1,4 @@
 import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { SubagentRuntime } from "../bootstrap.ts";
 import { renderWaitCall } from "../render.ts";
 import { uniqueAgentIds, WaitAgentParamsSchema } from "../schemas.ts";
 import {
@@ -31,9 +30,16 @@ interface WaitExecutionRuntime {
 	readonly consumeSettledCompletions: (summaries: readonly AgentSummary[]) => void;
 }
 
+interface WaitAgentDependencies extends WaitExecutionRuntime {
+	readonly registry: WaitExecutionRuntime["registry"] & {
+		readonly list: () => AgentSummary[];
+	};
+	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
+}
+
 export function createWaitAgentTool(
 	pi: ExtensionAPI,
-	runtime: SubagentRuntime,
+	dependencies: WaitAgentDependencies,
 	now: () => number = Date.now,
 ): ToolDefinition<typeof WaitAgentParamsSchema, WaitDetails> {
 	return defineTool<typeof WaitAgentParamsSchema, WaitDetails>({
@@ -43,12 +49,12 @@ export function createWaitAgentTool(
 			"Wait as one multi-agent barrier for specified subagents to settle or request input. A matching queued completion is consumed exactly once.",
 		parameters: WaitAgentParamsSchema,
 		async execute(_id, params, signal) {
-			const result = await executeWaitAgent(params, runtime, signal, now);
+			const result = await executeWaitAgent(params, dependencies, signal, now);
 			const accountedGenerations: Array<{ agentId: string; generation: number }> = [];
 			const usages: Readonly<RunUsage>[] = [];
 			for (const summary of result.details.summaries) {
 				activateForSubagentState(pi, summary, false);
-				const usage = runtime.claimUsage(summary);
+				const usage = dependencies.claimUsage(summary);
 				if (!usage) continue;
 				usages.push(usage);
 				accountedGenerations.push({ agentId: summary.agent_id, generation: summary.generation });
@@ -64,7 +70,7 @@ export function createWaitAgentTool(
 			return renderWaitCall(
 				uniqueAgentIds(args.agent_ids),
 				args.timeout_ms ?? DEFAULT_WAIT_MS,
-				runtime.registry.list(),
+				dependencies.registry.list(),
 				theme,
 			);
 		},
