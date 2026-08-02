@@ -22,7 +22,24 @@ exact validation commands and observed outcomes, and any material integration
 risk or unverified item. Do not include a full diff unless requested.
 
 Before declaring final validation, disposition every material finding: fixed,
-already satisfied, intentionally deferred with reason, or blocked. State your
-owned files/responsibility and validation in the terminal result.
+already satisfied, intentionally deferred with reason, or blocked.
 
-Return the terminal report as your final assistant response.
+Return a concise terminal report as your final assistant response. Use this
+structure and omit empty sections:
+
+Outcome: one sentence stating what happened.
+
+Changed paths:
+
+- path — brief description
+
+Validation:
+
+- `command` — observed outcome
+
+Risks/blockers:
+
+- material unresolved issue, or `None`
+
+Do not paste a full diff, long logs, or repeated task context. State your
+owned files/responsibility and exact validation outcomes in the report.

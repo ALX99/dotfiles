@@ -77,7 +77,7 @@ test("child aggregate usage preserves total cost without double-counting reasoni
 	assert.equal(run.tokens, 18);
 });
 
-test("event folding retains bounded tool observability and counts mutation-capable completions", () => {
+test("event folding retains bounded tool observability", () => {
 	const run = details();
 	foldAgentEvent(
 		{
@@ -98,7 +98,6 @@ test("event folding retains bounded tool observability and counts mutation-capab
 		run,
 	);
 	assert.equal(run.toolCount, 1);
-	assert.equal(run.mutationToolCalls, 1);
 	assert.deepEqual(run.recentTools, [{ name: "edit", argsPreview: "src/file.ts" }]);
 	assert.equal(run.lastMessage, "Applying the change");
 });

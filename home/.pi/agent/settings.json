@@ -1,7 +1,7 @@
 {
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-terra",
-  "defaultThinkingLevel": "medium",
+  "defaultModel": "gpt-5.6-luna",
+  "defaultThinkingLevel": "max",
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": false,
@@ -21,7 +21,7 @@
     "opencode-go/glm-5.2",
     "opencode-go/deepseek-v4-flash"
   ],
-  "theme": "dark",
+  "theme": "stellar",
   "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "enableInstallTelemetry": false,
