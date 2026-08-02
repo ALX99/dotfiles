@@ -13,15 +13,10 @@ export interface RegistryUiBinding {
 	readonly close: () => void;
 }
 
-export function bindRegistryUi(
-	ctx: ExtensionContext,
-	registry: AgentRegistry,
-	onRefresh: () => void,
-): RegistryUiBinding {
+export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): RegistryUiBinding {
 	let tick: NodeJS.Timeout | undefined;
 	const refresh = () => {
 		updateAgentUi(ctx, registry);
-		onRefresh();
 		const active = registry.views().some(isActiveAgent);
 		if (active && !tick) tick = setInterval(() => updateAgentUi(ctx, registry), UI_REFRESH_MS).unref();
 		else if (!active && tick) {
