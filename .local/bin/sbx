@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Run a command with Codex's native sandbox and a generated permissions profile.
+set -euo pipefail
+
+usage() {
+	cat <<'EOF'
+Usage: sbx [options] -- command [arguments...]
+
+Run a command under `codex sandbox`. The command may read the filesystem, but
+may write only to the current workspace, /tmp, ~/.pi, ~/.config, XDG state and
+cache directories, pnpm data, Android, Java, Kotlin, and Gradle state, Codex's
+temporary directories, and any additional directories named with --write.
+
+Options:
+  -w, --write DIR  Add a writable directory (repeatable)
+      --print      Print the generated Codex permissions profile and exit
+  -h, --help       Show this help
+
+Examples:
+  sbx -- pi
+  sbx -w ../shared -- claude
+  sbx -- npm test
+
+Codex uses macOS sandbox-exec/Seatbelt behind this command on Apple platforms.
+EOF
+}
+
+die() {
+	printf 'sbx: %s\n' "$*" >&2
+	exit 1
+}
+
+resolve_dir() {
+	local path=$1 resolved
+
+	[[ -d $path ]] || die "directory does not exist: $path"
+	resolved=$(cd -P -- "$path" && pwd)
+	if [[ $resolved == *'"'* || $resolved =~ [[:cntrl:]] ]]; then
+		die "Codex cannot use a writable path containing quotes or control characters: $resolved"
+	fi
+	printf '%s\n' "$resolved"
+}
+
+append_unique_root() {
+	local root=$1 existing
+
+	for existing in "${writable_roots[@]}"; do
+		[[ $root != "$existing" ]] || return 0
+	done
+	writable_roots+=("$root")
+}
+
+append_existing_root() {
+	local root=$1
+
+	[[ ! -d $root ]] || append_unique_root "$(resolve_dir "$root")"
+}
+
+toml_quote() {
+	local value=$1
+
+	value=${value//\\/\\\\}
+	value=${value//\"/\\\"}
+	value=${value//$'\b'/\\b}
+	value=${value//$'\t'/\\t}
+	value=${value//$'\n'/\\n}
+	value=${value//$'\f'/\\f}
+	value=${value//$'\r'/\\r}
+	printf '"%s"' "$value"
+}
+
+print_profile=false
+writable_roots=()
+state=${XDG_STATE_HOME:-$HOME/.local/state}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}
+pnpm_home=${PNPM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/pnpm}
+append_unique_root "$(resolve_dir /tmp)"
+append_unique_root "$(resolve_dir "$HOME/.pi")"
+append_unique_root "$(resolve_dir "$HOME/.config")"
+append_existing_root "$PWD/.git"
+append_existing_root "$state"
+append_existing_root "$cache"
+append_existing_root "$pnpm_home"
+append_existing_root "$HOME/.cache"
+append_existing_root "$HOME/Library/Caches"
+append_existing_root "$HOME/.gradle"
+append_existing_root "${ANDROID_USER_HOME:-$HOME/.android}"
+append_existing_root "${ANDROID_AVD_HOME:-}"
+append_existing_root "$HOME/Library/Application Support/kotlin"
+append_existing_root "${JAVA_HOME:-}"
+if [[ -x /usr/libexec/java_home ]]; then
+	append_existing_root "$(/usr/libexec/java_home 2>/dev/null || true)"
+fi
+for java_home in \
+	/opt/homebrew/opt/openjdk*/libexec/*.jdk/Contents/Home \
+	/usr/local/opt/openjdk*/libexec/*.jdk/Contents/Home; do
+	append_existing_root "$java_home"
+done
+
+while (($#)); do
+	case $1 in
+	-w | --write)
+		(($# >= 2)) || die "$1 requires a directory"
+		resolved_root=$(resolve_dir "$2") || exit
+		append_unique_root "$resolved_root"
+		shift 2
+		;;
+	--print)
+		print_profile=true
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	--)
+		shift
+		break
+		;;
+	-*)
+		die "unknown option: $1"
+		;;
+	*)
+		die "expected -- before the command"
+		;;
+	esac
+done
+
+command -v codex >/dev/null || die "codex is required"
+if ! "$print_profile" && (($# == 0)); then
+	die "no command specified"
+fi
+
+# Codex is the visible foreground process when it wraps an agent, so preserve
+# the actual agent identity for Herdr's process detection.
+if (($# > 0)) && [[ ${1##*/} == pi ]]; then
+	export HERDR_AGENT=pi
+fi
+
+# Extend Codex's built-in workspace profile instead of maintaining a Seatbelt
+# policy here. Codex supplies the workspace and temporary write roots, protects
+# sensitive workspace metadata, and selects the platform sandbox implementation.
+profile='{ extends = ":workspace"'
+if ((${#writable_roots[@]})); then
+	profile+=', workspace_roots = {'
+	for path in "${writable_roots[@]}"; do
+		profile+=" $(toml_quote "$path") = true,"
+	done
+	profile+=' }'
+fi
+profile+=', network = { enabled = true } }'
+
+if "$print_profile"; then
+	printf 'permissions.sbx = %s\n' "$profile"
+	exit 0
+fi
+
+XDG_STATE_HOME="$state" XDG_CACHE_HOME="$cache" exec codex sandbox \
+	-C "$PWD" \
+	-c "permissions.sbx=$profile" \
+	-P sbx \
+	-- "$@"
