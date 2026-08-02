@@ -55,10 +55,10 @@
   dc = diff --cached
 
   # branches
-  bd = !source ~/.gitalias && gbd $1
+  bd = !gbd
   bl = branch
   bc = checkout -b
-  bs = !source ~/.gitalias && gbs $1
+  bs = !gbs
 
   # stashes
   sa = stash push
