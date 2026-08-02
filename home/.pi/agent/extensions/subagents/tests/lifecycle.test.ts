@@ -5,8 +5,9 @@ import * as path from "node:path";
 import { after, test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
-import { transitionLifecycle } from "../agent-types.ts";
+import { transitionLifecycle, type AgentSummary } from "../agent-types.ts";
 import { ManagedAgent as ProductionManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
+import type { ReadonlyRunDetails } from "../run-state.ts";
 import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
 const testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-lifecycle-test-"));
@@ -15,6 +16,21 @@ after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
 class ManagedAgent extends ProductionManagedAgent {
 	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
 		super({ ...options, agentDir: testAgentDir, validateSessionIdentity: async (identity) => identity });
+	}
+}
+
+class CountingManagedAgent extends ManagedAgent {
+	summaryCalls = 0;
+	detailsCalls = 0;
+
+	override summary(): AgentSummary {
+		this.summaryCalls++;
+		return super.summary();
+	}
+
+	override getDetails(): ReadonlyRunDetails {
+		this.detailsCalls++;
+		return super.getDetails();
 	}
 }
 
@@ -416,6 +432,27 @@ test("registry replacement closes the replaced agent", async () => {
 	assert.equal(firstClosed, 1);
 	assert.equal(registry.getLive("same"), second);
 	await registry.closeAll();
+});
+
+test("registry reads live results from one coherent view projection", async () => {
+	const managed = new CountingManagedAgent({
+		id: "projection",
+		defaultCwd: process.cwd(),
+		agent: config,
+		resolvedRun,
+		childContext,
+		retain: true,
+		spawnProcess: fakeSpawner("process.stdin.resume(); setInterval(() => {}, 100)"),
+	});
+	const registry = new AgentRegistry();
+	await registry.add(managed);
+	try {
+		await registry.readResult(managed.id);
+		assert.equal(managed.summaryCalls, 1);
+		assert.equal(managed.detailsCalls, 1);
+	} finally {
+		await registry.closeAll();
+	}
 });
 
 test("registry closeAll cleans every entry and reports partial failures", async () => {
