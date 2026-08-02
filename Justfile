@@ -8,7 +8,7 @@ default:
     just --list
 
 # Install user dotfiles and share agent skills with Claude Code.
-install: clean-broken-links
+install:
     #!/usr/bin/env bash
     set -euo pipefail
     shopt -s nullglob
@@ -30,7 +30,27 @@ install: clean-broken-links
       ln -s "$target" "$link"
     }
 
+    clean_broken_skill_links() {
+      local repo_name=${repo_dir##*/}
+
+      while IFS= read -r -d '' link; do
+        [[ ! -e "$link" ]] || continue
+        target=$(readlink "$link")
+
+        if [[ "$target" == "$repo_dir/"* || "$target" == "$repo_name/"* || "$target" == *"/$repo_name/"* ]] ||
+           [[ "$link" == "$HOME/.claude/skills/"* && "$target" == "../../.agents/skills/"* ]]; then
+          printf 'Removing broken symlink: %s -> %s\n' "$link" "$target"
+          rm -f "$link"
+        fi
+      done < <(
+        find "$HOME/.agents/skills" "$HOME/.claude/skills" \
+          -mindepth 1 -maxdepth 1 -type l -print0 2>/dev/null
+      )
+    }
+
     mkdir -p "$HOME/.config" "$HOME/.local" "$HOME/.agents/skills" "$HOME/.claude/skills"
+
+    clean_broken_skill_links
 
     stow --dir "$repo_dir" --target "$HOME/.local" --restow .local
     stow --dir "$repo_dir" --target "$HOME" --restow home
@@ -61,37 +81,6 @@ install: clean-broken-links
     fi
 
     printf 'User configuration completed.\n'
-
-# Remove broken links left by renamed/deleted dotfiles. Only links managed by
-# this repository (plus shared Claude skill links) are removed.
-[private]
-clean-broken-links:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    shopt -s nullglob
-
-    repo_dir={{ quote(repo_dir) }}
-    repo_name=${repo_dir##*/}
-    roots=("$HOME/.local" "$HOME/.config")
-
-    # Include every directory managed by the home Stow package.
-    for source_dir in "$repo_dir"/home/.[!.]*/; do
-      roots+=("$HOME/$(basename "$source_dir")")
-    done
-
-    while IFS= read -r -d '' link; do
-      [[ ! -e "$link" ]] || continue
-      target=$(readlink "$link")
-
-      if [[ "$target" == "$repo_dir/"* || "$target" == "$repo_name/"* || "$target" == *"/$repo_name/"* ]] ||
-         [[ "$link" == "$HOME/.claude/skills/"* && "$target" == "../../.agents/skills/"* ]]; then
-        printf 'Removing broken symlink: %s -> %s\n' "$link" "$target"
-        rm -f "$link"
-      fi
-    done < <(
-      find "$HOME" -maxdepth 1 -type l -print0 2>/dev/null
-      find "${roots[@]}" -type l -print0 2>/dev/null
-    )
 
 # Install Arch Linux system configuration (requires sudo).
 linux-system:
