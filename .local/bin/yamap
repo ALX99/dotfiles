@@ -1,0 +1,2235 @@
+#!/usr/bin/env python3
+"""Read-only command-line client for YAMAP's undocumented web API."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import heapq
+import io
+import json
+import math
+import os
+import re
+import stat
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Iterable
+from xml.etree import ElementTree
+from xml.etree.ElementTree import Element, SubElement
+
+API_ORIGIN = "https://api.yamap.com"
+API_BASE = f"{API_ORIGIN}/v6"
+DEFAULT_TOKEN_FILE = Path(
+	os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+) / "yamap" / "token"
+# A User-Agent beginning with "yamap" is interpreted as the mobile app and
+# rejected without mobile-version headers (HTTP 490).
+USER_AGENT = "Mozilla/5.0 (compatible; api-client/1)"
+GPX_CREATOR = "yamap-cli/1"
+GPX_NAMESPACE = "http://www.topografix.com/GPX/1/1"
+GPX_XSI_NAMESPACE = "http://www.w3.org/2001/XMLSchema-instance"
+SCHEMA_VERSION = "yamap-cli/v1"
+
+RESOURCE_ACTIONS: dict[str, dict[str, str]] = {
+	"activity": {
+		"show": "activities/{id}",
+		"mountains": "activities/{id}/mountains",
+		"course": "activities/{id}/model_course",
+		"related": "activities/{id}/related",
+		"tracks": "activities/{id}/tracks",
+		"daily-sections": "activities/{id}/activity_daily_sections",
+		"split-sections": "activities/{id}/activity_split_sections",
+		"rest-points": "activities/{id}/activity_rest_points",
+		"likes": "activities/{id}/likes",
+	},
+	"mountain": {
+		"show": "mountains/{id}",
+		"activities": "mountains/{id}/activities",
+		"courses": "mountains/{id}/model_courses",
+		"weather": "mountains/{id}/weather",
+		"videos": "mountains/{id}/youtubes",
+	},
+	"map": {
+		"show": "maps/{id}",
+		"courses": "maps/{id}/model_courses",
+		"activities": "maps/{id}/activities",
+		"weather": "maps/{id}/weathers",
+		"meta": "maps/{id}/meta",
+		"layers": "maps/{id}/layers_meta",
+		"journals": "maps/{id}/map_sponsor_journals",
+	},
+	"user": {
+		"show": "users/{id}",
+		"activities": "users/{id}/activities",
+		"journals": "users/{id}/journals",
+		"haves": "users/{id}/haves",
+		"summits": "users/{id}/summits",
+		"follows": "users/{id}/follows",
+		"followers": "users/{id}/followers",
+		"badges": "users/{id}/badges",
+		"appeal-badges": "users/{id}/appeal_badges",
+		"memos": "users/{id}/memos",
+		"message-capability": "users/{id}/message_capability",
+	},
+	"landmark": {
+		"show": "landmarks/{id}",
+		"maps": "landmarks/{id}/maps",
+		"photos": "landmarks/{id}/landscapes",
+	},
+	"course": {
+		"show": "model_courses/{id}",
+		"activities": "model_courses/{id}/activities",
+	},
+	"region": {
+		"show": "regions/{id}",
+		"mountains": "regions/{id}/mountains",
+	},
+	"prefecture": {
+		"show": "prefectures/{id}",
+		"mountains": "prefectures/{id}/mountains",
+	},
+	"tag": {
+		"show": "tags/{id}",
+		"activities": "tags/{id}/activities",
+		"mountains": "tags/{id}/mountains",
+	},
+}
+
+SEARCH_ENDPOINTS = {
+	"activities": "activities/search",
+	"maps": "maps/search",
+	"users": "users/search",
+	"mountains": "mountains/search",
+	"landmarks": "landmarks/search",
+	"summits": "summits/search",
+	"courses": "model_courses/",
+	"tags": "tags/search",
+}
+
+CATALOG_ENDPOINTS = {
+	"activity-types": "activity_types",
+	"landmark-types": "landmark_types",
+	"activity-map-categories": "map_categories?kind=activity",
+	"theme-map-categories": "map_categories?kind=theme",
+	"report-categories": "report_categories",
+	"famous-mountains": "tags/famous_mountains",
+	"tag-groups": "tag_groups",
+	"hot-maps": "maps/hots",
+}
+
+MY_ENDPOINTS = {
+	"profile": "my/profile",
+	"account": "my/account",
+	"unread-notifications": "my/notifications/unreads",
+	"activities": "my/activities",
+	"activity-search": "my/activities/search",
+	"bookmarks": "my/bookmarks",
+	"bookmark-activities": "my/bookmarks/activities",
+	"bookmark-courses": "my/bookmarks/model_courses",
+	"bookmark-mountains": "my/bookmarks/mountains",
+	"plans": "my/plans",
+	"journals": "my/journals",
+	"follows": "my/follows",
+	"followers": "my/followers",
+	"feeds": "my/feeds/incomings",
+	"summits": "my/summits",
+	"badges": "my/badges",
+	"conversations": "my/conversations",
+	"notifications": "my/notifications",
+	"blocks": "my/blocks",
+}
+
+GRAPHQL_QUERIES = {
+	"field-memo-categories": (
+		"FieldMemoCategories",
+		"aa56a5f35539aa1fa30f710ab4d8928d759939cbbcb79757a33e8b1532f71501",
+	),
+	"mountain-insurance-advertisement": (
+		"GetMountainInsuranceAdvertisement",
+		"5db8ef8e5d107d15e8033efd8641a5cbd9c6e15a2e79c6ca1f458c3db2667de5",
+	),
+}
+
+COLLECTION_KEYS = (
+	"activities",
+	"maps",
+	"users",
+	"mountains",
+	"landmarks",
+	"summits",
+	"model_courses",
+	"courses",
+	"tags",
+	"images",
+	"journals",
+	"bookmarks",
+	"notifications",
+	"follows",
+	"followers",
+	"badges",
+	"memos",
+	"plans",
+	"conversations",
+	"messages",
+	"map_lines",
+	"map_labels",
+	"route_nodes",
+)
+
+RESOURCE_WRAPPERS = {
+	"activity": "activity",
+	"course": "model_course",
+	"landmark": "landmark",
+	"map": "map",
+	"mountain": "mountain",
+	"user": "user",
+}
+
+SUMMARY_FIELDS = {
+	"activity": (
+		"id", "title", "distance", "duration", "cumulative_up", "cumulative_down",
+		"start_at", "finish_at", "public_at", "description",
+	),
+	"course": (
+		"id", "name", "distance", "course_time", "cumulative_up",
+		"cumulative_down", "difficulty_level", "fitness_level", "description",
+		"is_dashed_route_passed_through", "is_closed_route_passed_through",
+	),
+}
+
+
+class CLIError(Exception):
+	"""An expected command-line failure."""
+
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+	def redirect_request(
+		self,
+		request: urllib.request.Request,
+		file_pointer: Any,
+		code: int,
+		message: str,
+		headers: Any,
+		new_url: str,
+	) -> urllib.request.Request | None:
+		redirected = super().redirect_request(
+			request, file_pointer, code, message, headers, new_url
+		)
+		if redirected is None:
+			return None
+		source = urllib.parse.urlsplit(request.full_url)
+		target = urllib.parse.urlsplit(new_url)
+		if target.scheme != "https":
+			raise urllib.error.HTTPError(
+				new_url, 403, "refusing an insecure redirect", headers, file_pointer
+			)
+		if (source.scheme, source.netloc) != (target.scheme, target.netloc):
+			for name in ("Authorization", "Cookie", "persisted_query_client_id"):
+				redirected.remove_header(name)
+		return redirected
+
+
+def eprint(*values: object) -> None:
+	print(*values, file=sys.stderr)
+
+
+def read_token(explicit: str | None, token_file: Path, no_auth: bool) -> str | None:
+	if no_auth:
+		return None
+	if explicit:
+		return explicit.strip()
+	if token := os.environ.get("YAMAP_TOKEN"):
+		return token.strip()
+	try:
+		return token_file.read_text().strip() or None
+	except FileNotFoundError:
+		return None
+	except OSError as error:
+		raise CLIError(f"cannot read token file {token_file}: {error}") from error
+
+
+def parse_pairs(values: Iterable[str]) -> list[tuple[str, str]]:
+	pairs = []
+	for value in values:
+		if "=" not in value:
+			raise CLIError(f"query parameter must be KEY=VALUE: {value!r}")
+		key, item = value.split("=", 1)
+		if not key:
+			raise CLIError("query parameter key cannot be empty")
+		pairs.append((key, item))
+	return pairs
+
+
+def append_query(path: str, pairs: Iterable[tuple[str, Any]]) -> str:
+	parsed = urllib.parse.urlsplit(path)
+	query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+	query.extend((key, str(value)) for key, value in pairs if value is not None)
+	return urllib.parse.urlunsplit(
+		(parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), parsed.fragment)
+	)
+
+
+class Client:
+	def __init__(
+		self,
+		token: str | None,
+		base_url: str,
+		timeout: float,
+		verbose: bool,
+	) -> None:
+		self.token = token
+		self.base_url = base_url.rstrip("/")
+		self.timeout = timeout
+		self.verbose = verbose
+		self.opener = urllib.request.build_opener(SafeRedirectHandler())
+
+	def url(self, path: str) -> str:
+		if path.startswith("https://") or path.startswith("http://"):
+			url = path
+		elif path.startswith("/v6/") or path.startswith("/graphql") or path.startswith("/xyz/"):
+			url = urllib.parse.urljoin(f"{API_ORIGIN}/", path.lstrip("/"))
+		else:
+			url = f"{self.base_url}/{path.lstrip('/')}"
+		parsed = urllib.parse.urlsplit(url)
+		if parsed.scheme != "https" or parsed.netloc != "api.yamap.com":
+			raise CLIError("requests are restricted to https://api.yamap.com")
+		return url
+
+	def request(
+		self,
+		path: str,
+		*,
+		graphql_body: dict[str, Any] | None = None,
+		accept: str = "application/json",
+	) -> tuple[bytes, Any, str]:
+		url = self.url(path)
+		headers = {"Accept": accept, "User-Agent": USER_AGENT}
+		body = None
+		if graphql_body is not None:
+			body = json.dumps(graphql_body, separators=(",", ":")).encode()
+			headers["Content-Type"] = "application/json"
+			headers["persisted_query_client_id"] = "Web"
+			if self.token:
+				headers["Authorization"] = f"Bearer {self.token}"
+		elif self.token:
+			headers["Authorization"] = f"Bearer token={self.token}"
+		request = urllib.request.Request(url, data=body, headers=headers)
+		if self.verbose:
+			eprint(f"> {request.method} {url}")
+			eprint(f"> Authorization: {'set' if 'Authorization' in headers else 'not set'}")
+		try:
+			with self.opener.open(request, timeout=self.timeout) as response:
+				data = response.read()
+				content_type = response.headers.get_content_type()
+				if self.verbose:
+					eprint(f"< {response.status} {content_type} ({len(data)} bytes)")
+				return data, response.headers, content_type
+		except urllib.error.HTTPError as error:
+			detail = error.read().decode("utf-8", "replace").strip()
+			messages = {
+				401: "authentication required or token rejected; set YAMAP_TOKEN",
+				403: "access forbidden",
+				404: "resource not found",
+				422: "request validation failed",
+				429: "rate limited; wait before trying again",
+				490: "request was interpreted as an outdated mobile app",
+			}
+			message = messages.get(error.code, f"HTTP {error.code}")
+			if detail:
+				try:
+					detail = json.dumps(json.loads(detail), ensure_ascii=False)
+				except json.JSONDecodeError:
+					detail = detail[:500]
+				message = f"{message}: {detail}"
+			raise CLIError(message) from error
+		except urllib.error.URLError as error:
+			raise CLIError(f"network error: {error.reason}") from error
+
+	def json(
+		self,
+		path: str,
+		*,
+		graphql_body: dict[str, Any] | None = None,
+	) -> Any:
+		data, _, content_type = self.request(path, graphql_body=graphql_body)
+		try:
+			return json.loads(data)
+		except (UnicodeDecodeError, json.JSONDecodeError) as error:
+			raise CLIError(
+				f"expected JSON but received {content_type} ({len(data)} bytes)"
+			) from error
+
+
+def select_value(value: Any, selector: str | None) -> Any:
+	if not selector:
+		return value
+	current = value
+	for part in selector.strip(".").split("."):
+		if not part:
+			continue
+		try:
+			current = current[int(part)] if isinstance(current, list) else current[part]
+		except (KeyError, IndexError, TypeError, ValueError) as error:
+			raise CLIError(f"selector not found: {selector}") from error
+	return current
+
+
+def primary_collection(value: Any) -> tuple[str | None, list[Any] | None]:
+	if isinstance(value, list):
+		return None, value
+	if not isinstance(value, dict):
+		return None, None
+	for key in COLLECTION_KEYS:
+		if isinstance(value.get(key), list):
+			return key, value[key]
+	if len(value) == 1:
+		key, item = next(iter(value.items()))
+		if isinstance(item, list):
+			return key, item
+	if not ("meta" in value or "paging" in value):
+		return None, None
+	for key, item in value.items():
+		if key not in {"meta", "paging"} and isinstance(item, list):
+			return key, item
+	return None, None
+
+
+def next_page(value: Any, current: int) -> int | str | None:
+	if not isinstance(value, dict):
+		return None
+	meta = value.get("meta")
+	if isinstance(meta, dict):
+		next_value = meta.get("next_page")
+		if isinstance(next_value, int) and next_value > 0 and next_value != current:
+			return next_value
+	paging = value.get("paging")
+	if isinstance(paging, dict):
+		next_value = paging.get("next")
+		if (
+			isinstance(next_value, str)
+			and next_value
+			or isinstance(next_value, int)
+			and next_value > 0
+			and next_value != current
+		):
+			return next_value
+	return None
+
+
+def fetch_json(
+	client: Client,
+	path: str,
+	*,
+	all_pages: bool,
+	delay: float,
+	max_pages: int,
+	max_items: int | None = None,
+	progress: bool = False,
+) -> Any:
+	first = client.json(path)
+	if not all_pages:
+		return first
+	key, combined = primary_collection(first)
+	if combined is None:
+		raise CLIError("--all requires a response containing a top-level collection")
+	combined = list(combined)
+	meta = first.get("meta") if isinstance(first, dict) else None
+	total_pages = meta.get("total_pages") if isinstance(meta, dict) else None
+	total_count = meta.get("total_count") if isinstance(meta, dict) else None
+	if (
+		isinstance(total_pages, int)
+		and total_pages > max_pages
+		and max_items is None
+	):
+		raise CLIError(
+			f"--all matched {total_count or 'an unknown number of'} items across "
+			f"{total_pages} pages, exceeding --max-pages={max_pages}; "
+			"use a narrower query, --max-items, or a larger --max-pages"
+		)
+	if progress:
+		eprint(
+			f"page 1/{total_pages or '?'}: {len(combined)}"
+			+ (f"/{total_count}" if isinstance(total_count, int) else "")
+		)
+	if max_items is not None and len(combined) >= max_items:
+		combined = combined[:max_items]
+		value = first
+	else:
+		value = first
+	current = 1
+	pages_fetched = 1
+	while max_items is None or len(combined) < max_items:
+		next_value = next_page(value, current)
+		if next_value is None:
+			break
+		if pages_fetched >= max_pages:
+			raise CLIError(f"stopped after --max-pages={max_pages}")
+		if isinstance(next_value, str) and next_value.startswith("http"):
+			next_path = next_value
+		else:
+			try:
+				current = int(next_value)
+			except (TypeError, ValueError) as error:
+				raise CLIError(f"unsupported pagination cursor: {next_value!r}") from error
+			parsed = urllib.parse.urlsplit(path)
+			params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+			params = [(k, v) for k, v in params if k != "page"]
+			params.append(("page", str(current)))
+			next_path = urllib.parse.urlunsplit(
+				("", "", parsed.path, urllib.parse.urlencode(params), "")
+			)
+		time.sleep(delay)
+		value = client.json(next_path)
+		pages_fetched += 1
+		_, items = primary_collection(value)
+		if items is None:
+			raise CLIError("pagination response has no top-level collection")
+		combined.extend(items)
+		if progress:
+			eprint(
+				f"page {pages_fetched}/{total_pages or '?'}: {len(combined)}"
+				+ (f"/{total_count}" if isinstance(total_count, int) else "")
+			)
+	if max_items is not None and len(combined) > max_items:
+		combined = combined[:max_items]
+	if isinstance(first, list):
+		return combined
+	result = dict(first)
+	assert key is not None
+	result[key] = combined
+	if isinstance(result.get("meta"), dict):
+		result["meta"] = dict(
+			result["meta"],
+			fetched_count=len(combined),
+			truncated=(
+				isinstance(total_count, int) and len(combined) < total_count
+			),
+		)
+	return result
+
+
+def json_default(value: Any) -> Any:
+	if isinstance(value, Path):
+		return str(value)
+	raise TypeError(f"cannot serialize {type(value).__name__}")
+
+
+def as_rows(value: Any) -> list[Any]:
+	_, collection = primary_collection(value)
+	if collection is not None:
+		return collection
+	return [value]
+
+
+def flatten(value: Any, prefix: str = "") -> dict[str, Any]:
+	if not isinstance(value, dict):
+		return {prefix or "value": value}
+	result: dict[str, Any] = {}
+	for key, item in value.items():
+		name = f"{prefix}.{key}" if prefix else key
+		if isinstance(item, dict):
+			result.update(flatten(item, name))
+		elif isinstance(item, list):
+			result[name] = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+		else:
+			result[name] = item
+	return result
+
+
+def coordinate(value: Any) -> tuple[float, float] | None:
+	if not isinstance(value, dict):
+		return None
+	coord = value.get("coord")
+	if (
+		isinstance(coord, list)
+		and len(coord) >= 2
+		and all(isinstance(item, (int, float)) for item in coord[:2])
+	):
+		return coord[0], coord[1]
+	if isinstance(value.get("longitude"), (int, float)) and isinstance(
+		value.get("latitude"), (int, float)
+	):
+		return value["longitude"], value["latitude"]
+	return None
+
+
+def geojson(value: Any) -> dict[str, Any]:
+	features = []
+	for item in as_rows(value):
+		if not isinstance(item, dict):
+			continue
+		coord = coordinate(item)
+		if coord:
+			features.append(
+				{
+					"type": "Feature",
+					"geometry": {"type": "Point", "coordinates": list(coord)},
+					"properties": {key: val for key, val in item.items() if key != "coord"},
+				}
+			)
+			continue
+		coords = item.get("coords")
+		if isinstance(coords, list) and coords and isinstance(coords[0], list):
+			features.append(
+				{
+					"type": "Feature",
+					"geometry": {"type": "LineString", "coordinates": coords},
+					"properties": {key: val for key, val in item.items() if key != "coords"},
+				}
+			)
+	if not features:
+		raise CLIError("no coordinates found for GeoJSON output")
+	return {"type": "FeatureCollection", "features": features}
+
+
+def render(value: Any, output_format: str, pretty: bool) -> bytes:
+	if output_format == "json":
+		return (
+			json.dumps(
+				value,
+				ensure_ascii=False,
+				indent=2 if pretty else None,
+				separators=None if pretty else (",", ":"),
+				default=json_default,
+			)
+			+ "\n"
+		).encode()
+	if output_format == "jsonl":
+		return b"".join(
+			(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+			for item in as_rows(value)
+		)
+	if output_format == "csv":
+		rows = [flatten(item) for item in as_rows(value)]
+		fields = list(dict.fromkeys(key for row in rows for key in row))
+		buffer = io.StringIO()
+		writer = csv.DictWriter(buffer, fieldnames=fields)
+		writer.writeheader()
+		writer.writerows(rows)
+		return buffer.getvalue().encode()
+	if output_format == "geojson":
+		return render(geojson(value), "json", pretty)
+	raise CLIError(f"unsupported structured output format: {output_format}")
+
+
+def write_output(data: bytes, destination: str | None) -> None:
+	if destination in {None, "-"}:
+		sys.stdout.buffer.write(data)
+		sys.stdout.buffer.flush()
+		return
+	path = Path(destination)
+	path.parent.mkdir(parents=True, exist_ok=True)
+	path.write_bytes(data)
+
+
+def point_distance(first: dict[str, Any], second: dict[str, Any]) -> float:
+	radius = 6_371_000
+	lat1, lat2 = math.radians(first["lat"]), math.radians(second["lat"])
+	dlat = lat2 - lat1
+	dlon = math.radians(second["lon"] - first["lon"])
+	value = (
+		math.sin(dlat / 2) ** 2
+		+ math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+	)
+	return 2 * radius * math.asin(math.sqrt(value))
+
+
+def parse_coord(value: Any, label: str = "coordinate") -> dict[str, float]:
+	if isinstance(value, str):
+		try:
+			value = [float(item.strip()) for item in value.split(",")]
+		except ValueError as error:
+			raise CLIError(f"{label} must be LON,LAT") from error
+	if isinstance(value, dict):
+		if isinstance(value.get("lon"), (int, float)) and isinstance(
+			value.get("lat"), (int, float)
+		):
+			value = [value["lon"], value["lat"]]
+		else:
+			value = value.get("coord")
+	if (
+		not isinstance(value, (list, tuple))
+		or len(value) < 2
+		or not all(isinstance(item, (int, float)) for item in value[:2])
+	):
+		raise CLIError(f"{label} must be [longitude, latitude]")
+	lon, lat = float(value[0]), float(value[1])
+	if not -180 <= lon <= 180 or not -90 <= lat <= 90:
+		raise CLIError(f"{label} is outside valid longitude/latitude bounds")
+	return {"lon": lon, "lat": lat}
+
+
+def nearest_point(
+	points: list[dict[str, Any]], target: dict[str, Any]
+) -> tuple[int, float]:
+	if not points:
+		raise CLIError("cannot find a nearest point in an empty track")
+	index = min(range(len(points)), key=lambda item: point_distance(points[item], target))
+	return index, point_distance(points[index], target)
+
+
+def append_points(
+	destination: list[dict[str, Any]],
+	points: Iterable[dict[str, Any]],
+	*,
+	deduplicate_metres: float = 0.5,
+) -> None:
+	for point in points:
+		if not destination or point_distance(destination[-1], point) > deduplicate_metres:
+			destination.append(dict(point))
+
+
+def track_points(value: Any) -> list[dict[str, Any]]:
+	track = value.get("activity_regularized_track", value) if isinstance(value, dict) else value
+	if not isinstance(track, dict) or not isinstance(track.get("points"), list):
+		raise CLIError("regularized-track response does not contain points")
+	result = []
+	for item in track["points"]:
+		try:
+			lon, lat = item["coord"][:2]
+		except (KeyError, TypeError, ValueError) as error:
+			raise CLIError("track contains an invalid point") from error
+		point: dict[str, Any] = {"lon": float(lon), "lat": float(lat)}
+		if item.get("altitude") is not None:
+			point["ele"] = item["altitude"]
+		if item.get("pass_at") is not None:
+			try:
+				point["time"] = datetime.fromtimestamp(
+					item["pass_at"], UTC
+				).isoformat().replace("+00:00", "Z")
+			except (TypeError, ValueError, OSError) as error:
+				raise CLIError("track contains an invalid timestamp") from error
+		result.append(point)
+	return result
+
+
+def coords_points(coords: Any, altitudes: Any = None) -> list[dict[str, Any]]:
+	if not isinstance(coords, list):
+		raise CLIError("geometry does not contain a coordinate list")
+	result = []
+	for index, coord in enumerate(coords):
+		point = parse_coord(coord, f"coordinate {index}")
+		if (
+			isinstance(altitudes, list)
+			and index < len(altitudes)
+			and altitudes[index] is not None
+		):
+			point["ele"] = altitudes[index]
+		result.append(point)
+	return result
+
+
+def gpx_document(
+	points: list[dict[str, Any]],
+	*,
+	name: str,
+	description: str | None = None,
+	waypoints: list[dict[str, Any]] | None = None,
+	metadata: dict[str, Any] | None = None,
+) -> bytes:
+	ElementTree.register_namespace("", GPX_NAMESPACE)
+	ElementTree.register_namespace("xsi", GPX_XSI_NAMESPACE)
+	root = Element(
+		f"{{{GPX_NAMESPACE}}}gpx",
+		{
+			"version": "1.1",
+			"creator": GPX_CREATOR,
+			f"{{{GPX_XSI_NAMESPACE}}}schemaLocation": (
+				f"{GPX_NAMESPACE} {GPX_NAMESPACE}/gpx.xsd"
+			),
+		},
+	)
+	meta = SubElement(root, f"{{{GPX_NAMESPACE}}}metadata")
+	SubElement(meta, f"{{{GPX_NAMESPACE}}}name").text = name
+	if description:
+		SubElement(meta, f"{{{GPX_NAMESPACE}}}desc").text = description
+	for source in (metadata or {}).get("sources", []):
+		if not isinstance(source, dict) or not source.get("href"):
+			continue
+		link = SubElement(
+			meta, f"{{{GPX_NAMESPACE}}}link", {"href": str(source["href"])}
+		)
+		if source.get("text"):
+			SubElement(link, f"{{{GPX_NAMESPACE}}}text").text = str(source["text"])
+	if (metadata or {}).get("warnings"):
+		SubElement(meta, f"{{{GPX_NAMESPACE}}}keywords").text = " | ".join(
+			f"yamap-warning: {warning}" for warning in metadata["warnings"]
+		)
+	for waypoint in waypoints or []:
+		point = parse_coord(waypoint, "waypoint coordinate")
+		node = SubElement(
+			root,
+			f"{{{GPX_NAMESPACE}}}wpt",
+			{"lat": str(point["lat"]), "lon": str(point["lon"])},
+		)
+		if waypoint.get("ele") is not None:
+			SubElement(node, f"{{{GPX_NAMESPACE}}}ele").text = str(waypoint["ele"])
+		SubElement(node, f"{{{GPX_NAMESPACE}}}name").text = str(
+			waypoint.get("name", "Waypoint")
+		)
+		if waypoint.get("description"):
+			SubElement(node, f"{{{GPX_NAMESPACE}}}desc").text = str(
+				waypoint["description"]
+			)
+	track = SubElement(root, f"{{{GPX_NAMESPACE}}}trk")
+	SubElement(track, f"{{{GPX_NAMESPACE}}}name").text = name
+	segment = SubElement(track, f"{{{GPX_NAMESPACE}}}trkseg")
+	for point in points:
+		node = SubElement(
+			segment,
+			f"{{{GPX_NAMESPACE}}}trkpt",
+			{"lat": str(point["lat"]), "lon": str(point["lon"])},
+		)
+		if point.get("ele") is not None:
+			SubElement(node, f"{{{GPX_NAMESPACE}}}ele").text = str(point["ele"])
+		if point.get("time") is not None:
+			SubElement(node, f"{{{GPX_NAMESPACE}}}time").text = str(point["time"])
+	ElementTree.indent(root, space="  ")
+	return ElementTree.tostring(
+		root, encoding="utf-8", xml_declaration=True, short_empty_elements=True
+	) + b"\n"
+
+
+def load_gpx(path: str | Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+	try:
+		root = ElementTree.parse(path).getroot()
+	except (OSError, ElementTree.ParseError) as error:
+		raise CLIError(f"cannot read GPX {path}: {error}") from error
+	points = []
+	waypoints = []
+	name = Path(path).stem
+	for item in root.iter():
+		tag = item.tag.rsplit("}", 1)[-1]
+		if tag not in {"trkpt", "rtept", "wpt"}:
+			continue
+		try:
+			point: dict[str, Any] = {
+				"lon": float(item.attrib["lon"]),
+				"lat": float(item.attrib["lat"]),
+			}
+		except (KeyError, ValueError) as error:
+			raise CLIError(f"GPX {path} contains an invalid point") from error
+		for child in item:
+			child_tag = child.tag.rsplit("}", 1)[-1]
+			if child_tag == "ele" and child.text is not None:
+				try:
+					point["ele"] = float(child.text)
+				except ValueError:
+					pass
+			elif child_tag == "time" and child.text:
+				point["time"] = child.text
+			elif child_tag == "name" and child.text:
+				point["name"] = child.text
+			elif child_tag == "desc" and child.text:
+				point["description"] = child.text
+		(waypoints if tag == "wpt" else points).append(point)
+	for item in root.iter():
+		if item.tag.rsplit("}", 1)[-1] == "trk":
+			for child in item:
+				if child.tag.rsplit("}", 1)[-1] == "name" and child.text:
+					name = child.text
+					break
+			break
+	if not points:
+		raise CLIError(f"GPX {path} contains no track or route points")
+	return points, waypoints, name
+
+
+def route_statistics(
+	points: list[dict[str, Any]], waypoints: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+	legs = [point_distance(first, second) for first, second in zip(points, points[1:])]
+	elevations = [point["ele"] for point in points if point.get("ele") is not None]
+	times = [point["time"] for point in points if point.get("time") is not None]
+	return {
+		"schema": SCHEMA_VERSION,
+		"track_points": len(points),
+		"waypoints": len(waypoints or []),
+		"distance_m": round(sum(legs), 3),
+		"largest_gap_m": round(max(legs, default=0), 3),
+		"elevation_points": len(elevations),
+		"elevation_coverage": round(len(elevations) / len(points), 4) if points else 0,
+		"time_points": len(times),
+		"time_coverage": round(len(times) / len(points), 4) if points else 0,
+		"bounds": {
+			"west": min((point["lon"] for point in points), default=None),
+			"north": max((point["lat"] for point in points), default=None),
+			"east": max((point["lon"] for point in points), default=None),
+			"south": min((point["lat"] for point in points), default=None),
+		},
+	}
+
+
+def gpx_from_track(value: Any, activity_id: str) -> bytes:
+	return gpx_document(
+		track_points(value),
+		name=f"YAMAP activity {activity_id} (regularized)",
+		description="Public regularized YAMAP activity track.",
+		metadata={
+			"sources": [{
+				"href": f"https://yamap.com/activities/{activity_id}",
+				"text": f"YAMAP activity {activity_id}",
+			}]
+		},
+	)
+
+
+def common_query(args: argparse.Namespace) -> list[tuple[str, Any]]:
+	pairs = parse_pairs(getattr(args, "query", []))
+	for name in ("page", "per", "limit"):
+		if (value := getattr(args, name, None)) is not None:
+			pairs.append((name, value))
+	if getattr(args, "paging", False):
+		pairs.append(("paging", 1))
+	return pairs
+
+
+def structured_request(client: Client, args: argparse.Namespace, path: str) -> None:
+	path = append_query(path, common_query(args))
+	value = fetch_json(
+		client,
+		path,
+		all_pages=getattr(args, "all", False),
+		delay=args.delay,
+		max_pages=args.max_pages,
+		max_items=getattr(args, "max_items", None),
+		progress=getattr(args, "progress", False),
+	)
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+
+
+def command_get(client: Client, args: argparse.Namespace) -> None:
+	if args.raw:
+		path = append_query(args.path, common_query(args))
+		data, _, _ = client.request(path, accept="*/*")
+		write_output(data, args.output)
+	else:
+		structured_request(client, args, args.path)
+
+
+def command_search(client: Client, args: argparse.Namespace) -> None:
+	pairs = common_query(args)
+	if args.kind == "courses":
+		raw_keys = {key for key, _ in pairs}
+		if "map_id" in raw_keys:
+			raise CLIError(
+				"course search does not honor map_id; use "
+				"`yamap resource map MAP_ID courses`"
+			)
+	if args.keyword is not None:
+		pairs.append(("name" if args.kind == "courses" else "keyword", args.keyword))
+	for name in ("latitude", "longitude", "sort", "bound", "mode", "summit"):
+		if (value := getattr(args, name, None)) is not None:
+			pairs.append((name, value))
+	path = append_query(SEARCH_ENDPOINTS[args.kind], pairs)
+	value = fetch_json(
+		client,
+		path,
+		all_pages=args.all,
+		delay=args.delay,
+		max_pages=args.max_pages,
+		max_items=args.max_items,
+		progress=args.progress,
+	)
+	write_output(
+		render(select_value(value, args.select), args.format, args.pretty), args.output
+	)
+
+
+def unwrapped_resource(value: Any, resource: str) -> dict[str, Any]:
+	if not isinstance(value, dict):
+		raise CLIError(f"{resource} response is not an object")
+	wrapper = RESOURCE_WRAPPERS.get(resource)
+	item = value.get(wrapper, value) if wrapper else value
+	if not isinstance(item, dict):
+		raise CLIError(f"{resource} response has an unexpected shape")
+	return item
+
+
+def summarize_resource(item: dict[str, Any], resource: str) -> dict[str, Any]:
+	result = {key: item.get(key) for key in SUMMARY_FIELDS[resource]}
+	if isinstance(result.get("description"), str) and len(result["description"]) > 500:
+		result["description"] = result["description"][:497] + "..."
+	result["schema"] = f"yamap.{resource}.summary/v1"
+	for nested in ("map", "user", "activity_type"):
+		value = item.get(nested)
+		if isinstance(value, dict):
+			result[nested] = {
+				key: value.get(key) for key in ("id", "name", "name_ja") if key in value
+			}
+	if resource == "activity":
+		result["checkpoint_count"] = len(item.get("checkpoints", []))
+		result["has_public_track"] = bool(item.get("has_points", True))
+	elif resource == "course":
+		result["checkpoint_count"] = len(item.get("checkpoints", []))
+		result["coordinate_count"] = len(item.get("coords", []))
+	return result
+
+
+def normalized_checkpoints(
+	item: dict[str, Any], resource: str, resource_id: str
+) -> list[dict[str, Any]]:
+	result = []
+	for index, checkpoint in enumerate(item.get("checkpoints", [])):
+		if not isinstance(checkpoint, dict):
+			continue
+		landmark = checkpoint.get("landmark", checkpoint)
+		if not isinstance(landmark, dict):
+			continue
+		result.append({
+			"schema": "yamap.checkpoint/v1",
+			"resource": resource,
+			"resource_id": int(resource_id) if resource_id.isdigit() else resource_id,
+			"index": index,
+			"id": landmark.get("id"),
+			"name": landmark.get("name"),
+			"name_ja": landmark.get("name_ja"),
+			"landmark_type": (
+				landmark.get("landmark_type", {}).get("name")
+				if isinstance(landmark.get("landmark_type"), dict)
+				else None
+			),
+			"coord": landmark.get("coord"),
+			"altitude": landmark.get("altitude"),
+			"entered_at": checkpoint.get("entered_at"),
+			"left_at": checkpoint.get("left_at"),
+			"description": landmark.get("description"),
+		})
+	return result
+
+
+def command_entity(client: Client, args: argparse.Namespace) -> None:
+	resource = args.entity
+	rows = []
+	for resource_id in args.ids:
+		item = unwrapped_resource(client.json(
+			RESOURCE_ACTIONS[resource]["show"].format(id=resource_id)
+		), resource)
+		if args.action == "summary":
+			rows.append(summarize_resource(item, resource))
+		elif args.action == "checkpoints":
+			rows.extend(normalized_checkpoints(item, resource, resource_id))
+		else:
+			raise CLIError(f"unsupported {resource} action: {args.action}")
+	value: Any = rows
+	if len(args.ids) == 1 and args.action == "summary":
+		value = rows[0]
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+
+
+def course_gpx(client: Client, course_id: str) -> bytes:
+	course = unwrapped_resource(client.json(f"model_courses/{course_id}"), "course")
+	points = coords_points(course.get("coords"))
+	warnings = []
+	if course.get("is_closed_route_passed_through"):
+		warnings.append("official course passes through a closed route")
+	if course.get("is_dashed_route_passed_through"):
+		warnings.append("official course passes through a dashed route")
+	return gpx_document(
+		points,
+		name=course.get("name") or f"YAMAP model course {course_id}",
+		description=course.get("description"),
+		waypoints=[
+			{
+				"name": checkpoint.get("name_ja") or checkpoint.get("name") or "Waypoint",
+				"coord": checkpoint["coord"],
+				"ele": checkpoint.get("altitude"),
+				"description": checkpoint.get("description"),
+			}
+			for checkpoint in normalized_checkpoints(course, "course", course_id)
+			if checkpoint.get("coord")
+		],
+		metadata={
+			"sources": [{
+				"href": f"https://yamap.com/model-courses/{course_id}",
+				"text": f"YAMAP official model course {course_id}",
+			}],
+			"warnings": warnings,
+		},
+	)
+
+
+def command_course_gpx(client: Client, args: argparse.Namespace) -> None:
+	data = course_gpx(client, args.id)
+	destination = args.output
+	if destination is None and sys.stdout.isatty():
+		destination = f"yamap-course-{args.id}.gpx"
+	write_output(data, destination)
+	if destination not in {None, "-"}:
+		eprint(f"saved {len(data)} bytes to {destination}")
+
+
+def command_landmarks(client: Client, args: argparse.Namespace) -> None:
+	pairs = common_query(args)
+	near = parse_coord(args.near, "--near") if args.near else None
+	if args.bound:
+		bound = args.bound
+	elif near:
+		latitude_delta = args.radius / 111_320
+		longitude_delta = latitude_delta / max(
+			math.cos(math.radians(near["lat"])), 0.01
+		)
+		bound = ",".join(str(value) for value in (
+			near["lon"] - longitude_delta,
+			near["lat"] + latitude_delta,
+			near["lon"] + longitude_delta,
+			near["lat"] - latitude_delta,
+		))
+	else:
+		raise CLIError("landmarks requires --bound or --near")
+	pairs.append(("bound", bound))
+	if args.type is not None:
+		pairs.append(("type", args.type))
+	value = client.json(append_query("landmarks", pairs))
+	_, rows = primary_collection(value)
+	landmarks = []
+	for item in rows or []:
+		if not isinstance(item, dict) or not item.get("coord"):
+			continue
+		if near:
+			distance = point_distance(parse_coord(item["coord"]), near)
+			if distance > args.radius:
+				continue
+		else:
+			distance = None
+		if args.keyword:
+			haystack = " ".join(
+				str(item.get(key, "")) for key in ("name", "name_ja", "name_en", "name_hira")
+			).casefold()
+			if args.keyword.casefold() not in haystack:
+				continue
+		landmarks.append({
+			"schema": "yamap.landmark/v1",
+			"id": item.get("id"),
+			"name": item.get("name"),
+			"name_ja": item.get("name_ja"),
+			"name_en": item.get("name_en"),
+			"coord": item.get("coord"),
+			"altitude": item.get("altitude"),
+			"landmark_type_id": item.get("landmark_type_id"),
+			"route_node_id": item.get("route_node_id"),
+			"is_no_entry": item.get("is_no_entry"),
+			"distance_m": round(distance, 3) if distance is not None else None,
+		})
+	if near:
+		landmarks.sort(key=lambda item: item["distance_m"])
+	write_output(
+		render(select_value(landmarks, args.select), args.format, args.pretty),
+		args.output,
+	)
+
+
+def command_describe(args: argparse.Namespace) -> None:
+	value: dict[str, Any] = {
+		"schema": SCHEMA_VERSION,
+		"commands": {
+			"search": {
+				"kinds": list(SEARCH_ENDPOINTS),
+				"raw_response": True,
+				"pagination": True,
+			},
+			"resource": {
+				"actions": {
+					key: list(actions) for key, actions in RESOURCE_ACTIONS.items()
+				},
+				"wrappers": RESOURCE_WRAPPERS,
+				"raw_response": True,
+			},
+			"activity": {"actions": ["summary", "checkpoints"], "batch_ids": True},
+			"course": {"actions": ["summary", "checkpoints", "gpx"], "batch_ids": True},
+			"landmarks": {"spatial": ["bound", "near"], "normalized": True},
+			"route": {"actions": ["path", "build"]},
+			"gpx": {
+				"actions": [
+					"download", "inspect", "slice", "reverse", "concat",
+					"validate", "nearest",
+				]
+			},
+		},
+		"examples": [
+			"yamap resource map 106 courses --compact",
+			"yamap activity checkpoints 48057450 -f jsonl",
+			"yamap course gpx 20555 -o course.gpx",
+			"yamap landmarks --near 135.6346,35.0599 --radius 1000",
+			"yamap route build route.json -o route.gpx",
+			"yamap gpx validate route.gpx --vias waypoints.json",
+		],
+	}
+	if args.topic:
+		value = select_value(value, f"commands.{args.topic}")
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+
+
+def command_resource(client: Client, args: argparse.Namespace) -> None:
+	if args.resource == "map" and args.action == "courses":
+		args.all = True
+		if args.per is None:
+			args.per = 100
+	path = RESOURCE_ACTIONS[args.resource][args.action].format(id=args.id)
+	structured_request(client, args, path)
+
+
+def command_track(client: Client, args: argparse.Namespace) -> None:
+	value = client.json(f"activities/{args.id}/activity_regularized_track")
+	if args.format == "gpx":
+		data = gpx_from_track(value, args.id)
+	else:
+		data = render(select_value(value, args.select), args.format, args.pretty)
+	write_output(data, args.output)
+
+
+def command_gpx_download(client: Client, args: argparse.Namespace) -> None:
+	if not client.token:
+		raise CLIError("official GPX download requires YAMAP_TOKEN")
+	data, _, content_type = client.request(
+		f"activities/{args.id}/points.xml", accept="application/gpx+xml"
+	)
+	if content_type not in {"application/gpx+xml", "application/xml", "text/xml"}:
+		raise CLIError(f"expected GPX but received {content_type}")
+	destination = args.output
+	if destination is None and sys.stdout.isatty():
+		destination = f"yamap-{args.id}.gpx"
+	write_output(data, destination)
+	if destination not in {None, "-"}:
+		eprint(f"saved {len(data)} bytes to {destination}")
+
+
+def command_gpx_inspect(_client: Client, args: argparse.Namespace) -> None:
+	points, waypoints, name = load_gpx(args.file)
+	value = route_statistics(points, waypoints)
+	value["name"] = name
+	value["waypoint_details"] = [
+		{
+			"name": waypoint.get("name"),
+			"coord": [waypoint["lon"], waypoint["lat"]],
+			"nearest_track_m": round(nearest_point(points, waypoint)[1], 3),
+		}
+		for waypoint in waypoints
+	]
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+
+
+def command_gpx_nearest(_client: Client, args: argparse.Namespace) -> None:
+	points, _, _ = load_gpx(args.file)
+	target = parse_coord(args.coordinate)
+	index, distance = nearest_point(points, target)
+	value = {
+		"schema": "yamap.gpx.nearest/v1",
+		"index": index,
+		"distance_m": round(distance, 3),
+		"point": points[index],
+	}
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+
+
+def command_gpx_transform(_client: Client, args: argparse.Namespace) -> None:
+	if args.gpx_action == "concat":
+		points: list[dict[str, Any]] = []
+		waypoints: list[dict[str, Any]] = []
+		names = []
+		for path in args.files:
+			source_points, source_waypoints, name = load_gpx(path)
+			append_points(points, source_points)
+			waypoints.extend(source_waypoints)
+			names.append(name)
+		name = args.name or " + ".join(names)
+	elif args.gpx_action == "reverse":
+		points, waypoints, source_name = load_gpx(args.file)
+		points.reverse()
+		name = args.name or f"{source_name} (reversed)"
+	else:
+		points, waypoints, source_name = load_gpx(args.file)
+		start = parse_coord(args.start, "--from")
+		finish = parse_coord(args.finish, "--to")
+		start_index, start_distance = nearest_point(points, start)
+		finish_index, finish_distance = nearest_point(points, finish)
+		if max(start_distance, finish_distance) > args.max_snap:
+			raise CLIError(
+				f"slice endpoint is {max(start_distance, finish_distance):.1f} m "
+				f"from the track, exceeding --max-snap={args.max_snap}"
+			)
+		if start_index <= finish_index:
+			points = points[start_index:finish_index + 1]
+		else:
+			points = list(reversed(points[finish_index:start_index + 1]))
+		name = args.name or f"{source_name} (slice)"
+	data = gpx_document(
+		points,
+		name=name,
+		waypoints=waypoints if args.keep_waypoints else [],
+		description="Generated by yamap GPX utilities.",
+		metadata={
+			"sources": [
+				{"href": Path(path).resolve().as_uri(), "text": str(path)}
+				for path in (
+					args.files if args.gpx_action == "concat" else [args.file]
+				)
+			]
+		},
+	)
+	write_output(data, args.output)
+
+
+def load_vias(path: str | None, embedded: list[dict[str, Any]]) -> list[dict[str, Any]]:
+	if path is None:
+		return embedded
+	try:
+		value = json.loads(Path(path).read_text())
+	except (OSError, json.JSONDecodeError) as error:
+		raise CLIError(f"cannot read vias file {path}: {error}") from error
+	if isinstance(value, dict):
+		value = value.get("waypoints", value.get("vias"))
+	if not isinstance(value, list):
+		raise CLIError("vias file must contain a list or a waypoints/vias list")
+	result = []
+	for index, item in enumerate(value):
+		if not isinstance(item, dict):
+			item = {"coord": item}
+		point = parse_coord(item, f"via {index}")
+		point["name"] = item.get("name", f"Via {index + 1}")
+		result.append(point)
+	return result
+
+
+def command_gpx_validate(_client: Client, args: argparse.Namespace) -> int:
+	try:
+		root = ElementTree.parse(args.file).getroot()
+	except (OSError, ElementTree.ParseError) as error:
+		raise CLIError(f"cannot read GPX {args.file}: {error}") from error
+	points, embedded, _ = load_gpx(args.file)
+	vias = load_vias(args.vias, embedded)
+	stats = route_statistics(points, embedded)
+	issues = []
+	warnings = []
+	if root.tag != f"{{{GPX_NAMESPACE}}}gpx" or root.attrib.get("version") != "1.1":
+		issues.append("document is not GPX 1.1 in the Topografix namespace")
+	if stats["largest_gap_m"] > args.max_gap:
+		issues.append(
+			f"largest track gap {stats['largest_gap_m']:.1f} m exceeds "
+			f"--max-gap={args.max_gap}"
+		)
+	cursor = 0
+	via_results = []
+	for via in vias:
+		if cursor >= len(points):
+			distance = math.inf
+			index = None
+		else:
+			offset, distance = nearest_point(points[cursor:], via)
+			index = cursor + offset
+		via_results.append({
+			"name": via.get("name"),
+			"index": index,
+			"distance_m": round(distance, 3),
+		})
+		if distance > args.max_via_distance:
+			issues.append(
+				f"{via.get('name')} is {distance:.1f} m from the remaining track"
+			)
+		elif index is not None:
+			cursor = index
+	if stats["elevation_coverage"] < args.min_elevation_coverage:
+		warnings.append(
+			f"elevation coverage is {stats['elevation_coverage']:.1%}, below "
+			f"{args.min_elevation_coverage:.1%}"
+		)
+	for item in root.iter():
+		if item.tag.rsplit("}", 1)[-1] != "keywords" or not item.text:
+			continue
+		for warning in item.text.split(" | "):
+			prefix = "yamap-warning: "
+			if warning.startswith(prefix):
+				warnings.append(warning[len(prefix):])
+	value = {
+		"schema": "yamap.gpx.validation/v1",
+		"valid": not issues,
+		"gpx_11_structure": not any("GPX 1.1" in issue for issue in issues),
+		"statistics": stats,
+		"ordered_vias": via_results,
+		"issues": issues,
+		"warnings": warnings,
+	}
+	value = select_value(value, args.select)
+	write_output(render(value, args.format, args.pretty), args.output)
+	return 0 if not issues else 1
+
+
+def command_my(client: Client, args: argparse.Namespace) -> None:
+	if not client.token:
+		raise CLIError("this command requires YAMAP_TOKEN")
+	structured_request(client, args, MY_ENDPOINTS[args.resource])
+
+
+def command_catalog(client: Client, args: argparse.Namespace) -> None:
+	structured_request(client, args, CATALOG_ENDPOINTS[args.catalog])
+
+
+def command_weather(client: Client, args: argparse.Namespace) -> None:
+	structured_request(client, args, f"coordinates/{args.latitude},{args.longitude}/daily_forecast")
+
+
+def command_geometry(client: Client, args: argparse.Namespace) -> None:
+	endpoint = {"lines": "map_lines", "labels": "map_labels", "nodes": "route_nodes"}[
+		args.kind
+	]
+	query = [("bound", ",".join(str(value) for value in args.bounds))]
+	if args.routing:
+		query.append(("routing", ",".join(args.routing)))
+	structured_request(client, args, append_query(endpoint, query))
+
+
+def line_points(line: dict[str, Any]) -> list[dict[str, Any]]:
+	return coords_points(line.get("coords"), line.get("altitudes"))
+
+
+def map_lines_in_bounds(client: Client, bounds: Iterable[Any]) -> list[dict[str, Any]]:
+	path = append_query("map_lines", [("bound", ",".join(str(value) for value in bounds))])
+	value = client.json(path)
+	_, lines = primary_collection(value)
+	if lines is None:
+		raise CLIError("map-lines response has no map_lines collection")
+	return [line for line in lines if isinstance(line, dict)]
+
+
+def shortest_map_path(
+	lines: list[dict[str, Any]],
+	start: dict[str, Any],
+	finish: dict[str, Any],
+	*,
+	max_snap: float,
+	include_closed: bool,
+	include_dashed: bool,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+	nodes: dict[Any, dict[str, Any]] = {}
+	graph: dict[Any, list[tuple[float, Any, list[dict[str, Any]], dict[str, Any]]]] = {}
+	excluded_closed = 0
+	excluded_dashed = 0
+	for line in lines:
+		if line.get("is_closed") and not include_closed:
+			excluded_closed += 1
+			continue
+		if str(line.get("type", "")).casefold() == "dashed" and not include_dashed:
+			excluded_dashed += 1
+			continue
+		source = line.get("source_route_node_id")
+		target = line.get("target_route_node_id")
+		if source is None or target is None:
+			continue
+		points = line_points(line)
+		if len(points) < 2:
+			continue
+		nodes[source], nodes[target] = points[0], points[-1]
+		routings = line.get("routings")
+		directions = {
+			item.get("direction")
+			for item in routings
+			if isinstance(item, dict)
+		} if isinstance(routings, list) else {"forward", "reverse"}
+		weight = float(line.get("distance") or sum(
+			point_distance(first, second) for first, second in zip(points, points[1:])
+		))
+		info = {
+			"id": line.get("id"),
+			"is_closed": bool(line.get("is_closed")),
+			"is_dashed": str(line.get("type", "")).casefold() == "dashed",
+		}
+		if "forward" in directions or not directions:
+			graph.setdefault(source, []).append((weight, target, points, info))
+		if "reverse" in directions or not directions:
+			graph.setdefault(target, []).append((weight, source, list(reversed(points)), info))
+	if not nodes:
+		raise CLIError("no routable map lines found in bounds")
+	start_node = min(nodes, key=lambda node: point_distance(nodes[node], start))
+	finish_node = min(nodes, key=lambda node: point_distance(nodes[node], finish))
+	start_snap = point_distance(nodes[start_node], start)
+	finish_snap = point_distance(nodes[finish_node], finish)
+	if max(start_snap, finish_snap) > max_snap:
+		raise CLIError(
+			f"route endpoint is {max(start_snap, finish_snap):.1f} m from the "
+			f"trail graph, exceeding --max-snap={max_snap}"
+		)
+	distance: dict[Any, float] = {start_node: 0}
+	previous: dict[Any, tuple[Any, list[dict[str, Any]], dict[str, Any]]] = {}
+	queue: list[tuple[float, Any]] = [(0, start_node)]
+	while queue:
+		current_distance, node = heapq.heappop(queue)
+		if current_distance != distance.get(node):
+			continue
+		if node == finish_node:
+			break
+		for weight, target, points, info in graph.get(node, []):
+			candidate = current_distance + weight
+			if candidate < distance.get(target, math.inf):
+				distance[target] = candidate
+				previous[target] = (node, points, info)
+				heapq.heappush(queue, (candidate, target))
+	if finish_node not in distance:
+		raise CLIError("no route connects the requested endpoints")
+	segments = []
+	node = finish_node
+	while node != start_node:
+		source, points, info = previous[node]
+		segments.append((points, info))
+		node = source
+	segments.reverse()
+	result: list[dict[str, Any]] = []
+	line_ids = []
+	used_closed = []
+	used_dashed = []
+	for points, info in segments:
+		append_points(result, points)
+		line_ids.append(info["id"])
+		if info["is_closed"]:
+			used_closed.append(info["id"])
+		if info["is_dashed"]:
+			used_dashed.append(info["id"])
+	report = {
+		"start_snap_m": round(start_snap, 3),
+		"finish_snap_m": round(finish_snap, 3),
+		"map_line_ids": line_ids,
+		"distance_m": round(distance[finish_node], 3),
+		"excluded_closed_lines": excluded_closed,
+		"excluded_dashed_lines": excluded_dashed,
+		"used_closed_line_ids": used_closed,
+		"used_dashed_line_ids": used_dashed,
+	}
+	return result, report
+
+
+def command_route_path(client: Client, args: argparse.Namespace) -> None:
+	start = parse_coord(args.start, "--from")
+	finish = parse_coord(args.finish, "--to")
+	lines = map_lines_in_bounds(client, args.bounds)
+	points, report = shortest_map_path(
+		lines,
+		start,
+		finish,
+		max_snap=args.max_snap,
+		include_closed=args.include_closed,
+		include_dashed=args.include_dashed,
+	)
+	if args.format == "gpx":
+		warnings = []
+		if report["used_closed_line_ids"]:
+			warnings.append(
+				"route uses closed map lines: "
+				+ ",".join(str(item) for item in report["used_closed_line_ids"])
+			)
+		if report["used_dashed_line_ids"]:
+			warnings.append(
+				"route uses dashed map lines: "
+				+ ",".join(str(item) for item in report["used_dashed_line_ids"])
+			)
+		data = gpx_document(
+			points,
+			name=args.name or "YAMAP official map route",
+			description=(
+				"Shortest route over YAMAP map lines. "
+				f"Map line IDs: {','.join(str(item) for item in report['map_line_ids'])}"
+			),
+			metadata={"warnings": warnings},
+		)
+	else:
+		value: Any = {"points": points, "report": report}
+		if args.format == "geojson":
+			value = {
+				"type": "FeatureCollection",
+				"features": [{
+					"type": "Feature",
+					"geometry": {
+						"type": "LineString",
+						"coordinates": [[point["lon"], point["lat"]] for point in points],
+					},
+					"properties": report,
+				}],
+			}
+			data = render(value, "json", args.pretty)
+		else:
+			data = render(value, args.format, args.pretty)
+	write_output(data, args.output)
+	if args.report:
+		Path(args.report).write_bytes(render(report, "json", True))
+
+
+def manifest_segment_points(
+	client: Client, segment: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+	warnings = []
+	if "activity" in segment:
+		identifier = str(segment["activity"])
+		points = track_points(client.json(
+			f"activities/{identifier}/activity_regularized_track"
+		))
+		source = {
+			"kind": "activity",
+			"id": identifier,
+			"href": f"https://yamap.com/activities/{identifier}",
+			"text": f"Public YAMAP activity {identifier}",
+		}
+	elif "course" in segment:
+		identifier = str(segment["course"])
+		course = unwrapped_resource(client.json(f"model_courses/{identifier}"), "course")
+		points = coords_points(course.get("coords"))
+		source = {
+			"kind": "course",
+			"id": identifier,
+			"href": f"https://yamap.com/model-courses/{identifier}",
+			"text": f"YAMAP official model course {identifier}",
+		}
+		if course.get("is_closed_route_passed_through"):
+			warnings.append(f"course {identifier} passes through a closed route")
+		if course.get("is_dashed_route_passed_through"):
+			warnings.append(f"course {identifier} passes through a dashed route")
+	elif "gpx" in segment:
+		if not segment.get("approved_external"):
+			raise CLIError(
+				f"external GPX {segment['gpx']} requires approved_external=true"
+			)
+		points, _, source_name = load_gpx(segment["gpx"])
+		source = {
+			"kind": "external_gpx",
+			"href": Path(segment["gpx"]).resolve().as_uri(),
+			"text": segment.get("source_name", source_name),
+		}
+		warnings.append(f"uses approved external GPX {segment['gpx']}")
+	elif "map_lines" in segment:
+		if not isinstance(segment["map_lines"], list) or not segment.get("bound"):
+			raise CLIError("map_lines segment requires an ID list and bound")
+		lines = map_lines_in_bounds(client, segment["bound"])
+		by_id = {line.get("id"): line for line in lines}
+		points = []
+		for raw in segment["map_lines"]:
+			reverse = isinstance(raw, dict) and raw.get("reverse")
+			identifier = raw.get("id") if isinstance(raw, dict) else raw
+			if identifier not in by_id:
+				raise CLIError(f"map line {identifier} was not found in segment bounds")
+			line = by_id[identifier]
+			if line.get("is_closed"):
+				warnings.append(f"map line {identifier} is closed")
+			if str(line.get("type", "")).casefold() == "dashed":
+				warnings.append(f"map line {identifier} is dashed")
+			line_route = line_points(line)
+			append_points(points, reversed(line_route) if reverse else line_route)
+		source = {
+			"kind": "map_lines",
+			"ids": [
+				item.get("id") if isinstance(item, dict) else item
+				for item in segment["map_lines"]
+			],
+			"text": "YAMAP official map lines",
+		}
+	else:
+		raise CLIError("route segment requires activity, course, gpx, or map_lines")
+	if segment.get("from") is not None:
+		start_index, start_distance = nearest_point(
+			points, parse_coord(segment["from"], "segment from")
+		)
+	else:
+		start_index, start_distance = 0, 0
+	if segment.get("to") is not None:
+		finish_index, finish_distance = nearest_point(
+			points, parse_coord(segment["to"], "segment to")
+		)
+	else:
+		finish_index, finish_distance = len(points) - 1, 0
+	max_snap = float(segment.get("max_snap", 100))
+	if max(start_distance, finish_distance) > max_snap:
+		raise CLIError(
+			f"segment endpoint is {max(start_distance, finish_distance):.1f} m "
+			f"from its source, exceeding max_snap={max_snap}"
+		)
+	if start_index <= finish_index:
+		points = points[start_index:finish_index + 1]
+	else:
+		points = list(reversed(points[finish_index:start_index + 1]))
+	if segment.get("reverse"):
+		points.reverse()
+	if segment.get("out_and_back"):
+		points = points + [dict(point) for point in reversed(points[:-1])]
+	return points, source, warnings
+
+
+def command_route_build(client: Client, args: argparse.Namespace) -> None:
+	try:
+		manifest = json.loads(Path(args.manifest).read_text())
+	except (OSError, json.JSONDecodeError) as error:
+		raise CLIError(f"cannot read route manifest {args.manifest}: {error}") from error
+	if not isinstance(manifest, dict) or not isinstance(manifest.get("segments"), list):
+		raise CLIError("route manifest requires a segments list")
+	route: list[dict[str, Any]] = []
+	sources = []
+	warnings = []
+	joins = []
+	for index, segment in enumerate(manifest["segments"]):
+		if not isinstance(segment, dict):
+			raise CLIError(f"segment {index} must be an object")
+		points, source, segment_warnings = manifest_segment_points(client, segment)
+		if route and points:
+			gap = point_distance(route[-1], points[0])
+			joins.append({"segment": index, "gap_m": round(gap, 3)})
+			max_join = float(segment.get("max_join", manifest.get("max_join", 100)))
+			if gap > max_join and not segment.get("allow_gap"):
+				raise CLIError(
+					f"segment {index} starts {gap:.1f} m from the previous segment, "
+					f"exceeding max_join={max_join}"
+				)
+		append_points(route, points)
+		sources.append(source)
+		warnings.extend(segment_warnings)
+	waypoints = []
+	for index, waypoint in enumerate(manifest.get("waypoints", [])):
+		if not isinstance(waypoint, dict):
+			raise CLIError(f"waypoint {index} must be an object")
+		point = parse_coord(waypoint, f"waypoint {index}")
+		point.update({
+			"name": waypoint.get("name", f"Waypoint {index + 1}"),
+			"description": waypoint.get("description"),
+			"provenance": waypoint.get("provenance"),
+			"verified": bool(waypoint.get("verified")),
+		})
+		if point["verified"] and not point["provenance"]:
+			raise CLIError(
+				f"verified waypoint {point['name']} requires provenance"
+			)
+		if not point["verified"]:
+			warnings.append(f"waypoint {point['name']} is not independently verified")
+		waypoints.append(point)
+	stats = route_statistics(route, waypoints)
+	cursor = 0
+	via_report = []
+	max_waypoint = float(manifest.get("max_waypoint_distance", 100))
+	for waypoint in waypoints:
+		offset, distance = nearest_point(route[cursor:], waypoint)
+		index = cursor + offset
+		via_report.append({
+			"name": waypoint["name"],
+			"index": index,
+			"distance_m": round(distance, 3),
+			"verified": waypoint["verified"],
+			"provenance": waypoint["provenance"],
+		})
+		if distance > max_waypoint:
+			raise CLIError(
+				f"waypoint {waypoint['name']} is {distance:.1f} m from the "
+				f"remaining route"
+			)
+		cursor = index
+	description = manifest.get("description") or (
+		"Planned route assembled from declared sources. "
+		"See GPX metadata links and the build report for provenance."
+	)
+	data = gpx_document(
+		route,
+		name=manifest.get("name", Path(args.manifest).stem),
+		description=description,
+		waypoints=waypoints,
+		metadata={"sources": sources, "warnings": warnings},
+	)
+	write_output(data, args.output)
+	report = {
+		"schema": "yamap.route.build/v1",
+		"statistics": stats,
+		"joins": joins,
+		"ordered_waypoints": via_report,
+		"sources": sources,
+		"warnings": warnings,
+	}
+	if args.report:
+		Path(args.report).write_bytes(render(report, "json", True))
+	else:
+		eprint(json.dumps(report, ensure_ascii=False, separators=(",", ":")))
+
+
+def command_tile(client: Client, args: argparse.Namespace) -> None:
+	paths = {
+		"landmarks": f"/v6/xyz/landmarks/{args.z}/{args.x}/{args.y}.mvt",
+		"memo-markers": f"/v6/xyz/explore/memo_markers/{args.z}/{args.x}/{args.y}.mvt",
+		"landmark-search": f"/xyz/landmark_search/{args.z}/{args.x}/{args.y}.mvt",
+	}
+	data, _, content_type = client.request(paths[args.layer], accept="application/vnd.mapbox-vector-tile")
+	if content_type != "application/vnd.mapbox-vector-tile":
+		raise CLIError(f"expected vector tile but received {content_type}")
+	destination = args.output or f"{args.layer}-{args.z}-{args.x}-{args.y}.mvt"
+	write_output(data, destination)
+	if destination != "-":
+		eprint(f"saved {len(data)} bytes to {destination}")
+
+
+def command_graphql(client: Client, args: argparse.Namespace) -> None:
+	if args.query in GRAPHQL_QUERIES:
+		operation, digest = GRAPHQL_QUERIES[args.query]
+	else:
+		if not args.hash:
+			raise CLIError("custom persisted query requires --hash")
+		operation, digest = args.query, args.hash
+	variables = {}
+	for key, value in parse_pairs(args.variable):
+		try:
+			variables[key] = json.loads(value)
+		except json.JSONDecodeError:
+			variables[key] = value
+	body = {
+		"operationName": operation,
+		"variables": variables,
+		"extensions": {"persistedQuery": {"version": 1, "sha256Hash": digest}},
+	}
+	value = client.json("/graphql", graphql_body=body)
+	write_output(
+		render(select_value(value, args.select), args.format, args.pretty), args.output
+	)
+
+
+def find_har_token(har: dict[str, Any]) -> str | None:
+	for entry in har.get("log", {}).get("entries", []):
+		url = entry.get("request", {}).get("url", "")
+		if urllib.parse.urlsplit(url).path != "/v6/my/profile":
+			continue
+		text = entry.get("response", {}).get("content", {}).get("text")
+		if not text:
+			continue
+		try:
+			token = json.loads(text).get("user", {}).get("token")
+		except (json.JSONDecodeError, AttributeError):
+			continue
+		if isinstance(token, str) and token:
+			return token
+	return None
+
+
+def command_auth_import(args: argparse.Namespace) -> None:
+	try:
+		with open(args.har) as file:
+			har = json.load(file)
+	except (OSError, json.JSONDecodeError) as error:
+		raise CLIError(f"cannot read HAR: {error}") from error
+	token = find_har_token(har)
+	if not token:
+		raise CLIError("no token found in a /v6/my/profile response")
+	path = args.token_file
+	path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+	path.write_text(token + "\n")
+	path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+	eprint(f"saved token to {path} with mode 600")
+
+
+def command_auth_status(client: Client, args: argparse.Namespace) -> None:
+	if not client.token:
+		raise CLIError(
+			f"no token found; set YAMAP_TOKEN or run yamap auth import-har FILE"
+		)
+	value = client.json("my/profile")
+	user = value.get("user", {}) if isinstance(value, dict) else {}
+	safe = {key: user.get(key) for key in ("id", "name", "activity_count") if key in user}
+	write_output(render(safe, "json", args.pretty), args.output)
+
+
+def normalize_api_path(path: str) -> str:
+	path = re.sub(r"/coordinates/[^/]+", "/coordinates/{lat},{lon}", path)
+	path = re.sub(r"/\d+(?=/|$)", "/{id}", path)
+	if path.startswith("/v6/xyz/") or path.startswith("/xyz/"):
+		parts = path.split("/")
+		if parts[-1].endswith(".mvt") and len(parts) >= 4:
+			parts[-3:] = ["{z}", "{x}", "{y}.mvt"]
+			path = "/".join(parts)
+	return path
+
+
+def command_har_inspect(args: argparse.Namespace) -> None:
+	try:
+		with open(args.har) as file:
+			har = json.load(file)
+	except (OSError, json.JSONDecodeError) as error:
+		raise CLIError(f"cannot read HAR: {error}") from error
+	found: dict[tuple[str, str], dict[str, Any]] = {}
+	for entry in har.get("log", {}).get("entries", []):
+		request = entry.get("request", {})
+		parsed = urllib.parse.urlsplit(request.get("url", ""))
+		if parsed.netloc != "api.yamap.com":
+			continue
+		method = request.get("method", "")
+		if method == "OPTIONS" and not args.include_options:
+			continue
+		path = normalize_api_path(parsed.path) if args.normalize else parsed.path
+		key = method, path
+		row = found.setdefault(
+			key,
+			{"method": method, "path": path, "count": 0, "statuses": [], "queries": []},
+		)
+		row["count"] += 1
+		status = entry.get("response", {}).get("status")
+		if status not in row["statuses"]:
+			row["statuses"].append(status)
+		query_keys = sorted(
+			{key for key, _ in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)}
+		)
+		if query_keys and query_keys not in row["queries"]:
+			row["queries"].append(query_keys)
+	rows = sorted(found.values(), key=lambda row: (row["path"], row["method"]))
+	write_output(
+		render(select_value(rows, args.select), args.format, args.pretty), args.output
+	)
+
+
+def add_output_options(parser: argparse.ArgumentParser, *, gpx: bool = False) -> None:
+	formats = ["json", "jsonl", "csv", "geojson"]
+	if gpx:
+		formats.append("gpx")
+	parser.add_argument("-f", "--format", choices=formats, default="json")
+	parser.add_argument("-o", "--output", metavar="FILE", help="write to FILE; - means stdout")
+	parser.add_argument("--select", metavar="PATH", help="select a dotted JSON path")
+	parser.add_argument("--compact", dest="pretty", action="store_false", help="compact JSON")
+	parser.set_defaults(pretty=True)
+
+
+def add_query_options(parser: argparse.ArgumentParser, *, pagination: bool = True) -> None:
+	parser.add_argument(
+		"-q", "--query", action="append", default=[], metavar="KEY=VALUE",
+		help="add a raw query parameter; repeatable",
+	)
+	if pagination:
+		parser.add_argument("--page", type=int)
+		parser.add_argument("--per", type=int)
+		parser.add_argument("--paging", action="store_true", help="send paging=1")
+		parser.add_argument("--limit", type=int)
+		parser.add_argument("--all", action="store_true", help="fetch every page")
+		parser.add_argument(
+			"--max-items", type=int,
+			help="with --all, stop after this many items and mark output truncated",
+		)
+		parser.add_argument(
+			"--progress", action="store_true",
+			help="show pagination progress on stderr",
+		)
+
+
+def build_parser() -> argparse.ArgumentParser:
+	parser = argparse.ArgumentParser(
+		prog="yamap",
+		description="Read-only client for YAMAP's reverse-engineered web API.",
+		epilog="This API is undocumented. Keep request rates low and respect private data.",
+	)
+	parser.add_argument("--token", help="REST token (prefer YAMAP_TOKEN to shell history)")
+	parser.add_argument(
+		"--token-file", type=Path, default=DEFAULT_TOKEN_FILE,
+		help=f"token file (default: {DEFAULT_TOKEN_FILE})",
+	)
+	parser.add_argument("--no-auth", action="store_true", help="do not send a token")
+	parser.add_argument("--base-url", default=API_BASE)
+	parser.add_argument("--timeout", type=float, default=30)
+	parser.add_argument("--delay", type=float, default=0.25, help="seconds between pages")
+	parser.add_argument("--max-pages", type=int, default=100)
+	parser.add_argument("-v", "--verbose", action="store_true")
+	sub = parser.add_subparsers(dest="command", required=True)
+
+	describe = sub.add_parser(
+		"describe", help="show machine-readable commands, schemas, and examples"
+	)
+	describe.add_argument(
+		"topic",
+		nargs="?",
+		choices=["search", "resource", "activity", "course", "landmarks", "route", "gpx"],
+	)
+	add_output_options(describe)
+	describe.set_defaults(handler=lambda _client, args: command_describe(args))
+
+	get = sub.add_parser("get", help="perform a generic read-only GET")
+	get.add_argument("path", help="API path or api.yamap.com HTTPS URL")
+	get.add_argument("--raw", action="store_true", help="do not parse the response as JSON")
+	add_query_options(get)
+	add_output_options(get)
+	get.set_defaults(handler=command_get)
+
+	search = sub.add_parser("search", help="search a public resource")
+	search.add_argument("kind", choices=SEARCH_ENDPOINTS)
+	search.add_argument("keyword", nargs="?")
+	search.add_argument("--latitude", type=float)
+	search.add_argument("--longitude", type=float)
+	search.add_argument("--sort")
+	search.add_argument("--bound", help="west,north,east,south")
+	search.add_argument("--mode")
+	search.add_argument("--summit")
+	add_query_options(search)
+	add_output_options(search)
+	search.set_defaults(handler=command_search)
+
+	resource = sub.add_parser("resource", help="fetch a resource or nested collection")
+	resource.add_argument("resource", choices=RESOURCE_ACTIONS)
+	resource.add_argument("id")
+	resource.add_argument(
+		"action",
+		nargs="?",
+		default="show",
+		help=(
+			"nested action; run `yamap describe resource` for actions by resource "
+			"(default: show)"
+		),
+	)
+	add_query_options(resource)
+	add_output_options(resource)
+	resource.set_defaults(handler=command_resource)
+
+	for entity_name in ("activity", "course"):
+		entity = sub.add_parser(
+			entity_name, help=f"fetch normalized {entity_name} planning data"
+		)
+		entity_sub = entity.add_subparsers(
+			dest=f"{entity_name}_action", required=True
+		)
+		for action in ("summary", "checkpoints"):
+			action_parser = entity_sub.add_parser(
+				action, help=f"show normalized {entity_name} {action}"
+			)
+			action_parser.add_argument("ids", nargs="+")
+			add_output_options(action_parser)
+			action_parser.set_defaults(
+				handler=command_entity, entity=entity_name, action=action
+			)
+		if entity_name == "course":
+			course_gpx_parser = entity_sub.add_parser(
+				"gpx", help="convert an official model course to GPX"
+			)
+			course_gpx_parser.add_argument("id")
+			course_gpx_parser.add_argument("-o", "--output")
+			course_gpx_parser.set_defaults(handler=command_course_gpx)
+
+	landmarks = sub.add_parser(
+		"landmarks", help="find normalized landmarks within bounds or a radius"
+	)
+	landmarks.add_argument("keyword", nargs="?")
+	landmarks.add_argument("--bound", help="west,north,east,south")
+	landmarks.add_argument("--near", help="longitude,latitude")
+	landmarks.add_argument("--radius", type=float, default=1000, help="metres")
+	landmarks.add_argument("--type", type=int, help="landmark type ID")
+	add_query_options(landmarks, pagination=False)
+	add_output_options(landmarks)
+	landmarks.set_defaults(handler=command_landmarks)
+
+	track = sub.add_parser("track", help="fetch an activity's public regularized track")
+	track.add_argument("id")
+	add_output_options(track, gpx=True)
+	track.set_defaults(handler=command_track)
+
+	gpx = sub.add_parser("gpx", help="download, inspect, transform, or validate GPX")
+	gpx_sub = gpx.add_subparsers(dest="gpx_action", required=True)
+	gpx_download = gpx_sub.add_parser(
+		"download", help="download an activity's official GPX (auth required)"
+	)
+	gpx_download.add_argument("id")
+	gpx_download.add_argument("-o", "--output", help="output file; - means stdout")
+	gpx_download.set_defaults(handler=command_gpx_download)
+	gpx_inspect = gpx_sub.add_parser("inspect", help="summarize a GPX file")
+	gpx_inspect.add_argument("file")
+	add_output_options(gpx_inspect)
+	gpx_inspect.set_defaults(handler=command_gpx_inspect)
+	gpx_nearest = gpx_sub.add_parser(
+		"nearest", help="find the nearest track point to coordinates"
+	)
+	gpx_nearest.add_argument("file")
+	gpx_nearest.add_argument("coordinate", help="longitude,latitude")
+	add_output_options(gpx_nearest)
+	gpx_nearest.set_defaults(handler=command_gpx_nearest)
+	gpx_reverse = gpx_sub.add_parser("reverse", help="reverse a GPX track")
+	gpx_reverse.add_argument("file")
+	gpx_reverse.add_argument("-o", "--output", required=True)
+	gpx_reverse.add_argument("--name")
+	gpx_reverse.add_argument("--keep-waypoints", action="store_true")
+	gpx_reverse.set_defaults(handler=command_gpx_transform)
+	gpx_slice = gpx_sub.add_parser("slice", help="slice a GPX track between coordinates")
+	gpx_slice.add_argument("file")
+	gpx_slice.add_argument("--from", dest="start", required=True)
+	gpx_slice.add_argument("--to", dest="finish", required=True)
+	gpx_slice.add_argument("--max-snap", type=float, default=100)
+	gpx_slice.add_argument("-o", "--output", required=True)
+	gpx_slice.add_argument("--name")
+	gpx_slice.add_argument("--keep-waypoints", action="store_true")
+	gpx_slice.set_defaults(handler=command_gpx_transform)
+	gpx_concat = gpx_sub.add_parser("concat", help="concatenate GPX tracks")
+	gpx_concat.add_argument("files", nargs="+")
+	gpx_concat.add_argument("-o", "--output", required=True)
+	gpx_concat.add_argument("--name")
+	gpx_concat.add_argument("--keep-waypoints", action="store_true")
+	gpx_concat.set_defaults(handler=command_gpx_transform)
+	gpx_validate = gpx_sub.add_parser(
+		"validate", help="validate GPX structure, gaps, and ordered vias"
+	)
+	gpx_validate.add_argument("file")
+	gpx_validate.add_argument("--vias", help="JSON waypoint/via file")
+	gpx_validate.add_argument("--max-gap", type=float, default=100)
+	gpx_validate.add_argument("--max-via-distance", type=float, default=100)
+	gpx_validate.add_argument("--min-elevation-coverage", type=float, default=0)
+	add_output_options(gpx_validate)
+	gpx_validate.set_defaults(handler=command_gpx_validate)
+
+	route = sub.add_parser("route", help="route over map lines or build from sources")
+	route_sub = route.add_subparsers(dest="route_action", required=True)
+	route_path = route_sub.add_parser("path", help="route over YAMAP official map lines")
+	route_path.add_argument("--from", dest="start", required=True)
+	route_path.add_argument("--to", dest="finish", required=True)
+	route_path.add_argument(
+		"--bound", dest="bounds", type=float, nargs=4, required=True,
+		metavar=("WEST", "NORTH", "EAST", "SOUTH"),
+	)
+	route_path.add_argument("--max-snap", type=float, default=250)
+	route_path.add_argument("--include-closed", action="store_true")
+	route_path.add_argument("--include-dashed", action="store_true")
+	route_path.add_argument("--name")
+	route_path.add_argument("-f", "--format", choices=["gpx", "json", "geojson"], default="gpx")
+	route_path.add_argument("-o", "--output", required=True)
+	route_path.add_argument("--report")
+	route_path.add_argument("--compact", dest="pretty", action="store_false")
+	route_path.set_defaults(pretty=True, handler=command_route_path)
+	route_build = route_sub.add_parser(
+		"build", help="build a provenance-aware GPX from a JSON manifest"
+	)
+	route_build.add_argument("manifest")
+	route_build.add_argument("-o", "--output", required=True)
+	route_build.add_argument("--report")
+	route_build.set_defaults(handler=command_route_build)
+
+	my = sub.add_parser("my", help="fetch an authenticated account resource")
+	my.add_argument("resource", choices=MY_ENDPOINTS)
+	add_query_options(my)
+	add_output_options(my)
+	my.set_defaults(handler=command_my)
+
+	catalog = sub.add_parser("catalog", help="fetch a metadata catalog")
+	catalog.add_argument("catalog", choices=CATALOG_ENDPOINTS)
+	add_query_options(catalog)
+	add_output_options(catalog)
+	catalog.set_defaults(handler=command_catalog)
+
+	weather = sub.add_parser("weather", help="fetch the daily forecast for coordinates")
+	weather.add_argument("latitude", type=float)
+	weather.add_argument("longitude", type=float)
+	add_query_options(weather, pagination=False)
+	add_output_options(weather)
+	weather.set_defaults(handler=command_weather)
+
+	geometry = sub.add_parser("geometry", help="fetch map geometry within bounds")
+	geometry.add_argument("kind", choices=["lines", "labels", "nodes"])
+	geometry.add_argument(
+		"bounds", type=float, nargs=4, metavar=("WEST", "NORTH", "EAST", "SOUTH")
+	)
+	geometry.add_argument("--routing", action="append", default=[])
+	add_query_options(geometry, pagination=False)
+	add_output_options(geometry)
+	geometry.set_defaults(handler=command_geometry)
+
+	tile = sub.add_parser("tile", help="download a Mapbox vector tile")
+	tile.add_argument("layer", choices=["landmarks", "landmark-search", "memo-markers"])
+	tile.add_argument("z", type=int)
+	tile.add_argument("x", type=int)
+	tile.add_argument("y", type=int)
+	tile.add_argument("-o", "--output")
+	tile.set_defaults(handler=command_tile)
+
+	graphql = sub.add_parser("graphql", help="execute a known persisted query")
+	graphql.add_argument(
+		"query",
+		help="known alias or custom GraphQL operation name",
+	)
+	graphql.add_argument("--hash", help="SHA-256 hash for a custom persisted query")
+	graphql.add_argument(
+		"--variable", "-V", action="append", default=[], metavar="KEY=JSON"
+	)
+	add_output_options(graphql)
+	graphql.set_defaults(handler=command_graphql)
+
+	auth = sub.add_parser("auth", help="manage authentication")
+	auth_sub = auth.add_subparsers(dest="auth_command", required=True)
+	import_har = auth_sub.add_parser("import-har", help="securely extract a token from a HAR")
+	import_har.add_argument("har")
+	import_har.set_defaults(handler=lambda _client, args: command_auth_import(args))
+	status = auth_sub.add_parser("status", help="validate auth and show safe profile fields")
+	add_output_options(status)
+	status.set_defaults(handler=command_auth_status)
+
+	har = sub.add_parser("har", help="inspect YAMAP API traffic in a HAR")
+	har.add_argument("har")
+	har.add_argument("--include-options", action="store_true")
+	har.add_argument("--no-normalize", dest="normalize", action="store_false")
+	add_output_options(har)
+	har.set_defaults(handler=lambda _client, args: command_har_inspect(args))
+	return parser
+
+
+def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+	if args.timeout <= 0:
+		parser.error("--timeout must be positive")
+	if args.delay < 0:
+		parser.error("--delay cannot be negative")
+	if args.max_pages < 1:
+		parser.error("--max-pages must be positive")
+	if getattr(args, "max_items", None) is not None and args.max_items < 1:
+		parser.error("--max-items must be positive")
+	if getattr(args, "radius", None) is not None and args.radius <= 0:
+		parser.error("--radius must be positive")
+	for name in ("max_snap", "max_gap", "max_via_distance"):
+		if getattr(args, name, None) is not None and getattr(args, name) < 0:
+			parser.error(f"--{name.replace('_', '-')} cannot be negative")
+	if not 0 <= getattr(args, "min_elevation_coverage", 0) <= 1:
+		parser.error("--min-elevation-coverage must be between 0 and 1")
+	if args.command == "resource":
+		actions = RESOURCE_ACTIONS[args.resource]
+		if args.action not in actions:
+			parser.error(
+				f"invalid {args.resource} action {args.action!r}; choose from "
+				+ ", ".join(actions)
+			)
+	if args.command == "search" and args.kind == "summits":
+		if (args.latitude is None) != (args.longitude is None):
+			parser.error("--latitude and --longitude must be used together")
+
+
+def main(argv: list[str] | None = None) -> int:
+	arguments = list(sys.argv[1:] if argv is None else argv)
+	top_level_commands = {
+		"describe", "get", "search", "resource", "activity", "course", "landmarks",
+		"track", "gpx", "route", "my", "catalog", "weather", "geometry", "tile",
+		"graphql", "auth", "har",
+	}
+	command_indexes = [
+		index for index, value in enumerate(arguments) if value in top_level_commands
+	]
+	if command_indexes and arguments[command_indexes[0]] == "gpx":
+		gpx_index = command_indexes[0]
+		actions = {
+			"download", "inspect", "slice", "reverse", "concat", "validate", "nearest"
+		}
+		if (
+			gpx_index + 1 < len(arguments)
+			and arguments[gpx_index + 1] not in actions
+			and not arguments[gpx_index + 1].startswith("-")
+		):
+			arguments.insert(gpx_index + 1, "download")
+	parser = build_parser()
+	args = parser.parse_args(arguments)
+	validate_args(args, parser)
+	try:
+		token = read_token(args.token, args.token_file, args.no_auth)
+		client = Client(token, args.base_url, args.timeout, args.verbose)
+		result = args.handler(client, args)
+		return result if isinstance(result, int) else 0
+	except CLIError as error:
+		eprint(f"yamap: {error}")
+		return 1
+	except BrokenPipeError:
+		return 0
+	except KeyboardInterrupt:
+		eprint("yamap: interrupted")
+		return 130
+
+
+if __name__ == "__main__":
+	raise SystemExit(main())
