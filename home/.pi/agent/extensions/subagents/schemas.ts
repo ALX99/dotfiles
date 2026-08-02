@@ -44,7 +44,7 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 				Type.String({
 					...nonBlank,
 					description:
-						"Only non-derivable facts, decisions, exact excerpts, constraints, and relevant paths that save repeated exploration. Do not repeat the assignment or paste the parent transcript.",
+						"Compact factual context for dependent, retry, review, or replacement work: decisions, findings, exact paths or symbols, constraints, and validation results. The child has its own context; do not repeat the assignment or paste the parent transcript.",
 				}),
 			),
 			task_name: Type.Optional(

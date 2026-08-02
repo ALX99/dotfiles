@@ -88,7 +88,14 @@ test("root and deep capacity reflect only live processes", async () => {
 
 test("deep-profile capacity is independent from ordinary root capacity", async () => {
 	const registry = new AgentRegistry();
-	const admission = new SpawnAdmissionController(config, registry);
+	const deepConfig = structuredClone(config);
+	const generalPolicy = deepConfig.agentPolicies.general;
+	const workerPolicy = deepConfig.agentPolicies.worker;
+	assert.ok(generalPolicy);
+	assert.ok(workerPolicy);
+	generalPolicy.allowedProfiles.push("deep-thinker");
+	workerPolicy.allowedProfiles.push("deep-thinker");
+	const admission = new SpawnAdmissionController(deepConfig, registry);
 	const deep = managed(admission.admit({ agent: "general", profile: "deep-thinker" }));
 	await registry.add(deep);
 	assert.deepEqual(admission.capacity().deep, { live: 1, limit: 1 });

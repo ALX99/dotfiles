@@ -43,7 +43,6 @@ function details(): RunDetails {
 		aborted: false,
 		startTime: 0,
 		toolCount: 1,
-		mutationToolCalls: 0,
 		recentTools: [],
 		lastMessage: "",
 		lastAssistantText: "",

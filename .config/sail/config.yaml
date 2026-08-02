@@ -1,36 +1,61 @@
-alt_screen: true
+ui:
+  pane_ratios: [1, 2, 3]
+  gutter: ctime
+  minimal: false
+  show_hidden: false
+
 keymap:
   bindings:
-    # Navigation (Colemak)
-    "e": "nav-up"
-    "n": "nav-down"
-    "m": "nav-left"
-    "i": "nav-right"
-    # Disable default bookmark on m (conflicts with nav-left)
-    "m *": ""
-    # Move bookmark-set to b
-    "b *": "bookmark-set"
-    # Disable preview scroll
-    "K": ""
-    "J": ""
-  dialog:
-    scroll_up: e
-    scroll_down: n
-    nav_up: e
-    nav_down: n
-    nav_left: m
-    nav_right: i
+    # Navigation (Colemak additions, preserving defaults)
+    nav.up: [k, up, e]
+    nav.down: [j, down, n]
+    nav.parent: [h, left, m]
+    nav.enter: [l, right, enter, i]
+
+    # Bookmarks: m is used for nav.parent, so move bookmark-set to b.
+    bookmark.set: "b *"
+
+    # Disable preview scroll.
+    preview.scroll_up: []
+    preview.scroll_down: []
+
+    # Custom actions.
+    action.archive: A
+    action.open: o
+    action.shell: "!"
+
+dialog:
+  accept: enter
+  cancel: esc
+  backspace: backspace
+  up: e
+  down: n
+
+bookmarks:
+  h: ~/
+  d: ~/Downloads
+  p: ~/projects
+
 actions:
   archive:
-    key: "alt+z"
+    script: /Users/dozy/.config/sail/actions/archive
+    confirm: multi
     refresh: true
-    clear_selection: true
+    clear_selection: false
+    show_output: on_error
+
+  open:
+    command: open "$@"
+    confirm: never
+    refresh: false
+    clear_selection: false
+
   shell:
-    key: "alt+s"
-    refresh: true
-    clear_selection: true
+    script: /Users/dozy/.config/sail/actions/shell
     interactive: true
-bookmarks:
-  h: '~/'
-  d: '~/Downloads'
-  p: '~/projects'
+    confirm: never
+    refresh: true
+    clear_selection: false
+
+# v2 does not support these v1 settings yet:
+# - alt_screen

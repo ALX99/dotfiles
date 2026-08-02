@@ -260,11 +260,11 @@ export function spawnGuidelines(
 		...(rootLimit === undefined || deepLimit === undefined
 			? []
 			: [
-					`Live-process capacity is ${rootLimit} root children total and ${deepLimit} deep-profile child. Profile/model/thinking are preflighted before capacity is occupied.`,
+					`Live-process capacity is ${rootLimit} root children total and ${deepLimit} deep-profile child. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
 		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch as one barrier with that wave's IDs and a suitable timeout; do not build repeated automatic turns or a task scheduler.",
 		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. Once work is delegated, do not duplicate its assigned scope: while the subagent runs, address only non-overlapping needs or wait for its result. The current agent owns synthesis and proportionate, risk-based final verification.",
-		"When prior investigation or decisions matter, use handoff for only non-derivable facts, decisions, exact excerpts, constraints, and relevant paths. Do not paste the parent transcript or repeat the assignment.",
+		"When a new child task depends on prior work—especially a retry, review/fix cycle, or replacement for an earlier child—put the compact factual delta in handoff: decisions, findings, exact paths or symbols, constraints, and validation failures or results. The child has its own context and does not inherit the parent transcript. Keep the assignment self-contained in message, do not repeat it in handoff, and never paste the parent transcript; omit handoff for independent work.",
 		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
 		"Use scouts only for bounded, narrow read-only discovery; do not assign scouts implementation, broad exploration, or final review verdicts.",
 	];
