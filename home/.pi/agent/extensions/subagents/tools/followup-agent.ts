@@ -1,16 +1,26 @@
 import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
-import type { SubagentRuntime } from "../bootstrap.ts";
+import type { AgentSummary } from "../agent-types.ts";
+import type { ManagedAgent } from "../managed-agent.ts";
 import { renderManagementCall } from "../render.ts";
-import type { ReadonlyRunDetails } from "../run-state.ts";
+import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { FollowupAgentParamsSchema, preserveRequired, trimOptional, trimRequired } from "../schemas.ts";
 import { completedRunResult, formatPendingQuestion } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import { activateForSubagentState } from "../tool-activation.ts";
 
+interface FollowupAgentDependencies {
+	readonly registry: {
+		readonly getLive: (id: string) => ManagedAgent;
+		readonly list: () => AgentSummary[];
+	};
+	readonly ticks: Map<string, NodeJS.Timeout>;
+	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
+}
+
 export function createFollowupAgentTool(
 	pi: ExtensionAPI,
-	runtime: SubagentRuntime,
+	dependencies: FollowupAgentDependencies,
 ): ToolDefinition<typeof FollowupAgentParamsSchema, ReadonlyRunDetails> {
 	return defineTool<typeof FollowupAgentParamsSchema, ReadonlyRunDetails>({
 		name: "followup_agent",
@@ -21,7 +31,7 @@ export function createFollowupAgentTool(
 		async execute(_id, params, signal, onUpdate) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
 			const message = preserveRequired(params.message, "message");
-			const agent = runtime.registry.getLive(agentId);
+			const agent = dependencies.registry.getLive(agentId);
 			const background = params.background === true;
 			const unsubscribe = onUpdate
 				? agent.subscribe(() => {
@@ -45,7 +55,7 @@ export function createFollowupAgentTool(
 				? `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\nCompletion will be delivered automatically. Use send_agent, followup_agent, wait_agent, interrupt_agent, or close_agent with this agent_id.`
 				: (formatPendingQuestion(summary) ??
 					`agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`);
-			return completedRunResult(text, details, background ? undefined : runtime.claimUsage(summary));
+			return completedRunResult(text, details, background ? undefined : dependencies.claimUsage(summary));
 		},
 		renderCall(args, theme, context) {
 			return renderManagementCall(
@@ -53,13 +63,15 @@ export function createFollowupAgentTool(
 				args.agent_id,
 				args.message,
 				context.expanded,
-				runtime.registry.list(),
+				dependencies.registry.list(),
 				theme,
 				args.background === true ? "async" : "blocking",
 			);
 		},
 		renderResult(result, options, theme, context) {
-			return renderRunToolResult(result, options, theme, runtime.ticks, context.toolCallId, () => context.invalidate());
+			return renderRunToolResult(result, options, theme, dependencies.ticks, context.toolCallId, () =>
+				context.invalidate(),
+			);
 		},
 	});
 }
