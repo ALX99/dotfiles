@@ -34,8 +34,8 @@ export function createFollowupAgentTool(
 			const agent = dependencies.registry.getLive(agentId);
 			const background = params.background === true;
 			const unsubscribe = onUpdate
-				? agent.subscribe(() => {
-						onUpdate({ content: [{ type: "text", text: "(running…)" }], details: agent.getDetails() });
+				? agent.subscribe((details) => {
+						onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
 					})
 				: undefined;
 			let details: ReadonlyRunDetails;
