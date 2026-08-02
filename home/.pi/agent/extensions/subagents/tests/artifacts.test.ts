@@ -11,9 +11,32 @@ import {
 	paginateStoredResult,
 	readLegacyResultPages,
 	readLocatedAgentResult,
+	resultPreview,
 	type GenerationResultLocator,
 } from "../result-store.ts";
 import type { SessionCheckpoint } from "../session-cursors.ts";
+
+test("live result previews remain bounded and explicitly incomplete", () => {
+	const preview = resultPreview("🙂".repeat(10_000));
+	assert.match(preview, /^🙂/);
+	assert.match(preview, /read_agent_result/);
+	const page = paginateStoredResult(
+		"worker",
+		{
+			generation: 1,
+			resultId: "a".repeat(64),
+			text: preview,
+			pageCount: 0,
+			complete: false,
+			totalBytes: Buffer.byteLength(preview, "utf8"),
+			sha256: createHash("sha256").update(preview).digest("hex"),
+			source: "assistant",
+		},
+		{},
+	);
+	assert.equal(page.complete, false);
+	assert.ok(page.total_bytes <= 4 * 1024);
+});
 
 test("native generation locator reads an exact final active branch", async (t) => {
 	const { agentDir, manager } = await session(t);
@@ -73,7 +96,6 @@ test("append accounting includes abandoned retry entries while result selection 
 	assert.equal(captured.assistantError, undefined);
 	assert.equal(captured.stats.usage.input, 6);
 	assert.equal(captured.stats.usage.turns, 3);
-	assert.equal(captured.stats.mutationToolCalls, 1);
 	assert.equal((await readLocatedAgentResult(captured.locator, agentDir)).text, "active final");
 
 	await assert.rejects(

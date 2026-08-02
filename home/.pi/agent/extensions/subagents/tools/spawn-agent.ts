@@ -7,7 +7,7 @@ import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { SubagentRuntime } from "../bootstrap.ts";
 import { ManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
-import { resolveRuns, type ProfilesConfig } from "../profiles.ts";
+import { resolveRun, type ProfilesConfig } from "../profiles.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
 	createSpawnAgentSchema,
@@ -80,7 +80,7 @@ export function createSpawnAgentTool(
 			const profile = trimOptional(params.profile);
 			const cwd = trimOptional(params.cwd);
 			const resolvedCwd = cwd === undefined ? undefined : path.resolve(ctx.cwd, cwd);
-			const resolvedRuns = resolveRuns({
+			const resolvedRun = resolveRun({
 				config: runtime.profiles,
 				modelRegistry: ctx.modelRegistry,
 				scopedModels: ctx.scopedModels,
@@ -92,7 +92,6 @@ export function createSpawnAgentTool(
 				const stats = await fs.promises.stat(resolvedCwd);
 				if (!stats.isDirectory()) throw new Error(`cwd is not a directory: ${cwd}`);
 			}
-			const [resolvedRun, ...fallbackRuns] = resolvedRuns;
 			const childContext = {
 				...runtime.admission.admit({
 					agent: resolvedRun.agent,
@@ -109,7 +108,6 @@ export function createSpawnAgentTool(
 					...(resolvedCwd === undefined ? {} : { cwd: resolvedCwd }),
 					agent: agentConfig,
 					resolvedRun,
-					fallbackRuns,
 					childContext,
 					retain: params.retain === true,
 					...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),

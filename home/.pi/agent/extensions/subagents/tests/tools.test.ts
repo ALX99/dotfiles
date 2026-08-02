@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { Check } from "typebox/value";
-import type { AgentSummary } from "../agent-types.ts";
+import { AgentWaitInterruptedError, AgentWaitTimeoutReason, type AgentSummary } from "../agent-types.ts";
 import {
 	AnswerAgentParamsSchema,
 	createSpawnAgentSchema,
@@ -89,7 +89,6 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 					stderr: "",
 					startTime: 0,
 					toolCount: 0,
-					mutationToolCalls: 0,
 					recentTools: [],
 					lastMessage: "",
 					tokens: 0,
@@ -107,6 +106,44 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 	await executeWaitAgent({ agent_ids: [" scout-1 ", "scout-1"], timeout_ms: 321 }, runtime, undefined, () => 0);
 	assert.deepEqual(waits, [{ id: "scout-1", timeout: 321 }]);
 	assert.deepEqual(consumed, [[summary]]);
+});
+
+test("wait_agent applies one deadline to its whole wave without cancelling children", async () => {
+	const signals: AbortSignal[] = [];
+	const result = await executeWaitAgent(
+		{ agent_ids: ["scout-1", "scout-2"], timeout_ms: 10 },
+		{
+			registry: {
+				summary: (id: string) => ({ ...summary, agent_id: id, status: "running" }),
+				wait: async (id: string, _timeout: number | undefined, signal: AbortSignal | undefined) => {
+					assert.ok(signal);
+					signals.push(signal);
+					return new Promise((_, reject) => {
+						signal.addEventListener(
+							"abort",
+							() =>
+								reject(
+									new AgentWaitInterruptedError(
+										signal.reason instanceof AgentWaitTimeoutReason ? "timed_out" : "cancelled",
+										id,
+										signal.reason,
+									),
+								),
+							{ once: true },
+						);
+					});
+				},
+			},
+			consumeSettledCompletions: () => {},
+		},
+		undefined,
+	);
+	assert.equal(signals.length, 2);
+	assert.equal(signals[0], signals[1]);
+	assert.deepEqual(
+		result.details.outcomes.map((outcome) => outcome.status),
+		["timed_out", "timed_out"],
+	);
 });
 
 test("answer_agent preserves the exact nonblank answer for direct UI delivery", async () => {
