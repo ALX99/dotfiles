@@ -1,7 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { OTHER_OPTION } from "../ask-question/choices.ts";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
@@ -37,24 +36,17 @@ import {
 	type RunStatus,
 } from "./run-state.ts";
 import {
-	captureGeneration,
 	paginateStoredResult,
 	readChildTranscript,
 	readStoredAgentResult,
 	resultPreview,
 	resultReference,
-	validateChildSessionIdentity,
 	type CapturedGeneration,
 	type ResultPage,
 	type StoredAgentResult,
 } from "./result-store.ts";
-import {
-	getRpcSessionEntries,
-	parseChildSessionIdentity,
-	readChildSessionEntriesSince,
-	type ChildSessionIdentity,
-	type SessionCheckpoint,
-} from "./session-cursors.ts";
+import { parseChildSessionIdentity, type ChildSessionIdentity } from "./session-cursors.ts";
+import { GenerationCapture } from "./generation-capture.ts";
 import { isInputUiRequest, isSelectUiRequest, type ExtensionUiRequest, type InputUiRequest } from "./protocol.ts";
 import { RpcTransport, type SpawnRpcProcess } from "./rpc-transport.ts";
 
@@ -81,8 +73,6 @@ const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	"SSH_AGENT_PID",
 	"GPG_AGENT_INFO",
 ]);
-const EMPTY_SESSION_CHECKPOINT: SessionCheckpoint = Object.freeze({ appendCursor: null, leafId: null });
-
 interface Deferred {
 	readonly generation: number;
 	readonly promise: Promise<ReadonlyRunDetails>;
@@ -147,17 +137,20 @@ export class ManagedAgent {
 	private readonly agentDir: string;
 	private failureTask: Promise<void> | undefined;
 	private resultSink: (captured: CapturedGeneration) => void = () => {};
-	private sessionIdentity: ChildSessionIdentity | undefined;
-	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
-	private generationStart: SessionCheckpoint | undefined;
-	private generationEnd: SessionCheckpoint | undefined;
-	private generationEntries: SessionEntry[] = [];
+	private readonly generationCapture: GenerationCapture;
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
 		this.agentDir = options.agentDir;
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
 		this.onUpdate = options.onUpdate;
+		this.generationCapture = new GenerationCapture({
+			agentId: this.id,
+			agentDir: this.agentDir,
+			...(options.validateSessionIdentity === undefined
+				? {}
+				: { validateSessionIdentity: options.validateSessionIdentity }),
+		});
 		this.run = this.freshRun();
 	}
 
@@ -219,11 +212,10 @@ export class ManagedAgent {
 			await transport.start();
 			this.assertTransport(transport);
 			const state = await transport.request({ type: "get_state" });
-			const identity = await this.validateSessionIdentity(parseChildSessionIdentity(state));
-			this.sessionIdentity = identity;
-			this.run.sessionId = identity.sessionId;
-			this.run.sessionFile = identity.sessionFile;
-			await this.prepareGenerationBoundary(transport);
+			const validatedIdentity = await this.generationCapture.setIdentity(parseChildSessionIdentity(state));
+			this.run.sessionId = validatedIdentity.sessionId;
+			this.run.sessionFile = validatedIdentity.sessionFile;
+			await this.generationCapture.prepareGeneration(transport);
 			const task = buildInitialTask(message, handoff);
 			if (!background) {
 				this.activeWaiters++;
@@ -374,7 +366,7 @@ export class ManagedAgent {
 				this.activeWaiters++;
 				foregroundQuestionGuard = true;
 			}
-			if (!wasRunning) await this.prepareGenerationBoundary(this.rpc());
+			if (!wasRunning) await this.generationCapture.prepareGeneration(this.rpc());
 			await this.sendPrompt(message, this.rpc(), wasRunning ? "followUp" : undefined);
 		} catch (cause) {
 			if (foregroundQuestionGuard) {
@@ -504,9 +496,6 @@ export class ManagedAgent {
 		const generation = this.generation + 1;
 		this.generation = generation;
 		this.startedGeneration = undefined;
-		this.generationStart = undefined;
-		this.generationEnd = undefined;
-		this.generationEntries = [];
 		this.pendingQuestion = undefined;
 		this.queuedCustomAnswer = undefined;
 		this.questionSignal = this.newQuestionSignal(generation);
@@ -580,7 +569,8 @@ export class ManagedAgent {
 			this.pendingQuestion = undefined;
 			this.queuedCustomAnswer = undefined;
 			this.run.endTime = Date.now();
-			const captured = await this.captureSettlement(this.rpc());
+			const captured = await this.generationCapture.captureSettlement(this.rpc(), generation, this.run.resultId);
+			this.applyCapture(captured);
 			if (this.lifecycle.phase === "aborted") {
 				this.finalizeGeneration(captured);
 				this.settleCurrent({ kind: "resolve" });
@@ -828,43 +818,7 @@ export class ManagedAgent {
 		});
 	}
 
-	private async prepareGenerationBoundary(transport: RpcTransport): Promise<void> {
-		if (!this.sessionIdentity) throw new Error(`Agent ${this.id} has no validated session identity.`);
-		const captured = await getRpcSessionEntries(transport, this.sessionCheckpoint);
-		this.sessionCheckpoint = captured.checkpoint;
-		this.generationStart = captured.checkpoint;
-		this.generationEnd = captured.checkpoint;
-		this.generationEntries = [];
-	}
-
-	private async captureSettlement(transport: RpcTransport): Promise<CapturedGeneration> {
-		const start = this.generationStart;
-		const previous = this.generationEnd;
-		const identity = this.sessionIdentity;
-		if (!start || !previous || !identity) {
-			throw new Error(`Agent ${this.id} generation ${this.generation} has no validated session checkpoint.`);
-		}
-		const captured = await getRpcSessionEntries(transport, previous);
-		return this.captureGenerationEntries(identity, start, captured.checkpoint, captured.entries);
-	}
-
-	private captureGenerationEntries(
-		identity: ChildSessionIdentity,
-		start: SessionCheckpoint,
-		end: SessionCheckpoint,
-		entries: readonly SessionEntry[],
-	): CapturedGeneration {
-		this.generationEntries.push(...entries);
-		this.generationEnd = end;
-		this.sessionCheckpoint = end;
-		const captured = captureGeneration(
-			identity,
-			this.generation,
-			this.run.resultId,
-			start,
-			end,
-			this.generationEntries,
-		);
+	private applyCapture(captured: CapturedGeneration): void {
 		this.run.result = resultReference(captured.result);
 		this.run.finalText = resultPreview(captured.result.text);
 		this.run.usage = { ...captured.stats.usage };
@@ -873,7 +827,6 @@ export class ManagedAgent {
 		if (captured.stats.endTime !== undefined) this.run.endTime = captured.stats.endTime;
 		if (captured.assistantError === undefined) delete this.run.assistantError;
 		else this.run.assistantError = captured.assistantError;
-		return captured;
 	}
 
 	private finalizeGeneration(captured: CapturedGeneration): void {
@@ -882,16 +835,14 @@ export class ManagedAgent {
 	}
 
 	private async captureFailedGeneration(): Promise<void> {
-		const start = this.generationStart;
-		const previous = this.generationEnd;
-		const identity = this.sessionIdentity;
-		if (start && previous && identity) {
-			const transport = this.transport;
-			const captured =
-				transport?.getState() === "open"
-					? await getRpcSessionEntries(transport, previous)
-					: await readChildSessionEntriesSince(identity.sessionFile, previous, this.agentDir);
-			this.finalizeGeneration(this.captureGenerationEntries(identity, start, captured.checkpoint, captured.entries));
+		const captured = await this.generationCapture.captureFailedGeneration(
+			this.transport,
+			this.generation,
+			this.run.resultId,
+		);
+		if (captured) {
+			this.applyCapture(captured);
+			this.finalizeGeneration(captured);
 			return;
 		}
 		const result = await this.readLegacyStoredResult();
@@ -985,10 +936,6 @@ export class ManagedAgent {
 
 	private activeResolvedRun(): ResolvedRun {
 		return this.options.resolvedRun;
-	}
-
-	private validateSessionIdentity(identity: ChildSessionIdentity): Promise<ChildSessionIdentity> {
-		return (this.options.validateSessionIdentity ?? validateChildSessionIdentity)(identity, this.agentDir);
 	}
 }
 
