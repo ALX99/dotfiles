@@ -30,15 +30,15 @@ deliberately disables folding.
 - `home/.pi/agent/` — Pi settings, extensions, and Pi-only skills.
   `extensions/*.ts` and `extensions/*/index.ts` are extension entry points;
   `_shared/` is not. The RPC subagent extension separates role prompts
-  (`subagents/agents/`) from lifecycle, bounded direct-RPC transport, native
-  session-checkpoint result locators, and state modules; its tests are in
-  `subagents/tests/`. Children are leaves and one-shot by default. Ordinary
-  assignment, follow-up, steer, and fallback context is direct bounded RPC
-  text. Native append/leaf checkpoints delimit each logical generation;
-  ordinary terminal assistant entries provide exact results, and settlement
-  records retain every generation locator so `read_agent_result` survives
-  restart while carrying child-only usage. Legacy custom result pages are
-  read-only compatibility data.
+  (`subagents/agents/`) from lifecycle, bounded direct-RPC transport, a single
+  `ResultCatalog` for native session-checkpoint and legacy result locators,
+  and state modules; its tests are in `subagents/tests/`. Children are leaves
+  and one-shot by default. Ordinary assignment, follow-up, steer, and fallback
+  context is direct bounded RPC text. Native append/leaf checkpoints delimit
+  each logical generation; ordinary terminal assistant entries provide exact
+  results, and settlement records retain every generation locator so
+  `read_agent_result` survives restart while carrying child-only usage. Legacy
+  custom result pages are read-only compatibility data.
   Retained children support follow-ups; child `ask_question` requests route to
   the immediate spawning agent and resume through `answer_agent`.
 - `home/.agents/skills/` — harness-independent skills. Put Pi-only skills in
