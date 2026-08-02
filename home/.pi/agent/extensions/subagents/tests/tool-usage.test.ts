@@ -81,13 +81,17 @@ process.stdin.on('data', chunk => {
       entries.push({ type: 'message', id, parentId: leafId, timestamp: new Date().toISOString(), message }); leafId = id;
       send({ type: 'message_end', message });
       send({ type: 'agent_settled' });
-    }, 25);
+    }, Number(process.env.SUBAGENT_TEST_SETTLEMENT_DELAY ?? 25));
   }
 });
 `;
 
-function spawnProcess(): SpawnRpcProcess {
-	return (_command, _args, options) => spawnRpcProcess(process.execPath, ["-e", rpcScript], options);
+function spawnProcess(settlementDelay = 25): SpawnRpcProcess {
+	return (_command, _args, options) =>
+		spawnRpcProcess(process.execPath, ["-e", rpcScript], {
+			...options,
+			env: { ...options.env, SUBAGENT_TEST_SETTLEMENT_DELAY: String(settlementDelay) },
+		});
 }
 
 function fixture(t: { after(callback: () => void | Promise<void>): void }) {
@@ -230,6 +234,94 @@ test("background spawn and follow-up return no usage at launch", async (t) => {
 	);
 	assert.equal(followed.usage, undefined);
 	assert.equal(Object.hasOwn(followed, "usage"), false);
+});
+
+test("spawn and follow-up progress subscriptions do not outlive their invocations", async (t) => {
+	const { pi, runtime, context } = fixture(t);
+	const spawnUpdates: unknown[] = [];
+	const spawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(),
+		validateSessionIdentity: async (identity) => identity,
+	});
+	const started = await spawn.execute(
+		"spawn-1",
+		{ agent: "worker", message: "first", retain: true },
+		undefined,
+		(update) => spawnUpdates.push(update),
+		context as never,
+	);
+	const afterSpawn = spawnUpdates.length;
+	assert.ok(afterSpawn > 0);
+
+	const agent = runtime.registry.getLive(started.details.agentId!);
+	const followup = createFollowupAgentTool(pi as never, runtime as never);
+	await followup.execute(
+		"followup-1",
+		{ agent_id: started.details.agentId!, message: "second" },
+		undefined,
+		undefined,
+		{} as never,
+	);
+	assert.equal(spawnUpdates.length, afterSpawn);
+
+	const backgroundUpdates: unknown[] = [];
+	const launched = await spawn.execute(
+		"spawn-2",
+		{ agent: "worker", message: "background", retain: true, background: true },
+		undefined,
+		(update) => backgroundUpdates.push(update),
+		context as never,
+	);
+	const backgroundAgent = runtime.registry.getLive(launched.details.agentId!);
+	await backgroundAgent.wait(1_000);
+	const afterBackground = backgroundUpdates.length;
+	assert.ok(afterBackground > 0);
+	await followup.execute(
+		"followup-2",
+		{ agent_id: launched.details.agentId!, message: "after background" },
+		undefined,
+		undefined,
+		{} as never,
+	);
+	assert.equal(backgroundUpdates.length, afterBackground);
+
+	const abortedUpdates: unknown[] = [];
+	const slowSpawn = createSpawnAgentTool(pi as never, runtime as never, {
+		spawnProcess: spawnProcess(500),
+		validateSessionIdentity: async (identity) => identity,
+	});
+	const abortedLaunch = await slowSpawn.execute(
+		"spawn-3",
+		{ agent: "worker", message: "abort me", retain: true, background: true },
+		undefined,
+		(update) => abortedUpdates.push(update),
+		context as never,
+	);
+	const abortedAgent = runtime.registry.getLive(abortedLaunch.details.agentId!);
+	await abortedAgent.interrupt();
+	assert.equal((await abortedAgent.wait(2_000)).status, "aborted");
+	const afterAbort = abortedUpdates.length;
+	await followup.execute(
+		"followup-3",
+		{ agent_id: abortedLaunch.details.agentId!, message: "after abort" },
+		undefined,
+		undefined,
+		{} as never,
+	);
+	assert.equal(abortedUpdates.length, afterAbort);
+
+	const followupUpdates: unknown[] = [];
+	await followup.execute(
+		"followup-4",
+		{ agent_id: started.details.agentId!, message: "third", background: true },
+		undefined,
+		(update) => followupUpdates.push(update),
+		{} as never,
+	);
+	const afterLaunch = followupUpdates.length;
+	assert.ok(afterLaunch > 0);
+	await agent.wait(1_000);
+	assert.equal(followupUpdates.length, afterLaunch);
 });
 
 test("cancelled foreground spawn activates controls for the child left running", async (t) => {
