@@ -44,8 +44,27 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	pi.registerTool(createSpawnAgentTool(pi, runtime));
 	pi.registerTool(createAnswerAgentTool({ registry: runtime.registry }));
 	pi.registerTool(createSendAgentTool({ registry: runtime.registry }));
-	pi.registerTool(createFollowupAgentTool(pi, runtime));
-	pi.registerTool(createWaitAgentTool(pi, runtime));
+	pi.registerTool(
+		createFollowupAgentTool(pi, {
+			registry: {
+				getLive: (id) => runtime.registry.getLive(id),
+				list: () => runtime.registry.list(),
+			},
+			ticks: runtime.ticks,
+			claimUsage: (summary) => runtime.claimUsage(summary),
+		}),
+	);
+	pi.registerTool(
+		createWaitAgentTool(pi, {
+			registry: {
+				wait: (id, timeoutMs, signal) => runtime.registry.wait(id, timeoutMs, signal),
+				summary: (id) => runtime.registry.summary(id),
+				list: () => runtime.registry.list(),
+			},
+			consumeSettledCompletions: (summaries) => runtime.consumeSettledCompletions(summaries),
+			claimUsage: (summary) => runtime.claimUsage(summary),
+		}),
+	);
 	pi.registerTool(createListAgentsTool({ registry: runtime.registry, admission: runtime.admission }));
 	pi.registerTool(createReadAgentResultTool(runtime));
 	pi.registerTool(createInterruptAgentTool({ registry: runtime.registry }));
