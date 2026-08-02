@@ -1,17 +1,14 @@
-// Cursor Blaze
+// CURSOR BLAZE
 //
-// A coronal cursor treatment that complements Stellar Dynamics:
-//   - a shrinking white-blue cursor comet
-//   - photospheric-white sparks on cursor movement
-//   - a cool corona aura and restrained refraction
-//   - faint scanlines and a vignette
+// A single-pass cursor-only shader for Ghostty. The terminal texture remains
+// authoritative; this file adds only the cursor corona, motion trail, sparks,
+// and restrained cursor-local refraction and ripple.
 //
-// Ghostty exposes the terminal as iChannel0 and supplies cursor uniforms.
+// Keeping the shader cursor-only avoids the full-screen procedural space
+// scene and its per-pixel background work.
 
 #define PI 3.14159265358979323846
 
-// These complement stellar-drift.glsl: a cool white corona around a slightly
-// warmer stellar core.
 const vec3 DEEP_NAVY = vec3(0.012, 0.027, 0.058);
 const vec3 CORONAL_BLUE = vec3(0.320, 0.600, 0.940);
 const vec3 CORONA_WHITE = vec3(0.720, 0.850, 1.000);
@@ -44,7 +41,9 @@ vec2 cursorCenter(vec4 cursor)
 float segmentDistance(vec2 point, vec2 start, vec2 end, out float along)
 {
     vec2 segment = end - start;
-    along = saturate(dot(point - start, segment) / max(dot(segment, segment), 0.0001));
+    along = saturate(
+        dot(point - start, segment) / max(dot(segment, segment), 0.0001)
+    );
     return length(point - (start + segment * along));
 }
 
@@ -56,135 +55,142 @@ float roundedBoxDistance(vec2 point, vec2 center, vec2 halfSize, float radius)
         - radius;
 }
 
-vec3 terminalEmission(vec2 uv, vec2 offset, vec3 background)
+// Cursor Blaze stays in one pass, so the terminal texture is not passed
+// through a separate full-screen shader.
+vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
 {
-    vec3 sampleColor = texture(iChannel0, clamp(uv + offset, 0.0, 1.0)).rgb;
-    float ink = smoothstep(0.08, 0.70, length(sampleColor - background));
-    return max(sampleColor - background, 0.0) * ink;
-}
-
-void mainImage(out vec4 fragColor, in vec2 fragCoord)
-{
-    vec2 resolution = iResolution.xy;
-    vec2 uv = fragCoord / resolution;
-    vec2 pixel = 1.0 / resolution;
-    vec4 source = texture(iChannel0, uv);
-    vec3 color = source.rgb;
-
+    vec3 color = source;
     vec2 current = cursorCenter(iCurrentCursor);
     vec2 previous = cursorCenter(iPreviousCursor);
-    vec2 movement = current - previous;
-    float movementLength = length(movement);
-    float cellSize = max(max(iCurrentCursor.z, iCurrentCursor.w), 1.0);
+    vec2 cursorDelta = fragCoord - current;
+    vec2 absCursorDelta = abs(cursorDelta);
     float cursorAge = max(iTime - iTimeCursorChange, 0.0);
+    float movementGate = 0.0;
+    float trailAlive = 0.0;
+    bool movementActive = false;
 
-    // Bloom only has a visible effect on background pixels. Four nearby
-    // samples retain the soft text halo while avoiding eight fetches on every
-    // pixel (and all fetches over glyph interiors).
-    float backgroundMask = 1.0
-        - smoothstep(0.025, 0.16, length(source.rgb - iBackgroundColor));
-    if (backgroundMask > 0.001) {
-        vec2 bloomOffset = pixel * 1.5;
-        vec3 bloom = vec3(0.0);
-        bloom += terminalEmission(uv, vec2(bloomOffset.x, 0.0), iBackgroundColor);
-        bloom += terminalEmission(uv, vec2(-bloomOffset.x, 0.0), iBackgroundColor);
-        bloom += terminalEmission(uv, vec2(0.0, bloomOffset.y), iBackgroundColor);
-        bloom += terminalEmission(uv, vec2(0.0, -bloomOffset.y), iBackgroundColor);
-        color += bloom * 0.018;
-    }
-
-    // Pull the old end of the trail towards the new cursor. Short movements
-    // disappear quickly, while longer jumps linger just enough to stay
-    // readable.
-    float movementCells = movementLength / cellSize;
-    float trailLifetime = mix(0.30, 0.52, smoothstep(0.5, 10.0, movementCells));
-    float trailProgress = smootherstep(cursorAge / trailLifetime);
-    float trailAlive = 1.0 - smoothstep(trailLifetime * 0.58, trailLifetime, cursorAge);
-    float movementGate = smoothstep(cellSize * 0.20, cellSize * 0.90, movementLength);
-    bool movementActive = movementGate * trailAlive > 0.001;
-    if (movementActive) {
-        vec2 trailStart = mix(previous, current, trailProgress);
-        float along;
-        float trailDistance = segmentDistance(fragCoord, trailStart, current, along);
-        float trailWidth = cellSize * mix(0.38, 0.16, trailProgress);
-
-        // Taper and dim the old end so the trail reads as a comet rather than
-        // a uniformly thick beam.
-        float trailTaper = mix(0.28, 1.0, smootherstep(along));
-        float localTrailWidth = trailWidth * trailTaper;
-        float tailFade = mix(0.20, 1.0, smootherstep(along));
-        float trailCore = 1.0
-            - smoothstep(
-                localTrailWidth * 0.12,
-                localTrailWidth * 0.55,
-                trailDistance
-            );
-        float trailBeam = 1.0
-            - smoothstep(
-                localTrailWidth * 0.45,
-                localTrailWidth * 1.50,
-                trailDistance
-            );
-        float trailAura = 1.0
-            - smoothstep(
-                localTrailWidth,
-                localTrailWidth * 4.5,
-                trailDistance
-            );
-        float shimmer = 0.90 + 0.10 * sin(along * 18.0 - iTime * 9.0);
-        vec3 trailColor = mix(CORONAL_BLUE, CORONA_WHITE, smootherstep(along));
-        trailColor = mix(
-            trailColor,
-            PHOTOSPHERE_WHITE,
-            0.18 * sin(along * PI)
+    // Cursor movement effects are finished within 0.52 seconds. The uniform
+    // age check skips all trail and particle setup while reading.
+    vec2 movement = current - previous;
+    if (cursorAge < 0.52 && dot(movement, movement) > 0.0) {
+        float movementLength = length(movement);
+        float cellSize = max(max(iCurrentCursor.z, iCurrentCursor.w), 1.0);
+        movementGate = smoothstep(
+            cellSize * 0.20,
+            cellSize * 0.90,
+            movementLength
         );
-        color += trailColor
-            * (trailCore * 0.78 + trailBeam * 0.25 + trailAura * 0.10)
-            * trailAlive
-            * tailFade
-            * shimmer;
-    }
+        float trailLifetime = mix(
+            0.30,
+            0.52,
+            smoothstep(0.5, 10.0, movementLength / cellSize)
+        );
+        float trailProgress = smootherstep(cursorAge / trailLifetime);
+        trailAlive = 1.0 - smoothstep(
+            trailLifetime * 0.58,
+            trailLifetime,
+            cursorAge
+        );
+        movementActive = movementGate * trailAlive > 0.001;
+        float sparkLife = 1.0 - smoothstep(0.12, 0.48, cursorAge);
+        bool sparksActive = movementGate * sparkLife > 0.001;
 
-    // A few deterministic particles split gently away from the beam. The
-    // cursor-change timestamp acts as a stable random seed for each movement.
-    float sparkLife = 1.0 - smoothstep(0.12, 0.48, cursorAge);
-    if (movementGate * sparkLife > 0.001) {
-        vec2 direction = movement / max(movementLength, 0.0001);
-        vec2 normal = vec2(-direction.y, direction.x);
-        float eventSeed = floor(iTimeCursorChange * 120.0);
-        for (int index = 0; index < 5; index++) {
-            float id = float(index);
-            float seedA = hash11(eventSeed + id * 17.17);
-            float seedB = hash11(eventSeed + id * 41.73 + 9.2);
-            float seedC = hash11(eventSeed + id * 73.91 + 2.8);
-            vec2 sparkPosition = mix(previous, current, seedA);
-            sparkPosition += normal
-                * (seedB - 0.5)
-                * cursorAge
-                * (28.0 + 52.0 * seedC);
-            sparkPosition -= direction * cursorAge * (8.0 + 22.0 * seedA);
-            float sparkRadius = mix(2.2, 0.45, saturate(cursorAge / 0.48));
-            float spark = 1.0
-                - smoothstep(
-                    sparkRadius * 0.25,
-                    sparkRadius,
-                    distance(fragCoord, sparkPosition)
-                );
-            float twinkle = 0.78 + 0.22 * sin(iTime * 18.0 + id * 3.1);
-            color += mix(CORONA_WHITE, PHOTOSPHERE_WHITE, seedB)
-                * spark
-                * sparkLife
-                * movementGate
-                * twinkle
-                * 0.72;
+        if (movementActive || sparksActive) {
+            vec2 trailStart = mix(previous, current, trailProgress);
+            float effectPadding = cellSize * 2.0 + 48.0;
+            vec2 effectLower = min(previous, current) - vec2(effectPadding);
+            vec2 effectUpper = max(previous, current) + vec2(effectPadding);
+            if (
+                all(greaterThan(fragCoord, effectLower))
+                    && all(lessThan(fragCoord, effectUpper))
+            ) {
+                if (movementActive) {
+                    float along;
+                    float trailDistance = segmentDistance(
+                        fragCoord,
+                        trailStart,
+                        current,
+                        along
+                    );
+                    float trailWidth = cellSize * mix(0.38, 0.16, trailProgress);
+                    float trailTaper = mix(0.28, 1.0, smootherstep(along));
+                    float localTrailWidth = trailWidth * trailTaper;
+                    float tailFade = mix(0.20, 1.0, smootherstep(along));
+                    float trailCore = 1.0 - smoothstep(
+                        localTrailWidth * 0.12,
+                        localTrailWidth * 0.55,
+                        trailDistance
+                    );
+                    float trailBeam = 1.0 - smoothstep(
+                        localTrailWidth * 0.45,
+                        localTrailWidth * 1.50,
+                        trailDistance
+                    );
+                    float trailAura = 1.0 - smoothstep(
+                        localTrailWidth,
+                        localTrailWidth * 4.5,
+                        trailDistance
+                    );
+                    float shimmer = 0.90 + 0.10 * sin(
+                        along * 18.0 - iTime * 9.0
+                    );
+                    vec3 trailColor = mix(
+                        CORONAL_BLUE,
+                        CORONA_WHITE,
+                        smootherstep(along)
+                    );
+                    trailColor = mix(
+                        trailColor,
+                        PHOTOSPHERE_WHITE,
+                        0.18 * sin(along * PI)
+                    );
+                    color += trailColor
+                        * (trailCore * 0.78 + trailBeam * 0.25 + trailAura * 0.10)
+                        * trailAlive
+                        * tailFade
+                        * shimmer;
+                }
+
+                if (sparksActive) {
+                    vec2 direction = movement / movementLength;
+                    vec2 normal = vec2(-direction.y, direction.x);
+                    float eventSeed = floor(iTimeCursorChange * 120.0);
+                    for (int index = 0; index < 5; index++) {
+                        float id = float(index);
+                        float seedA = hash11(eventSeed + id * 17.17);
+                        float seedB = hash11(eventSeed + id * 41.73 + 9.2);
+                        float seedC = hash11(eventSeed + id * 73.91 + 9.2);
+                        vec2 sparkPosition = mix(previous, current, seedA);
+                        sparkPosition += normal
+                            * (seedB - 0.5)
+                            * cursorAge
+                            * (28.0 + 52.0 * seedC);
+                        sparkPosition -= direction * cursorAge * (8.0 + 22.0 * seedA);
+                        float sparkRadius = mix(
+                            2.2,
+                            0.45,
+                            saturate(cursorAge / 0.48)
+                        );
+                        float spark = 1.0 - smoothstep(
+                            sparkRadius * 0.25,
+                            sparkRadius,
+                            distance(fragCoord, sparkPosition)
+                        );
+                        float twinkle = 0.78 + 0.22 * sin(iTime * 18.0 + id * 3.1);
+                        color += mix(CORONA_WHITE, PHOTOSPHERE_WHITE, seedB)
+                            * spark
+                            * sparkLife
+                            * movementGate
+                            * twinkle
+                            * 0.72;
+                    }
+                }
+            }
         }
     }
 
-    // The corona occupies only a small rectangle around the cursor. Avoid its
-    // signed-distance calculation for the rest of the full-screen pass.
+    // The corona occupies only a small rectangle around the cursor.
     vec2 cursorHalfSize = max(iCurrentCursor.zw * 0.5, vec2(0.75));
-    vec2 cursorDelta = fragCoord - current;
-    vec2 absCursorDelta = abs(cursorDelta);
     if (all(lessThan(absCursorDelta, cursorHalfSize + vec2(20.0)))) {
         float cursorDistance = roundedBoxDistance(
             fragCoord,
@@ -203,12 +209,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
             * 0.30;
     }
 
-    // Locally split RGB channels near an active trail. The cool coronal
-    // fringe stays visible while moving but disappears while reading output.
-    if (
-        movementActive
-            && max(absCursorDelta.x, absCursorDelta.y) < 150.0
-    ) {
+    if (movementActive && max(absCursorDelta.x, absCursorDelta.y) < 150.0) {
         float radialDistance = length(cursorDelta);
         float prismMask = trailAlive
             * movementGate
@@ -217,7 +218,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         if (prismMask > 0.001) {
             vec2 prismOffset = cursorDelta
                 / max(radialDistance, 1.0)
-                * pixel
+                / resolution
                 * 1.35;
             vec3 refracted = color;
             refracted.r = texture(
@@ -228,35 +229,44 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
                 iChannel0,
                 clamp(uv - prismOffset, 0.0, 1.0)
             ).b;
-            color = mix(color, refracted + (color - source.rgb), prismMask);
+            color = mix(color, refracted + (color - source), prismMask);
         }
     }
 
-    // A nearly invisible energy ripple in background pixels makes the cursor
-    // feel luminous without tinting text.
-    if (
-        backgroundMask > 0.001
-            && max(absCursorDelta.x, absCursorDelta.y) < 330.0
-    ) {
-        float radialDistance = length(cursorDelta);
-        if (radialDistance < 330.0) {
-            float angle = atan(cursorDelta.y, cursorDelta.x);
-            float ripple = 0.5
-                + 0.5
-                    * sin(radialDistance * 0.055 - iTime * 2.2 + angle * 3.0);
-            float ambient = (1.0 - smoothstep(20.0, 330.0, radialDistance))
-                * ripple
-                * backgroundMask;
-            color += mix(DEEP_NAVY, CORONAL_BLUE, ripple) * ambient * 0.012;
+    if (max(absCursorDelta.x, absCursorDelta.y) < 330.0) {
+        vec3 backgroundDelta = source - iBackgroundColor;
+        float backgroundMask = 1.0 - smoothstep(
+            0.000625,
+            0.025600,
+            dot(backgroundDelta, backgroundDelta)
+        );
+        if (backgroundMask > 0.001) {
+            float radialDistance = length(cursorDelta);
+            if (radialDistance < 330.0) {
+                float angle = atan(cursorDelta.y, cursorDelta.x);
+                float ripple = 0.5
+                    + 0.5
+                        * sin(
+                            radialDistance * 0.055 - iTime * 2.2 + angle * 3.0
+                        );
+                float ambient = (1.0 - smoothstep(
+                    20.0,
+                    330.0,
+                    radialDistance
+                )) * ripple * backgroundMask;
+                color += mix(DEEP_NAVY, CORONAL_BLUE, ripple) * ambient * 0.012;
+            }
         }
     }
 
-    // Finish with faint moving scanlines and a soft vignette.
-    float scanline = 0.5 + 0.5 * sin(fragCoord.y * PI + iTime * 2.0);
-    color *= 0.986 + scanline * 0.014;
-    vec2 vignetteUv = uv * (1.0 - uv.yx);
-    float vignette = pow(saturate(vignetteUv.x * vignetteUv.y * 18.0), 0.10);
-    color *= mix(0.90, 1.0, vignette);
+    return clamp(color, 0.0, 1.0);
+}
 
-    fragColor = vec4(clamp(color, 0.0, 1.0), source.a);
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 resolution = iResolution.xy;
+    vec2 uv = fragCoord / resolution;
+    vec4 source = texture(iChannel0, uv);
+    vec3 cursorColour = cursorBlaze(source.rgb, uv, fragCoord, resolution);
+    fragColor = vec4(cursorColour, source.a);
 }
