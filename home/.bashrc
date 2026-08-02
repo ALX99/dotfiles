@@ -177,3 +177,11 @@ if [ -f "$HOME/.aliasrc" ]; then
 else
   echo "Could not load aliases"
 fi
+
+# Herdr popups forward keys directly to their child shell. Match tmux's
+# popup toggle by making Cmd+T (Ghostty sends this as Alt+T) close the
+# dedicated scratch shell.
+if [[ ${HERDR_SCRATCH_POPUP:-} == 1 ]]; then
+  bind -x '"\et":exit'
+  unset HERDR_SCRATCH_POPUP
+fi
