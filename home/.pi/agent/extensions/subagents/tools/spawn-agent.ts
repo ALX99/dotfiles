@@ -5,10 +5,11 @@ import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
-import type { SubagentRuntime } from "../bootstrap.ts";
+import type { AgentRegistry } from "../agent-registry.ts";
+import type { AgentQuestion, AgentSummary } from "../agent-types.ts";
 import { ManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
 import { resolveRun, type ProfilesConfig } from "../profiles.ts";
-import type { ReadonlyRunDetails } from "../run-state.ts";
+import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import {
 	createSpawnAgentSchema,
 	preserveOptional,
@@ -22,8 +23,21 @@ import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import { activateForSubagentState, requiresExactResultRead } from "../tool-activation.ts";
 import type { SpawnRpcProcess } from "../rpc-transport.ts";
+import type { SpawnAdmissionController } from "../spawn-admission.ts";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+export interface SpawnAgentDependencies {
+	readonly agents: AgentConfig[];
+	readonly profiles: ProfilesConfig;
+	readonly agentDir: string;
+	readonly admission: Pick<SpawnAdmissionController, "admit">;
+	readonly registry: Pick<AgentRegistry, "add">;
+	readonly ticks: Map<string, NodeJS.Timeout>;
+	readonly onBackgroundComplete: (summary: AgentSummary) => void;
+	readonly onQuestion: (summary: AgentSummary, question: AgentQuestion) => void;
+	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
+}
 
 export interface SpawnAgentToolOptions {
 	readonly spawnProcess?: SpawnRpcProcess;
@@ -33,19 +47,19 @@ export interface SpawnAgentToolOptions {
 
 export function createSpawnAgentTool(
 	pi: ExtensionAPI,
-	runtime: SubagentRuntime,
+	dependencies: SpawnAgentDependencies,
 	options: SpawnAgentToolOptions = {},
 ): ToolDefinition<ReturnType<typeof createSpawnAgentSchema>, ReadonlyRunDetails> {
-	const schemaOptions = spawnSchemaOptions(runtime);
+	const schemaOptions = spawnSchemaOptions(dependencies);
 	const schema = createSpawnAgentSchema(schemaOptions);
-	const allowedAgents = runtime.agents
+	const allowedAgents = dependencies.agents
 		.filter((agent) => schemaOptions.agents.includes(agent.name))
 		.map((agent) => ({
 			...agent,
-			description: `${agent.description} Allowed profiles: ${runtime.profiles.agentPolicies[agent.name]?.allowedProfiles.join(", ") ?? "none"}.`,
+			description: `${agent.description} Allowed profiles: ${dependencies.profiles.agentPolicies[agent.name]?.allowedProfiles.join(", ") ?? "none"}.`,
 		}));
 	const allowedProfiles = schemaOptions.profiles.flatMap((name) => {
-		const profile = runtime.profiles.profiles[name];
+		const profile = dependencies.profiles.profiles[name];
 		return profile
 			? [
 					{
@@ -64,14 +78,14 @@ export function createSpawnAgentTool(
 		promptGuidelines: spawnGuidelines(
 			allowedAgents,
 			allowedProfiles,
-			runtime.profiles.rootPolicy.maxConcurrentRootAgents,
-			runtime.profiles.rootPolicy.maxConcurrentDeepAgents,
+			dependencies.profiles.rootPolicy.maxConcurrentRootAgents,
+			dependencies.profiles.rootPolicy.maxConcurrentDeepAgents,
 		),
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const message = preserveRequired(params.message, "message");
 			const requestedAgent = trimRequired(params.agent, "agent");
-			const agentConfig = resolveAgent(runtime.agents, requestedAgent).match(
+			const agentConfig = resolveAgent(dependencies.agents, requestedAgent).match(
 				(value) => value,
 				(error) => {
 					throw new Error(`Unknown agent '${error.requested}'. Available: ${formatAgentList(error.available)}.`);
@@ -81,7 +95,7 @@ export function createSpawnAgentTool(
 			const cwd = trimOptional(params.cwd);
 			const resolvedCwd = cwd === undefined ? undefined : path.resolve(ctx.cwd, cwd);
 			const resolvedRun = resolveRun({
-				config: runtime.profiles,
+				config: dependencies.profiles,
 				modelRegistry: ctx.modelRegistry,
 				scopedModels: ctx.scopedModels,
 				agent: agentConfig,
@@ -93,7 +107,7 @@ export function createSpawnAgentTool(
 				if (!stats.isDirectory()) throw new Error(`cwd is not a directory: ${cwd}`);
 			}
 			const childContext = {
-				...runtime.admission.admit({
+				...dependencies.admission.admit({
 					agent: resolvedRun.agent,
 					profile: resolvedRun.profile,
 				}),
@@ -108,7 +122,7 @@ export function createSpawnAgentTool(
 			};
 			try {
 				managed = new ManagedAgent({
-					agentDir: runtime.agentDir,
+					agentDir: dependencies.agentDir,
 					defaultCwd: ctx.cwd,
 					...(resolvedCwd === undefined ? {} : { cwd: resolvedCwd }),
 					agent: agentConfig,
@@ -121,11 +135,11 @@ export function createSpawnAgentTool(
 						: { validateSessionIdentity: options.validateSessionIdentity }),
 					onBackgroundComplete: (summary) => {
 						cleanupUpdate();
-						runtime.handleBackgroundComplete(pi, summary);
+						dependencies.onBackgroundComplete(summary);
 					},
-					onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
+					onQuestion: (summary, question) => dependencies.onQuestion(summary, question),
 				});
-				await runtime.registry.add(managed);
+				await dependencies.registry.add(managed);
 				if (onUpdate) {
 					unsubscribe = managed.subscribe((details) => {
 						try {
@@ -155,7 +169,7 @@ export function createSpawnAgentTool(
 				return completedRunResult(
 					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatCompletion(summary)),
 					details,
-					background ? undefined : runtime.claimUsage(summary),
+					background ? undefined : dependencies.claimUsage(summary),
 				);
 			} catch (error) {
 				cleanupUpdate();
@@ -177,20 +191,22 @@ export function createSpawnAgentTool(
 			return container;
 		},
 		renderResult(result, options, theme, context) {
-			return renderRunToolResult(result, options, theme, runtime.ticks, context.toolCallId, () => context.invalidate());
+			return renderRunToolResult(result, options, theme, dependencies.ticks, context.toolCallId, () =>
+				context.invalidate(),
+			);
 		},
 	});
 }
 
-function spawnSchemaOptions(runtime: SubagentRuntime): SpawnAgentSchemaOptions {
-	const agents = runtime.agents.map((agent) => agent.name);
+function spawnSchemaOptions(dependencies: SpawnAgentDependencies): SpawnAgentSchemaOptions {
+	const agents = dependencies.agents.map((agent) => agent.name);
 	const profiles = [
-		...new Set(agents.flatMap((agent) => runtime.profiles.agentPolicies[agent]?.allowedProfiles ?? [])),
+		...new Set(agents.flatMap((agent) => dependencies.profiles.agentPolicies[agent]?.allowedProfiles ?? [])),
 	];
 	return {
 		agents,
 		profiles,
-		thinkingLevels: thinkingLevelsForProfiles(runtime.profiles, profiles),
+		thinkingLevels: thinkingLevelsForProfiles(dependencies.profiles, profiles),
 	};
 }
 
