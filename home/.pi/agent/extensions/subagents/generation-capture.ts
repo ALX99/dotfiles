@@ -27,7 +27,6 @@ export class GenerationCapture {
 	private sessionIdentity: ChildSessionIdentity | undefined;
 	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
 	private generationStart: SessionCheckpoint | undefined;
-	private generationEnd: SessionCheckpoint | undefined;
 	private generationEntries: SessionEntry[] = [];
 
 	constructor(options: GenerationCaptureOptions) {
@@ -48,7 +47,6 @@ export class GenerationCapture {
 		const captured = await getRpcSessionEntries(transport, this.sessionCheckpoint);
 		this.sessionCheckpoint = captured.checkpoint;
 		this.generationStart = captured.checkpoint;
-		this.generationEnd = captured.checkpoint;
 		this.generationEntries = [];
 	}
 
@@ -58,7 +56,7 @@ export class GenerationCapture {
 		resultId: string,
 	): Promise<CapturedGeneration> {
 		const start = this.generationStart;
-		const previous = this.generationEnd;
+		const previous = this.sessionCheckpoint;
 		const identity = this.sessionIdentity;
 		if (!start || !previous || !identity) {
 			throw new Error(`Agent ${this.options.agentId} generation ${generation} has no validated session checkpoint.`);
@@ -73,7 +71,7 @@ export class GenerationCapture {
 		resultId: string,
 	): Promise<CapturedGeneration | undefined> {
 		const start = this.generationStart;
-		const previous = this.generationEnd;
+		const previous = this.sessionCheckpoint;
 		const identity = this.sessionIdentity;
 		if (!start || !previous || !identity) return undefined;
 		const captured =
@@ -92,7 +90,6 @@ export class GenerationCapture {
 		entries: readonly SessionEntry[],
 	): CapturedGeneration {
 		this.generationEntries.push(...entries);
-		this.generationEnd = end;
 		this.sessionCheckpoint = end;
 		return captureGeneration(identity, generation, resultId, start, end, this.generationEntries);
 	}
