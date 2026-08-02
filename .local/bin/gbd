@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -eu
+default_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+default_branch="${default_branch#origin/}"
+
+[ -n "${1-}" ] && {
+  [ "$1" = "$default_branch" ] && {
+    printf 'refusing to delete default branch: %s\n' "$default_branch" >&2
+    exit 1
+  }
+  git branch -D "$1"
+  exit
+}
+
+bs="$(git --no-pager branch -vv | awk -v default_branch="$default_branch" '{ branch = $1; if (branch == "*" || branch == default_branch) next; print }')"
+[ -n "$bs" ] || exit 0
+b="$(echo "$bs" | fzf-tmux -p -m)"
+[ -z "$b" ] && exit 0
+echo "$b" | awk '{print $1}' | grep -v "\*" | xargs -I{} git branch -D '{}'
