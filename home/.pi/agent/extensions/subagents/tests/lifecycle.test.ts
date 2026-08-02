@@ -447,8 +447,14 @@ test("registry reads live results from one coherent view projection", async () =
 	const registry = new AgentRegistry();
 	await registry.add(managed);
 	try {
+		const summary = registry.summary(managed.id);
+		assert.equal(summary.agent_id, managed.id);
+		assert.equal(managed.detailsCalls, 0);
+		assert.deepEqual(registry.list(), [summary]);
+		assert.equal(managed.detailsCalls, 0);
+		assert.equal(managed.summaryCalls, 2);
 		await registry.readResult(managed.id);
-		assert.equal(managed.summaryCalls, 1);
+		assert.equal(managed.summaryCalls, 3);
 		assert.equal(managed.detailsCalls, 1);
 	} finally {
 		await registry.closeAll();
