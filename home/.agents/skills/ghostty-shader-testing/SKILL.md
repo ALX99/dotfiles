@@ -46,22 +46,19 @@ Use the reusable harness generator shipped with this skill:
 python3 home/.agents/skills/ghostty-shader-testing/scripts/build_harness.py \
 	--root "$PWD" \
 	--output /tmp/ghostty-shader-harness \
-	--shader .config/ghostty/stellar-drift.glsl \
+	--shader .config/ghostty/cursor-blaze.glsl \
 	--reference /path/to/reference.png
 ```
 
-The resource reads the current shader files, builds a raw terminal source
-texture, emits scene/configured-order/diagnostic panels, and optionally
-displays a reference image or comparison panel. Omit `--shader` to test
-`stellar-drift.glsl`. Pass `--comparison-shader` when an alternate scene is
-available. Its default 557x512 canvas and text geometry can be adjusted with
-`--lines-file` and the text-position options. Render a later animation state
-with `--time 19`.
+The resource reads the cursor shader, builds a raw terminal source texture,
+and emits a one-pass shader panel. Pass `--comparison-shader` when an
+alternate shader is available. Its default 557x512 canvas and text geometry
+can be adjusted with `--lines-file` and the text-position options. Render a
+later animation state with `--time 19`.
 
-The generated page uses WebGL2, declares Ghostty's relevant uniforms, and
-uses a framebuffer for each shader pass. The configured-order panel renders
-`cursor-blaze.glsl` first and feeds its output to the selected scene shader;
-a one-pass preview cannot reveal that interaction.
+The generated page uses WebGL2 and declares Ghostty's relevant uniforms. The
+current configuration has one `cursor-blaze.glsl` pass; if multiple shaders
+are added later, test their configured order separately.
 
 Serve the generated page locally:
 
@@ -152,10 +149,10 @@ session.
 State:
 
 - the reference image path and dimensions;
-- the shader order tested;
+- the shader order tested (currently one `cursor-blaze.glsl` pass);
 - the reproduction harness and Chrome MCP compile/render result;
 - the observed artifact and its cause;
-- the selected fix and changed shader path;
+- the selected fix and changed shader path (`.config/ghostty/cursor-blaze.glsl`);
 - `git diff --check` and Ghostty validation results;
 - any remaining uncertainty, especially differences between a reconstructed
   terminal source canvas and the user's exact font/ANSI colors.
