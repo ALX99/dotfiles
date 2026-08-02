@@ -124,6 +124,12 @@ process.stdin.on('data', chunk => {
 	assert.equal(settled.status, "idle");
 	assert.notEqual(snapshots.at(-1), managed.getDetails());
 	assert.notEqual(snapshots.at(-1)?.recentTools, managed.getDetails().recentTools);
+
+	const followUp = await managed.followUp("next work", "next task", false);
+	assert.equal(followUp.taskName, "next task");
+	assert.equal(managed.summary().task_name, "next task");
+	assert.equal(managed.getDetails().taskName, "next task");
+	assert.equal(managed.summary().task_name, managed.getDetails().taskName);
 });
 
 test("duplicate settlement emits one background completion", async (t) => {
