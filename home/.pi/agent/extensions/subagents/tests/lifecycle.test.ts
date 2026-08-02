@@ -95,6 +95,37 @@ test("close while starting settles startup and reaches closed", async () => {
 	assert.equal(managed.getLifecycle().phase, "closed");
 });
 
+test("ManagedAgent subscribers receive independent emitted run snapshots", async (t) => {
+	const script = String.raw`
+let buffer = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => {
+  buffer += chunk;
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n');
+    const command = JSON.parse(buffer.slice(0, index)); buffer = buffer.slice(index + 1);
+    const data = command.type === 'get_state' ? { sessionId: 'subscriber', sessionFile: '/tmp/subscriber.jsonl' }
+      : command.type === 'get_entries' ? { entries: [], leafId: null } : undefined;
+    process.stdout.write(JSON.stringify({ type: 'response', id: command.id, success: true, data }) + '\n');
+    if (command.type === 'prompt') process.stdout.write('{"type":"agent_start"}\n{"type":"agent_settled"}\n');
+  }
+	});
+`;
+	const managed = agent("subscriber", script);
+	t.after(() => managed.close());
+	const snapshots: ReturnType<ManagedAgent["getDetails"]>[] = [];
+	const unsubscribe = managed.subscribe((details) => snapshots.push(details));
+	t.after(unsubscribe);
+
+	const settled = await managed.start("work", undefined, "work", false);
+
+	assert.ok(snapshots.some((details) => details.status === "starting"));
+	assert.equal(snapshots.at(-1)?.status, "idle");
+	assert.equal(settled.status, "idle");
+	assert.notEqual(snapshots.at(-1), managed.getDetails());
+	assert.notEqual(snapshots.at(-1)?.recentTools, managed.getDetails().recentTools);
+});
+
 test("duplicate settlement emits one background completion", async (t) => {
 	const completed: string[] = [];
 	const script = String.raw`

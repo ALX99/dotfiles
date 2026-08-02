@@ -108,7 +108,6 @@ export interface ManagedAgentOptions {
 		identity: ChildSessionIdentity,
 		agentDir: string,
 	) => Promise<ChildSessionIdentity>;
-	readonly onUpdate?: (details: ReadonlyRunDetails) => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
@@ -129,8 +128,7 @@ export class ManagedAgent {
 	private queuedCustomAnswer: QueuedCustomAnswer | undefined;
 	private activeWaiters = 0;
 	private readonly notifiedGenerations = new Set<number>();
-	private readonly listeners = new Set<() => void>();
-	private onUpdate: ((details: ReadonlyRunDetails) => void) | undefined;
+	private readonly listeners = new Set<(details: ReadonlyRunDetails) => void>();
 	private eventTail: Promise<void> = Promise.resolve();
 	private closePromise: Promise<void> | undefined;
 	private readonly options: ManagedAgentOptions;
@@ -143,7 +141,6 @@ export class ManagedAgent {
 		this.options = options;
 		this.agentDir = options.agentDir;
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
-		this.onUpdate = options.onUpdate;
 		this.generationCapture = new GenerationCapture({
 			agentId: this.id,
 			agentDir: this.agentDir,
@@ -457,7 +454,7 @@ export class ManagedAgent {
 		return generation === this.generation && this.deferred !== undefined && !this.deferred.settled;
 	}
 
-	subscribe(listener: () => void): () => void {
+	subscribe(listener: (details: ReadonlyRunDetails) => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
 	}
@@ -694,8 +691,7 @@ export class ManagedAgent {
 
 	private emit(): void {
 		const snapshot = this.snapshot();
-		this.onUpdate?.(snapshot);
-		for (const listener of this.listeners) listener();
+		for (const listener of this.listeners) listener(snapshot);
 	}
 
 	private snapshot(status: RunStatus = lifecycleStatus(this.lifecycle)): ReadonlyRunDetails {

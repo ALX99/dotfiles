@@ -101,6 +101,11 @@ export function createSpawnAgentTool(
 			};
 			const background = params.background === true;
 			let managed: ManagedAgent | undefined;
+			let unsubscribe: (() => void) | undefined;
+			const cleanupUpdate = () => {
+				unsubscribe?.();
+				unsubscribe = undefined;
+			};
 			try {
 				managed = new ManagedAgent({
 					agentDir: runtime.agentDir,
@@ -114,17 +119,29 @@ export function createSpawnAgentTool(
 					...(options.validateSessionIdentity === undefined
 						? {}
 						: { validateSessionIdentity: options.validateSessionIdentity }),
-					...(onUpdate
-						? {
-								onUpdate: (details) => {
-									onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
-								},
-							}
-						: {}),
-					onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+					onBackgroundComplete: (summary) => {
+						cleanupUpdate();
+						runtime.handleBackgroundComplete(pi, summary);
+					},
 					onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
 				});
 				await runtime.registry.add(managed);
+				if (onUpdate) {
+					unsubscribe = managed.subscribe((details) => {
+						try {
+							onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
+						} finally {
+							if (
+								details.status === "idle" ||
+								details.status === "failed" ||
+								details.status === "aborted" ||
+								details.status === "closed"
+							) {
+								cleanupUpdate();
+							}
+						}
+					});
+				}
 				const details = await managed.start(
 					message,
 					preserveOptional(params.handoff),
@@ -132,6 +149,7 @@ export function createSpawnAgentTool(
 					background,
 					background ? undefined : signal,
 				);
+				if (!background) cleanupUpdate();
 				const summary = managed.summary();
 				activateForSubagentState(pi, summary, background);
 				return completedRunResult(
@@ -140,6 +158,7 @@ export function createSpawnAgentTool(
 					background ? undefined : runtime.claimUsage(summary),
 				);
 			} catch (error) {
+				cleanupUpdate();
 				if (managed) {
 					const summary = managed.summary();
 					if (summary.status === "starting" || summary.status === "running") {
