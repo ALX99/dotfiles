@@ -60,7 +60,8 @@ export class AgentRegistry {
 	}
 
 	summary(id: string): AgentSummary {
-		return this.view(id).summary;
+		const entry = this.requireEntry(id);
+		return entry.kind === "live" ? entry.agent.summary() : entry.view.summary;
 	}
 
 	async wait(id: string, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
