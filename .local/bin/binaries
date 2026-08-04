@@ -1,5 +1,0 @@
-#!/bin/sh
-
-pacman -Qql "$1" | while IFS= read -r res; do
-  [ ! -d "$res" ] && [ -x "$res" ] && echo "$res"
-done
