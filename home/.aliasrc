@@ -86,9 +86,7 @@ alias \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
-  archive="7z a -m0=LZMA2 -mx=9 -mmt\$(nproc) archive.7z" \
   update="paccy -Syu" \
-  cheat='curl cht.sh' \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
