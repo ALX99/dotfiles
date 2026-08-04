@@ -29,7 +29,7 @@ palette = 12=#5f87ff
 palette = 13=#af87ff
 palette = 14=#87afaf
 palette = 15=#ffffff
-background = #1f1f28
+background = #1d1d1f
 foreground = #d7d7d7
 cursor-color = #87afaf
 selection-background = #3b3b44
