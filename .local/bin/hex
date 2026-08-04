@@ -1,4 +1,0 @@
-#!/bin/sh
-# Convert to Hex
-
-printf "%x" "$1"
