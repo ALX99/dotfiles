@@ -1,5 +1,6 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentSummary } from "./agent-types.ts";
+import { isTruncatedResultPreview } from "./result-store.ts";
 
 export const SUBAGENT_TOOL_NAMES = [
 	"spawn_agent",
@@ -57,9 +58,12 @@ export function activateForSubagentState(
 	return activateSubagentTools(pi, names);
 }
 
-/** Native tool-output bounds may still require exact retrieval of an otherwise complete result. */
-export function requiresExactResultRead(summary: AgentSummary): boolean {
-	// Summaries intentionally contain only a preview, even for small results.
-	// The persisted terminal text is always reconstructed through the reader.
-	return summary.result !== undefined;
+/** The delivered terminal result is incomplete and must be reconstructed from storage. */
+export function requiresExactResultRead(summary: AgentSummary, maximumDisplayedBytes?: number): boolean {
+	if (summary.result === undefined) return false;
+	const text = summary.final_text ?? "";
+	return (
+		isTruncatedResultPreview(text) ||
+		(maximumDisplayedBytes !== undefined && Buffer.byteLength(text, "utf8") > maximumDisplayedBytes)
+	);
 }

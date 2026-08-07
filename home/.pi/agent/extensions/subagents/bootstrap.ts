@@ -6,7 +6,7 @@ import { CleanupAggregateError, type AgentQuestion, type AgentSummary } from "./
 import { loadProfiles, type ProfilesConfig } from "./profiles.ts";
 import type { RunUsage } from "./run-state.ts";
 import { SpawnAdmissionController } from "./spawn-admission.ts";
-import { activateForSubagentState, requiresExactResultRead } from "./tool-activation.ts";
+import { activateForSubagentState, activateSubagentTools, requiresExactResultRead } from "./tool-activation.ts";
 import { bindRegistryUi, notifyCompletion, type RegistryUiBinding } from "./ui/widget.ts";
 
 export const BACKGROUND_COMPLETION_DEBOUNCE_MS = 50;
@@ -161,6 +161,7 @@ export function registerSubagentLifecycle(pi: ExtensionAPI, runtime: DefaultSuba
 }
 
 function sendCompletions(pi: ExtensionAPI, summaries: readonly AgentSummary[]): void {
+	if (backgroundCompletionsNeedExactRead(summaries)) activateSubagentTools(pi, ["read_agent_result"]);
 	pi.sendMessage(
 		{
 			customType: "subagent-completion",
@@ -177,7 +178,24 @@ const BACKGROUND_COMPLETION_NOTICE =
 const BACKGROUND_RESULT_MAX_BYTES = 2 * 1024;
 const BACKGROUND_BATCH_MAX_BYTES = 16 * 1024;
 
+export function backgroundCompletionsNeedExactRead(summaries: readonly AgentSummary[]): boolean {
+	if (summaries.some((summary) => requiresExactResultRead(summary, BACKGROUND_RESULT_MAX_BYTES))) return true;
+	return (
+		summaries.some((summary) => summary.result !== undefined) &&
+		Buffer.byteLength(formatBackgroundCompletionContent(summaries), "utf8") > BACKGROUND_BATCH_MAX_BYTES
+	);
+}
+
 export function formatBackgroundCompletions(summaries: readonly AgentSummary[]): string {
+	const content = formatBackgroundCompletionContent(summaries);
+	const exactResultGuidance = backgroundCompletionsNeedExactRead(summaries)
+		? "\nUse read_agent_result with agent_id and generation when exact reconstruction is needed.\n"
+		: "";
+	const boundedContent = truncateHead(content, { maxBytes: BACKGROUND_BATCH_MAX_BYTES }).content;
+	return `${BACKGROUND_COMPLETION_NOTICE}${exactResultGuidance}\n${boundedContent}`;
+}
+
+function formatBackgroundCompletionContent(summaries: readonly AgentSummary[]): string {
 	const results = summaries.map((summary) => {
 		const output = escapeXml(
 			truncateHead(summary.final_text || summary.error || "(no output)", {
@@ -191,13 +209,7 @@ export function formatBackgroundCompletions(summaries: readonly AgentSummary[]):
 			: "";
 		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${usage}${resultReference}\n</subagent_result>`;
 	});
-	const content =
-		results.length === 1 ? (results[0] ?? "") : `<subagent_results>\n${results.join("\n")}\n</subagent_results>`;
-	const exactResultGuidance = summaries.some(requiresExactResultRead)
-		? "\nUse read_agent_result with agent_id and generation when exact reconstruction is needed.\n"
-		: "";
-	const boundedContent = truncateHead(content, { maxBytes: BACKGROUND_BATCH_MAX_BYTES }).content;
-	return `${BACKGROUND_COMPLETION_NOTICE}${exactResultGuidance}\n${boundedContent}`;
+	return results.length === 1 ? (results[0] ?? "") : `<subagent_results>\n${results.join("\n")}\n</subagent_results>`;
 }
 
 export function formatSubagentQuestion(summary: AgentSummary, question: AgentQuestion): string {

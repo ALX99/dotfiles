@@ -14,6 +14,7 @@ export const RESULT_READ_DEFAULT_BYTES = 6 * 1024;
 export const RESULT_READ_MAX_BYTES = 6 * 1024;
 export const RESULT_PREVIEW_MAX_BYTES = 4 * 1024;
 export const RESULT_PREVIEW_MAX_LINES = 100;
+export const RESULT_PREVIEW_TRUNCATION_NOTICE = "\n[Result preview truncated; use read_agent_result for exact output.]";
 
 const RESULT_ID_PATTERN = /^[0-9a-f]{64}$/;
 const ResultPageDataSchema = z.strictObject({
@@ -95,8 +96,7 @@ export interface ResultPage {
 
 /** Presentation-only text; the persisted result remains available by locator. */
 export function resultPreview(text: string): string {
-	const notice = "\n[Result preview truncated; use read_agent_result for exact output.]";
-	const maxContentBytes = RESULT_PREVIEW_MAX_BYTES - Buffer.byteLength(notice, "utf8");
+	const maxContentBytes = RESULT_PREVIEW_MAX_BYTES - Buffer.byteLength(RESULT_PREVIEW_TRUNCATION_NOTICE, "utf8");
 	let end = 0;
 	let bytes = 0;
 	let lines = 1;
@@ -110,7 +110,11 @@ export function resultPreview(text: string): string {
 		if (character === "\n") lines++;
 	}
 	if (end === text.length) return text;
-	return `${text.slice(0, end)}${notice}`;
+	return `${text.slice(0, end)}${RESULT_PREVIEW_TRUNCATION_NOTICE}`;
+}
+
+export function isTruncatedResultPreview(text: string): boolean {
+	return text.endsWith(RESULT_PREVIEW_TRUNCATION_NOTICE);
 }
 
 export interface ChildRunStats {
