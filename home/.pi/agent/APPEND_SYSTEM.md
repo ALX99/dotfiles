@@ -40,4 +40,5 @@ Deliver the requested result correctly with the least unnecessary complexity.
 ## Communication
 
 - Lead with the result.
+- When a visualization would clarify the result, render it as a Mermaid diagram.
 - Report material decisions, validation performed, and unresolved uncertainty.
