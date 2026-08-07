@@ -7,6 +7,7 @@ import type { AgentSummary } from "../agent-types.ts";
 import {
 	BACKGROUND_COMPLETION_DEBOUNCE_MS,
 	DefaultSubagentRuntime,
+	backgroundCompletionsNeedExactRead,
 	formatBackgroundCompletions,
 	formatSubagentQuestion,
 	isCompletionSuperseded,
@@ -79,6 +80,42 @@ test("background completions keep previews bounded and direct exact reads", () =
 	assert.ok(Buffer.byteLength(content, "utf8") < 3 * 1024);
 	assert.match(content, /read_agent_result/);
 	assert.match(content, /result_ref/);
+	assert.equal(
+		backgroundCompletionsNeedExactRead([
+			{
+				...summary(1),
+				final_text: "x".repeat(50 * 1024),
+				result: {
+					generation: 1,
+					result_id: "a".repeat(64),
+					pages: 9,
+					complete: true,
+					total_bytes: 50 * 1024,
+					sha256: "b".repeat(64),
+					source: "assistant",
+				},
+			},
+		]),
+		true,
+	);
+});
+
+test("complete background results do not direct exact reads", () => {
+	const result = {
+		...summary(1),
+		final_text: "complete result",
+		result: {
+			generation: 1,
+			result_id: "a".repeat(64),
+			pages: 1,
+			complete: true,
+			total_bytes: 15,
+			sha256: "b".repeat(64),
+			source: "assistant" as const,
+		},
+	};
+	assert.equal(backgroundCompletionsNeedExactRead([result]), false);
+	assert.doesNotMatch(formatBackgroundCompletions([result]), /read_agent_result/);
 });
 
 test("subagent questions serialize their routing fields as safe XML", () => {
