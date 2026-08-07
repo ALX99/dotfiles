@@ -485,6 +485,8 @@ function activeBranchAssistantError(entries: readonly SessionEntry[]): string | 
 			return "Subagent assistant was aborted before completing the terminal result.";
 		case "pending":
 			return "Subagent assistant remained pending without a terminal result.";
+		case "deferred":
+			return "Subagent assistant deferred its terminal result.";
 		case "toolUse":
 			return "Subagent assistant ended with a tool call instead of a terminal result.";
 		case "stop":
