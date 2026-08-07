@@ -5,6 +5,7 @@ import { AgentWaitInterruptedError, AgentWaitTimeoutReason, type AgentSummary } 
 import {
 	AnswerAgentParamsSchema,
 	createSpawnAgentSchema,
+	ListAgentsParamsSchema,
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
@@ -61,6 +62,13 @@ test("wait schema exposes a bounded caller-selected timeout", () => {
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 1 }), true);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 }), true);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 + 1 }), false);
+});
+
+test("list schema accepts a bounded archived-agent limit", () => {
+	assert.equal(Check(ListAgentsParamsSchema, {}), true);
+	assert.equal(Check(ListAgentsParamsSchema, { closed_limit: 0 }), true);
+	assert.equal(Check(ListAgentsParamsSchema, { closed_limit: 32 }), true);
+	assert.equal(Check(ListAgentsParamsSchema, { closed_limit: 33 }), false);
 });
 
 test("spawn guidance defers management tool names until spawn activates them", () => {
@@ -174,9 +182,14 @@ test("answer_agent preserves the exact nonblank answer for direct UI delivery", 
 	assert.equal(delivered, "  exact answer  ");
 });
 
-test("list_agents exposes compact root and deep live capacity", async () => {
+test("list_agents includes a bounded recent closed history", async () => {
+	const closed = Array.from({ length: 11 }, (_, index) => ({
+		...summary,
+		agent_id: `closed-${index + 1}`,
+		status: "closed" as const,
+	}));
 	const tool = createListAgentsTool({
-		registry: { list: () => [summary] },
+		registry: { list: () => [summary, ...closed] },
 		admission: {
 			capacity: () => ({
 				root: { live: 2, limit: 4 },
@@ -186,8 +199,24 @@ test("list_agents exposes compact root and deep live capacity", async () => {
 	} as never);
 	const result = await tool.execute("call-1", {}, undefined, undefined, {} as never);
 	assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /"root"[\s\S]*"live": 2/);
+	assert.deepEqual(
+		result.details?.summaries.map((agent) => agent.agent_id),
+		["scout-1", ...closed.slice(1).map((agent) => agent.agent_id)],
+	);
 	assert.deepEqual(result.details?.capacity, {
 		root: { live: 2, limit: 4 },
 		deep: { live: 1, limit: 1 },
 	});
+
+	const completeHistory = await tool.execute("call-2", { closed_limit: 32 }, undefined, undefined, {} as never);
+	assert.deepEqual(
+		completeHistory.details?.summaries.map((agent) => agent.agent_id),
+		["scout-1", ...closed.map((agent) => agent.agent_id)],
+	);
+
+	const noHistory = await tool.execute("call-3", { closed_limit: 0 }, undefined, undefined, {} as never);
+	assert.deepEqual(
+		noHistory.details?.summaries.map((agent) => agent.agent_id),
+		["scout-1"],
+	);
 });
