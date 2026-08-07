@@ -143,7 +143,19 @@ export function createWaitAgentSchema(): typeof WaitAgentParamsSchema {
 	return WaitAgentParamsSchema;
 }
 
-export const ListAgentsParamsSchema = Type.Object({}, { additionalProperties: false });
+export const ListAgentsParamsSchema = Type.Object(
+	{
+		closed_limit: Type.Optional(
+			Type.Integer({
+				minimum: 0,
+				maximum: 32,
+				description:
+					"Maximum number of most-recent archived closed agents to include. Defaults to 10; use up to 32 to request more.",
+			}),
+		),
+	},
+	{ additionalProperties: false },
+);
 
 export const AgentIdParamsSchema = Type.Object({ agent_id: agentId }, { additionalProperties: false });
 
