@@ -24,6 +24,19 @@ _G.Config.new_autocmd('TextYankPost', {
   pattern = '*',
 })
 
+-- Herdr opens its captured scrollback in $EDITOR. Keep that disposable view
+-- anchored at the newest output and make either q key close it without saving.
+_G.Config.new_autocmd('VimEnter', {
+  callback = function()
+    local buffer = vim.api.nvim_get_current_buf()
+    if vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buffer), ':t'):match('^herdr%-scrollback%-') then
+      vim.keymap.set('n', 'q', '<Cmd>quit!<CR>', { buffer = buffer, nowait = true })
+      vim.keymap.set('n', 'Q', '<Cmd>quit!<CR>', { buffer = buffer, nowait = true })
+      vim.cmd('normal! Gzb')
+    end
+  end,
+})
+
 -- resize splits if window got resized
 _G.Config.new_autocmd({ "VimResized" }, {
   callback = function()
