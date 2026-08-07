@@ -9,6 +9,7 @@ import {
 	requiresExactResultRead,
 	SUBAGENT_TOOL_NAMES,
 } from "../tool-activation.ts";
+import { resultPreview } from "../result-store.ts";
 
 function summary(overrides: Partial<AgentSummary> = {}): AgentSummary {
 	return {
@@ -130,14 +131,15 @@ test("routed questions and oversized results activate their matching tool", () =
 		"send_agent",
 	]);
 
+	const oversizedText = "x".repeat(50 * 1024);
 	const oversized = summary({
-		final_text: "x".repeat(50 * 1024),
+		final_text: resultPreview(oversizedText),
 		result: {
 			generation: 1,
 			result_id: "a".repeat(64),
 			pages: 1,
 			complete: true,
-			total_bytes: 50 * 1024,
+			total_bytes: Buffer.byteLength(oversizedText, "utf8"),
 			sha256: "a".repeat(64),
 			source: "pages",
 		},
@@ -148,7 +150,7 @@ test("routed questions and oversized results activate their matching tool", () =
 	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
 });
 
-test("every settled result activates exact reading, including small results", () => {
+test("complete small results do not activate exact reading", () => {
 	const result = toolApi(["spawn_agent"]);
 	activateForSubagentState(
 		result as never,
@@ -166,5 +168,22 @@ test("every settled result activates exact reading, including small results", ()
 		}),
 		false,
 	);
-	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
+	assert.equal(
+		requiresExactResultRead(
+			summary({
+				final_text: "small result",
+				result: {
+					generation: 1,
+					result_id: "a".repeat(64),
+					pages: 1,
+					complete: true,
+					total_bytes: 12,
+					sha256: "b".repeat(64),
+					source: "assistant",
+				},
+			}),
+		),
+		false,
+	);
+	assert.deepEqual(result.active(), ["spawn_agent"]);
 });
