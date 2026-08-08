@@ -5,6 +5,12 @@
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
+# Activate mise in shells that source this file, including its
+# directory-change and prompt hooks.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate bash)"
+fi
+
 # If not running interactively, don't do anything
 case $- in
 *i*) ;;
@@ -159,6 +165,10 @@ __prompt_command() {
 }
 
 PROMPT_COMMAND=__prompt_command
+
+# The activation runs before PROMPT_COMMAND is initialized above so it also
+# works for noninteractive shells that source .bashrc.
+_mise_add_prompt_command 2>/dev/null || true
 
 # autocd autocd
 # cdspell fix minor spelling mistakes in dirname of a cd command
