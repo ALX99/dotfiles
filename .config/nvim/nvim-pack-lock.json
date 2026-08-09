@@ -10,7 +10,7 @@
       "version": "1.0.0 - 2.0.0"
     },
     "fff.nvim": {
-      "rev": "073698c8e7dad9f6106d23ef588f5ebc7f98b326",
+      "rev": "b6f351d7295d3f89d4f9ecaa94d72089964edc0f",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
       "version": ">=0.0.0"
     },
@@ -38,16 +38,16 @@
       "version": ">=0.0.0"
     },
     "nvim-lspconfig": {
-      "rev": "229b79051b380377664edc4cbd534930154921a1",
+      "rev": "b89138d9af0a96e6048e202a15765fc6b6416bd4",
       "src": "https://github.com/neovim/nvim-lspconfig",
       "version": ">=0.0.0"
     },
     "nvim-treesitter": {
-      "rev": "4916d6592ede8c07973490d9322f187e07dfefac",
+      "rev": "c9f9ed6c1892f629ea399f4ee7905f2686fa13f2",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter"
     },
     "nvim-treesitter-context": {
-      "rev": "b311b30818951d01f7b4bf650521b868b3fece16",
+      "rev": "f3061339b8eaf9fda873600bc425b8d2d8502533",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter-context"
     },
     "snacks.nvim": {
