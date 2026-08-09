@@ -188,6 +188,12 @@ else
   echo "Could not load aliases"
 fi
 
+# Load programmable completions after aliases so alias completions are ready.
+if [[ -r $HOME/.bashrc.d/completions.bash ]]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.bashrc.d/completions.bash"
+fi
+
 # Herdr popups forward keys directly to their child shell. Match tmux's
 # popup toggle by making Cmd+T (Ghostty sends this as Alt+T) close the
 # dedicated scratch shell.
