@@ -18,8 +18,6 @@ map("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
 map('n', '<C-d>', '<C-d>zz')
 map('n', '<C-u>', '<C-u>zz')
 
--- Center search results when navigating
-
 -- pack
 map("n", "<leader>Pu", function() vim.pack.update() end, { desc = "vimpack update - code action to skip some" })
 map("n", "<leader>Pr", function() vim.pack.update(nil, { target = "lockfile", force = true }) end,

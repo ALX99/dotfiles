@@ -5,10 +5,14 @@ local group = vim.api.nvim_create_augroup('treesitter_filetypes', { clear = true
 local function enable_treesitter(buf, filetype)
   local lang = vim.treesitter.language.get_lang(filetype) or filetype
 
-  if lang == nil or not vim.treesitter.language.add(lang) then return end
+  if not vim.treesitter.language.add(lang) then return end
 
   -- syntax highlighting, provided by Neovim
-  pcall(vim.treesitter.start, buf, lang)
+  local ok, err = pcall(vim.treesitter.start, buf, lang)
+  if not ok then
+    vim.notify(('Treesitter failed to start for %s: %s'):format(lang, tostring(err)), vim.log.levels.WARN)
+    return
+  end
 
   if vim.treesitter.query.get(lang, "indents") then
     -- indentation, provided by nvim-treesitter
@@ -68,5 +72,3 @@ vim.schedule(function()
     end
   end)
 end)
-
-require('treesitter-context').setup({})
