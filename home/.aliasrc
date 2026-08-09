@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2142
-# Interactive shell configuration: aliases, functions, bindings, completions
+# Interactive shell configuration: aliases, functions, bindings, integrations
 
 # =============================================================================
 # Short aliases
@@ -193,25 +193,6 @@ bind -m vi-insert -x '"\eh": _arg_help'
 bind -m vi-insert -x '"\eH": _man_help'
 bind -x $'"\C-l":clear;' # Ctrl+l to clear screen
 
-# =============================================================================
-# Completions
-# =============================================================================
-_lazy_completion() {
-  local cmd=$1 aliases=$2 loader=$3
-  eval "_lazy_${cmd}() {
-        unset -f _lazy_${cmd}
-        command -v $cmd >/dev/null 2>&1 || return
-        . <($loader)
-        complete -o default -F __start_${cmd} ${cmd} ${aliases}
-    }
-    complete -F _lazy_${cmd} ${cmd} ${aliases}"
-}
-_lazy_completion kubectl "k" "kubectl completion bash"
-_lazy_completion helm "" "helm completion bash"
-_lazy_completion k6 "" "k6 completion bash"
-_lazy_completion gh "" "gh completion -s bash"
-_lazy_completion orb "" "orb completion bash"
-
 command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
 
 # =============================================================================
@@ -219,23 +200,6 @@ command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
 # =============================================================================
 _sh="${SHELL##*/}"
 
-# shellcheck disable=SC1091
-bbcomp() {
-  local completion
-  for completion in \
-    /opt/homebrew/etc/profile.d/bash_completion.sh \
-    /usr/local/etc/profile.d/bash_completion.sh \
-    /usr/share/bash-completion/bash_completion; do
-    if [ -r "$completion" ]; then
-      . "$completion"
-      unset -f bbcomp
-      return 0
-    fi
-  done
-
-  printf 'bbcomp: bash-completion not found\n' >&2
-  return 1
-}
 [ -f "/usr/share/fzf/key-bindings.$_sh" ] && . "/usr/share/fzf/key-bindings.$_sh"
 [ -f "/usr/share/doc/pkgfile/command-not-found.$_sh" ] && . "/usr/share/doc/pkgfile/command-not-found.$_sh"
 # shellcheck disable=SC2206
