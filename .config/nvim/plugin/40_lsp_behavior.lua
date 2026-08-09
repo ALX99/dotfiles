@@ -64,17 +64,6 @@ local function mappings(client, buf)
     end, { desc = 'Toggle inlay hints' })
   end
 
-  -- if client:supports_method("textDocument/completion") then
-  --   vim.notify("Enabling LSP completion for client " .. client.name)
-  --   vim.lsp.completion.enable(true, client.id, buf, { autotrigger = true })
-  -- end
-
-  -- map('n', '<leader>wa', vim.lsp.buf.add_workspace_folder)
-  -- map('n', '<leader>wr', vim.lsp.buf.remove_workspace_folder)
-  -- map('n', '<leader>wl', function()
-  --   print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-  -- end)
-
   --- toggle diagnostics
   bmap('n', '<leader>td', function()
     local filter = { bufnr = buf }

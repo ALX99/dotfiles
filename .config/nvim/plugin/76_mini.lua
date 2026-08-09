@@ -110,9 +110,9 @@ _G.Config.new_autocmd('FileType', {
 require('mini.files').setup({
   mappings = {
     go_in       = '<Right>',
-    go_in_plus  = '<nop>',
+    go_in_plus  = '',
     go_out      = '<Left>',
-    go_out_plus = '<nop>',
+    go_out_plus = '',
   },
 })
 

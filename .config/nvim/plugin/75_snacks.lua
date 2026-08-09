@@ -1,4 +1,4 @@
--- Snacks.nvim (picker, statuscolumn, etc.)
+-- Snacks.nvim (picker, big-file handling, etc.)
 if vim.g.vscode then return end
 require('snacks').setup({
   bigfile = {},
@@ -27,13 +27,6 @@ require('snacks').setup({
       },
     },
   },
-  statuscolumn = {
-    enabled = false,
-  },
-  -- todo enable when it does not have a
-  -- bug when referencing something bigger
-  -- to something smaller on the same line
-  -- words = {  }
 })
 
 local map = require('utils').map
