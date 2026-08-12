@@ -207,6 +207,12 @@ export class ResultCatalog {
 		this.locators.clear();
 	}
 
+	get size(): number {
+		let count = 0;
+		for (const generations of this.locators.values()) count += generations.size;
+		return count;
+	}
+
 	has(agentId: string, generation: number): boolean {
 		return this.locators.get(agentId)?.has(generation) ?? false;
 	}

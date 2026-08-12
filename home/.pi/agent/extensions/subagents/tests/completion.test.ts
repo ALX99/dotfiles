@@ -13,9 +13,15 @@ import {
 	isCompletionSuperseded,
 } from "../bootstrap.ts";
 import type { ProfilesConfig } from "../profiles.ts";
+import { SubagentToolController, type SubagentToolActivator } from "../tool-activation.ts";
 
 const testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-completion-test-"));
 after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
+
+const noOpToolActivation: SubagentToolActivator = {
+	activate: () => [],
+	activateForState: () => [],
+};
 
 function summary(generation: number, status: AgentSummary["status"] = "idle"): AgentSummary {
 	return {
@@ -118,6 +124,27 @@ test("complete background results do not direct exact reads", () => {
 	assert.doesNotMatch(formatBackgroundCompletions([result]), /read_agent_result/);
 });
 
+test("aggregate completion truncation requires exact reads even when each result fits", () => {
+	const exactResult = {
+		generation: 1,
+		result_id: "a".repeat(64),
+		pages: 1,
+		complete: true,
+		total_bytes: 2_000,
+		sha256: "b".repeat(64),
+		source: "assistant" as const,
+	};
+	const summaries = Array.from({ length: 9 }, (_, index) => ({
+		...summary(1),
+		agent_id: `agent-${index}`,
+		final_text: "x".repeat(2_000),
+		result: exactResult,
+	}));
+	assert.equal(backgroundCompletionsNeedExactRead([summaries[0]!]), false);
+	assert.equal(backgroundCompletionsNeedExactRead(summaries), true);
+	assert.match(formatBackgroundCompletions(summaries), /read_agent_result/u);
+});
+
 test("subagent questions serialize their routing fields as safe XML", () => {
 	const content = formatSubagentQuestion(
 		{ ...summary(2), agent_id: `worker-"<&` },
@@ -144,6 +171,7 @@ test("simultaneous idle background completions are delivered in one debounced fo
 			profiles: {},
 			agentPolicies: {},
 		} as ProfilesConfig,
+		noOpToolActivation,
 		testAgentDir,
 	);
 	const notifications: string[] = [];
@@ -188,6 +216,7 @@ test("consuming completions removes only the matching settled generation", async
 			profiles: {},
 			agentPolicies: {},
 		} as ProfilesConfig,
+		noOpToolActivation,
 		testAgentDir,
 	);
 	t.after(() => runtime.shutdown());
@@ -216,18 +245,6 @@ test("consuming completions removes only the matching settled generation", async
 });
 
 test("background questions steer the parent immediately", async (t) => {
-	const runtime = new DefaultSubagentRuntime(
-		[],
-		{
-			rootPolicy: {
-				maxConcurrentRootAgents: 1,
-				maxConcurrentDeepAgents: 1,
-			},
-			profiles: {},
-			agentPolicies: {},
-		} as ProfilesConfig,
-		testAgentDir,
-	);
 	const messages: Array<{
 		message: { customType: string; content: string };
 		options: { deliverAs: string; triggerTurn: boolean };
@@ -243,6 +260,19 @@ test("background questions steer the parent immediately", async (t) => {
 			activeTools = next;
 		},
 	} as never;
+	const runtime = new DefaultSubagentRuntime(
+		[],
+		{
+			rootPolicy: {
+				maxConcurrentRootAgents: 1,
+				maxConcurrentDeepAgents: 1,
+			},
+			profiles: {},
+			agentPolicies: {},
+		} as ProfilesConfig,
+		new SubagentToolController(pi),
+		testAgentDir,
+	);
 	t.after(() => runtime.shutdown());
 
 	runtime.handleQuestion(pi, summary(1, "running"), {
@@ -275,6 +305,7 @@ test("usage claims restore from persisted wait results across session reload", a
 			profiles: {},
 			agentPolicies: {},
 		} as ProfilesConfig,
+		noOpToolActivation,
 		testAgentDir,
 	);
 	t.after(() => runtime.shutdown());

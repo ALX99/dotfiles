@@ -1,4 +1,4 @@
-import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import type { AgentSummary } from "../agent-types.ts";
 import type { ManagedAgent } from "../managed-agent.ts";
@@ -7,7 +7,7 @@ import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { FollowupAgentParamsSchema, preserveRequired, trimOptional, trimRequired } from "../schemas.ts";
 import { completedRunResult, formatPendingQuestion } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
-import { activateForSubagentState } from "../tool-activation.ts";
+import type { SubagentToolActivator } from "../tool-activation.ts";
 
 interface FollowupAgentDependencies {
 	readonly registry: {
@@ -19,7 +19,7 @@ interface FollowupAgentDependencies {
 }
 
 export function createFollowupAgentTool(
-	pi: ExtensionAPI,
+	toolActivation: SubagentToolActivator,
 	dependencies: FollowupAgentDependencies,
 ): ToolDefinition<typeof FollowupAgentParamsSchema, ReadonlyRunDetails> {
 	return defineTool<typeof FollowupAgentParamsSchema, ReadonlyRunDetails>({
@@ -50,7 +50,7 @@ export function createFollowupAgentTool(
 				unsubscribe?.();
 			}
 			const summary = agent.summary();
-			activateForSubagentState(pi, summary, background);
+			toolActivation.activateForState(summary, background);
 			const text = background
 				? `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\nCompletion will be delivered automatically. Use send_agent, followup_agent, wait_agent, interrupt_agent, or close_agent with this agent_id.`
 				: (formatPendingQuestion(summary) ??

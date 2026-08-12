@@ -1,4 +1,4 @@
-import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { renderWaitCall } from "../render.ts";
 import { uniqueAgentIds, WaitAgentParamsSchema } from "../schemas.ts";
 import {
@@ -18,7 +18,7 @@ import {
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { sumRunUsage, toPiUsage } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
-import { activateForSubagentState } from "../tool-activation.ts";
+import type { SubagentToolActivator } from "../tool-activation.ts";
 
 export const DEFAULT_WAIT_MS = 15 * 60 * 1_000;
 
@@ -38,7 +38,7 @@ interface WaitAgentDependencies extends WaitExecutionRuntime {
 }
 
 export function createWaitAgentTool(
-	pi: ExtensionAPI,
+	toolActivation: SubagentToolActivator,
 	dependencies: WaitAgentDependencies,
 	now: () => number = Date.now,
 ): ToolDefinition<typeof WaitAgentParamsSchema, WaitDetails> {
@@ -53,7 +53,7 @@ export function createWaitAgentTool(
 			const accountedGenerations: Array<{ agentId: string; generation: number }> = [];
 			const usages: Readonly<RunUsage>[] = [];
 			for (const summary of result.details.summaries) {
-				activateForSubagentState(pi, summary, false);
+				toolActivation.activateForState(summary, false);
 				const usage = dependencies.claimUsage(summary);
 				if (!usage) continue;
 				usages.push(usage);

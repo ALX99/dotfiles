@@ -23,6 +23,44 @@ const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES);
 type ToolActivationAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
 type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
 
+export interface SubagentToolActivator {
+	activate(names: readonly string[]): readonly string[];
+	activateForState(summary: AgentSummary, background: boolean): readonly string[];
+}
+
+/** Own whether subagent tools may be exposed and gate every deferred activation. */
+export class SubagentToolController implements SubagentToolActivator {
+	private enabledState = true;
+	private readonly pi: ToolActivationAPI;
+
+	constructor(pi: ToolActivationAPI) {
+		this.pi = pi;
+	}
+
+	get enabled(): boolean {
+		return this.enabledState;
+	}
+
+	toggle(): boolean {
+		this.enabledState = !this.enabledState;
+		this.reset();
+		return this.enabledState;
+	}
+
+	reset(): void {
+		if (this.enabledState) resetSubagentTools(this.pi);
+		else deactivateSubagentTools(this.pi);
+	}
+
+	activate(names: readonly string[]): readonly string[] {
+		return this.enabledState ? activateSubagentTools(this.pi, names) : [];
+	}
+
+	activateForState(summary: AgentSummary, background: boolean): readonly string[] {
+		return this.enabledState ? activateForSubagentState(this.pi, summary, background) : [];
+	}
+}
+
 /** Deferred tools must survive the host's tool allowlist to be activated later. */
 export function missingSubagentTools(pi: ToolRegistryAPI): readonly string[] {
 	const available = new Set(pi.getAllTools().map((tool) => tool.name));
@@ -33,6 +71,13 @@ export function missingSubagentTools(pi: ToolRegistryAPI): readonly string[] {
 export function resetSubagentTools(pi: ToolActivationAPI): void {
 	const next = [...new Set([...pi.getActiveTools().filter((name) => !SUBAGENT_TOOL_SET.has(name)), SPAWN_AGENT])];
 	pi.setActiveTools(next);
+}
+
+/** Hide every subagent tool without disturbing tools owned by the host or other extensions. */
+export function deactivateSubagentTools(pi: ToolActivationAPI): void {
+	const active = pi.getActiveTools();
+	const next = active.filter((name) => !SUBAGENT_TOOL_SET.has(name));
+	if (next.length !== active.length) pi.setActiveTools(next);
 }
 
 /** Add tools only: this is Pi's signal for native deferred tool loading. */

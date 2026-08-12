@@ -4,10 +4,12 @@ import type { AgentSummary } from "../agent-types.ts";
 import {
 	activateForSubagentState,
 	activateSubagentTools,
+	deactivateSubagentTools,
 	missingSubagentTools,
 	resetSubagentTools,
 	requiresExactResultRead,
 	SUBAGENT_TOOL_NAMES,
+	SubagentToolController,
 } from "../tool-activation.ts";
 import { resultPreview } from "../result-store.ts";
 
@@ -50,6 +52,31 @@ test("session initialization retains non-subagent tools and leaves only spawn_ag
 		api.active().some((name) => SUBAGENT_TOOL_NAMES.includes(name as never) && name !== "spawn_agent"),
 		false,
 	);
+});
+
+test("subagent tool controller defaults on and gates activation while disabled", () => {
+	const api = toolApi(["read", "spawn_agent", "wait_agent", "other_extension"]);
+	const controller = new SubagentToolController(api);
+	assert.equal(controller.enabled, true);
+
+	assert.equal(controller.toggle(), false);
+	assert.deepEqual(api.active(), ["read", "other_extension"]);
+	assert.deepEqual(controller.activate(["read_agent_result"]), []);
+	assert.deepEqual(controller.activateForState(summary({ status: "running" }), true), []);
+	assert.deepEqual(api.active(), ["read", "other_extension"]);
+
+	assert.equal(controller.toggle(), true);
+	assert.deepEqual(api.active(), ["read", "other_extension", "spawn_agent"]);
+	controller.activate(["read_agent_result"]);
+	assert.deepEqual(api.active(), ["read", "other_extension", "spawn_agent", "read_agent_result"]);
+});
+
+test("deactivation is scoped to subagent tools and avoids an unchanged rewrite", () => {
+	const api = toolApi(["read", "wait_agent", "other_extension"]);
+	deactivateSubagentTools(api);
+	assert.deepEqual(api.active(), ["read", "other_extension"]);
+	deactivateSubagentTools(api);
+	assert.equal(api.writes.length, 1);
 });
 
 test("deferred tool diagnostics detect host allowlist filtering", () => {

@@ -111,6 +111,10 @@ export class AgentRegistry {
 		return count;
 	}
 
+	hasStoredResults(): boolean {
+		return this.resultCatalog.size > 0;
+	}
+
 	list(): AgentSummary[] {
 		return [...this.entries.keys()].map((id) => this.summary(id));
 	}
