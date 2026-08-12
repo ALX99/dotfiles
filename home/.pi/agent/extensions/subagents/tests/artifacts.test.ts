@@ -160,7 +160,9 @@ test("restart restoration preserves multiple native generations for one agent", 
 		data: { agent_id: "worker-1", result_locator: locator },
 	}));
 	const registry = new AgentRegistry(agentDir);
+	assert.equal(registry.hasStoredResults(), false);
 	assert.equal(registry.restoreResultLocators(parent), 2);
+	assert.equal(registry.hasStoredResults(), true);
 	assert.equal((await registry.readResult("worker-1", { generation: 1 })).text, "generation 1");
 	assert.equal((await registry.readResult("worker-1", { generation: 2 })).text, "generation 2");
 });

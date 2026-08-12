@@ -10,6 +10,7 @@ import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 import { createFollowupAgentTool } from "../tools/followup-agent.ts";
 import { createSpawnAgentTool, type SpawnAgentDependencies } from "../tools/spawn-agent.ts";
 import { createWaitAgentTool } from "../tools/wait-agent.ts";
+import { SubagentToolController } from "../tool-activation.ts";
 
 const agentConfig = {
 	name: "worker",
@@ -109,6 +110,7 @@ function fixture(t: { after(callback: () => void | Promise<void>): void }) {
 			activeTools = tools;
 		},
 	};
+	const toolActivation = new SubagentToolController(pi);
 	const runtime = {
 		agents: [agentConfig],
 		profiles,
@@ -167,12 +169,12 @@ function fixture(t: { after(callback: () => void | Promise<void>): void }) {
 		scopedModels: [],
 		sessionManager: { getSessionId: () => "parent-session" },
 	};
-	return { pi, runtime, spawnDependencies, context, activeTools: () => activeTools };
+	return { toolActivation, runtime, spawnDependencies, context, activeTools: () => activeTools };
 }
 
 test("foreground spawn and follow-up report each completed generation's nested usage", async (t) => {
-	const { pi, runtime, spawnDependencies, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const { toolActivation, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -193,7 +195,7 @@ test("foreground spawn and follow-up report each completed generation's nested u
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.25 },
 	});
 
-	const followup = createFollowupAgentTool(pi as never, runtime as never);
+	const followup = createFollowupAgentTool(toolActivation, runtime as never);
 	const followed = await followup.execute(
 		"followup-1",
 		{ agent_id: started.details.agentId!, message: "second" },
@@ -213,8 +215,8 @@ test("foreground spawn and follow-up report each completed generation's nested u
 });
 
 test("background spawn and follow-up return no usage at launch", async (t) => {
-	const { pi, runtime, spawnDependencies, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const { toolActivation, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -235,7 +237,7 @@ test("background spawn and follow-up return no usage at launch", async (t) => {
 		undefined,
 		context as never,
 	);
-	const followup = createFollowupAgentTool(pi as never, runtime as never);
+	const followup = createFollowupAgentTool(toolActivation, runtime as never);
 	const followed = await followup.execute(
 		"followup-1",
 		{ agent_id: retained.details.agentId!, message: "background follow-up", background: true },
@@ -248,9 +250,9 @@ test("background spawn and follow-up return no usage at launch", async (t) => {
 });
 
 test("spawn and follow-up progress subscriptions do not outlive their invocations", async (t) => {
-	const { pi, runtime, spawnDependencies, context } = fixture(t);
+	const { toolActivation, runtime, spawnDependencies, context } = fixture(t);
 	const spawnUpdates: unknown[] = [];
-	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const spawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -265,7 +267,7 @@ test("spawn and follow-up progress subscriptions do not outlive their invocation
 	assert.ok(afterSpawn > 0);
 
 	const agent = runtime.registry.getLive(started.details.agentId!);
-	const followup = createFollowupAgentTool(pi as never, runtime as never);
+	const followup = createFollowupAgentTool(toolActivation, runtime as never);
 	await followup.execute(
 		"followup-1",
 		{ agent_id: started.details.agentId!, message: "second" },
@@ -297,7 +299,7 @@ test("spawn and follow-up progress subscriptions do not outlive their invocation
 	assert.equal(backgroundUpdates.length, afterBackground);
 
 	const abortedUpdates: unknown[] = [];
-	const slowSpawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const slowSpawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(500),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -336,8 +338,8 @@ test("spawn and follow-up progress subscriptions do not outlive their invocation
 });
 
 test("cancelled foreground spawn activates controls for the child left running", async (t) => {
-	const { pi, spawnDependencies, context, activeTools } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const { toolActivation, spawnDependencies, context, activeTools } = fixture(t);
+	const spawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -364,8 +366,8 @@ test("cancelled foreground spawn activates controls for the child left running",
 });
 
 test("the first background wait reports usage and repeated waits do not double count it", async (t) => {
-	const { pi, runtime, spawnDependencies, context } = fixture(t);
-	const spawn = createSpawnAgentTool(pi as never, spawnDependencies, {
+	const { toolActivation, runtime, spawnDependencies, context } = fixture(t);
+	const spawn = createSpawnAgentTool(toolActivation, spawnDependencies, {
 		spawnProcess: spawnProcess(),
 		validateSessionIdentity: async (identity) => identity,
 	});
@@ -376,7 +378,7 @@ test("the first background wait reports usage and repeated waits do not double c
 		undefined,
 		context as never,
 	);
-	const wait = createWaitAgentTool(pi as never, runtime as never);
+	const wait = createWaitAgentTool(toolActivation, runtime as never);
 	const first = await wait.execute(
 		"wait-1",
 		{ agent_ids: [launched.details.agentId!], timeout_ms: 1_000 },
