@@ -6,7 +6,7 @@ import { CleanupAggregateError, type AgentQuestion, type AgentSummary } from "./
 import { loadProfiles, type ProfilesConfig } from "./profiles.ts";
 import type { RunUsage } from "./run-state.ts";
 import { SpawnAdmissionController } from "./spawn-admission.ts";
-import { activateForSubagentState, activateSubagentTools, requiresExactResultRead } from "./tool-activation.ts";
+import { requiresExactResultRead, type SubagentToolActivator } from "./tool-activation.ts";
 import { bindRegistryUi, notifyCompletion, type RegistryUiBinding } from "./ui/widget.ts";
 
 export const BACKGROUND_COMPLETION_DEBOUNCE_MS = 50;
@@ -26,11 +26,18 @@ export class DefaultSubagentRuntime {
 	private completionTimer: NodeJS.Timeout | undefined;
 	private readonly accountedUsage = new Set<string>();
 	private readonly registryUnsubscribe: () => void;
+	private readonly toolActivation: SubagentToolActivator;
 
-	constructor(agents: AgentConfig[], profiles: ProfilesConfig, agentDir = getAgentDir()) {
+	constructor(
+		agents: AgentConfig[],
+		profiles: ProfilesConfig,
+		toolActivation: SubagentToolActivator,
+		agentDir = getAgentDir(),
+	) {
 		this.agents = agents;
 		this.profiles = profiles;
 		this.agentDir = agentDir;
+		this.toolActivation = toolActivation;
 		this.registry = new AgentRegistry(agentDir);
 		this.registryUnsubscribe = this.registry.subscribe(() => {
 			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
@@ -54,12 +61,15 @@ export class DefaultSubagentRuntime {
 		if (!force && !this.activeContext?.isIdle()) return;
 		const completions = [...this.pendingCompletions.values()];
 		this.pendingCompletions.clear();
-		if (completions.length) sendCompletions(pi, completions);
+		if (completions.length) {
+			if (backgroundCompletionsNeedExactRead(completions)) this.toolActivation.activate(["read_agent_result"]);
+			sendCompletions(pi, completions);
+		}
 	}
 
 	handleBackgroundComplete(pi: ExtensionAPI, summary: AgentSummary): void {
 		if (this.shuttingDown || (summary.status !== "idle" && summary.status !== "failed")) return;
-		activateForSubagentState(pi, summary, false);
+		this.toolActivation.activateForState(summary, false);
 		pi.appendEntry(SUBAGENT_SETTLEMENT_CUSTOM_TYPE, summary);
 		notifyCompletion(this.activeContext, summary);
 		this.pendingCompletions.set(summary.agent_id, summary);
@@ -68,7 +78,7 @@ export class DefaultSubagentRuntime {
 
 	handleQuestion(pi: ExtensionAPI, summary: AgentSummary, question: AgentQuestion): void {
 		if (this.shuttingDown) return;
-		activateForSubagentState(pi, { ...summary, pending_question: question }, false);
+		this.toolActivation.activateForState({ ...summary, pending_question: question }, false);
 		pi.sendMessage(
 			{
 				customType: "subagent-question",
@@ -136,7 +146,7 @@ export class DefaultSubagentRuntime {
 	}
 }
 
-export function bootstrapSubagents(): DefaultSubagentRuntime {
+export function bootstrapSubagents(toolActivation: SubagentToolActivator): DefaultSubagentRuntime {
 	const discovered = discoverAgents();
 	let agents: AgentConfig[];
 	let agentErrors: string[] = [];
@@ -151,7 +161,7 @@ export function bootstrapSubagents(): DefaultSubagentRuntime {
 	const profileResult = loadProfiles(agents);
 	if (profileResult.isErr()) throw new Error([...agentErrors, ...profileResult.error.errors].join("\n"));
 	if (agentErrors.length) throw new Error(agentErrors.join("\n"));
-	return new DefaultSubagentRuntime(agents, profileResult.value);
+	return new DefaultSubagentRuntime(agents, profileResult.value, toolActivation);
 }
 
 export function registerSubagentLifecycle(pi: ExtensionAPI, runtime: DefaultSubagentRuntime): void {
@@ -161,7 +171,6 @@ export function registerSubagentLifecycle(pi: ExtensionAPI, runtime: DefaultSuba
 }
 
 function sendCompletions(pi: ExtensionAPI, summaries: readonly AgentSummary[]): void {
-	if (backgroundCompletionsNeedExactRead(summaries)) activateSubagentTools(pi, ["read_agent_result"]);
 	pi.sendMessage(
 		{
 			customType: "subagent-completion",

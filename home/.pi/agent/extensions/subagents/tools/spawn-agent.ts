@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { defineTool, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
@@ -21,7 +21,7 @@ import {
 import { completedRunResult, formatPendingQuestion, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
-import { activateForSubagentState, requiresExactResultRead } from "../tool-activation.ts";
+import { requiresExactResultRead, type SubagentToolActivator } from "../tool-activation.ts";
 import type { SpawnRpcProcess } from "../rpc-transport.ts";
 import type { SpawnAdmissionController } from "../spawn-admission.ts";
 
@@ -46,7 +46,7 @@ export interface SpawnAgentToolOptions {
 }
 
 export function createSpawnAgentTool(
-	pi: ExtensionAPI,
+	toolActivation: SubagentToolActivator,
 	dependencies: SpawnAgentDependencies,
 	options: SpawnAgentToolOptions = {},
 ): ToolDefinition<ReturnType<typeof createSpawnAgentSchema>, ReadonlyRunDetails> {
@@ -165,7 +165,7 @@ export function createSpawnAgentTool(
 				);
 				if (!background) cleanupUpdate();
 				const summary = managed.summary();
-				activateForSubagentState(pi, summary, background);
+				toolActivation.activateForState(summary, background);
 				return completedRunResult(
 					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatCompletion(summary)),
 					details,
@@ -176,7 +176,7 @@ export function createSpawnAgentTool(
 				if (managed) {
 					const summary = managed.summary();
 					if (summary.status === "starting" || summary.status === "running") {
-						activateForSubagentState(pi, summary, true);
+						toolActivation.activateForState(summary, true);
 					}
 				}
 				throw toolError(managed ? `Agent ${managed.id} failed` : "Agent startup failed", error);
