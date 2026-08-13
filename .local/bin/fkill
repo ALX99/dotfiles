@@ -6,7 +6,7 @@
 
 if [ -n "$pid" ]; then
   # Send SIGTERM
-  echo "$pid" | xargs kill -"${1:-15}"
+  echo "$pid" | xargs kill -"${1:-15}" || exit
 
   (
     sleep 5
