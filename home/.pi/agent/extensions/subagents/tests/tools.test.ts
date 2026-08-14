@@ -9,8 +9,7 @@ import {
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
-import { createAnswerAgentTool } from "../tools/answer-agent.ts";
-import { createListAgentsTool } from "../tools/list-agents.ts";
+import { createManagementTools } from "../tools/management-tools.ts";
 import { spawnGuidelines } from "../tools/spawn-agent.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
 
@@ -162,7 +161,7 @@ test("wait_agent applies one deadline to its whole wave without cancelling child
 
 test("answer_agent preserves the exact nonblank answer for direct UI delivery", async () => {
 	let delivered = "";
-	const tool = createAnswerAgentTool({
+	const tool = createManagementTools({
 		registry: {
 			getLive: () => ({
 				answerQuestion: async (_questionId: string, answer: string) => {
@@ -171,7 +170,8 @@ test("answer_agent preserves the exact nonblank answer for direct UI delivery", 
 				summary: () => summary,
 			}),
 		},
-	} as never);
+		admission: {},
+	} as never).answer_agent;
 	await tool.execute(
 		"call-1",
 		{ agent_id: "scout-1", question_id: "question-1", answer: "  exact answer  " },
@@ -188,7 +188,7 @@ test("list_agents includes a bounded recent closed history", async () => {
 		agent_id: `closed-${index + 1}`,
 		status: "closed" as const,
 	}));
-	const tool = createListAgentsTool({
+	const tool = createManagementTools({
 		registry: { list: () => [summary, ...closed] },
 		admission: {
 			capacity: () => ({
@@ -196,7 +196,7 @@ test("list_agents includes a bounded recent closed history", async () => {
 				deep: { live: 1, limit: 1 },
 			}),
 		},
-	} as never);
+	} as never).list_agents;
 	const result = await tool.execute("call-1", {}, undefined, undefined, {} as never);
 	assert.match(result.content[0]?.type === "text" ? result.content[0].text : "", /"root"[\s\S]*"live": 2/);
 	assert.deepEqual(

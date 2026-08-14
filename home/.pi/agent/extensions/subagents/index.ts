@@ -5,13 +5,9 @@ import { bootstrapSubagents, registerSubagentLifecycle } from "./bootstrap.ts";
 import { parseChildExecutionContext } from "./child-process.ts";
 import { showAgentDashboard } from "./dashboard.ts";
 import type { AgentSummary } from "./agent-types.ts";
-import { createAnswerAgentTool } from "./tools/answer-agent.ts";
-import { createCloseAgentTool } from "./tools/close-agent.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
-import { createInterruptAgentTool } from "./tools/interrupt-agent.ts";
-import { createListAgentsTool } from "./tools/list-agents.ts";
+import { createManagementTools } from "./tools/management-tools.ts";
 import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
-import { createSendAgentTool } from "./tools/send-agent.ts";
 import { createSpawnAgentTool } from "./tools/spawn-agent.ts";
 import { createWaitAgentTool } from "./tools/wait-agent.ts";
 import { missingSubagentTools, SubagentToolController } from "./tool-activation.ts";
@@ -34,6 +30,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	if (childContext) return;
 	const toolActivation = new SubagentToolController(pi);
 	const runtime = bootstrapSubagents(toolActivation);
+	const managementTools = createManagementTools({ registry: runtime.registry, admission: runtime.admission });
 
 	registerSubagentLifecycle(pi, runtime);
 	pi.on("session_start", (_event, ctx) => {
@@ -66,33 +63,26 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),
 	);
-	pi.registerTool(createAnswerAgentTool({ registry: runtime.registry }));
-	pi.registerTool(createSendAgentTool({ registry: runtime.registry }));
+	pi.registerTool(managementTools.answer_agent);
+	pi.registerTool(managementTools.send_agent);
 	pi.registerTool(
 		createFollowupAgentTool(toolActivation, {
-			registry: {
-				getLive: (id) => runtime.registry.getLive(id),
-				list: () => runtime.registry.list(),
-			},
+			registry: runtime.registry,
 			ticks: runtime.ticks,
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),
 	);
 	pi.registerTool(
 		createWaitAgentTool(toolActivation, {
-			registry: {
-				wait: (id, timeoutMs, signal) => runtime.registry.wait(id, timeoutMs, signal),
-				summary: (id) => runtime.registry.summary(id),
-				list: () => runtime.registry.list(),
-			},
+			registry: runtime.registry,
 			consumeSettledCompletions: (summaries) => runtime.consumeSettledCompletions(summaries),
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),
 	);
-	pi.registerTool(createListAgentsTool({ registry: runtime.registry, admission: runtime.admission }));
+	pi.registerTool(managementTools.list_agents);
 	pi.registerTool(createReadAgentResultTool(runtime.registry));
-	pi.registerTool(createInterruptAgentTool({ registry: runtime.registry }));
-	pi.registerTool(createCloseAgentTool({ registry: runtime.registry }));
+	pi.registerTool(managementTools.interrupt_agent);
+	pi.registerTool(managementTools.close_agent);
 }
 
 export function registerSubagentsCommand(
