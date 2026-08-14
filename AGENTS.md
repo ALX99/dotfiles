@@ -12,9 +12,7 @@ deliberately disables folding.
   configuration. Keep tracked symlinks as symlinks: `.bash_profile` points to
   `.profile`, and the Claude/Codex instruction links lead to
   `.pi/agent/APPEND_SYSTEM.md`.
-- `.config/` — application configuration. The `mpv/scripts/subs2srs`
-  directory is the `Ajatt-Tools/mpvacious` submodule; do not edit it as local
-  configuration.
+- `.config/` — application configuration for desktop applications.
 - `.devcontainer/` — DevContainer setup (Dockerfile, devcontainer.json,
   bootstrap script) plus the multi-architecture Alpine `sandbox.Dockerfile`
   used by `sbx`.

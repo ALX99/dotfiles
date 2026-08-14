@@ -15,8 +15,6 @@ install:
 
     repo_dir={{ quote(repo_dir) }}
 
-    git -C "$repo_dir" submodule update --init --recursive
-
     link_if_missing() {
       local target="$1" link="$2"
 
