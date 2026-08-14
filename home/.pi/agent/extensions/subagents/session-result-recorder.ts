@@ -9,11 +9,10 @@ import {
 	type SessionEntriesRpc,
 } from "./session-cursors.ts";
 import { validateChildSessionIdentity } from "./result-store.ts";
-import type { RpcTransport } from "./rpc-transport.ts";
 
 const EMPTY_SESSION_CHECKPOINT: SessionCheckpoint = Object.freeze({ appendCursor: null, leafId: null });
 
-export interface GenerationCaptureOptions {
+export interface SessionResultRecorderOptions {
 	readonly agentId: string;
 	readonly agentDir: string;
 	readonly validateSessionIdentity?: (
@@ -22,15 +21,22 @@ export interface GenerationCaptureOptions {
 	) => Promise<ChildSessionIdentity>;
 }
 
-/** Captures native session boundaries and results for one child generation at a time. */
-export class GenerationCapture {
-	private readonly options: GenerationCaptureOptions;
+interface LiveSessionEntriesRpc extends SessionEntriesRpc {
+	readonly isOpen: boolean;
+}
+
+/**
+ * Records native session boundaries for successive generations in one child
+ * session. The resulting locators are the durable source of truth.
+ */
+export class SessionResultRecorder {
+	private readonly options: SessionResultRecorderOptions;
 	private sessionIdentity: ChildSessionIdentity | undefined;
 	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
 	private generationStart: SessionCheckpoint | undefined;
 	private generationEntries: SessionEntry[] = [];
 
-	constructor(options: GenerationCaptureOptions) {
+	constructor(options: SessionResultRecorderOptions) {
 		this.options = options;
 	}
 
@@ -67,7 +73,7 @@ export class GenerationCapture {
 	}
 
 	async captureFailedGeneration(
-		transport: RpcTransport | undefined,
+		transport: LiveSessionEntriesRpc | undefined,
 		generation: number,
 		resultId: string,
 	): Promise<CapturedGeneration | undefined> {
@@ -76,11 +82,11 @@ export class GenerationCapture {
 		const identity = this.sessionIdentity;
 		if (!start || !previous || !identity) return undefined;
 		let captured: SessionEntries;
-		if (transport?.getState() === "open") {
+		if (transport?.isOpen) {
 			try {
 				captured = await getRpcSessionEntries(transport, previous);
 			} catch (error) {
-				if (transport.getState() === "open") throw error;
+				if (transport.isOpen) throw error;
 				captured = await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
 			}
 		} else {

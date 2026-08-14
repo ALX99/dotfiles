@@ -9,6 +9,7 @@ import {
 	spawnRpcProcess,
 	writeRpcFrame,
 	type RpcWritable,
+	type RpcTransportEvent,
 	type SpawnRpcProcess,
 	type WriteRpcFrame,
 } from "../rpc-transport.ts";
@@ -39,10 +40,7 @@ function client(
 		args: ["-e", script],
 		cwd: process.cwd(),
 		env: testEnv,
-		onEvent: options.onEvent ?? (() => {}),
-		...(options.onUiRequest === undefined ? {} : { onUiRequest: options.onUiRequest }),
-		...(options.onOversizedRecord === undefined ? {} : { onOversizedRecord: options.onOversizedRecord }),
-		onExit: options.onExit ?? (() => {}),
+		onRecord: recordHandler(options),
 		...(options.maxFrameBytes === undefined ? {} : { maxFrameBytes: options.maxFrameBytes }),
 		...(options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs }),
 		...(options.closeGraceMs === undefined ? {} : { closeGraceMs: options.closeGraceMs }),
@@ -52,6 +50,30 @@ function client(
 		...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
 		...(options.writeFrame === undefined ? {} : { writeFrame: options.writeFrame }),
 	});
+}
+
+function recordHandler(options: {
+	readonly onEvent?: (event: RpcEvent) => void;
+	readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
+	readonly onOversizedRecord?: () => void;
+	readonly onExit?: (error: Error | undefined) => void;
+}): (record: RpcTransportEvent) => boolean | void {
+	return (record) => {
+		switch (record.kind) {
+			case "event":
+			case "agent-event":
+				options.onEvent?.(record.event);
+				return;
+			case "ui-request":
+				return options.onUiRequest?.(record.request);
+			case "oversized-record":
+				options.onOversizedRecord?.();
+				return;
+			case "exit":
+				options.onExit?.(record.error);
+				return;
+		}
+	};
 }
 
 class ControlledWritable implements RpcWritable {
@@ -148,6 +170,35 @@ test("protocol preserves the question fields required for parent routing", () =>
 	assert.equal(record.request.method, "select");
 	assert.equal("title" in record.request ? record.request.title : undefined, "Choose");
 	assert.deepEqual("options" in record.request ? record.request.options : undefined, ["A", "B"]);
+});
+
+test("transport emits unsolicited records through one ordered channel", async (t) => {
+	const records: RpcTransportEvent[] = [];
+	const transport = new RpcTransport({
+		command: process.execPath,
+		args: [
+			"-e",
+			[
+				'process.stdout.write(\'{"type":"agent_start"}\\n\');',
+				'process.stdout.write(\'{"type":"extension_ui_request","id":"q","method":"select","title":"Choose","options":["A"]}\\n\');',
+				'process.stdout.write(\'{"type":"future_event"}\\n\');',
+				"setTimeout(() => {}, 200);",
+			].join(""),
+		],
+		cwd: process.cwd(),
+		env: testEnv,
+		onRecord: (record) => {
+			records.push(record);
+			return record.kind === "ui-request";
+		},
+	});
+	t.after(() => transport.close());
+	await transport.start();
+	while (records.length < 3) await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(
+		records.slice(0, 3).map((record) => record.kind),
+		["agent-event", "ui-request", "event"],
+	);
 });
 
 test("known event poison is rejected while genuinely unknown variants are bounded envelopes", () => {
