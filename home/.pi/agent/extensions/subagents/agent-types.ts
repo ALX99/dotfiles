@@ -1,6 +1,6 @@
 import type { ReadonlyRunDetails, RunUsage } from "./run-state.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
-import type { AgentPhase } from "./agent-state.ts";
+export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" | "aborted" | "closing" | "closed";
 
 export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
 

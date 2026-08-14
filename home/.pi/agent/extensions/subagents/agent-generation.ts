@@ -9,18 +9,6 @@ import {
 	lifecycleStatus,
 	type AgentQuestion,
 } from "./agent-types.ts";
-import {
-	beginGeneration,
-	isActiveGeneration,
-	markGenerationAborted,
-	markGenerationFailed,
-	markGenerationIdle,
-	markGenerationRunning,
-	newQuestionSignal,
-	updateGenerationQuestion,
-	type GenerationState,
-	type RunCompletion,
-} from "./agent-state.ts";
 import type { ChildSessionIdentity } from "./session-cursors.ts";
 import type { AgentEvent } from "./event-schema.ts";
 import {
@@ -40,6 +28,116 @@ import {
 	type StoredAgentResult,
 } from "./result-store.ts";
 import { isInputUiRequest, isSelectUiRequest, type ExtensionUiRequest, type InputUiRequest } from "./protocol.ts";
+
+interface QuestionSignal {
+	readonly promise: Promise<AgentQuestion>;
+	readonly resolve: (question: AgentQuestion) => void;
+	settled: boolean;
+}
+
+type QuestionInteraction =
+	| { readonly kind: "waiting"; readonly signal: QuestionSignal }
+	| { readonly kind: "pending"; readonly question: AgentQuestion; readonly signal: QuestionSignal }
+	| { readonly kind: "custom-answer"; readonly answer: string; readonly signal: QuestionSignal };
+
+interface RunCompletion {
+	readonly generation: number;
+	readonly promise: Promise<ReadonlyRunDetails>;
+	readonly resolve: (details: ReadonlyRunDetails) => void;
+	readonly reject: (error: Error) => void;
+	settled: boolean;
+}
+
+interface GenerationStateBase {
+	readonly generation: number;
+	readonly run: MutableRunData;
+}
+
+type ActiveGenerationPhase = "starting" | "running" | "aborted";
+
+type ActiveGenerationState<P extends ActiveGenerationPhase = ActiveGenerationPhase> = GenerationStateBase & {
+	readonly phase: P;
+	readonly completion: RunCompletion;
+	readonly question: QuestionInteraction;
+};
+
+type IdleGenerationState = GenerationStateBase & { readonly phase: "idle"; readonly completion: RunCompletion };
+type FailedGenerationState = GenerationStateBase & {
+	readonly phase: "failed";
+	readonly completion: RunCompletion;
+	readonly error: Error;
+	readonly recovery?: Promise<void>;
+};
+
+type GenerationState =
+	| ActiveGenerationState<"starting">
+	| ActiveGenerationState<"running">
+	| ActiveGenerationState<"aborted">
+	| IdleGenerationState
+	| FailedGenerationState;
+
+function isActiveGeneration(state: GenerationState): state is ActiveGenerationState {
+	return state.phase === "starting" || state.phase === "running" || state.phase === "aborted";
+}
+
+function beginGeneration(run: MutableRunData, completion: RunCompletion): ActiveGenerationState<"starting"> {
+	return {
+		phase: "starting",
+		generation: completion.generation,
+		run,
+		completion,
+		question: { kind: "waiting", signal: newQuestionSignal() },
+	};
+}
+
+function markGenerationRunning(state: ActiveGenerationState<"starting">): ActiveGenerationState<"running"> {
+	return { ...state, phase: "running" };
+}
+
+function markGenerationAborted(
+	state: ActiveGenerationState<"starting"> | ActiveGenerationState<"running">,
+): ActiveGenerationState<"aborted"> {
+	return {
+		...state,
+		phase: "aborted",
+		question: { kind: "waiting", signal: newQuestionSignal() },
+	};
+}
+
+function updateGenerationQuestion(state: ActiveGenerationState, question: QuestionInteraction): ActiveGenerationState {
+	return { ...state, question };
+}
+
+function markGenerationIdle(
+	state: ActiveGenerationState<"starting"> | ActiveGenerationState<"running">,
+): IdleGenerationState {
+	return {
+		phase: "idle",
+		generation: state.generation,
+		run: state.run,
+		completion: state.completion,
+	};
+}
+
+function markGenerationFailed(
+	state: ActiveGenerationState | IdleGenerationState,
+	error: Error,
+	recovery?: Promise<void>,
+): FailedGenerationState {
+	return {
+		phase: "failed",
+		generation: state.generation,
+		run: state.run,
+		completion: state.completion,
+		error,
+		...(recovery === undefined ? {} : { recovery }),
+	};
+}
+
+function newQuestionSignal(): QuestionSignal {
+	const { promise, resolve } = Promise.withResolvers<AgentQuestion>();
+	return { promise, resolve, settled: false };
+}
 
 export interface GenerationSession {
 	prepareGeneration(): Promise<void>;
