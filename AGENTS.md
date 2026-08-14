@@ -7,7 +7,7 @@ This Stow-managed personal repository holds shell tooling, desktop applications,
 ## Architecture and Ownership
 
 - `.local/bin/` owns user executables. `home/` owns configuration, including Bash, SSH, Git, and agent files. Start shell changes at `home/.profile`, `home/.bashrc`, and `home/.bashrc.d/`.
-- `.config/` owns application configuration. Neovim starts at `.config/nvim/init.lua`; compositor, terminal, and other desktop settings live beside it.
+- `.config/` owns application configuration. Neovim starts at `.config/nvim/init.lua`; compositor, terminal, and other desktop settings live beside it. Karabiner's installed JSON is generated from `misc/karabiner/karabiner.cue`.
 - `misc/` owns Arch, systemd, pacman-hook, and keyboard assets. `.pkgList` is the Arch package manifest. `.devcontainer/` defines the Arch development environment rather than the installed host configuration.
 - `home/.agents/skills/` contains harness-independent skills. Pi-specific settings, prompts, themes, and skills belong in `home/.pi/agent/`; do not put Pi-only material in the shared skill tree. `home/.pi/agent/settings.json` owns local Pi defaults and external package registrations.
 - `home/.pi/agent/extensions/` is a strict TypeScript/NodeNext package. Root `*.ts` and feature `*/index.ts` files are extension entry points; `_shared/` supplies common support and `**/tests/` owns coverage. `subagents/` owns persistent RPC child lifecycle, roles, profiles, and result recovery: `ChildSession` owns one process and native session, `AgentGeneration` owns one prompt lifecycle, and `ManagedAgent` is their stable tool-facing facade. `plan/` owns interview, approval, and active-plan mode. `ask-question/` and `codex-apply-patch/` own their corresponding tools. The root `caffeinate.ts`, `footer.ts`, and `model-shortcuts.ts` entry points own small host-integration features.
@@ -22,6 +22,7 @@ Within Pi extensions, session snapshots are authoritative for branch-local plan 
 
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.
 - For an application or desktop change, begin under `.config/`; follow related Colemak-DH mappings across affected applications.
+- For Karabiner changes, edit `misc/karabiner/karabiner.cue`, then run `just karabiner-generate` and `just karabiner-check`.
 - For system provisioning or keymaps, begin at `misc/`, `.pkgList`, and the matching `Justfile` recipe. Do not casually run `just linux-system`, which makes privileged host changes.
 - For Pi behavior, begin at the relevant extension entry point and its tests. Run `just check` for extension changes; use `bash -n home/.bashrc home/.profile` for shell changes.
 
