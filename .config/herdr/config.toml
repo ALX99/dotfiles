@@ -1,25 +1,31 @@
-# Herdr configuration. Herdr supports a built-in theme plus custom token
-# overrides; this is the Stellar palette used by Pi and the Ghostty shader.
+# Herdr configuration. Twilight Bloom matches Pi and Ghostty.
 onboarding = false
 
 [theme]
 name = "terminal"
 
 [theme.custom]
-panel_bg = "reset"
-accent = "#85c2ff"     # Pi accent / coronal blue
-surface0 = "#0b172b"   # Pi user message / shader card
-surface1 = "#142b4a"   # Pi selected background
-surface_dim = "#02040d" # shader page background
-overlay0 = "#7894b8"   # readable inactive tabs and branch names
-overlay1 = "#b8d9ff"   # brighter secondary text
-subtext0 = "#7894b8"    # Pi gray
-mauve = "#9f7aea"      # nebula violet
-green = "#72d8c1"
-yellow = "#ffad61"     # shader warm star
-red = "#ff827a"
-teal = "#4cc9e8"       # shader cyan
-peach = "#ffad61"
+# Warm plum surfaces keep the sidebar, tabs, and focused UI distinct from panes.
+panel_bg = "#22182d"
+surface_dim = "#120d19"
+surface0 = "#30203d"
+surface1 = "#5a3b70"
+
+# Text remains bright; muted labels are lilac rather than washed-out gray.
+accent = "#8fa8ff"
+overlay0 = "#aa97bd"
+subtext0 = "#c9b8d8"
+overlay1 = "#e8ddf1"
+text = "#fff7ff"
+
+# Semantic states are intentionally vivid and distinct.
+mauve = "#e7a1ff"
+blue = "#8fa8ff"
+teal = "#63e6e8"
+green = "#78e3b0"
+yellow = "#ffd36a"
+peach = "#ffad72"
+red = "#ff6b8a"
 
 [terminal]
 shell_mode = "auto"
@@ -81,7 +87,6 @@ show_agent_labels_on_pane_borders = false
 hide_tab_bar_when_single_tab = false
 prompt_new_tab_name = false
 agent_panel_sort = "spaces"
-accent = "#5fafff"
 
 [ui.toast]
 delivery = "herdr"

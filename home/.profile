@@ -86,25 +86,12 @@ NPM_CONFIG_IGNORE_SCRIPTS=true
 DISABLE_TELEMETRY=1 # Disable claude code telemetry
 PI_FFF_MODE=override # Replace pi's built-in find/grep with FFF (pi-fff ext)
 
-# Compact PS1-themed GNU ls colors. Keep this synchronized with the palette
-# documented in Ghostty, tmux, and home/.bashrc.
-LS_COLORS='di=1;38;5;69:ln=4;38;5;109:or=1;38;5;203:mi=1;38;5;203:ex=1;38;5;114:su=1;38;5;179:sg=1;38;5;179:tw=1;38;5;141'\
-':ow=1;38;5;179:st=2;38;5;245:pi=38;5;179:so=38;5;141:bd=38;5;109:cd=1;38;5;109:do=38;5;141:fi=0:no=0:*.zip=38;'\
-'5;114:*.tar=38;5;114:*.tgz=38;5;114:*.gz=38;5;114:*.bz2=38;5;114:*.xz=38;5;114:*.zst=38;5;114:*.rar=38;5;114:*'\
-'.7z=38;5;114:*.deb=38;5;179:*.rpm=38;5;179:*.sh=38;5;75:*.bash=38;5;75:*.zsh=38;5;75:*.fish=38;5;75:*.py=38;5;'\
-'75:*.js=38;5;75:*.ts=38;5;75:*.jsx=38;5;75:*.tsx=38;5;75:*.go=38;5;109:*.rs=38;5;109:*.c=38;5;109:*.h=38;5;109'\
-':*.cc=38;5;109:*.cpp=38;5;109:*.hpp=38;5;109:*.lua=38;5;75:*.vim=38;5;75:*.json=38;5;179:*.yaml=38;5;179:*.yml'\
-'=38;5;179:*.toml=38;5;179:*.ini=38;5;245:*.conf=38;5;245:*.cfg=38;5;245:*.xml=38;5;179:*.csv=38;5;109:*.sql=38'\
-';5;141:*.md=38;5;179:*.markdown=38;5;179:*.txt=38;5;245:*.rst=38;5;179:*.adoc=38;5;179:*.pdf=38;5;141:*README='\
-'4;38;5;179:*README.md=4;38;5;179:*LICENSE=38;5;179:*CHANGELOG=38;5;179:*CLAUDE.md=1;4;38;5;141:*AGENTS.md=1;4;'\
-'38;5;141:*claude.md=1;4;38;5;141:*agents.md=1;4;38;5;141:*.png=38;5;141:*.jpg=38;5;141:*.jpeg=38;5;141:*.gif=3'\
-'8;5;141:*.webp=38;5;141:*.svg=38;5;109:*.mp3=38;5;141:*.flac=38;5;141:*.wav=38;5;141:*.mp4=38;5;141:*.mov=38;5'\
-';141:*.mkv=38;5;141:*.webm=38;5;141:*Dockerfile=1;38;5;114:*Containerfile=1;38;5;114:*Makefile=1;38;5;114:*Jus'\
-'tfile=1;38;5;114:*justfile=1;38;5;114:*Cargo.toml=38;5;109:*Cargo.lock=38;5;245:*go.mod=38;5;109:*go.sum=38;5;'\
-'245:*package.json=38;5;109:*package-lock.json=38;5;245:*id_rsa=1;38;5;203:*id_ed25519=1;38;5;203:*.pem=1;38;5;'\
-'203:*.key=1;38;5;203:*.crt=38;5;179:*.env=1;38;5;203:*.env.*=1;38;5;203:*.tmp=2;38;5;245:*.temp=2;38;5;245:*.s'\
-'wp=2;38;5;245:*.swo=2;38;5;245:*.o=2;38;5;245:*.obj=2;38;5;245:*.class=2;38;5;245:*.pyc=2;38;5;245:*.cache=2;3'\
-'8;5;245:*.DS_Store=2;38;5;245:'
+# Twilight Bloom LS_COLORS uses Ghostty's ANSI palette, so all terminal apps
+# get the same vivid semantic colors without a separate xterm-256 palette.
+LS_COLORS='di=1;34:ln=4;36:or=1;31:mi=1;31:ex=1;32:su=1;33:sg=1;33:tw=1;35:ow=1;33:st=2;90:pi=33:so=35:bd=36:cd=1;36:do=35:fi=0:no=0'\
+':*.zip=32:*.tar=32:*.tgz=32:*.gz=32:*.bz2=32:*.xz=32:*.zst=32:*.rar=32:*.7z=32:*.deb=33:*.rpm=33:*.sh=34:*.bash=34:*.zsh=34:*.fish=34:*.py=34:*.js=34:*.ts=34:*.jsx=34:*.tsx=34:*.go=36:*.rs=36:*.c=36:*.h=36:*.cc=36:*.cpp=36:*.hpp=36:*.lua=34:*.vim=34'\
+':*.json=33:*.yaml=33:*.yml=33:*.toml=33:*.ini=90:*.conf=90:*.cfg=90:*.xml=33:*.csv=36:*.sql=35:*.md=33:*.markdown=33:*.txt=90:*.rst=33:*.adoc=33:*.pdf=35:*README=4;33:*README.md=4;33:*LICENSE=33:*CHANGELOG=33:*CLAUDE.md=1;4;35:*AGENTS.md=1;4;35:*claude.md=1;4;35:*agents.md=1;4;35'\
+':*.png=35:*.jpg=35:*.jpeg=35:*.gif=35:*.webp=35:*.svg=36:*.mp3=35:*.flac=35:*.wav=35:*.mp4=35:*.mov=35:*.mkv=35:*.webm=35:*Dockerfile=1;32:*Containerfile=1;32:*Makefile=1;32:*Justfile=1;32:*justfile=1;32:*Cargo.toml=36:*Cargo.lock=90:*go.mod=36:*go.sum=90:*package.json=36:*package-lock.json=90:*id_rsa=1;31:*id_ed25519=1;31:*.pem=1;31:*.key=1;31:*.crt=33:*.env=1;31:*.env.*=1;31:*.tmp=2;90:*.temp=2;90:*.swp=2;90:*.swo=2;90:*.o=2;90:*.obj=2;90:*.class=2;90:*.pyc=2;90:*.cache=2;90:*.DS_Store=2;90'
 
 set +a
 

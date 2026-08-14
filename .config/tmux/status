@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# AI: Keep these colors aligned with the tmux theme in tmux.conf,
-# PS1 in home/.bashrc, LS_COLORS in home/.profile, and Ghostty config.
-grey="#[fg=colour245]"
-accent="#[fg=colour75]"
-warn="#[fg=colour179]"
-crit="#[fg=colour203]"
+# Twilight Bloom colors match tmux.conf, PS1, LS_COLORS, Ghostty, Herdr, and Pi.
+grey="#[fg=#aa97bd]"
+accent="#[fg=#8fa8ff]"
+warn="#[fg=#ffd36a]"
+crit="#[fg=#ff6b8a]"
 reset="#[fg=default]"
 
 get_time() {
