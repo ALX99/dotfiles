@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
 import {
 	CHILD_CONTEXT_ENV,
@@ -10,7 +11,6 @@ import {
 	type ChildExecutionContext,
 } from "./child-process.ts";
 import type { AgentEvent } from "./event-schema.ts";
-import { SessionResultRecorder } from "./session-result-recorder.ts";
 import type { ResolvedRun } from "./profiles.ts";
 import type { ExtensionUiRequest } from "./protocol.ts";
 import {
@@ -21,11 +21,20 @@ import {
 	type RpcTransportState,
 	type SpawnRpcProcess,
 } from "./rpc-transport.ts";
-import { parseChildSessionIdentity, type ChildSessionIdentity } from "./session-cursors.ts";
-import type { CapturedGeneration } from "./result-store.ts";
+import {
+	getRpcSessionEntries,
+	readChildSessionEntriesSince,
+	parseChildSessionIdentity,
+	type ChildSessionIdentity,
+	type SessionCheckpoint,
+	type SessionEntries,
+} from "./session-cursors.ts";
+import { captureGeneration, validateChildSessionIdentity, type CapturedGeneration } from "./result-store.ts";
 
 /** Leaves room for JSON framing inside RpcTransport's 1 MiB hard limit. */
 export const MAX_DIRECT_RPC_PROMPT_BYTES = 512 * 1024;
+
+const EMPTY_SESSION_CHECKPOINT: SessionCheckpoint = Object.freeze({ appendCursor: null, leafId: null });
 
 const SCOUT_WITHHELD_ENVIRONMENT = new Set([
 	// Agent sockets authorize use of credentials independently of the tool
@@ -73,19 +82,13 @@ export class ChildSession {
 	private closePromise: Promise<void> | undefined;
 	private openPromise: Promise<ChildSessionIdentity> | undefined;
 	private closing = false;
-	private identity: ChildSessionIdentity | undefined;
-	private readonly capture: SessionResultRecorder;
+	private validatedSessionIdentity: ChildSessionIdentity | undefined;
+	private sessionCheckpoint: SessionCheckpoint = EMPTY_SESSION_CHECKPOINT;
+	private generationStart: SessionCheckpoint | undefined;
 	private readonly options: ChildSessionOptions;
 
 	constructor(options: ChildSessionOptions) {
 		this.options = options;
-		this.capture = new SessionResultRecorder({
-			agentId: options.agentId,
-			agentDir: options.agentDir,
-			...(options.validateSessionIdentity === undefined
-				? {}
-				: { validateSessionIdentity: options.validateSessionIdentity }),
-		});
 	}
 
 	get state(): RpcTransportState | "created" {
@@ -93,7 +96,7 @@ export class ChildSession {
 	}
 
 	get sessionIdentity(): ChildSessionIdentity | undefined {
-		return this.identity;
+		return this.validatedSessionIdentity;
 	}
 
 	get isOpen(): boolean {
@@ -107,15 +110,43 @@ export class ChildSession {
 	}
 
 	async prepareGeneration(): Promise<void> {
-		await this.capture.prepareGeneration(this.rpc());
+		if (!this.validatedSessionIdentity) {
+			throw new Error(`Agent ${this.options.agentId} has no validated session identity.`);
+		}
+		const captured = await getRpcSessionEntries(this.rpc(), this.sessionCheckpoint);
+		this.sessionCheckpoint = captured.checkpoint;
+		this.generationStart = captured.checkpoint;
 	}
 
 	async captureSettlement(generation: number, resultId: string): Promise<CapturedGeneration> {
-		return this.capture.captureSettlement(this.rpc(), generation, resultId);
+		const start = this.generationStart;
+		const previous = this.sessionCheckpoint;
+		const identity = this.validatedSessionIdentity;
+		if (!start || !identity) {
+			throw new Error(`Agent ${this.options.agentId} generation ${generation} has no validated session checkpoint.`);
+		}
+		const captured = await getRpcSessionEntries(this.rpc(), previous);
+		return this.captureEntries(identity, generation, resultId, start, captured.checkpoint, captured.entries);
 	}
 
 	async captureFailedGeneration(generation: number, resultId: string): Promise<CapturedGeneration | undefined> {
-		return this.capture.captureFailedGeneration(this, generation, resultId);
+		const start = this.generationStart;
+		const previous = this.sessionCheckpoint;
+		const identity = this.validatedSessionIdentity;
+		if (!start || !identity) return undefined;
+		const transport = this.transport;
+		let captured: SessionEntries;
+		if (transport?.getState() === "open") {
+			try {
+				captured = await getRpcSessionEntries(transport, previous);
+			} catch (error) {
+				if (transport.getState() === "open") throw error;
+				captured = await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
+			}
+		} else {
+			captured = await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
+		}
+		return this.captureEntries(identity, generation, resultId, start, captured.checkpoint, captured.entries);
 	}
 
 	request(command: Readonly<Record<string, unknown>>, options?: RpcRequestOptions): Promise<unknown> {
@@ -191,9 +222,12 @@ export class ChildSession {
 			throw new Error(`Agent ${this.options.agentId} was closed during startup.`);
 		}
 		const state = await transport.request({ type: "get_state" });
-		const identity = await this.capture.setIdentity(parseChildSessionIdentity(state));
+		const identity = await (this.options.validateSessionIdentity ?? validateChildSessionIdentity)(
+			parseChildSessionIdentity(state),
+			this.options.agentDir,
+		);
 		this.assertOpen(transport);
-		this.identity = identity;
+		this.validatedSessionIdentity = identity;
 		return identity;
 	}
 
@@ -226,6 +260,19 @@ export class ChildSession {
 				// subagent lifecycle state.
 				return;
 		}
+	}
+
+	private captureEntries(
+		identity: ChildSessionIdentity,
+		generation: number,
+		resultId: string,
+		start: SessionCheckpoint,
+		end: SessionCheckpoint,
+		entries: readonly SessionEntry[],
+	): CapturedGeneration {
+		const captured = captureGeneration(identity, generation, resultId, start, end, entries);
+		this.sessionCheckpoint = end;
+		return captured;
 	}
 
 	private rpc(): RpcTransport {

@@ -55,7 +55,7 @@ export class AgentRegistry {
 
 	view(id: string): AgentView {
 		const entry = this.requireEntry(id);
-		return entry.kind === "live" ? liveAgentView(entry.agent) : entry.view;
+		return entry.kind === "live" ? entry.agent.view() : entry.view;
 	}
 
 	summary(id: string): AgentSummary {
@@ -87,7 +87,7 @@ export class AgentRegistry {
 	): Promise<ResultPage> {
 		const entry = this.entries.get(id);
 		if (!entry) return this.resultCatalog.readResult(id, options);
-		const view = entry.kind === "live" ? liveAgentView(entry.agent) : entry.view;
+		const view = entry.kind === "live" ? entry.agent.view() : entry.view;
 		const generation = options.generation ?? view.summary.generation;
 		if (entry.kind === "live" && entry.agent.hasPendingResult(generation)) {
 			return entry.agent.readLiveResultPreview(options);
@@ -174,7 +174,7 @@ export class AgentRegistry {
 		if (current?.kind !== "live" || current.agent !== agent) return;
 		this.agentUnsubscribers.get(agent.id)?.();
 		this.agentUnsubscribers.delete(agent.id);
-		const liveView = liveAgentView(agent);
+		const liveView = agent.view();
 		const view: AgentView = {
 			summary: { ...liveView.summary, status: "closed" },
 			details: { ...liveView.details, status: "closed", aborted: false },
@@ -199,8 +199,4 @@ export class AgentRegistry {
 	private emit(): void {
 		for (const listener of this.listeners) listener();
 	}
-}
-
-function liveAgentView(agent: ManagedAgent): AgentView {
-	return agent.view();
 }
