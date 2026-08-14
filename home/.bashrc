@@ -127,28 +127,28 @@ __prompt_render() {
   local reset='\[\e[0m\]'
   local bold='\[\e[1m\]'
   local dim='\[\e[2m\]'
-  local slate='\[\e[38;5;245m\]'
-  local red='\[\e[38;5;203m\]'
-  local green='\[\e[38;5;114m\]'
-  local blue='\[\e[38;5;75m\]'
-  local purple='\[\e[38;5;141m\]'
+  local lilac='\[\e[38;2;201;184;216m\]'
+  local red='\[\e[38;2;255;107;138m\]'
+  local green='\[\e[38;2;120;227;176m\]'
+  local blue='\[\e[38;2;143;168;255m\]'
+  local orchid='\[\e[38;2;231;161;255m\]'
 
   [[ -n $cwd ]] || cwd=/
 
   if [[ -n ${SSH_CLIENT:-} ]]; then
     host=${HOSTNAME%%.*}
-    segments+=("${slate}${USER}@${host}${reset}")
+    segments+=("${lilac}${USER}@${host}${reset}")
   fi
 
   segments+=("${bold}${blue}${cwd}${reset}")
 
-  __prompt_git_info "$green" "$purple" "$reset"
+  __prompt_git_info "$green" "$orchid" "$reset"
   [[ -n $__prompt_git_segment ]] && segments+=("$__prompt_git_segment")
-  [[ -n ${VIRTUAL_ENV:-} ]] && segments+=("${purple}venv${reset}")
+  [[ -n ${VIRTUAL_ENV:-} ]] && segments+=("${orchid}venv${reset}")
   [[ $exit_status -ne 0 ]] && segments+=("${red}✗$exit_status${reset}")
 
   local IFS=' '
-  PS1="${segments[*]} ${dim}${slate}>${reset} "
+  PS1="${segments[*]} ${dim}${lilac}>${reset} "
 }
 
 # Use direnv when installed; otherwise provide the lightweight .env loader.

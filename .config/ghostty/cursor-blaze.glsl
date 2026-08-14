@@ -9,10 +9,10 @@
 
 #define PI 3.14159265358979323846
 
-const vec3 DEEP_NAVY = vec3(0.012, 0.027, 0.058);
-const vec3 CORONAL_BLUE = vec3(0.320, 0.600, 0.940);
-const vec3 CORONA_WHITE = vec3(0.720, 0.850, 1.000);
-const vec3 PHOTOSPHERE_WHITE = vec3(1.000, 0.940, 0.700);
+const vec3 DEEP_PLUM = vec3(0.094, 0.071, 0.122);
+const vec3 ORCHID = vec3(0.906, 0.631, 1.000);
+const vec3 LILAC_WHITE = vec3(0.957, 0.918, 1.000);
+const vec3 AMBER = vec3(1.000, 0.882, 0.490);
 
 float saturate(float value)
 {
@@ -135,13 +135,13 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
                         along * 18.0 - iTime * 9.0
                     );
                     vec3 trailColor = mix(
-                        CORONAL_BLUE,
-                        CORONA_WHITE,
+                        ORCHID,
+                        LILAC_WHITE,
                         smootherstep(along)
                     );
                     trailColor = mix(
                         trailColor,
-                        PHOTOSPHERE_WHITE,
+                        AMBER,
                         0.18 * sin(along * PI)
                     );
                     color += trailColor
@@ -177,7 +177,7 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
                             distance(fragCoord, sparkPosition)
                         );
                         float twinkle = 0.78 + 0.22 * sin(iTime * 18.0 + id * 3.1);
-                        color += mix(CORONA_WHITE, PHOTOSPHERE_WHITE, seedB)
+                    color += mix(LILAC_WHITE, AMBER, seedB)
                             * spark
                             * sparkLife
                             * movementGate
@@ -203,8 +203,8 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
             * cursorOutside;
         float cursorEdge = 1.0 - smoothstep(0.2, 1.8, abs(cursorDistance));
         float heartbeat = 0.86 + 0.14 * sin(iTime * 4.0);
-        color += CORONA_WHITE * cursorAura * 0.11 * heartbeat;
-        color += mix(CORONA_WHITE, PHOTOSPHERE_WHITE, 0.45)
+        color += LILAC_WHITE * cursorAura * 0.11 * heartbeat;
+        color += mix(LILAC_WHITE, AMBER, 0.45)
             * cursorEdge
             * 0.30;
     }
@@ -254,7 +254,7 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
                     330.0,
                     radialDistance
                 )) * ripple * backgroundMask;
-                color += mix(DEEP_NAVY, CORONAL_BLUE, ripple) * ambient * 0.012;
+    color += mix(DEEP_PLUM, ORCHID, ripple) * ambient * 0.012;
             }
         }
     }
