@@ -180,6 +180,253 @@
             ]
           },
           {
+            "description": "Emoji layer: hold Caps Lock + Space.",
+            "manipulators": [
+              {
+                "from": {
+                  "key_code": "spacebar",
+                  "modifiers": {
+                    "optional": [
+                      "any"
+                    ]
+                  }
+                },
+                "to": [
+                  {
+                    "set_variable": {
+                      "name": "emoji_layer",
+                      "value": 1
+                    }
+                  }
+                ],
+                "to_after_key_up": [
+                  {
+                    "set_variable": {
+                      "name": "emoji_layer",
+                      "value": 0
+                    }
+                  }
+                ],
+                "to_if_alone": [
+                  {
+                    "key_code": "delete_or_backspace"
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "symbol_layer",
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "description": "Clipboard shortcuts",
+            "manipulators": [
+              {
+                "from": {
+                  "key_code": "y"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/echo -n '👍' | LANG=en_US.UTF-8 /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_unless",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "from": {
+                  "key_code": "o"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/echo -n '👍' | LANG=en_US.UTF-8 /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_if",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "from": {
+                  "key_code": "d"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/date +%F | /usr/bin/tr -d '\\n' | /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_unless",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "from": {
+                  "key_code": "c"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/date +%F | /usr/bin/tr -d '\\n' | /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_if",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "from": {
+                  "key_code": "l"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/echo -n 'LGTM' | LANG=en_US.UTF-8 /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_unless",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "from": {
+                  "key_code": "u"
+                },
+                "to": [
+                  {
+                    "shell_command": "/bin/echo -n 'LGTM' | LANG=en_US.UTF-8 /usr/bin/pbcopy",
+                    "hold_down_milliseconds": 200
+                  },
+                  {
+                    "key_code": "v",
+                    "modifiers": [
+                      "left_command"
+                    ]
+                  }
+                ],
+                "type": "basic",
+                "conditions": [
+                  {
+                    "type": "variable_if",
+                    "name": "emoji_layer",
+                    "value": 1
+                  },
+                  {
+                    "type": "input_source_if",
+                    "input_sources": [
+                      {
+                        "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
             "description": "Symbol layer",
             "manipulators": [
               {
@@ -371,35 +618,35 @@
                 },
                 "to": [
                   {
-                    "key_code": "semicolon",
-                    "modifiers": [
-                      "left_shift"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_unless",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "semicolon",
+                    "modifiers": [
+                      "left_shift"
                     ]
                   },
                   {
-                    "key_code": "p",
-                    "modifiers": [
-                      "left_shift"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_if",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "p",
+                    "modifiers": [
+                      "left_shift"
                     ]
                   }
                 ],
@@ -700,30 +947,30 @@
                 },
                 "to": [
                   {
-                    "key_code": "semicolon",
                     "conditions": [
                       {
                         "type": "input_source_unless",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
-                    ]
+                    ],
+                    "key_code": "semicolon"
                   },
                   {
-                    "key_code": "p",
                     "conditions": [
                       {
                         "type": "input_source_if",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
-                    ]
+                    ],
+                    "key_code": "p"
                   }
                 ],
                 "type": "basic",
@@ -873,7 +1120,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Option + / → Search",
+            "description": "Chromium browsers: Command + / → Search",
             "manipulators": [
               {
                 "conditions": [
@@ -908,7 +1155,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Navigate to the previous in history",
+            "description": "Chromium browsers: Navigate to the previous in history",
             "manipulators": [
               {
                 "conditions": [
@@ -942,7 +1189,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Navigate to next page in history",
+            "description": "Chromium browsers: Navigate to next page in history",
             "manipulators": [
               {
                 "conditions": [
@@ -976,7 +1223,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Go to previous tab",
+            "description": "Chromium browsers: Go to previous tab",
             "manipulators": [
               {
                 "conditions": [
@@ -1011,7 +1258,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Go to next tab",
+            "description": "Chromium browsers: Go to next tab",
             "manipulators": [
               {
                 "conditions": [
@@ -1046,7 +1293,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Close current tab",
+            "description": "Chromium browsers: Close current tab",
             "manipulators": [
               {
                 "conditions": [
@@ -1080,7 +1327,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Reopen closed tab",
+            "description": "Chromium browsers: Reopen closed tab",
             "manipulators": [
               {
                 "conditions": [
@@ -1104,37 +1351,37 @@
                 },
                 "to": [
                   {
-                    "key_code": "t",
-                    "modifiers": [
-                      "left_command",
-                      "left_shift"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_unless",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
-                    ]
-                  },
-                  {
-                    "key_code": "f",
+                    ],
+                    "key_code": "t",
                     "modifiers": [
                       "left_command",
                       "left_shift"
-                    ],
+                    ]
+                  },
+                  {
                     "conditions": [
                       {
                         "type": "input_source_if",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "f",
+                    "modifiers": [
+                      "left_command",
+                      "left_shift"
                     ]
                   }
                 ],
@@ -1143,7 +1390,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Jump to address bar",
+            "description": "Chromium browsers: Jump to address bar",
             "manipulators": [
               {
                 "conditions": [
@@ -1166,35 +1413,35 @@
                 },
                 "to": [
                   {
-                    "key_code": "l",
-                    "modifiers": [
-                      "left_command"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_unless",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "l",
+                    "modifiers": [
+                      "left_command"
                     ]
                   },
                   {
-                    "key_code": "u",
-                    "modifiers": [
-                      "left_command"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_if",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "u",
+                    "modifiers": [
+                      "left_command"
                     ]
                   }
                 ],
@@ -1203,7 +1450,7 @@
             ]
           },
           {
-            "description": "Google Chrome: Reload page",
+            "description": "Chromium browsers: Reload page",
             "manipulators": [
               {
                 "conditions": [
@@ -1229,35 +1476,35 @@
                 },
                 "to": [
                   {
-                    "key_code": "r",
-                    "modifiers": [
-                      "left_command"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_unless",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "r",
+                    "modifiers": [
+                      "left_command"
                     ]
                   },
                   {
-                    "key_code": "s",
-                    "modifiers": [
-                      "left_command"
-                    ],
                     "conditions": [
                       {
                         "type": "input_source_if",
                         "input_sources": [
                           {
-                            "input_source_id": ".*Colemak.*"
+                            "input_source_id": "^org\\.unknown\\.keylayout\\.Colemak-DHANSI$"
                           }
                         ]
                       }
+                    ],
+                    "key_code": "s",
+                    "modifiers": [
+                      "left_command"
                     ]
                   }
                 ],

@@ -11,6 +11,7 @@ bluez-utils # utils for interacting with bluetooth
 brave-bin # browser
 btop
 copyparty
+cue # generate Karabiner-Elements configuration
 czkawka-gui-bin # find duplicate files
 dash
 docker

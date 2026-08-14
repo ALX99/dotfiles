@@ -5,6 +5,7 @@ RUN sed -i '/^#DisableSandboxSyscalls/s/^#//' /etc/pacman.conf \
       base-devel \
       bash \
       ca-certificates \
+      cue \
       fd \
       fzf \
       git \
