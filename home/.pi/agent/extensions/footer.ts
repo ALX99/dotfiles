@@ -4,7 +4,7 @@
  * Shows a responsive project/model trail on the left and a compact context
  * percentage on the right. When space is tight, location details yield to the
  * active model so the important state stays visible. The input border mirrors
- * context growth as a text-free progress bar.
+ * context growth while idle and becomes an activity wave while the agent runs.
  *
  * The percentage is right-aligned with space padding.
  */
@@ -223,6 +223,41 @@ export function renderContextBorder(percent: number | null | undefined, width: n
 	);
 }
 
+const THINKING_WAVE_COLORS = [
+	"dim",
+	"muted",
+	"thinkingMinimal",
+	"thinkingLow",
+	"thinkingMedium",
+	"thinkingHigh",
+	"thinkingXhigh",
+	"accent",
+	"thinkingXhigh",
+	"thinkingHigh",
+	"thinkingMedium",
+	"thinkingLow",
+	"thinkingMinimal",
+	"muted",
+] as const;
+
+type ThinkingWaveColor = (typeof THINKING_WAVE_COLORS)[number];
+
+/** Renders one horizontal pass of the full-width thinking wave. */
+export function renderThinkingWaveBorder(width: number, position: number, theme: FooterTheme): string {
+	const borderWidth = columnCount(width);
+	if (borderWidth === 0) return "";
+
+	const paletteLength = THINKING_WAVE_COLORS.length;
+	let result = "";
+
+	for (let index = 0; index < borderWidth; index++) {
+		const paletteIndex = (((index + position) % paletteLength) + paletteLength) % paletteLength;
+		const color: ThinkingWaveColor = THINKING_WAVE_COLORS[paletteIndex]!;
+		result += theme.fg(color, "━");
+	}
+	return result;
+}
+
 /* ─── footer ─── */
 
 export default function (pi: ExtensionAPI) {
@@ -230,7 +265,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", (_event, ctx) => {
 		requestRender = setupFooter(ctx, pi);
-		if (ctx.mode === "tui") setupContextBorder(ctx);
+		if (ctx.mode === "tui") setupInputBorder(ctx, pi);
 		requestRender();
 	});
 
@@ -239,7 +274,41 @@ export default function (pi: ExtensionAPI) {
 	});
 }
 
-function setupContextBorder(ctx: ExtensionContext): void {
+function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
+	ctx.ui.setWorkingVisible(false);
+
+	let agentActive = false;
+	let wavePosition = 0;
+	let waveTimer: ReturnType<typeof setInterval> | undefined;
+	let requestRender = () => {};
+
+	const startAgentActivity = () => {
+		if (agentActive) return;
+
+		agentActive = true;
+		wavePosition = 0;
+		waveTimer = setInterval(() => {
+			wavePosition++;
+			requestRender();
+		}, 100);
+		requestRender();
+	};
+	const stopAgentActivity = () => {
+		if (!agentActive) return;
+
+		agentActive = false;
+		if (waveTimer) clearInterval(waveTimer);
+		waveTimer = undefined;
+		requestRender();
+	};
+
+	pi.on("agent_start", startAgentActivity);
+	pi.on("agent_settled", stopAgentActivity);
+	pi.on("session_shutdown", () => {
+		stopAgentActivity();
+		ctx.ui.setWorkingVisible(true);
+	});
+
 	class ContextBorderEditor extends CustomEditor {
 		override render(width: number): string[] {
 			// Pi normally recolors this border for the thinking level. Render the
@@ -248,24 +317,30 @@ function setupContextBorder(ctx: ExtensionContext): void {
 			this.borderColor = (text) => text;
 			const lines = super.render(width);
 			const plainBorder = "─".repeat(columnCount(width));
-			const contextBorder = renderContextBorder(ctx.getContextUsage()?.percent, width, ctx.ui.theme);
+			const topBorder = agentActive
+				? renderThinkingWaveBorder(width, -wavePosition, ctx.ui.theme)
+				: renderContextBorder(ctx.getContextUsage()?.percent, width, ctx.ui.theme);
+			const bottomWaveBorder = agentActive ? renderThinkingWaveBorder(width, wavePosition, ctx.ui.theme) : topBorder;
 
-			if (lines[0] === plainBorder) lines[0] = contextBorder;
+			if (lines[0] === plainBorder) lines[0] = topBorder;
 			else if (lines[0]) lines[0] = ctx.ui.theme.fg("borderMuted", lines[0]);
 
-			const bottomBorder = lines.findIndex(
+			const bottomBorderIndex = lines.findIndex(
 				(line, index) => index > 0 && (line === plainBorder || line.startsWith("─── ↓ ")),
 			);
-			if (bottomBorder !== -1) {
-				const line = lines[bottomBorder]!;
-				lines[bottomBorder] = line === plainBorder ? contextBorder : ctx.ui.theme.fg("borderMuted", line);
+			if (bottomBorderIndex !== -1) {
+				const line = lines[bottomBorderIndex]!;
+				lines[bottomBorderIndex] = line === plainBorder ? bottomWaveBorder : ctx.ui.theme.fg("borderMuted", line);
 			}
 
 			return lines;
 		}
 	}
 
-	ctx.ui.setEditorComponent((tui, theme, keybindings) => new ContextBorderEditor(tui, theme, keybindings));
+	ctx.ui.setEditorComponent((tui, theme, keybindings) => {
+		requestRender = () => tui.requestRender();
+		return new ContextBorderEditor(tui, theme, keybindings);
+	});
 }
 
 function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
