@@ -214,7 +214,7 @@ function formatBackgroundCompletionContent(summaries: readonly AgentSummary[]): 
 		const timing = ` started_at="${summary.started_at}"${summary.ended_at === undefined ? "" : ` ended_at="${summary.ended_at}"`}${summary.duration_ms === undefined ? "" : ` duration_ms="${summary.duration_ms}"`}`;
 		const usage = `\n  <usage input="${summary.usage.input}" output="${summary.usage.output}" reasoning="${summary.usage.reasoning ?? 0}" cache_read="${summary.usage.cacheRead}" cache_write="${summary.usage.cacheWrite}" turns="${summary.usage.turns}" cost="${summary.usage.cost}" />`;
 		const resultReference = summary.result
-			? `\n  <result_ref result_id="${summary.result.result_id}" pages="${summary.result.pages}" complete="${summary.result.complete}" total_bytes="${summary.result.total_bytes}" sha256="${summary.result.sha256}" />`
+			? `\n  <result_ref result_id="${summary.result.result_id}" complete="${summary.result.complete}" total_bytes="${summary.result.total_bytes}" sha256="${summary.result.sha256}" />`
 			: "";
 		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${usage}${resultReference}\n</subagent_result>`;
 	});
