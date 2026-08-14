@@ -380,7 +380,7 @@ test("ManagedAgent retains its ID and increments generation across follow-ups", 
 	assert.equal(agent.summary().retained, true);
 	assert.equal(agent.summary().status, "idle");
 	assert.equal(agent.summary().final_text, "done:Task: first");
-	assert.equal(agent.summary().result?.source, "assistant");
+	assert.equal(agent.summary().result?.complete, true);
 	assert.deepEqual(agent.summary().result_locator?.start, { appendCursor: null, leafId: null });
 
 	const second = await agent.followUp("second", "second task", false);

@@ -26,7 +26,7 @@ function details(): MutableRunData {
 	});
 }
 
-test("assistant narration retains fallback text but never terminal finalText", () => {
+test("assistant narration retains only a bounded live preview", () => {
 	const run = details();
 	foldAgentEvent(
 		{
@@ -41,7 +41,7 @@ test("assistant narration retains fallback text but never terminal finalText", (
 		run,
 	);
 	assert.equal(run.finalText, "");
-	assert.equal(run.lastAssistantText, "working narration");
+	assert.equal(run.liveAssistantPreview, "working narration");
 	assert.equal(run.usage.input, 10);
 	assert.equal(run.tokens, 15);
 });
@@ -122,11 +122,12 @@ test("provider errors are recorded and cleared by a later successful assistant m
 	assert.equal(run.assistantError, undefined);
 });
 
-test("snapshots omit the unbounded compatibility assistant text", () => {
+test("snapshots omit the internal live assistant preview", () => {
 	const run = details();
-	run.lastAssistantText = "private fallback";
+	run.liveAssistantPreview = "private preview";
 	const snapshot = snapshotRunData(run, { status: "running", generation: 1 });
 	assert.equal(Object.hasOwn(snapshot, "lastAssistantText"), false);
+	assert.equal(Object.hasOwn(snapshot, "liveAssistantPreview"), false);
 	assert.equal(snapshot.generation, 1);
 });
 

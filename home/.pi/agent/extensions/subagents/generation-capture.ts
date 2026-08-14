@@ -5,6 +5,7 @@ import {
 	readChildSessionEntriesSince,
 	type ChildSessionIdentity,
 	type SessionCheckpoint,
+	type SessionEntries,
 	type SessionEntriesRpc,
 } from "./session-cursors.ts";
 import { validateChildSessionIdentity } from "./result-store.ts";
@@ -74,10 +75,17 @@ export class GenerationCapture {
 		const previous = this.sessionCheckpoint;
 		const identity = this.sessionIdentity;
 		if (!start || !previous || !identity) return undefined;
-		const captured =
-			transport?.getState() === "open"
-				? await getRpcSessionEntries(transport, previous)
-				: await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
+		let captured: SessionEntries;
+		if (transport?.getState() === "open") {
+			try {
+				captured = await getRpcSessionEntries(transport, previous);
+			} catch (error) {
+				if (transport.getState() === "open") throw error;
+				captured = await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
+			}
+		} else {
+			captured = await readChildSessionEntriesSince(identity.sessionFile, previous, this.options.agentDir);
+		}
 		return this.captureEntries(identity, generation, resultId, start, captured.checkpoint, captured.entries);
 	}
 
@@ -89,8 +97,10 @@ export class GenerationCapture {
 		end: SessionCheckpoint,
 		entries: readonly SessionEntry[],
 	): CapturedGeneration {
-		this.generationEntries.push(...entries);
+		const generationEntries = [...this.generationEntries, ...entries];
+		const captured = captureGeneration(identity, generation, resultId, start, end, generationEntries);
+		this.generationEntries = generationEntries;
 		this.sessionCheckpoint = end;
-		return captureGeneration(identity, generation, resultId, start, end, this.generationEntries);
+		return captured;
 	}
 }

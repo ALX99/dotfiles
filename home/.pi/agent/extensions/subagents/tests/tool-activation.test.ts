@@ -164,11 +164,9 @@ test("routed questions and oversized results activate their matching tool", () =
 		result: {
 			generation: 1,
 			result_id: "a".repeat(64),
-			pages: 1,
 			complete: true,
 			total_bytes: Buffer.byteLength(oversizedText, "utf8"),
 			sha256: "a".repeat(64),
-			source: "pages",
 		},
 	});
 	assert.equal(requiresExactResultRead(oversized), true);
@@ -186,11 +184,9 @@ test("complete small results do not activate exact reading", () => {
 			result: {
 				generation: 1,
 				result_id: "a".repeat(64),
-				pages: 1,
 				complete: true,
 				total_bytes: 13,
 				sha256: "b".repeat(64),
-				source: "assistant",
 			},
 		}),
 		false,
@@ -202,11 +198,9 @@ test("complete small results do not activate exact reading", () => {
 				result: {
 					generation: 1,
 					result_id: "a".repeat(64),
-					pages: 1,
 					complete: true,
 					total_bytes: 12,
 					sha256: "b".repeat(64),
-					source: "assistant",
 				},
 			}),
 		),

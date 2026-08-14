@@ -1,17 +1,8 @@
 import type { ReadonlyRunDetails, RunUsage } from "./run-state.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
+import type { AgentPhase } from "./agent-state.ts";
 
-export type AgentLifecycle =
-	| { readonly phase: "created" }
-	| { readonly phase: "starting" }
-	| { readonly phase: "running" }
-	| { readonly phase: "idle" }
-	| { readonly phase: "failed"; readonly error: Error }
-	| { readonly phase: "aborted" }
-	| { readonly phase: "closing" }
-	| { readonly phase: "closed" };
-
-export type AgentStatus = Exclude<AgentLifecycle["phase"], "created" | "closing">;
+export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
 
 export interface AgentQuestion {
 	readonly question_id: string;
@@ -87,26 +78,7 @@ export class AgentWaitInterruptedError extends Error {
 	}
 }
 
-const ALLOWED_TRANSITIONS: Readonly<Record<AgentLifecycle["phase"], readonly AgentLifecycle["phase"][]>> = {
-	created: ["starting", "closing"],
-	starting: ["running", "idle", "failed", "aborted", "closing"],
-	running: ["idle", "failed", "aborted", "closing"],
-	idle: ["starting", "failed", "closing"],
-	failed: ["starting", "closing"],
-	aborted: ["idle", "failed", "starting", "closing"],
-	closing: ["closed"],
-	closed: [],
-};
-
-export function transitionLifecycle(current: AgentLifecycle, next: AgentLifecycle): AgentLifecycle {
-	if (current.phase === next.phase) return current;
-	if (!ALLOWED_TRANSITIONS[current.phase].includes(next.phase)) {
-		throw new Error(`Invalid agent lifecycle transition '${current.phase}' -> '${next.phase}'.`);
-	}
-	return next;
-}
-
-export function lifecycleStatus(lifecycle: AgentLifecycle): AgentStatus {
+export function lifecycleStatus(lifecycle: { readonly phase: AgentPhase }): AgentStatus {
 	switch (lifecycle.phase) {
 		case "created":
 		case "starting":
