@@ -10,30 +10,30 @@ mouse-hide-while-typing = true
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 custom-shader-animation = true
 
-# PS1 / LS_COLORS theme
-# Mirrors the xterm-256 colors used in home/.bashrc and home/.profile:
-# slate=245, red=203, green=114, yellow=179, blue=75, purple=141, cyan=109.
-palette = 0=#1f1f28
-palette = 1=#ff5f5f
-palette = 2=#87d787
-palette = 3=#d7af5f
-palette = 4=#5fafff
-palette = 5=#af87ff
-palette = 6=#87afaf
-palette = 7=#d7d7d7
-palette = 8=#8a8a8a
-palette = 9=#ff5f5f
-palette = 10=#87d787
-palette = 11=#d7af5f
-palette = 12=#5f87ff
-palette = 13=#af87ff
-palette = 14=#87afaf
-palette = 15=#ffffff
-background = #1d1d1f
-foreground = #d7d7d7
-cursor-color = #87afaf
-selection-background = #3b3b44
-selection-foreground = #d7d7d7
+# Twilight Bloom is shared with Pi, Herdr, Bash, LS_COLORS, and tmux.
+# The dark plum base lets the vivid rose, mint, amber, periwinkle, and orchid
+# accents carry meaning without relying on muted gray-blue distinctions.
+palette = 0=#22182d
+palette = 1=#ff6b8a
+palette = 2=#78e3b0
+palette = 3=#ffd36a
+palette = 4=#8fa8ff
+palette = 5=#e7a1ff
+palette = 6=#63e6e8
+palette = 7=#e8ddf1
+palette = 8=#6c5878
+palette = 9=#ff8fab
+palette = 10=#9af0c7
+palette = 11=#ffe59a
+palette = 12=#aec1ff
+palette = 13=#f0b8ff
+palette = 14=#9af3f2
+palette = 15=#fff7ff
+background = #18121f
+foreground = #f4eaff
+cursor-color = #ffe17d
+selection-background = #5a3b70
+selection-foreground = #fff7ff
 # background-opacity = 0.85
 # background-blur = true
 
