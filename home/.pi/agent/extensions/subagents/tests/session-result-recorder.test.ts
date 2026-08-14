@@ -4,12 +4,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { GenerationCapture } from "../generation-capture.ts";
+import { SessionResultRecorder } from "../session-result-recorder.ts";
 import type { SessionEntriesRpc } from "../session-cursors.ts";
 
 const resultId = "a".repeat(64);
 
-test("captures an initial boundary and settlement, then keeps follow-up cursors continuous", async () => {
+test("records an initial boundary and settlement, then keeps follow-up cursors continuous", async () => {
 	let entries: Array<Record<string, unknown>> = [];
 	let leafId: string | null = null;
 	const rpc: SessionEntriesRpc = {
@@ -18,7 +18,7 @@ test("captures an initial boundary and settlement, then keeps follow-up cursors 
 			return { entries: entries.slice(since + 1), leafId };
 		},
 	};
-	const capture = new GenerationCapture({
+	const capture = new SessionResultRecorder({
 		agentId: "worker",
 		agentDir: "/tmp",
 		validateSessionIdentity: async (id) => id,
@@ -43,7 +43,7 @@ test("does not commit checkpoint or buffered entries when capture fails", async 
 			return { entries: entries.slice(since + 1), leafId };
 		},
 	};
-	const capture = new GenerationCapture({
+	const capture = new SessionResultRecorder({
 		agentId: "worker",
 		agentDir: "/tmp",
 		validateSessionIdentity: async (id) => id,
@@ -63,7 +63,7 @@ test("failed capture recovers the session delta from disk after transport loss",
 	const manager = SessionManager.create(process.cwd(), path.join(agentDir, "subagent-sessions"));
 	const sessionFile = manager.getSessionFile();
 	assert.ok(sessionFile);
-	const capture = new GenerationCapture({
+	const capture = new SessionResultRecorder({
 		agentId: "worker",
 		agentDir,
 		validateSessionIdentity: async (id) => id,
@@ -91,7 +91,7 @@ test("failed capture recovers the session delta from disk after transport loss",
 		stopReason: "stop",
 		timestamp: Date.now(),
 	});
-	const recovered = await capture.captureFailedGeneration({ getState: () => "closed" } as never, 1, resultId);
+	const recovered = await capture.captureFailedGeneration({ isOpen: false } as never, 1, resultId);
 	assert.equal(recovered?.result.text, "recovered");
 });
 

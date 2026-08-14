@@ -1,7 +1,14 @@
 import type { AgentQuestion } from "./agent-types.ts";
 import type { MutableRunData, ReadonlyRunDetails } from "./run-state.ts";
 
-export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" | "aborted" | "closing" | "closed";
+/**
+ * A generation has one terminal lifecycle. Process ownership belongs to the
+ * enclosing child session, so it is deliberately not represented here.
+ */
+export type GenerationPhase = "starting" | "running" | "idle" | "failed" | "aborted";
+
+/** Lifecycle visible from the stable agent facade. */
+export type AgentPhase = "created" | GenerationPhase | "closing" | "closed";
 
 export interface QuestionSignal {
 	readonly promise: Promise<AgentQuestion>;
@@ -22,43 +29,39 @@ export interface RunCompletion {
 	settled: boolean;
 }
 
-interface StateBase {
+interface GenerationStateBase {
 	readonly generation: number;
 	readonly run: MutableRunData;
 }
 
-type ActivePhase = "starting" | "running" | "aborted";
+type ActiveGenerationPhase = "starting" | "running" | "aborted";
 
-export type ActiveAgentState<P extends ActivePhase = ActivePhase> = StateBase & {
+export type ActiveGenerationState<P extends ActiveGenerationPhase = ActiveGenerationPhase> = GenerationStateBase & {
 	readonly phase: P;
 	readonly completion: RunCompletion;
 	readonly question: QuestionInteraction;
 };
 
-type IdleAgentState = StateBase & { readonly phase: "idle"; readonly completion: RunCompletion };
-type FailedAgentState = StateBase & {
+export type IdleGenerationState = GenerationStateBase & { readonly phase: "idle"; readonly completion: RunCompletion };
+export type FailedGenerationState = GenerationStateBase & {
 	readonly phase: "failed";
 	readonly completion: RunCompletion;
 	readonly error: Error;
 	readonly recovery?: Promise<void>;
 };
-type ClosingAgentState = StateBase & { readonly phase: "closing"; readonly completion?: RunCompletion };
 
-export type AgentState =
-	| (StateBase & { readonly phase: "created"; readonly generation: 0 })
-	| ActiveAgentState<"starting">
-	| ActiveAgentState<"running">
-	| ActiveAgentState<"aborted">
-	| IdleAgentState
-	| FailedAgentState
-	| ClosingAgentState
-	| (StateBase & { readonly phase: "closed"; readonly completion?: RunCompletion });
+export type GenerationState =
+	| ActiveGenerationState<"starting">
+	| ActiveGenerationState<"running">
+	| ActiveGenerationState<"aborted">
+	| IdleGenerationState
+	| FailedGenerationState;
 
-export function isActiveState(state: AgentState): state is ActiveAgentState {
+export function isActiveGeneration(state: GenerationState): state is ActiveGenerationState {
 	return state.phase === "starting" || state.phase === "running" || state.phase === "aborted";
 }
 
-export function beginAgentRun(run: MutableRunData, completion: RunCompletion): ActiveAgentState<"starting"> {
+export function beginGeneration(run: MutableRunData, completion: RunCompletion): ActiveGenerationState<"starting"> {
 	return {
 		phase: "starting",
 		generation: completion.generation,
@@ -68,13 +71,13 @@ export function beginAgentRun(run: MutableRunData, completion: RunCompletion): A
 	};
 }
 
-export function markAgentRunning(state: ActiveAgentState<"starting">): ActiveAgentState<"running"> {
+export function markGenerationRunning(state: ActiveGenerationState<"starting">): ActiveGenerationState<"running"> {
 	return { ...state, phase: "running" };
 }
 
-export function markAgentAborted(
-	state: ActiveAgentState<"starting"> | ActiveAgentState<"running">,
-): ActiveAgentState<"aborted"> {
+export function markGenerationAborted(
+	state: ActiveGenerationState<"starting"> | ActiveGenerationState<"running">,
+): ActiveGenerationState<"aborted"> {
 	return {
 		...state,
 		phase: "aborted",
@@ -82,11 +85,16 @@ export function markAgentAborted(
 	};
 }
 
-export function updateAgentQuestion(state: ActiveAgentState, question: QuestionInteraction): ActiveAgentState {
+export function updateGenerationQuestion(
+	state: ActiveGenerationState,
+	question: QuestionInteraction,
+): ActiveGenerationState {
 	return { ...state, question };
 }
 
-export function markAgentIdle(state: ActiveAgentState<"starting"> | ActiveAgentState<"running">): IdleAgentState {
+export function markGenerationIdle(
+	state: ActiveGenerationState<"starting"> | ActiveGenerationState<"running">,
+): IdleGenerationState {
 	return {
 		phase: "idle",
 		generation: state.generation,
@@ -95,11 +103,11 @@ export function markAgentIdle(state: ActiveAgentState<"starting"> | ActiveAgentS
 	};
 }
 
-export function markAgentFailed(
-	state: ActiveAgentState | IdleAgentState,
+export function markGenerationFailed(
+	state: ActiveGenerationState | IdleGenerationState,
 	error: Error,
 	recovery?: Promise<void>,
-): FailedAgentState {
+): FailedGenerationState {
 	return {
 		phase: "failed",
 		generation: state.generation,
@@ -107,25 +115,6 @@ export function markAgentFailed(
 		completion: state.completion,
 		error,
 		...(recovery === undefined ? {} : { recovery }),
-	};
-}
-
-export function markAgentClosing(state: Exclude<AgentState, { readonly phase: "closed" }>): ClosingAgentState {
-	return {
-		phase: "closing",
-		generation: state.generation,
-		run: state.run,
-		...("completion" in state ? { completion: state.completion } : {}),
-	};
-}
-
-export function markAgentClosed(state: AgentState): AgentState {
-	if (state.phase !== "closing") throw new Error(`Invalid agent lifecycle transition '${state.phase}' -> 'closed'.`);
-	return {
-		phase: "closed",
-		generation: state.generation,
-		run: state.run,
-		...("completion" in state ? { completion: state.completion } : {}),
 	};
 }
 
