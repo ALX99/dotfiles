@@ -137,6 +137,29 @@ mac-system:
     echo 'System Settings → Keyboard → Text Input → Edit → + → Others → Colemak-DH ANSI'
     printf 'macOS system configuration completed.\n'
 
+# Generate the Karabiner-Elements configuration from its CUE source.
+karabiner-generate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    generated=$(mktemp)
+    trap 'rm -f "$generated"' EXIT
+    cue export misc/karabiner/karabiner.cue --expression config --out json | jq . > "$generated"
+    mv "$generated" .config/karabiner/karabiner.json
+    trap - EXIT
+
+# Verify the Karabiner CUE source and generated configuration are current.
+karabiner-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cue fmt --check --files misc/karabiner/karabiner.cue
+    cue vet misc/karabiner/karabiner.cue
+    generated=$(mktemp)
+    trap 'rm -f "$generated"' EXIT
+    cue export misc/karabiner/karabiner.cue --expression config --out json | jq . > "$generated"
+    diff -u .config/karabiner/karabiner.json "$generated"
+
 # Install pnpm dependencies for pi extensions.
 install-pi:
     cd "$HOME/.pi/agent/extensions" && pnpm install --frozen-lockfile
