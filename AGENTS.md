@@ -21,7 +21,7 @@ deliberately disables folding.
   generated reports, sessions, and evaluation runs are not committed.
 - `misc/` — machine-level Arch, systemd, XKB/keyd, and pacman assets.
 - The `codex-apply-patch` extension declares the `apply_patch` tool with a Lark
-  grammar via `constrainedSampling`; Pi 0.84.1 provides native grammar-tool
+  grammar via `constrainedSampling`; Pi 0.84.2 provides native grammar-tool
   support, so no patched pi-ai build is needed.
 - `.pkgList` — Arch package manifest used to provision a fresh system; see
   `misc/pacman-hooks` and `just linux-system` for related setup.
@@ -73,7 +73,7 @@ Run these from the repository root unless noted otherwise.
 - Pi extensions require Node 26+ and use strict TypeScript with NodeNext
   imports. Their package manager is pnpm; keep `pnpm-lock.yaml`,
   `pnpm-workspace.yaml` synchronized. Use tabs and let `oxfmt` format them.
-- Pi, Pi AI, and Pi TUI are pinned to `0.84.1`. Keep `pnpm-lock.yaml`,
+- Pi, Pi AI, and Pi TUI are pinned to `0.84.2`. Keep `pnpm-lock.yaml`,
   `pnpm-workspace.yaml`, and the `codex-apply-patch` tool grammar synchronized
   when upgrading Pi packages.
 - Colemak-DH navigation mappings span nvim, tmux, sail, keyd, Karabiner,
