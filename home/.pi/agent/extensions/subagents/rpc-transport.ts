@@ -100,17 +100,29 @@ export type ExtensionUiResponse =
 	| { readonly confirmed: boolean }
 	| { readonly cancelled: true };
 
+/**
+ * All child-process observations leave the transport through one channel.
+ * Responses stay private request-correlations; every unsolicited record and
+ * lifecycle event is ordered through this union.
+ */
+export type RpcTransportEvent =
+	| { readonly kind: "event"; readonly event: RpcEvent }
+	| { readonly kind: "agent-event"; readonly event: AgentEvent }
+	| { readonly kind: "ui-request"; readonly request: ExtensionUiRequest }
+	| { readonly kind: "oversized-record" }
+	| { readonly kind: "exit"; readonly error: Error | undefined };
+
 export interface RpcTransportOptions {
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly cwd: string;
 	readonly env: Readonly<Record<string, string>>;
 	readonly spawnProcess?: SpawnRpcProcess;
-	readonly onEvent: (event: RpcEvent) => void;
-	readonly onAgentEvent?: (event: AgentEvent) => void;
-	readonly onUiRequest?: (request: ExtensionUiRequest) => boolean;
-	readonly onOversizedRecord?: () => void;
-	readonly onExit: (error: Error | undefined) => void;
+	/**
+	 * Receives unsolicited child records in source order. Return true only to
+	 * claim a blocking UI request; unclaimed requests are cancelled safely.
+	 */
+	readonly onRecord: (event: RpcTransportEvent) => boolean | void;
 	readonly maxFrameBytes?: number;
 	readonly maxStderrBytes?: number;
 	readonly maxStderrLines?: number;
@@ -281,7 +293,7 @@ export class RpcTransport {
 			if (this.state === "failed" || this.state === "closed") return;
 			const framed = framer.push(raw);
 			for (let omitted = 0; omitted < framed.omittedRecords; omitted++) {
-				this.options.onOversizedRecord?.();
+				this.emitRecord({ kind: "oversized-record" });
 			}
 			for (const line of framed.lines) {
 				this.handleLine(line);
@@ -292,7 +304,7 @@ export class RpcTransport {
 			if (this.state === "failed" || this.state === "closed") return;
 			const framed = framer.end();
 			for (let omitted = 0; omitted < framed.omittedRecords; omitted++) {
-				this.options.onOversizedRecord?.();
+				this.emitRecord({ kind: "oversized-record" });
 			}
 			for (const line of framed.lines) this.handleLine(line);
 		});
@@ -328,22 +340,16 @@ export class RpcTransport {
 				return;
 			}
 			case "ui-request":
-				try {
-					if (this.options.onUiRequest?.(parsed.request) === true) return;
-				} catch (cause) {
-					this.fail(new Error("Subagent extension UI request handler failed.", { cause }));
-					return;
-				}
+				if (this.emitRecord({ kind: "ui-request", request: parsed.request })) return;
 				if (isBlockingUiMethod(parsed.request.method)) {
 					void this.respondToUi(parsed.request.id, { cancelled: true }).catch(() => {});
 				}
 				return;
 			case "event":
-				this.options.onEvent(parsed.event);
+				this.emitRecord({ kind: "event", event: parsed.event });
 				return;
 			case "agent-event":
-				if (this.options.onAgentEvent) this.options.onAgentEvent(parsed.event);
-				else this.options.onEvent(parsed.event);
+				this.emitRecord({ kind: "agent-event", event: parsed.event });
 				return;
 		}
 	}
@@ -417,7 +423,22 @@ export class RpcTransport {
 	private reportExit(error: Error | undefined): void {
 		if (this.exitReported) return;
 		this.exitReported = true;
-		this.options.onExit(error);
+		try {
+			this.options.onRecord({ kind: "exit", error });
+		} catch {
+			// The process already exited. A consumer failure cannot be recovered
+			// by changing its transport state, so do not create an unhandled
+			// callback error during teardown.
+		}
+	}
+
+	private emitRecord(event: Exclude<RpcTransportEvent, { readonly kind: "exit" }>): boolean {
+		try {
+			return this.options.onRecord(event) === true;
+		} catch (cause) {
+			this.fail(new Error("Subagent RPC record handler failed.", { cause }));
+			return false;
+		}
 	}
 
 	private takePending(id: string): PendingRequest | undefined {

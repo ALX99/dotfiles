@@ -5,12 +5,8 @@ import * as path from "node:path";
 import { after, test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry } from "../agent-registry.ts";
-import {
-	childEnvironment,
-	MAX_DIRECT_RPC_PROMPT_BYTES,
-	ManagedAgent as ProductionManagedAgent,
-	type ManagedAgentOptions,
-} from "../managed-agent.ts";
+import { ManagedAgent as ProductionManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
+import { childEnvironment, MAX_DIRECT_RPC_PROMPT_BYTES } from "../child-session.ts";
 import type { RpcEvent } from "../protocol.ts";
 import { RpcTransport, spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
@@ -160,8 +156,10 @@ function transport(events: RpcEvent[], onExit: (error: Error | undefined) => voi
 		args: ["-e", rpcScript],
 		cwd: process.cwd(),
 		env: testEnv,
-		onEvent: (event) => events.push(event),
-		onExit,
+		onRecord: (record) => {
+			if (record.kind === "event" || record.kind === "agent-event") events.push(record.event);
+			if (record.kind === "exit") onExit(record.error);
+		},
 	});
 }
 
@@ -197,8 +195,7 @@ test("RpcTransport handles child stdin EPIPE without an unhandled stream error",
 		args: ["-e", script],
 		cwd: process.cwd(),
 		env: testEnv,
-		onEvent: () => {},
-		onExit: () => {},
+		onRecord: () => {},
 	});
 	t.after(() => client.close());
 	await client.start();
