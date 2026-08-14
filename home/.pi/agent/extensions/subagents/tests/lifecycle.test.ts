@@ -5,9 +5,7 @@ import * as path from "node:path";
 import { after, test } from "node:test";
 import type { AgentConfig } from "../agents.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
-import { transitionLifecycle, type AgentSummary } from "../agent-types.ts";
 import { ManagedAgent as ProductionManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
-import type { ReadonlyRunDetails } from "../run-state.ts";
 import { spawnRpcProcess, type SpawnRpcProcess } from "../rpc-transport.ts";
 
 const testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-lifecycle-test-"));
@@ -16,21 +14,6 @@ after(() => fs.rmSync(testAgentDir, { recursive: true, force: true }));
 class ManagedAgent extends ProductionManagedAgent {
 	constructor(options: Omit<ManagedAgentOptions, "agentDir">) {
 		super({ ...options, agentDir: testAgentDir, validateSessionIdentity: async (identity) => identity });
-	}
-}
-
-class CountingManagedAgent extends ManagedAgent {
-	summaryCalls = 0;
-	detailsCalls = 0;
-
-	override summary(): AgentSummary {
-		this.summaryCalls++;
-		return super.summary();
-	}
-
-	override getDetails(): ReadonlyRunDetails {
-		this.detailsCalls++;
-		return super.getDetails();
 	}
 }
 
@@ -70,37 +53,11 @@ function agent(id: string, script = "process.stdin.resume(); setInterval(() => {
 
 async function waitForPhase(managed: ManagedAgent, phase: "running" | "failed"): Promise<void> {
 	for (let attempt = 0; attempt < 100; attempt++) {
-		if (managed.getLifecycle().phase === phase) return;
+		if (managed.phase === phase) return;
 		await new Promise((resolve) => setTimeout(resolve, 5));
 	}
 	assert.fail(`Agent did not reach lifecycle phase '${phase}'.`);
 }
-
-test("allowed lifecycle transitions are explicit and impossible transitions throw", () => {
-	let state = transitionLifecycle({ phase: "created" }, { phase: "starting" });
-	state = transitionLifecycle(state, { phase: "running" });
-	state = transitionLifecycle(state, { phase: "idle" });
-	state = transitionLifecycle(state, { phase: "starting" });
-	state = transitionLifecycle(state, { phase: "running" });
-	state = transitionLifecycle(state, { phase: "aborted" });
-	state = transitionLifecycle(state, { phase: "idle" });
-	state = transitionLifecycle(state, { phase: "closing" });
-	state = transitionLifecycle(state, { phase: "closed" });
-	assert.equal(state.phase, "closed");
-	assert.throws(() => transitionLifecycle({ phase: "closed" }, { phase: "starting" }), /invalid/i);
-	assert.equal(
-		transitionLifecycle({ phase: "starting" }, { phase: "failed", error: new Error("startup") }).phase,
-		"failed",
-	);
-	assert.equal(
-		transitionLifecycle({ phase: "running" }, { phase: "failed", error: new Error("exit") }).phase,
-		"failed",
-	);
-	assert.equal(
-		transitionLifecycle({ phase: "aborted" }, { phase: "failed", error: new Error("abort failed") }).phase,
-		"failed",
-	);
-});
 
 test("close while starting settles startup and reaches closed", async () => {
 	const managed = agent("close-starting", "process.stdin.resume(); setInterval(() => {}, 100)");
@@ -108,7 +65,7 @@ test("close while starting settles startup and reaches closed", async () => {
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	await managed.close();
 	await starting;
-	assert.equal(managed.getLifecycle().phase, "closed");
+	assert.equal(managed.phase, "closed");
 });
 
 test("ManagedAgent subscribers receive independent emitted run snapshots", async (t) => {
@@ -129,7 +86,7 @@ process.stdin.on('data', chunk => {
 `;
 	const managed = agent("subscriber", script);
 	t.after(() => managed.close());
-	const snapshots: ReturnType<ManagedAgent["getDetails"]>[] = [];
+	const snapshots: Array<ReturnType<ManagedAgent["view"]>["details"]> = [];
 	const unsubscribe = managed.subscribe((details) => snapshots.push(details));
 	t.after(unsubscribe);
 
@@ -138,14 +95,15 @@ process.stdin.on('data', chunk => {
 	assert.ok(snapshots.some((details) => details.status === "starting"));
 	assert.equal(snapshots.at(-1)?.status, "idle");
 	assert.equal(settled.status, "idle");
-	assert.notEqual(snapshots.at(-1), managed.getDetails());
-	assert.notEqual(snapshots.at(-1)?.recentTools, managed.getDetails().recentTools);
+	assert.notEqual(snapshots.at(-1), managed.view().details);
+	assert.notEqual(snapshots.at(-1)?.recentTools, managed.view().details.recentTools);
 
 	const followUp = await managed.followUp("next work", "next task", false);
 	assert.equal(followUp.taskName, "next task");
-	assert.equal(managed.summary().task_name, "next task");
-	assert.equal(managed.getDetails().taskName, "next task");
-	assert.equal(managed.summary().task_name, managed.getDetails().taskName);
+	const view = managed.view();
+	assert.equal(view.summary.task_name, "next task");
+	assert.equal(view.details.taskName, "next task");
+	assert.equal(view.summary.task_name, view.details.taskName);
 });
 
 test("duplicate settlement emits one background completion", async (t) => {
@@ -226,7 +184,7 @@ process.stdin.on('data', chunk => {
 	assert.equal(registry.capacity().length, 0);
 	assert.throws(() => registry.getLive(managed.id), /closed/);
 	await registry.close(managed.id);
-	assert.equal(registry.summary(managed.id).result?.source, "assistant");
+	assert.equal(registry.summary(managed.id).result?.complete, true);
 });
 
 test("a cancelled foreground wait promotes the eventual child completion", async (t) => {
@@ -434,33 +392,6 @@ test("registry replacement closes the replaced agent", async () => {
 	await registry.closeAll();
 });
 
-test("registry reads live results from one coherent view projection", async () => {
-	const managed = new CountingManagedAgent({
-		id: "projection",
-		defaultCwd: process.cwd(),
-		agent: config,
-		resolvedRun,
-		childContext,
-		retain: true,
-		spawnProcess: fakeSpawner("process.stdin.resume(); setInterval(() => {}, 100)"),
-	});
-	const registry = new AgentRegistry();
-	await registry.add(managed);
-	try {
-		const summary = registry.summary(managed.id);
-		assert.equal(summary.agent_id, managed.id);
-		assert.equal(managed.detailsCalls, 0);
-		assert.deepEqual(registry.list(), [summary]);
-		assert.equal(managed.detailsCalls, 0);
-		assert.equal(managed.summaryCalls, 2);
-		await registry.readResult(managed.id);
-		assert.equal(managed.summaryCalls, 3);
-		assert.equal(managed.detailsCalls, 1);
-	} finally {
-		await registry.closeAll();
-	}
-});
-
 test("registry closeAll cleans every entry and reports partial failures", async () => {
 	const registry = new AgentRegistry();
 	const failing = agent("failing");
@@ -487,7 +418,7 @@ test("registry retains bounded archived data without exposing fake live-agent me
 		closed.push(managed);
 		await registry.add(managed);
 		await registry.close(managed.id);
-		assert.equal(managed.getLifecycle().phase, "closed");
+		assert.equal(managed.phase, "closed");
 	}
 
 	assert.equal(registry.list().length, DEFAULT_MAX_CLOSED_AGENT_HISTORY);
@@ -512,6 +443,6 @@ test("registry closeAll closes live agents while discarding archived summaries",
 	await registry.close("archived");
 	await registry.add(live);
 	await registry.closeAll();
-	assert.equal(live.getLifecycle().phase, "closed");
+	assert.equal(live.phase, "closed");
 	assert.deepEqual(registry.list(), []);
 });

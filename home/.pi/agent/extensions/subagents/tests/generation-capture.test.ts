@@ -34,6 +34,29 @@ test("captures an initial boundary and settlement, then keeps follow-up cursors 
 	assert.equal((await capture.captureSettlement(rpc, 2, resultId)).result.text, "two");
 });
 
+test("does not commit checkpoint or buffered entries when capture fails", async () => {
+	let entries: Array<Record<string, unknown>> = [];
+	let leafId: string | null = null;
+	const rpc: SessionEntriesRpc = {
+		async request(command) {
+			const since = typeof command.since === "string" ? entries.findIndex((entry) => entry.id === command.since) : -1;
+			return { entries: entries.slice(since + 1), leafId };
+		},
+	};
+	const capture = new GenerationCapture({
+		agentId: "worker",
+		agentDir: "/tmp",
+		validateSessionIdentity: async (id) => id,
+	});
+	await capture.setIdentity({ sessionId: "session", sessionFile: "/tmp/session.jsonl" });
+	await capture.prepareGeneration(rpc);
+	entries = [message("one", null)];
+	leafId = "missing";
+	await assert.rejects(capture.captureSettlement(rpc, 1, resultId), /outside its append range/);
+	leafId = "one";
+	assert.equal((await capture.captureSettlement(rpc, 1, resultId)).result.text, "one");
+});
+
 test("failed capture recovers the session delta from disk after transport loss", async (t) => {
 	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "generation-capture-test-"));
 	t.after(() => fs.rm(agentDir, { recursive: true, force: true }));

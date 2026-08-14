@@ -6,13 +6,12 @@ import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { AgentRegistry, SUBAGENT_SETTLEMENT_CUSTOM_TYPE } from "../agent-registry.ts";
+import { ManagedAgent } from "../managed-agent.ts";
 import {
 	captureGeneration,
 	paginateStoredResult,
-	readLegacyResultPages,
 	readLocatedAgentResult,
 	resultPreview,
-	ResultCatalog,
 	type GenerationResultLocator,
 } from "../result-store.ts";
 import type { SessionCheckpoint } from "../session-cursors.ts";
@@ -27,11 +26,9 @@ test("live result previews remain bounded and explicitly incomplete", () => {
 			generation: 1,
 			resultId: "a".repeat(64),
 			text: preview,
-			pageCount: 0,
 			complete: false,
 			totalBytes: Buffer.byteLength(preview, "utf8"),
 			sha256: createHash("sha256").update(preview).digest("hex"),
-			source: "assistant",
 		},
 		{},
 	);
@@ -151,52 +148,62 @@ test("restart restoration preserves multiple native generations for one agent", 
 			entriesAfter(manager.getEntries(), start),
 		).locator;
 	});
-	const parent: SessionEntry[] = locators.map((locator, index) => ({
-		type: "custom",
-		id: `settlement-${index}`,
-		parentId: index === 0 ? null : `settlement-${index - 1}`,
-		timestamp: new Date().toISOString(),
-		customType: SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
-		data: { agent_id: "worker-1", result_locator: locator },
-	}));
+	const parent: SessionEntry[] = [
+		{
+			type: "custom",
+			id: "settlement-0",
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			customType: SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
+			data: { agent_id: "worker-1", result_locator: locators[0]! },
+		},
+		{
+			type: "message",
+			id: "tool-result-1",
+			parentId: "settlement-0",
+			timestamp: new Date().toISOString(),
+			message: {
+				role: "toolResult",
+				toolCallId: "wait-1",
+				toolName: "wait_agent",
+				content: [],
+				isError: false,
+				timestamp: Date.now(),
+				details: { summaries: [{ agent_id: "worker-1", result_locator: locators[1]! }] },
+			},
+		},
+	];
 	const registry = new AgentRegistry(agentDir);
 	assert.equal(registry.hasStoredResults(), false);
 	assert.equal(registry.restoreResultLocators(parent), 2);
 	assert.equal(registry.hasStoredResults(), true);
 	assert.equal((await registry.readResult("worker-1", { generation: 1 })).text, "generation 1");
 	assert.equal((await registry.readResult("worker-1", { generation: 2 })).text, "generation 2");
-});
 
-test("catalog fallbacks keep settled results readable without native locators", async (t) => {
-	const { agentDir, manager } = await session(t);
-	manager.appendMessage(assistant("recovered", 1));
-	const catalog = new ResultCatalog(agentDir);
-	const result = await catalog.readResult(
-		"failed-agent",
-		{},
-		{
-			sessionFile: sessionFile(manager),
-			generation: 1,
-			resultId: "e".repeat(64),
+	const live = new ManagedAgent({
+		id: "worker-1",
+		agentDir,
+		defaultCwd: process.cwd(),
+		agent: {
+			name: "worker",
+			description: "test",
+			systemPrompt: "",
+			filePath: "worker.md",
 		},
-	);
-	assert.equal(result.text, "recovered");
-	assert.equal(result.complete, true);
-});
-
-test("v1 custom result pages and pagination remain readable", () => {
-	const resultId = "c".repeat(64);
-	const first = "legacy 🙂 ";
-	const second = "result";
-	const result = readLegacyResultPages(
-		[legacyPage("one", 0, first, false, first, resultId), legacyPage("two", 1, second, true, first + second, resultId)],
-		3,
-		resultId,
-	);
-	const page = paginateStoredResult("worker", result, { maxBytes: 8 });
-	assert.equal(page.text, "legacy ");
-	assert.ok(page.next_cursor);
-	assert.equal(paginateStoredResult("worker", result, { cursor: page.next_cursor, maxBytes: 8 }).text, "🙂 res");
+		resolvedRun: {
+			agent: "worker",
+			profile: "balanced",
+			model: "provider/model",
+			effectiveThinking: "medium",
+			contextWindow: 128_000,
+		},
+		childContext: { agent: "worker", profile: "balanced" },
+		retain: true,
+	});
+	await registry.add(live);
+	registry.restoreResultLocators(parent);
+	await assert.rejects(registry.readResult("worker-1"), /generation 0/);
+	await registry.closeAll();
 });
 
 async function session(t: { after(callback: () => void | Promise<void>): void }) {
@@ -234,39 +241,6 @@ function assistant(text: string, timestamp: number) {
 		stopReason: "stop" as const,
 		timestamp,
 	};
-}
-
-function legacyPage(
-	id: string,
-	pageIndex: number,
-	page: string,
-	final: boolean,
-	total: string,
-	resultId: string,
-): SessionEntry {
-	return {
-		type: "custom",
-		id,
-		parentId: null,
-		timestamp: new Date().toISOString(),
-		customType: "subagent-result-page",
-		data: {
-			version: 1,
-			generation: 3,
-			resultId,
-			pageIndex,
-			final,
-			page,
-			pageBytes: Buffer.byteLength(page),
-			pageSha256: hash(page),
-			totalBytes: Buffer.byteLength(total),
-			totalSha256: hash(total),
-		},
-	};
-}
-
-function hash(value: string): string {
-	return createHash("sha256").update(value).digest("hex");
 }
 
 function sessionFile(manager: SessionManager): string {

@@ -16,7 +16,7 @@ This Stow-managed personal repository holds shell tooling, desktop applications,
 
 `just install` restows the three user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. `Justfile` is the source for installation and host setup. GitHub Actions runs extension checks for extension changes and ShellCheck for all changes.
 
-Within Pi extensions, session snapshots are authoritative for branch-local plan state; `plan/store.ts` writes durable mirrors under `~/.pi/agent/plans/`. `subagents/result-store.ts` owns the `ResultCatalog`: native session result locators preserve generation results across restart, while legacy custom result pages are compatibility-only reads. Role prompts in `subagents/agents/` are separate from the runtime and transport implementation.
+Within Pi extensions, session snapshots are authoritative for branch-local plan state; `plan/store.ts` writes durable mirrors under `~/.pi/agent/plans/`. `subagents/agent-state.ts` owns each child’s lifecycle, generation, completion, and question state; `subagents/result-store.ts` indexes native child-session locators for exact generation results across restart. Role prompts in `subagents/agents/` are separate from the runtime and transport implementation.
 
 ## Where to Start
 

@@ -139,10 +139,6 @@ export const WaitAgentParamsSchema = Type.Object(
 );
 export type WaitAgentParams = Static<typeof WaitAgentParamsSchema>;
 
-export function createWaitAgentSchema(): typeof WaitAgentParamsSchema {
-	return WaitAgentParamsSchema;
-}
-
 export const ListAgentsParamsSchema = Type.Object(
 	{
 		closed_limit: Type.Optional(

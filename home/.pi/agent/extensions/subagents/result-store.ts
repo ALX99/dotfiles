@@ -2,13 +2,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { getAgentDir, SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { z } from "zod";
 import type { RunUsage } from "./run-state.ts";
 import type { ChildSessionIdentity, SessionCheckpoint } from "./session-cursors.ts";
 
-export const RESULT_PAGE_CUSTOM_TYPE = "subagent-result-page";
 export const SUBAGENT_SETTLEMENT_CUSTOM_TYPE = "subagent-settlement";
-export const RESULT_PAGE_MAX_BYTES = 32 * 1024;
 export const RESULT_READ_MIN_BYTES = 4;
 export const RESULT_READ_DEFAULT_BYTES = 6 * 1024;
 export const RESULT_READ_MAX_BYTES = 6 * 1024;
@@ -17,28 +14,13 @@ export const RESULT_PREVIEW_MAX_LINES = 100;
 export const RESULT_PREVIEW_TRUNCATION_NOTICE = "\n[Result preview truncated; use read_agent_result for exact output.]";
 
 const RESULT_ID_PATTERN = /^[0-9a-f]{64}$/;
-const ResultPageDataSchema = z.strictObject({
-	version: z.literal(1),
-	generation: z.number().int().positive(),
-	resultId: z.string().regex(RESULT_ID_PATTERN),
-	pageIndex: z.number().int().nonnegative(),
-	final: z.boolean(),
-	page: z.string(),
-	pageBytes: z.number().int().nonnegative().max(RESULT_PAGE_MAX_BYTES),
-	pageSha256: z.string().regex(RESULT_ID_PATTERN),
-	totalBytes: z.number().int().nonnegative(),
-	totalSha256: z.string().regex(RESULT_ID_PATTERN),
-});
-
 export interface StoredAgentResult {
 	readonly generation: number;
 	readonly resultId: string;
 	readonly text: string;
-	readonly pageCount: number;
 	readonly complete: boolean;
 	readonly totalBytes: number;
 	readonly sha256: string;
-	readonly source: "pages" | "assistant";
 }
 
 export interface GenerationResultLocator {
@@ -53,14 +35,6 @@ export interface GenerationResultLocator {
 	readonly resultSha256: string;
 }
 
-/** Historical locator owned by the result catalog. */
-export interface ResultLocator {
-	readonly sessionFile: string;
-	readonly generation: number;
-	readonly resultId?: string;
-	readonly native?: GenerationResultLocator;
-}
-
 export interface CapturedGeneration {
 	readonly result: StoredAgentResult;
 	readonly locator: GenerationResultLocator;
@@ -71,11 +45,9 @@ export interface CapturedGeneration {
 export interface AgentResultReference {
 	readonly generation: number;
 	readonly result_id: string;
-	readonly pages: number;
 	readonly complete: boolean;
 	readonly total_bytes: number;
 	readonly sha256: string;
-	readonly source: StoredAgentResult["source"];
 }
 
 export interface ResultPage {
@@ -88,10 +60,8 @@ export interface ResultPage {
 	readonly next_cursor?: string;
 	readonly done: boolean;
 	readonly complete: boolean;
-	readonly pages: number;
 	readonly total_bytes: number;
 	readonly sha256: string;
-	readonly source: StoredAgentResult["source"];
 }
 
 /** Presentation-only text; the persisted result remains available by locator. */
@@ -127,11 +97,9 @@ export function resultReference(result: StoredAgentResult): AgentResultReference
 	return Object.freeze({
 		generation: result.generation,
 		result_id: result.resultId,
-		pages: result.pageCount,
 		complete: result.complete,
 		total_bytes: result.totalBytes,
 		sha256: result.sha256,
-		source: result.source,
 	});
 }
 
@@ -174,14 +142,14 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 }
 
 export class ResultCatalog {
-	private readonly locators = new Map<string, Map<number, ResultLocator>>();
+	private readonly locators = new Map<string, Map<number, GenerationResultLocator>>();
 	private readonly agentDir: string;
 
 	constructor(agentDir = getAgentDir()) {
 		this.agentDir = agentDir;
 	}
 
-	record(agentId: string, locator: ResultLocator): void {
+	record(agentId: string, locator: GenerationResultLocator): void {
 		let generations = this.locators.get(agentId);
 		if (!generations) {
 			generations = new Map();
@@ -191,12 +159,7 @@ export class ResultCatalog {
 	}
 
 	recordGeneration(agentId: string, captured: CapturedGeneration): void {
-		this.record(agentId, {
-			sessionFile: captured.locator.sessionFile,
-			generation: captured.locator.generation,
-			resultId: captured.locator.resultId,
-			native: captured.locator,
-		});
+		this.record(agentId, captured.locator);
 	}
 
 	forget(agentId: string): void {
@@ -211,10 +174,6 @@ export class ResultCatalog {
 		let count = 0;
 		for (const generations of this.locators.values()) count += generations.size;
 		return count;
-	}
-
-	has(agentId: string, generation: number): boolean {
-		return this.locators.get(agentId)?.has(generation) ?? false;
 	}
 
 	restore(entries: readonly SessionEntry[]): number {
@@ -237,24 +196,17 @@ export class ResultCatalog {
 			readonly offset?: number;
 			readonly maxBytes?: number;
 		} = {},
-		fallback?: ResultLocator,
 	): Promise<ResultPage> {
 		const generations = this.locators.get(agentId);
-		if (!generations && fallback === undefined) throw new Error(`Unknown agent_id '${agentId}'.`);
-		const generation =
-			options.generation ??
-			fallback?.generation ??
-			(generations === undefined ? undefined : this.latestGeneration(generations));
-		if (generation === undefined) throw new Error(`Agent ${agentId} has no result locator.`);
-		const locator = generations?.get(generation) ?? (fallback?.generation === generation ? fallback : undefined);
+		if (!generations) throw new Error(`Unknown agent_id '${agentId}'.`);
+		const generation = options.generation ?? this.latestGeneration(generations);
+		const locator = generations.get(generation);
 		if (!locator) throw new Error(`Agent ${agentId} has no result locator for generation ${generation}.`);
-		const result = locator.native
-			? await readLocatedAgentResult(locator.native, this.agentDir)
-			: await readStoredAgentResult(locator.sessionFile, generation, locator.resultId, this.agentDir);
+		const result = await readLocatedAgentResult(locator, this.agentDir);
 		return paginateStoredResult(agentId, result, options);
 	}
 
-	private latestGeneration(locators: ReadonlyMap<number, ResultLocator>): number {
+	private latestGeneration(locators: ReadonlyMap<number, GenerationResultLocator>): number {
 		const generations = [...locators.keys()];
 		if (generations.length === 0) throw new Error("Stored agent has no result locators.");
 		return Math.max(...generations);
@@ -266,14 +218,17 @@ const LOCATOR_TOOL_NAMES = new Set([
 	"followup_agent",
 	"wait_agent",
 	"list_agents",
+	"send_agent",
+	"answer_agent",
 	"close_agent",
 	"interrupt_agent",
 ]);
 
-function locatorCandidates(entry: SessionEntry): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+function locatorCandidates(
+	entry: SessionEntry,
+): Array<{ readonly agentId: string; readonly locator: GenerationResultLocator }> {
 	let details: unknown;
 	if (entry.type === "custom" && entry.customType === SUBAGENT_SETTLEMENT_CUSTOM_TYPE) details = entry.data;
-	else if (entry.type === "custom_message" && entry.customType === "subagent-completion") details = entry.details;
 	else if (
 		entry.type === "message" &&
 		entry.message.role === "toolResult" &&
@@ -286,7 +241,7 @@ function locatorCandidates(entry: SessionEntry): Array<{ readonly agentId: strin
 
 function collectLocatorCandidates(
 	value: unknown,
-): Array<{ readonly agentId: string; readonly locator: ResultLocator }> {
+): Array<{ readonly agentId: string; readonly locator: GenerationResultLocator }> {
 	if (Array.isArray(value)) return value.flatMap((item) => collectLocatorCandidates(item));
 	if (!isRecord(value)) return [];
 	const nested = Array.isArray(value.summaries)
@@ -297,31 +252,9 @@ function collectLocatorCandidates(
 	if (nativeValue !== undefined) {
 		const native = parseGenerationResultLocator(nativeValue);
 		if (agentId === undefined || native === undefined) return nested;
-		return [
-			...nested,
-			{
-				agentId,
-				locator: { sessionFile: native.sessionFile, generation: native.generation, resultId: native.resultId, native },
-			},
-		];
+		return [...nested, { agentId, locator: native }];
 	}
-	const sessionFile = stringField(value, "session_file", "sessionFile");
-	const generation = value.generation;
-	if (
-		agentId === undefined ||
-		sessionFile === undefined ||
-		typeof generation !== "number" ||
-		!Number.isInteger(generation) ||
-		generation < 1
-	)
-		return nested;
-	const result = isRecord(value.result) ? value.result : undefined;
-	const resultId = stringField(value, "resultId") ?? (result ? stringField(result, "result_id") : undefined);
-	if (resultId !== undefined && !RESULT_ID_PATTERN.test(resultId)) return nested;
-	return [
-		...nested,
-		{ agentId, locator: { sessionFile, generation, ...(resultId === undefined ? {} : { resultId }) } },
-	];
+	return nested;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -373,59 +306,6 @@ export function captureGeneration(
 	});
 }
 
-/** Isolated compatibility reader for pre-migration custom result pages. */
-export function readLegacyResultPages(
-	entries: readonly SessionEntry[],
-	generation: number,
-	resultId: string,
-): StoredAgentResult {
-	assertResultId(resultId);
-	const pages = entries.flatMap((entry) => {
-		if (entry.type !== "custom" || entry.customType !== RESULT_PAGE_CUSTOM_TYPE) return [];
-		const parsed = ResultPageDataSchema.safeParse(entry.data);
-		if (!parsed.success) throw new Error("Stored result page metadata is malformed.");
-		return parsed.data.generation === generation && parsed.data.resultId === resultId ? [parsed.data] : [];
-	});
-	let text = "";
-	let complete = false;
-	for (const [index, page] of pages.entries()) {
-		if (page.pageIndex !== index) throw new Error(`Stored result pages are out of order at page ${index}.`);
-		if (complete) throw new Error("Stored result has pages after its final page.");
-		if (Buffer.byteLength(page.page, "utf8") !== page.pageBytes || sha256(page.page) !== page.pageSha256) {
-			throw new Error(`Stored result page ${index} failed its integrity check.`);
-		}
-		text += page.page;
-		if (Buffer.byteLength(text, "utf8") !== page.totalBytes || sha256(text) !== page.totalSha256) {
-			throw new Error(`Stored result page ${index} failed its cumulative integrity check.`);
-		}
-		complete = page.final;
-	}
-	return Object.freeze({
-		generation,
-		resultId,
-		text,
-		pageCount: pages.length,
-		complete,
-		totalBytes: Buffer.byteLength(text, "utf8"),
-		sha256: sha256(text),
-		source: "pages",
-	});
-}
-
-export async function readStoredAgentResult(
-	sessionFile: string,
-	generation: number,
-	resultId: string | undefined,
-	agentDir = getAgentDir(),
-): Promise<StoredAgentResult> {
-	const manager = await openValidatedChildSession(sessionFile, agentDir);
-	const entries = manager.getEntries();
-	const resolvedResultId = resultId ?? resultIdForGeneration(entries, generation);
-	const legacy = readLegacyResultPages(entries, generation, resolvedResultId);
-	if (legacy.pageCount > 0) return legacy;
-	return storedResultFromActiveBranch(manager.getBranch(), generation, resolvedResultId);
-}
-
 export async function readLocatedAgentResult(
 	locator: GenerationResultLocator,
 	agentDir = getAgentDir(),
@@ -447,23 +327,14 @@ export async function readLocatedAgentResult(
 	return result;
 }
 
-function storedResult(
-	generation: number,
-	resultId: string,
-	text: string,
-	pageCount: number,
-	complete: boolean,
-	source: StoredAgentResult["source"],
-): StoredAgentResult {
+function storedResult(generation: number, resultId: string, text: string, complete: boolean): StoredAgentResult {
 	return Object.freeze({
 		generation,
 		resultId,
 		text,
-		pageCount,
 		complete,
 		totalBytes: Buffer.byteLength(text, "utf8"),
 		sha256: sha256(text),
-		source,
 	});
 }
 
@@ -476,7 +347,7 @@ function storedResultFromActiveBranch(
 	const text = assistantText(assistant) ?? lastAssistantText(entries) ?? "";
 	const complete =
 		assistant?.type === "message" && assistant.message.role === "assistant" && assistant.message.stopReason === "stop";
-	return storedResult(generation, resultId, text, 0, complete, "assistant");
+	return storedResult(generation, resultId, text, complete);
 }
 
 function resultEntryId(entries: readonly SessionEntry[]): string | null {
@@ -644,10 +515,8 @@ export function paginateStoredResult(
 		...(done ? {} : { next_cursor: formatResultCursor(result.resultId, nextOffset) }),
 		done,
 		complete: result.complete,
-		pages: result.pageCount,
 		total_bytes: result.totalBytes,
 		sha256: result.sha256,
-		source: result.source,
 	});
 }
 
@@ -706,25 +575,6 @@ export async function validateChildSessionIdentity(
 async function openValidatedChildSession(sessionFile: string, agentDir: string): Promise<SessionManager> {
 	const validated = await validateChildSessionPath(sessionFile, agentDir);
 	return SessionManager.open(validated);
-}
-
-function resultIdForGeneration(entries: readonly SessionEntry[], generation: number): string {
-	const resultIds = new Set<string>();
-	for (const entry of entries) {
-		if (entry.type === "custom" && entry.customType === RESULT_PAGE_CUSTOM_TYPE) {
-			const parsed = ResultPageDataSchema.safeParse(entry.data);
-			if (!parsed.success) throw new Error("Stored result page metadata is malformed.");
-			if (parsed.data.generation === generation) resultIds.add(parsed.data.resultId);
-		}
-	}
-	if (resultIds.size !== 1) {
-		throw new Error(
-			resultIds.size === 0
-				? `No persisted result pages identify generation ${generation}.`
-				: `Generation ${generation} has conflicting result identities.`,
-		);
-	}
-	return [...resultIds][0]!;
 }
 
 function childRunStats(entries: readonly SessionEntry[]): {

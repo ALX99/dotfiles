@@ -73,7 +73,8 @@ export interface MutableRunData {
 	toolCount: number;
 	recentTools: Array<{ name: string; argsPreview: string }>;
 	lastMessage: string;
-	lastAssistantText: string;
+	/** Bounded assistant text used to render a live result before settlement. */
+	liveAssistantPreview: string;
 	tokens: number;
 	usage: RunUsage;
 	contextWindow?: number;
@@ -92,7 +93,7 @@ export interface RunDetails extends MutableRunData {
 }
 
 export type ReadonlyRunDetails = Readonly<
-	Omit<RunDetails, "recentTools" | "usage" | "lastAssistantText"> & {
+	Omit<RunDetails, "recentTools" | "usage" | "liveAssistantPreview"> & {
 		readonly recentTools: readonly Readonly<{ name: string; argsPreview: string }>[];
 		readonly usage: Readonly<RunUsage>;
 	}
@@ -125,7 +126,7 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		toolCount: 0,
 		recentTools: [],
 		lastMessage: "",
-		lastAssistantText: "",
+		liveAssistantPreview: "",
 		tokens: 0,
 		usage: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 		resultId: params.resultId,
@@ -140,7 +141,7 @@ export interface RunSnapshotState {
 }
 
 export function snapshotRunData(details: MutableRunData, state: RunSnapshotState = {}): ReadonlyRunDetails {
-	const { lastAssistantText: _lastAssistantText, ...publicDetails } = details;
+	const { liveAssistantPreview: _liveAssistantPreview, ...publicDetails } = details;
 	return {
 		...publicDetails,
 		...(state.agentId === undefined ? {} : { agentId: state.agentId }),
@@ -152,8 +153,8 @@ export function snapshotRunData(details: MutableRunData, state: RunSnapshotState
 	};
 }
 
-/** Fold bounded live telemetry. Canonical terminal results are captured from
- * persisted result pages only after the child settles. */
+/** Fold bounded live telemetry. Canonical terminal results come from the
+ * persisted child session after settlement. */
 export function foldAgentEvent(event: AgentEvent, details: MutableRunData): void {
 	switch (event.type) {
 		case "agent_start":
@@ -211,7 +212,7 @@ function ingestMessage(msg: WireMessage, details: MutableRunData): void {
 		}
 	}
 	if (textParts.length === 0) return;
-	details.lastAssistantText = textParts.join("\n");
+	details.liveAssistantPreview = retainedText(textParts.join("\n"), MAX_RETAINED_EVENT_TEXT_CHARACTERS);
 }
 
 export function argsPreview(args: unknown): string {

@@ -5,7 +5,6 @@ import type { ReadonlyRunDetails } from "./run-state.ts";
 import {
 	ResultCatalog,
 	readChildTranscript,
-	type ResultLocator,
 	type ResultPage,
 	SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
 } from "./result-store.ts";
@@ -89,20 +88,11 @@ export class AgentRegistry {
 		const entry = this.entries.get(id);
 		if (!entry) return this.resultCatalog.readResult(id, options);
 		const view = entry.kind === "live" ? liveAgentView(entry.agent) : entry.view;
-		const fallback = resultLocator(view);
 		const generation = options.generation ?? view.summary.generation;
-		if (entry.kind === "live" && generation !== undefined && entry.agent.hasPendingResult(generation)) {
+		if (entry.kind === "live" && entry.agent.hasPendingResult(generation)) {
 			return entry.agent.readLiveResultPreview(options);
 		}
-		if (
-			entry.kind === "live" &&
-			generation !== undefined &&
-			generation === view.summary.generation &&
-			!this.resultCatalog.has(id, generation)
-		) {
-			return entry.agent.readSettledResult(options);
-		}
-		return this.resultCatalog.readResult(id, options, fallback);
+		return this.resultCatalog.readResult(id, { ...options, generation });
 	}
 
 	restoreResultLocators(entries: readonly SessionEntry[]): number {
@@ -144,7 +134,7 @@ export class AgentRegistry {
 		try {
 			await entry.agent.close();
 		} finally {
-			if (entry.agent.getLifecycle().phase === "closed") this.archive(entry.agent);
+			if (entry.agent.phase === "closed") this.archive(entry.agent);
 		}
 	}
 
@@ -175,14 +165,8 @@ export class AgentRegistry {
 	}
 
 	private handleAgentUpdate(agent: ManagedAgent): void {
-		if (agent.getLifecycle().phase === "closed") this.archive(agent);
-		else {
-			if (agent.getLifecycle().phase === "failed") {
-				const fallback = resultLocator(liveAgentView(agent));
-				if (fallback) this.resultCatalog.record(agent.id, fallback);
-			}
-			this.emit();
-		}
+		if (agent.phase === "closed") this.archive(agent);
+		else this.emit();
 	}
 
 	private archive(agent: ManagedAgent): void {
@@ -195,8 +179,6 @@ export class AgentRegistry {
 			summary: { ...liveView.summary, status: "closed" },
 			details: { ...liveView.details, status: "closed", aborted: false },
 		};
-		const fallback = resultLocator(view);
-		if (fallback) this.resultCatalog.record(agent.id, fallback);
 		this.entries.set(agent.id, { kind: "archived", view });
 		this.removeClosedAgentId(agent.id);
 		this.closedAgentIds.push(agent.id);
@@ -220,18 +202,5 @@ export class AgentRegistry {
 }
 
 function liveAgentView(agent: ManagedAgent): AgentView {
-	return { summary: agent.summary(), details: agent.getDetails() };
-}
-
-function resultLocator(view: AgentView): ResultLocator | undefined {
-	const sessionFile = view.summary.session_file;
-	if (!sessionFile) return undefined;
-	return {
-		sessionFile,
-		generation: view.summary.generation,
-		...(view.summary.result?.result_id === undefined
-			? { resultId: view.details.resultId }
-			: { resultId: view.summary.result.result_id }),
-		...(view.summary.result_locator === undefined ? {} : { native: view.summary.result_locator }),
-	};
+	return agent.view();
 }

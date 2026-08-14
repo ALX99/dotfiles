@@ -17,7 +17,7 @@ import { createWaitAgentTool } from "./tools/wait-agent.ts";
 import { missingSubagentTools, SubagentToolController } from "./tool-activation.ts";
 
 export { isCompletionSuperseded } from "./bootstrap.ts";
-export { createSpawnAgentSchema, createWaitAgentSchema, WaitAgentParamsSchema } from "./schemas.ts";
+export { createSpawnAgentSchema, WaitAgentParamsSchema } from "./schemas.ts";
 export { DEFAULT_WAIT_MS } from "./tools/wait-agent.ts";
 
 type CommandAPI = Pick<ExtensionAPI, "registerCommand">;
