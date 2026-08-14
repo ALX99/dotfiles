@@ -6,6 +6,7 @@ import {
 	contextGradientColor,
 	renderContextBorder,
 	renderContextPercentage,
+	renderThinkingWaveBorder,
 	shortenCwd,
 } from "../footer.ts";
 
@@ -52,6 +53,26 @@ test("renderContextBorder fills smoothly across the available width", () => {
 
 test("renderContextBorder stays muted until context usage is available", () => {
 	assert.equal(stripAnsi(renderContextBorder(null, 10, renderTheme)), "──────────");
+});
+
+test("renderThinkingWaveBorder changes with its direction", () => {
+	const colors: string[] = [];
+	const thinkingTheme = {
+		...theme,
+		fg(color: string, text: string): string {
+			colors.push(color);
+			return text;
+		},
+	} as never;
+
+	assert.equal(stripAnsi(renderThinkingWaveBorder(9, 0, thinkingTheme)), "━━━━━━━━━");
+	assert.ok(colors.includes("accent"));
+	colors.length = 0;
+	renderThinkingWaveBorder(9, 1, thinkingTheme);
+	const firstFrame = [...colors];
+	colors.length = 0;
+	renderThinkingWaveBorder(9, -1, thinkingTheme);
+	assert.notDeepEqual(colors, firstFrame);
 });
 
 test("shortenCwd only substitutes an actual home-directory boundary", () => {
