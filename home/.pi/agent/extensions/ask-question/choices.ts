@@ -1,4 +1,4 @@
-import type { AskQuestionDetails, AskQuestionInput } from "./schema.ts";
+import type { AskQuestionDetails, AskQuestionResponseDetails, QuestionInput } from "./schema.ts";
 
 export const COMPARE_OPTION = "Compare options";
 export const OTHER_OPTION = "Something else";
@@ -16,6 +16,11 @@ export type AskQuestionAction = "compare";
 export interface AskQuestionResult {
 	content: Array<{ type: "text"; text: string }>;
 	details: AskQuestionDetails;
+}
+
+export interface QuestionResult {
+	content: Array<{ type: "text"; text: string }>;
+	details: AskQuestionResponseDetails;
 }
 
 export function normalizeAlternatives(alternatives: readonly string[]): string[] {
@@ -58,10 +63,10 @@ export function trimCustomAnswer(answer: string | null | undefined): string | un
 }
 
 export function resolveChoices(
-	params: AskQuestionInput,
+	params: QuestionInput,
 	choices: readonly QuestionOption[] | null,
 	customAnswer: string | null | undefined,
-): AskQuestionResult {
+): QuestionResult {
 	if (choices === null || choices.length === 0) {
 		return makeResult(params, NO_ANSWER_MSG, null, false);
 	}
@@ -94,12 +99,12 @@ export function resolveChoices(
 }
 
 export function makeResult(
-	params: AskQuestionInput,
+	params: QuestionInput,
 	text: string,
 	answer: string | readonly string[] | null,
 	wasCustom: boolean,
 	action: AskQuestionAction | null = null,
-): AskQuestionResult {
+): QuestionResult {
 	const answers = answer === null ? [] : typeof answer === "string" ? [answer] : [...answer];
 	return {
 		content: [{ type: "text", text }],
@@ -111,6 +116,21 @@ export function makeResult(
 			wasCustom,
 			action,
 		},
+	};
+}
+
+export function makeAskQuestionResult(results: readonly QuestionResult[]): AskQuestionResult {
+	if (results.length === 0) throw new Error("ask_question requires at least one result");
+
+	const text =
+		results.length === 1
+			? results[0]!.content[0]!.text
+			: results
+					.map((result, index) => `Question ${index + 1}: ${result.details.question}\n${result.content[0]!.text}`)
+					.join("\n\n");
+	return {
+		content: [{ type: "text", text }],
+		details: { questions: results.map((result) => result.details) },
 	};
 }
 

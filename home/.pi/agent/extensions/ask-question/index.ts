@@ -3,13 +3,20 @@ import { Text } from "@earendil-works/pi-tui";
 
 import {
 	findQuestionOption,
+	makeAskQuestionResult,
 	makeQuestionOptions,
 	resolveChoices,
 	type AskQuestionResult,
 	type QuestionOption,
 } from "./choices.ts";
 import { selectMultiple } from "./multi-select.ts";
-import { AskQuestionParamsSchema, readAskQuestionDetails, type AskQuestionInput } from "./schema.ts";
+import {
+	AskQuestionParamsSchema,
+	readAskQuestionDetails,
+	type AskQuestionInput,
+	type AskQuestionResponseDetails,
+	type QuestionInput,
+} from "./schema.ts";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 
 export default function askQuestionExtension(pi: ExtensionAPI): void {
@@ -20,11 +27,11 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 			name: "ask_question",
 			label: "Ask Question",
 			description:
-				"Ask a multiple-choice question. Provide 2-5 alternatives. In the TUI, the responder may select multiple alternatives; other interfaces accept one selection. The tool automatically adds 'Compare options' and 'Something else'. Use when you need the responder to choose between specific options, ask for trade-offs, or provide a custom answer.",
-			promptSnippet: "Ask a multiple-choice question with 2-5 alternatives",
+				"Ask one to three multiple-choice questions in sequence. Each question needs 2-5 alternatives. In the TUI, the responder may select multiple alternatives; other interfaces accept one selection. The tool automatically adds 'Compare options' and 'Something else' to each question. Use when you need the responder to choose between specific options, ask for trade-offs, or provide a custom answer.",
+			promptSnippet: "Ask one to three multiple-choice questions, each with 2-5 alternatives",
 			promptGuidelines: [
 				"Use ask_question when you need the responder to pick from specific options, ask for trade-offs, or provide a custom answer.",
-				"Keep alternatives short and distinct.",
+				"Use ask_question to group related questions, but ask no more than three at once and keep alternatives short and distinct.",
 			],
 			parameters: AskQuestionParamsSchema,
 			executionMode: "sequential",
@@ -32,12 +39,17 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 				return executeAskQuestion(params, signal, toolContext);
 			},
 			renderCall(args, theme, _context) {
-				const options = makeQuestionOptions(args.alternatives);
-				const optionsText = options.map((option) => sanitizeTerminalText(option.label)).join(", ");
-				const text =
-					theme.fg("toolTitle", theme.bold("ask_question ")) +
-					theme.fg("muted", sanitizeTerminalText(args.question)) +
-					`\n${theme.fg("dim", `  Options: ${optionsText}`)}`;
+				const text = args.questions
+					.map((question, index) => {
+						const options = makeQuestionOptions(question.alternatives);
+						const optionsText = options.map((option) => sanitizeTerminalText(option.label)).join(", ");
+						return (
+							`${index === 0 ? theme.fg("toolTitle", theme.bold("ask_question ")) : "             "}` +
+							theme.fg("muted", sanitizeTerminalText(question.question)) +
+							`\n${theme.fg("dim", `  Options: ${optionsText}`)}`
+						);
+					})
+					.join("\n");
 				return new Text(text, 0, 0);
 			},
 			renderResult(result, _options, theme, _context) {
@@ -45,22 +57,16 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 				if (details === undefined) {
 					return new Text(theme.fg("warning", "Cancelled"), 0, 0);
 				}
-				if (details.action === "compare") {
-					return new Text(theme.fg("success", "✓ ") + theme.fg("accent", "Comparison requested"), 0, 0);
-				}
-				if (details.answer === null) {
-					return new Text(theme.fg("warning", "Cancelled"), 0, 0);
-				}
-				const display = details.answers.length > 0 ? details.answers.join(", ") : details.answer;
-				const safeDisplay = sanitizeTerminalText(display);
-				if (details.wasCustom) {
-					return new Text(
-						theme.fg("success", "✓ ") + theme.fg("muted", "(custom) ") + theme.fg("accent", safeDisplay),
-						0,
-						0,
-					);
-				}
-				return new Text(theme.fg("success", "✓ ") + theme.fg("accent", safeDisplay), 0, 0);
+				const text =
+					details.questions.length === 1
+						? renderAnswer(details.questions[0]!, theme)
+						: details.questions
+								.map(
+									(question) =>
+										`${theme.fg("muted", sanitizeTerminalText(question.question))}: ${renderAnswer(question, theme)}`,
+								)
+								.join("\n");
+				return new Text(text, 0, 0);
 			},
 		});
 	});
@@ -71,18 +77,32 @@ export async function executeAskQuestion(
 	signal: AbortSignal | undefined,
 	ctx: ExtensionContext,
 ): Promise<AskQuestionResult> {
-	if (signal?.aborted) return resolveChoices(params, null, undefined);
-	const options = makeQuestionOptions(params.alternatives);
+	const results = [];
+	for (const question of params.questions) {
+		if (signal?.aborted) {
+			results.push(resolveChoices(question, null, undefined));
+			continue;
+		}
+		results.push(await executeQuestion(question, signal, ctx));
+	}
+	return makeAskQuestionResult(results);
+}
 
+async function executeQuestion(
+	question: QuestionInput,
+	signal: AbortSignal | undefined,
+	ctx: ExtensionContext,
+): Promise<ReturnType<typeof resolveChoices>> {
+	const options = makeQuestionOptions(question.alternatives);
 	const choices =
 		ctx.mode === "tui"
-			? await selectMultiple(params.question, options, signal, ctx.ui)
-			: await selectSingle(params.question, options, signal, ctx);
+			? await selectMultiple(question.question, options, signal, ctx.ui)
+			: await selectSingle(question.question, options, signal, ctx);
 	const customAnswer =
 		choices?.some((choice) => choice.kind === "other") === true
 			? await ctx.ui.input("Something else", "Type your answer...", signal === undefined ? undefined : { signal })
 			: undefined;
-	return resolveChoices(params, choices, customAnswer);
+	return resolveChoices(question, choices, customAnswer);
 }
 
 async function selectSingle(
@@ -99,4 +119,18 @@ async function selectSingle(
 	if (choice === undefined) return null;
 	const selected = findQuestionOption(options, choice);
 	return selected === undefined ? null : [selected];
+}
+
+function renderAnswer(details: AskQuestionResponseDetails, theme: { fg(color: string, text: string): string }): string {
+	if (details.action === "compare") {
+		return theme.fg("success", "✓ ") + theme.fg("accent", "Comparison requested");
+	}
+	if (details.answer === null) return theme.fg("warning", "Cancelled");
+
+	const display = details.answers.length > 0 ? details.answers.join(", ") : details.answer;
+	const safeDisplay = sanitizeTerminalText(display);
+	if (details.wasCustom) {
+		return theme.fg("success", "✓ ") + theme.fg("muted", "(custom) ") + theme.fg("accent", safeDisplay);
+	}
+	return theme.fg("success", "✓ ") + theme.fg("accent", safeDisplay);
 }
