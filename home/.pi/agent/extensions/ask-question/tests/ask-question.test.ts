@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Check } from "typebox/value";
 
 import {
 	getOptionColor,
 	getSubmittedChoices,
+	makeAskQuestionResult,
 	makeOptionLabel,
 	makeQuestionOptions,
 	makeResult,
@@ -11,8 +14,9 @@ import {
 	toggleOptionSelection,
 	validateAlternatives,
 } from "../choices.ts";
+import { executeAskQuestion } from "../index.ts";
 import { once, selectMultiple, type MultiSelectUi } from "../multi-select.ts";
-import { readAskQuestionDetails } from "../schema.ts";
+import { AskQuestionParamsSchema, readAskQuestionDetails } from "../schema.ts";
 
 const params = { question: "Pick a tool", alternatives: ["Fast", "Simple"] };
 type MultiSelectFactory = Parameters<MultiSelectUi["custom"]>[0];
@@ -118,12 +122,70 @@ test("makeResult records trimmed alternatives and multiple selected answers", ()
 	assert.equal(result.details.action, null);
 });
 
+test("batch results preserve each answer and format every question for the agent", () => {
+	const fast = makeResult(params, "Responder selected: Fast", "Fast", false);
+	const simple = makeResult(
+		{ question: "Pick a style", alternatives: ["Minimal", "Detailed"] },
+		"Responder selected: Detailed",
+		"Detailed",
+		false,
+	);
+	const result = makeAskQuestionResult([fast, simple]);
+
+	assert.match(required(result.content[0]).text, /Question 1: Pick a tool/u);
+	assert.match(required(result.content[0]).text, /Question 2: Pick a style/u);
+	assert.deepEqual(
+		result.details.questions.map((question) => question.answer),
+		["Fast", "Detailed"],
+	);
+});
+
 test("result details are narrowed through the strict schema", () => {
-	const result = makeResult(params, "Responder selected: Fast", "Fast", false);
+	const response = makeResult(params, "Responder selected: Fast", "Fast", false);
+	const result = makeAskQuestionResult([response]);
 
 	assert.deepEqual(readAskQuestionDetails(result.details), result.details);
 	assert.equal(readAskQuestionDetails({ ...result.details, unexpected: true }), undefined);
-	assert.equal(readAskQuestionDetails({ ...result.details, action: "other" }), undefined);
+	assert.equal(
+		readAskQuestionDetails({
+			questions: [{ ...response.details, action: "other" }],
+		}),
+		undefined,
+	);
+});
+
+test("question batches require one to three questions", () => {
+	assert.equal(Check(AskQuestionParamsSchema, { questions: [params] }), true);
+	assert.equal(Check(AskQuestionParamsSchema, { questions: [] }), false);
+	assert.equal(Check(AskQuestionParamsSchema, { questions: [params, params, params, params] }), false);
+});
+
+test("executeAskQuestion asks each batch question in order", async () => {
+	const questions: string[] = [];
+	const answers = ["Fast", "Detailed"];
+	const ctx = {
+		mode: "rpc",
+		ui: {
+			select: async (question: string) => {
+				questions.push(question);
+				return answers.shift();
+			},
+		},
+	} as unknown as ExtensionContext;
+
+	const result = await executeAskQuestion(
+		{
+			questions: [params, { question: "Pick a style", alternatives: ["Minimal", "Detailed"] }],
+		},
+		undefined,
+		ctx,
+	);
+
+	assert.deepEqual(questions, ["Pick a tool", "Pick a style"]);
+	assert.deepEqual(
+		result.details.questions.map((question) => question.answers),
+		[["Fast"], ["Detailed"]],
+	);
 });
 
 test("selectMultiple does not open UI for an already-aborted signal", async () => {
