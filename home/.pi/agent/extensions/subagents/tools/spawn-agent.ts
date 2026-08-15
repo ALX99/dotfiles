@@ -7,7 +7,7 @@ import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import type { AgentQuestion, AgentSummary } from "../agent-types.ts";
-import { ManagedAgent, type ManagedAgentOptions } from "../managed-agent.ts";
+import { ManagedAgent } from "../managed-agent.ts";
 import { resolveRun, type ProfilesConfig } from "../profiles.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import {
@@ -22,7 +22,6 @@ import { completedRunResult, formatPendingQuestion, toolError } from "../tool-re
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import { requiresExactResultRead, type SubagentToolActivator } from "../tool-activation.ts";
-import type { SpawnRpcProcess } from "../rpc-transport.ts";
 import type { SpawnAdmissionController } from "../spawn-admission.ts";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
@@ -39,16 +38,9 @@ export interface SpawnAgentDependencies {
 	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
 }
 
-export interface SpawnAgentToolOptions {
-	readonly spawnProcess?: SpawnRpcProcess;
-	/** Test-only native-session validation seam. */
-	readonly validateSessionIdentity?: ManagedAgentOptions["validateSessionIdentity"];
-}
-
 export function createSpawnAgentTool(
 	toolActivation: SubagentToolActivator,
 	dependencies: SpawnAgentDependencies,
-	options: SpawnAgentToolOptions = {},
 ): ToolDefinition<ReturnType<typeof createSpawnAgentSchema>, ReadonlyRunDetails> {
 	const schemaOptions = spawnSchemaOptions(dependencies);
 	const schema = createSpawnAgentSchema(schemaOptions);
@@ -79,7 +71,6 @@ export function createSpawnAgentTool(
 			allowedAgents,
 			allowedProfiles,
 			dependencies.profiles.rootPolicy.maxConcurrentRootAgents,
-			dependencies.profiles.rootPolicy.maxConcurrentDeepAgents,
 		),
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
@@ -106,13 +97,10 @@ export function createSpawnAgentTool(
 				const stats = await fs.promises.stat(resolvedCwd);
 				if (!stats.isDirectory()) throw new Error(`cwd is not a directory: ${cwd}`);
 			}
-			const childContext = {
-				...dependencies.admission.admit({
-					agent: resolvedRun.agent,
-					profile: resolvedRun.profile,
-				}),
-				parentSessionId: ctx.sessionManager.getSessionId(),
-			};
+			dependencies.admission.admit({
+				agent: resolvedRun.agent,
+				profile: resolvedRun.profile,
+			});
 			const background = params.background === true;
 			let managed: ManagedAgent | undefined;
 			let unsubscribe: (() => void) | undefined;
@@ -127,12 +115,7 @@ export function createSpawnAgentTool(
 					...(resolvedCwd === undefined ? {} : { cwd: resolvedCwd }),
 					agent: agentConfig,
 					resolvedRun,
-					childContext,
 					retain: params.retain === true,
-					...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
-					...(options.validateSessionIdentity === undefined
-						? {}
-						: { validateSessionIdentity: options.validateSessionIdentity }),
 					onBackgroundComplete: (summary) => {
 						cleanupUpdate();
 						dependencies.onBackgroundComplete(summary);
@@ -239,7 +222,6 @@ export function spawnGuidelines(
 	agents: readonly Pick<AgentConfig, "name" | "description">[] = [],
 	profiles: readonly { readonly name: string; readonly description: string }[] = [],
 	rootLimit?: number,
-	deepLimit?: number,
 ): string[] {
 	const roleMap =
 		agents.length > 0
@@ -257,10 +239,10 @@ export function spawnGuidelines(
 	return [
 		...(roleMap === undefined ? [] : [roleMap]),
 		...(profileMap === undefined ? [] : [profileMap]),
-		...(rootLimit === undefined || deepLimit === undefined
+		...(rootLimit === undefined
 			? []
 			: [
-					`Live-process capacity is ${rootLimit} root children total and ${deepLimit} deep-profile child. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
+					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
 		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch as one barrier with that wave's IDs and a suitable timeout; do not build repeated automatic turns or a task scheduler.",
 		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. Once work is delegated, do not duplicate its assigned scope: while the subagent runs, address only non-overlapping needs or wait for its result. The current agent owns synthesis and proportionate, risk-based final verification.",

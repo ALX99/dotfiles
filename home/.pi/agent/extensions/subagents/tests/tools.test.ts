@@ -72,13 +72,13 @@ test("list schema accepts a bounded archived-agent limit", () => {
 
 test("spawn guidance defers management tool names until spawn activates them", () => {
 	assert.doesNotMatch(
-		spawnGuidelines([], [], 1, 1).join("\n"),
+		spawnGuidelines([], [], 1).join("\n"),
 		/\b(?:answer_agent|send_agent|followup_agent|wait_agent|list_agents|read_agent_result|interrupt_agent|close_agent)\b/,
 	);
 });
 
 test("spawn guidance explains compact handoffs for dependent work", () => {
-	const guidance = spawnGuidelines([], [], 1, 1).join("\n");
+	const guidance = spawnGuidelines([], [], 1).join("\n");
 	assert.match(guidance, /retry, review\/fix cycle, or replacement/);
 	assert.match(guidance, /does not inherit the parent transcript/);
 });
@@ -97,17 +97,15 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 					profile: "fast",
 					model: "provider/model",
 					effectiveThinking: "low",
-					exitCode: 0,
 					finalText: "done",
-					stderr: "",
 					startTime: 0,
 					toolCount: 0,
 					recentTools: [],
 					lastMessage: "",
+					lastActivityTime: 0,
 					tokens: 0,
 					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 					resultId: "a".repeat(64),
-					omittedTelemetryRecords: 0,
 					aborted: false,
 				};
 			},
@@ -193,7 +191,6 @@ test("list_agents includes a bounded recent closed history", async () => {
 		admission: {
 			capacity: () => ({
 				root: { live: 2, limit: 4 },
-				deep: { live: 1, limit: 1 },
 			}),
 		},
 	} as never).list_agents;
@@ -205,7 +202,6 @@ test("list_agents includes a bounded recent closed history", async () => {
 	);
 	assert.deepEqual(result.details?.capacity, {
 		root: { live: 2, limit: 4 },
-		deep: { live: 1, limit: 1 },
 	});
 
 	const completeHistory = await tool.execute("call-2", { closed_limit: 32 }, undefined, undefined, {} as never);

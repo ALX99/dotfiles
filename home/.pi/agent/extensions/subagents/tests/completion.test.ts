@@ -158,7 +158,6 @@ test("simultaneous idle background completions are delivered in one debounced fo
 		{
 			rootPolicy: {
 				maxConcurrentRootAgents: 1,
-				maxConcurrentDeepAgents: 1,
 			},
 			profiles: {},
 			agentPolicies: {},
@@ -203,7 +202,6 @@ test("consuming completions removes only the matching settled generation", async
 		{
 			rootPolicy: {
 				maxConcurrentRootAgents: 1,
-				maxConcurrentDeepAgents: 1,
 			},
 			profiles: {},
 			agentPolicies: {},
@@ -257,7 +255,6 @@ test("background questions steer the parent immediately", async (t) => {
 		{
 			rootPolicy: {
 				maxConcurrentRootAgents: 1,
-				maxConcurrentDeepAgents: 1,
 			},
 			profiles: {},
 			agentPolicies: {},
@@ -293,7 +290,7 @@ test("usage claims restore from persisted wait results across session reload", a
 	const runtime = new DefaultSubagentRuntime(
 		[],
 		{
-			rootPolicy: { maxConcurrentRootAgents: 1, maxConcurrentDeepAgents: 1 },
+			rootPolicy: { maxConcurrentRootAgents: 1 },
 			profiles: {},
 			agentPolicies: {},
 		} as ProfilesConfig,
