@@ -9,7 +9,7 @@ import {
 	SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
 } from "./result-store.ts";
 
-/** Closed agents retain dashboard and tool result metadata, but no process resources. */
+/** Closed agents retain dashboard and tool result metadata, but no live session resources. */
 export const DEFAULT_MAX_CLOSED_AGENT_HISTORY = 32;
 export { SUBAGENT_SETTLEMENT_CUSTOM_TYPE };
 
@@ -39,7 +39,6 @@ export class AgentRegistry {
 		this.agentUnsubscribers.delete(agent.id);
 		this.resultCatalog.forget(agent.id);
 		this.entries.set(agent.id, { kind: "live", agent });
-		agent.attachResultSink((captured) => this.resultCatalog.recordGeneration(agent.id, captured));
 		this.agentUnsubscribers.set(
 			agent.id,
 			agent.subscribe(() => this.handleAgentUpdate(agent)),
@@ -109,7 +108,7 @@ export class AgentRegistry {
 		return [...this.entries.keys()].map((id) => this.summary(id));
 	}
 
-	/** Agents with live (or still-starting) processes that consume spawn capacity. */
+	/** Agents with live (or still-starting) sessions that consume spawn capacity. */
 	capacity(): AgentSummary[] {
 		return [...this.entries.values()]
 			.filter(
@@ -165,6 +164,8 @@ export class AgentRegistry {
 	}
 
 	private handleAgentUpdate(agent: ManagedAgent): void {
+		const locator = agent.summary().result_locator;
+		if (locator) this.resultCatalog.record(agent.id, locator);
 		if (agent.phase === "closed") this.archive(agent);
 		else this.emit();
 	}

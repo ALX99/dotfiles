@@ -1,8 +1,7 @@
-/** Persistent RPC-backed subagents with stable, session-runtime IDs. */
+/** Persistent in-process Pi SDK subagents with stable, session-runtime IDs. */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapSubagents, registerSubagentLifecycle } from "./bootstrap.ts";
-import { parseChildExecutionContext } from "./child-process.ts";
 import { showAgentDashboard } from "./dashboard.ts";
 import type { AgentSummary } from "./agent-types.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
@@ -26,8 +25,6 @@ interface SubagentCommandRuntime {
 }
 
 export default function registerSubagents(pi: ExtensionAPI): void {
-	const childContext = parseChildExecutionContext();
-	if (childContext) return;
 	const toolActivation = new SubagentToolController(pi);
 	const runtime = bootstrapSubagents(toolActivation);
 	const managementTools = createManagementTools({ registry: runtime.registry, admission: runtime.admission });

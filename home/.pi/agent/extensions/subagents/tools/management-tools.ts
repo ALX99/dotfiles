@@ -119,7 +119,7 @@ export function createManagementTools({
 			name: "close_agent",
 			label: "Close Agent",
 			description:
-				"Terminate a retained subagent process. The call is idempotent for archived agents; persisted result/session references remain readable.",
+				"Dispose a retained subagent session. The call is idempotent for archived agents; persisted result/session references remain readable.",
 			parameters: AgentIdParamsSchema,
 			registry,
 			resultTitle: "close_agent",

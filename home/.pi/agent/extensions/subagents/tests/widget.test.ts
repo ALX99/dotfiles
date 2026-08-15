@@ -1,0 +1,127 @@
+import * as assert from "node:assert/strict";
+import { test } from "node:test";
+import type { AgentView } from "../agent-types.ts";
+import type { ReadonlyRunDetails } from "../run-state.ts";
+import { bindRegistryUi, formatActivityAge, renderRunningAgentLines } from "../ui/widget.ts";
+
+const theme = {
+	fg(_color: string, text: string): string {
+		return text;
+	},
+};
+
+function view(overrides: {
+	readonly agentId?: string;
+	readonly status?: AgentView["summary"]["status"];
+	readonly taskName?: string;
+	readonly lastActivityTime?: number;
+	readonly recentTools?: ReadonlyRunDetails["recentTools"];
+	readonly waiting?: boolean;
+}): AgentView {
+	const agentId = overrides.agentId ?? "worker-1";
+	const status = overrides.status ?? "running";
+	const taskName = overrides.taskName ?? "Fix parser";
+	const details = {
+		agent: "worker",
+		taskName,
+		profile: "balanced",
+		model: "provider/model",
+		effectiveThinking: "medium",
+		finalText: "",
+		startTime: 0,
+		toolCount: overrides.recentTools?.length ?? 0,
+		recentTools: overrides.recentTools ?? [],
+		lastMessage: "",
+		lastActivityTime: overrides.lastActivityTime ?? 0,
+		tokens: 0,
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		resultId: "a".repeat(64),
+		aborted: false,
+	} satisfies ReadonlyRunDetails;
+	return {
+		summary: {
+			agent_id: agentId,
+			agent: "worker",
+			task_name: taskName,
+			profile: "balanced",
+			model: "provider/model",
+			effective_thinking: "medium",
+			generation: 1,
+			retained: false,
+			status,
+			started_at: 0,
+			usage: details.usage,
+			...(overrides.waiting
+				? { pending_question: { question_id: "question-1", question: "Choose?", options: ["A", "B"] } }
+				: {}),
+		},
+		details,
+	};
+}
+
+test("running-agent widget summarizes current tools and activity age", () => {
+	const lines = renderRunningAgentLines(
+		[
+			view({
+				lastActivityTime: 117_000,
+				recentTools: [{ name: "bash", argsPreview: "pnpm test" }],
+			}),
+			view({ agentId: "scout-2", taskName: "Inspect API", lastActivityTime: 60_000, waiting: true }),
+			view({ agentId: "worker-3", status: "idle" }),
+		],
+		120_000,
+		120,
+		theme as never,
+	);
+
+	assert.deepEqual(lines, [
+		"● 2 subagents running",
+		"  worker-1 · Fix parser · bash pnpm test · 3s ago",
+		"  scout-2 · Inspect API · waiting for input · 1m ago",
+	]);
+});
+
+test("activity ages use compact units", () => {
+	assert.equal(formatActivityAge(0), "1s ago");
+	assert.equal(formatActivityAge(59_000), "59s ago");
+	assert.equal(formatActivityAge(60_000), "1m ago");
+	assert.equal(formatActivityAge(3_600_000), "1h ago");
+	assert.equal(formatActivityAge(86_400_000), "1d ago");
+});
+
+test("registry binding shows active work and clears it after settlement", () => {
+	let views = [view({})];
+	let listener: (() => void) | undefined;
+	const statuses: Array<string | undefined> = [];
+	const widgets: Array<unknown> = [];
+	const binding = bindRegistryUi(
+		{
+			ui: {
+				setStatus: (_id: string, status: string | undefined) => statuses.push(status),
+				setWidget: (_id: string, widget: unknown) => widgets.push(widget),
+			},
+		} as never,
+		{
+			list: () => views.map(({ summary }) => summary),
+			views: () => views,
+			subscribe: (next: () => void) => {
+				listener = next;
+				return () => {
+					listener = undefined;
+				};
+			},
+		} as never,
+	);
+
+	binding.refresh();
+	assert.equal(statuses.at(-1), "agents 1 running");
+	assert.equal(typeof widgets.at(-1), "function");
+
+	views = [view({ status: "idle" })];
+	listener?.();
+	assert.equal(statuses.at(-1), undefined);
+	assert.equal(widgets.at(-1), undefined);
+
+	binding.close();
+	assert.equal(listener, undefined);
+});
