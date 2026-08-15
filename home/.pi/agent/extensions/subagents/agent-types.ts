@@ -30,10 +30,6 @@ export interface AgentSummary {
 	readonly result?: AgentResultReference;
 	readonly result_locator?: GenerationResultLocator;
 	readonly error?: string;
-	readonly failure?: {
-		readonly kind: string;
-		readonly recoverable: boolean;
-	};
 	readonly pending_question?: AgentQuestion;
 }
 

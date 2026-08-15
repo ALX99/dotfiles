@@ -81,7 +81,7 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			retain: Type.Optional(
 				Type.Boolean({
 					description:
-						"Keep the child process alive after settlement for followup_agent. Default false; one-shot agents auto-close.",
+						"Keep the child session alive after settlement for followup_agent. Default false; one-shot agents auto-close.",
 				}),
 			),
 		},

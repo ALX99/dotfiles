@@ -1,32 +1,72 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { randomBytes } from "node:crypto";
+import {
+	createAgentSession,
+	DefaultResourceLoader,
+	defineTool,
+	SessionManager,
+	type AgentSession,
+	type AgentSessionEvent,
+	type ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
 import type { AgentConfig } from "./agents.ts";
-import { AgentGeneration, failureMetadata, recoverableTransportFailure } from "./agent-generation.ts";
-import type { AgentPhase, AgentQuestion, AgentSummary, AgentView } from "./agent-types.ts";
-import { CleanupAggregateError, lifecycleStatus } from "./agent-types.ts";
-import { ChildSession, type ChildSessionEvent } from "./child-session.ts";
-import type { ChildExecutionContext } from "./child-process.ts";
-import type { ResolvedRun } from "./profiles.ts";
-import { readChildTranscript, type CapturedGeneration, type ResultPage } from "./result-store.ts";
 import {
+	AgentWaitInterruptedError,
+	lifecycleStatus,
+	type AgentPhase,
+	type AgentQuestion,
+	type AgentSummary,
+	type AgentView,
+} from "./agent-types.ts";
+import type { ResolvedRun } from "./profiles.ts";
+import {
+	assistantText,
+	paginateStoredResult,
+	resultPreview,
+	resultReference,
+	storedResult,
+	type GenerationResultLocator,
+	type ResultPage,
+} from "./result-store.ts";
+import {
+	foldSessionEvent,
 	initRunData,
 	snapshotRunData,
 	type MutableRunData,
 	type ReadonlyRunDetails,
-	type RunStatus,
 } from "./run-state.ts";
-import type { ChildSessionIdentity } from "./session-cursors.ts";
-import type { SpawnRpcProcess } from "./rpc-transport.ts";
 
 let nextAgentId = 1;
 
 export function reserveManagedAgentIds(agentIds: Iterable<string>): void {
-	for (const agentId of agentIds) {
-		const suffix = /-(\d+)$/.exec(agentId)?.[1];
-		if (suffix === undefined) continue;
-		const value = Number(suffix);
-		if (Number.isSafeInteger(value) && value >= nextAgentId) nextAgentId = value + 1;
+	for (const id of agentIds) {
+		const suffix = /-(\d+)$/.exec(id)?.[1];
+		if (suffix && Number(suffix) >= nextAgentId) nextAgentId = Number(suffix) + 1;
 	}
+}
+
+interface PendingQuestion {
+	readonly question: AgentQuestion;
+	readonly resolve: (answer: string) => void;
+	readonly reject: (error: Error) => void;
+}
+
+interface Generation {
+	readonly number: number;
+	readonly completion: Promise<ReadonlyRunDetails>;
+	readonly resolve: (details: ReadonlyRunDetails) => void;
+	readonly reject: (error: Error) => void;
+	readonly run: MutableRunData;
+	readonly initialEntryIds: ReadonlySet<string>;
+	settled: boolean;
+	background: boolean;
+	aborted: boolean;
+	questionArrival: ReturnType<typeof Promise.withResolvers<void>>;
+	question?: PendingQuestion;
 }
 
 export interface ManagedAgentOptions {
@@ -36,64 +76,37 @@ export interface ManagedAgentOptions {
 	readonly cwd?: string;
 	readonly agent: AgentConfig;
 	readonly resolvedRun: ResolvedRun;
-	readonly childContext: ChildExecutionContext;
 	readonly retain: boolean;
-	readonly spawnProcess?: SpawnRpcProcess;
-	/** Test seam; production callers omit this and validate the native file. */
-	readonly validateSessionIdentity?: (
-		identity: ChildSessionIdentity,
-		agentDir: string,
-	) => Promise<ChildSessionIdentity>;
+	/** Test seam for contract tests; production always constructs an SDK session. */
+	readonly sessionFactory?: (customTools: readonly ToolDefinition[]) => Promise<AgentSession>;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
 
 /**
- * Stable facade for one subagent identity.
- *
- * ChildSession owns process resources and AgentGeneration owns every mutable
- * prompt lifecycle. This class only coordinates their boundaries and exposes
- * the tool-facing API.
+ * The only live owner of a child conversation. It owns one AgentSession and
+ * derives every public generation value from its native session entries/events.
  */
 export class ManagedAgent {
 	readonly id: string;
-	private readonly options: ManagedAgentOptions;
-	private readonly session: ChildSession;
-	private lifecycle: "created" | "closing" | "closed" = "created";
-	private currentGeneration: AgentGeneration | undefined;
-	private nextGeneration = 0;
-	private initialRun: MutableRunData;
 	private readonly listeners = new Set<(details: ReadonlyRunDetails) => void>();
+	private readonly cwd: string;
+	private readonly options: ManagedAgentOptions;
+	private session: AgentSession | undefined;
+	private unsubscribe: (() => void) | undefined;
+	private phaseState: AgentPhase = "created";
+	private current: Generation | undefined;
+	private nextGeneration = 0;
 	private closePromise: Promise<void> | undefined;
-	private resultSink: (captured: CapturedGeneration) => void = () => {};
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
-		this.session = new ChildSession({
-			agentId: this.id,
-			agentDir: options.agentDir,
-			defaultCwd: options.defaultCwd,
-			...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-			agent: options.agent,
-			resolvedRun: options.resolvedRun,
-			childContext: options.childContext,
-			...(options.spawnProcess === undefined ? {} : { spawnProcess: options.spawnProcess }),
-			...(options.validateSessionIdentity === undefined
-				? {}
-				: { validateSessionIdentity: options.validateSessionIdentity }),
-			onEvent: (event) => this.handleSessionEvent(event),
-		});
-		this.initialRun = this.freshRun();
-	}
-
-	attachResultSink(sink: (captured: CapturedGeneration) => void): void {
-		this.resultSink = sink;
+		this.cwd = options.cwd ?? options.defaultCwd;
 	}
 
 	get phase(): AgentPhase {
-		if (this.lifecycle !== "created") return this.lifecycle;
-		return this.currentGeneration?.phase ?? "created";
+		return this.phaseState;
 	}
 
 	async start(
@@ -103,68 +116,17 @@ export class ManagedAgent {
 		background: boolean,
 		signal?: AbortSignal,
 	): Promise<ReadonlyRunDetails> {
-		if (this.phase !== "created") throw new Error("Subagent already started.");
-		const generation = this.beginGeneration(taskName);
-		let releaseForeground: (() => void) | undefined;
+		if (this.phaseState !== "created") throw new Error("Subagent already started.");
+		this.phaseState = "starting";
+		this.emit();
 		try {
-			const identity = await this.session.open();
-			this.assertOpen();
-			generation.setSessionIdentity(identity);
-			await generation.prepare();
-			if (!background) releaseForeground = generation.reserveForegroundWaiter();
-			await generation.prompt(buildInitialTask(message, handoff));
+			await this.open();
 		} catch (cause) {
-			releaseForeground?.();
-			const error = toError(cause);
-			if (!this.isClosing()) generation.fail(error);
-			try {
-				await this.close();
-			} catch (cleanupError) {
-				throw new AggregateError([error, cleanupError], `Agent ${this.id} startup and cleanup failed.`);
-			}
-			throw error;
+			this.phaseState = "failed";
+			this.emit();
+			throw cause;
 		}
-
-		if (background) {
-			generation.promoteCompletion();
-			return this.snapshot("launched");
-		}
-		try {
-			return await generation.waitForeground(signal);
-		} finally {
-			releaseForeground?.();
-			if (!this.options.retain && generation.isSettled) await this.close();
-		}
-	}
-
-	async steer(message: string): Promise<void> {
-		await this.requireGeneration().steer(message);
-	}
-
-	answerQuestion(questionId: string, answer: string): Promise<void> {
-		return this.requireGeneration().answerQuestion(questionId, answer);
-	}
-
-	async getMessages(): Promise<unknown[]> {
-		const sessionFile = this.snapshot().sessionFile;
-		if (!sessionFile) throw new Error(`Agent ${this.id} has no persisted session.`);
-		return readChildTranscript(sessionFile, this.options.agentDir);
-	}
-
-	async readLiveResultPreview(
-		options: {
-			readonly generation?: number;
-			readonly cursor?: string;
-			readonly offset?: number;
-			readonly maxBytes?: number;
-		} = {},
-	): Promise<ResultPage> {
-		const generation = options.generation ?? this.currentGeneration?.generation;
-		const current = this.currentGeneration;
-		if (!current || generation !== current.generation || !current.hasPendingResult(generation)) {
-			throw new Error(`Agent ${this.id} has no live result preview for generation ${generation ?? 0}.`);
-		}
-		return current.readLiveResultPreview(options);
+		return this.launch(buildInitialTask(message, handoff), taskName, background, signal);
 	}
 
 	async followUp(
@@ -173,62 +135,80 @@ export class ManagedAgent {
 		background: boolean,
 		signal?: AbortSignal,
 	): Promise<ReadonlyRunDetails> {
-		if (!this.options.retain) {
+		if (!this.options.retain)
 			throw new Error(`Agent ${this.id} is one-shot. Spawn with retain:true before using followup_agent.`);
+		if (this.phaseState === "closed" || this.phaseState === "closing") throw new Error(`Agent ${this.id} is closed.`);
+		if (this.current?.question) {
+			throw new Error(
+				`Agent ${this.id} is waiting for '${this.current.question.question.question_id}'; use answer_agent.`,
+			);
 		}
-		const previous = this.requireGeneration();
-		// Drain every child event received before deciding whether this prompt
-		// continues the active generation. That prevents a queued settlement from
-		// racing a freshly allocated generation.
-		await previous.drain();
-		this.assertAvailableForFollowUp();
-		if (previous.isAborted && !previous.isSettled) await previous.completion.promise.catch(() => {});
-		if (previous.isFailed && previous.recovery) await previous.recovery;
+		if (this.phaseState === "starting" || this.phaseState === "running") {
+			throw new Error(`Agent ${this.id} is still running; use send_agent or wait_agent before a follow-up.`);
+		}
+		return this.launch(message, taskName, background, signal);
+	}
 
-		const continuesActiveGeneration = previous.isActive;
-		const generation = continuesActiveGeneration ? previous : this.beginGeneration(taskName);
-		if (continuesActiveGeneration) generation.setTaskName(taskName);
-		let releaseForeground: (() => void) | undefined;
-		try {
-			if (!background) releaseForeground = generation.reserveForegroundWaiter();
-			if (!continuesActiveGeneration) await generation.prepare();
-			await generation.prompt(message, continuesActiveGeneration ? "followUp" : undefined);
-		} catch (cause) {
-			releaseForeground?.();
-			throw cause;
+	async steer(message: string): Promise<void> {
+		if (!this.session || (this.phaseState !== "starting" && this.phaseState !== "running")) {
+			throw new Error(`Agent ${this.id} is not running.`);
 		}
+		if (this.current?.question) throw new Error(`Agent ${this.id} is waiting for input; use answer_agent.`);
+		await this.session.steer(message);
+	}
 
-		if (background) {
-			generation.promoteCompletion();
-			return this.snapshot("launched");
+	async answerQuestion(questionId: string, answer: string): Promise<void> {
+		const pending = this.current?.question;
+		if (!pending || pending.question.question_id !== questionId) {
+			throw new Error(`Agent ${this.id} has no pending question '${questionId}'.`);
 		}
-		try {
-			return await generation.waitForeground(signal);
-		} finally {
-			releaseForeground?.();
-		}
+		delete this.current!.question;
+		this.current!.questionArrival = Promise.withResolvers<void>();
+		pending.resolve(answer);
+		this.emit();
 	}
 
 	async wait(timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
-		return this.currentGeneration?.wait(timeoutMs, signal) ?? this.snapshot();
+		const current = this.current;
+		if (!current || current.settled || current.question) return this.snapshot();
+		return this.waitFor(current, timeoutMs, signal);
 	}
 
-	interrupt(): Promise<void> {
-		return this.currentGeneration?.interrupt() ?? Promise.resolve();
+	async interrupt(): Promise<void> {
+		const current = this.current;
+		if (!current || current.settled || !this.session) return;
+		current.aborted = true;
+		this.phaseState = "aborted";
+		this.cancelPendingQuestion(current, `Agent ${this.id} was interrupted while waiting for input.`);
+		this.emit();
+		await this.session.abort();
 	}
 
-	close(): Promise<void> {
+	async close(): Promise<void> {
 		if (this.closePromise) return this.closePromise;
-		this.closePromise = this.closeInternal();
+		this.closePromise = (async () => {
+			if (this.phaseState === "closed") return;
+			this.phaseState = "closing";
+			this.emit();
+			const current = this.current;
+			if (current && !current.settled) {
+				current.aborted = true;
+				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
+				await this.session?.abort().catch(() => {});
+			}
+			this.unsubscribe?.();
+			this.unsubscribe = undefined;
+			this.session?.dispose();
+			this.session = undefined;
+			this.phaseState = "closed";
+			this.emit();
+			this.listeners.clear();
+		})();
 		return this.closePromise;
 	}
 
 	summary(): AgentSummary {
 		const details = this.snapshot();
-		const status = lifecycleStatus({ phase: this.phase });
-		const failed = this.phase === "failed" && this.currentGeneration?.isFailed;
-		const error = failed ? this.currentGeneration?.error?.message : details.assistantError;
-		const failure = failed && this.currentGeneration?.error ? failureMetadata(this.currentGeneration.error) : undefined;
 		const durationMs = details.endTime === undefined ? undefined : Math.max(0, details.endTime - details.startTime);
 		return {
 			agent_id: this.id,
@@ -241,7 +221,7 @@ export class ManagedAgent {
 			...(details.sessionFile ? { session_file: details.sessionFile } : {}),
 			generation: details.generation ?? 0,
 			retained: this.options.retain,
-			status,
+			status: lifecycleStatus({ phase: this.phaseState }),
 			started_at: details.startTime,
 			...(details.endTime === undefined ? {} : { ended_at: details.endTime }),
 			...(durationMs === undefined ? {} : { duration_ms: durationMs }),
@@ -249,19 +229,13 @@ export class ManagedAgent {
 			...(details.finalText ? { final_text: details.finalText } : {}),
 			...(details.result ? { result: details.result } : {}),
 			...(details.resultLocator ? { result_locator: details.resultLocator } : {}),
-			...(error ? { error } : {}),
-			...(failure ? { failure } : {}),
+			...(details.error ? { error: details.error } : {}),
 			...(details.pendingQuestion ? { pending_question: details.pendingQuestion } : {}),
 		};
 	}
 
 	view(): AgentView {
-		const details = this.snapshot();
-		return { summary: this.summary(), details };
-	}
-
-	hasPendingResult(generation: number): boolean {
-		return this.currentGeneration?.hasPendingResult(generation) ?? false;
+		return { summary: this.summary(), details: this.snapshot() };
 	}
 
 	subscribe(listener: (details: ReadonlyRunDetails) => void): () => void {
@@ -269,162 +243,320 @@ export class ManagedAgent {
 		return () => this.listeners.delete(listener);
 	}
 
-	isAvailable(): boolean {
-		return this.session.isOpen && !this.isClosing();
+	occupiesCapacity(): boolean {
+		if (this.phaseState === "closed" || this.phaseState === "closing") return false;
+		return this.phaseState === "starting" || this.session !== undefined;
 	}
 
-	/** Whether this entry still occupies a spawn-concurrency slot. */
-	occupiesCapacity(): boolean {
-		const transportState = this.session.state;
-		if (transportState === "created" && (this.phase === "failed" || this.phase === "aborted")) return false;
-		return (
-			this.phase !== "closing" && this.phase !== "closed" && transportState !== "failed" && transportState !== "closed"
+	hasPendingResult(generation: number): boolean {
+		return this.current?.number === generation && !this.current.settled;
+	}
+
+	readLiveResultPreview(
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+	): ResultPage {
+		const current = this.current;
+		if (!current || current.settled || (options.generation !== undefined && options.generation !== current.number)) {
+			throw new Error(`Agent ${this.id} has no live result preview.`);
+		}
+		return paginateStoredResult(
+			this.id,
+			storedResult(current.number, current.run.resultId, resultPreview(current.run.liveAssistantPreview), false),
+			options,
 		);
 	}
 
-	private beginGeneration(taskName: string): AgentGeneration {
-		const previous = this.currentGeneration;
-		if (previous && !previous.isSettled) {
-			previous.close(new Error("Agent received a newer run before the previous run settled."));
-		}
-		const generation = new AgentGeneration({
-			agentId: this.id,
-			generation: ++this.nextGeneration,
-			run: this.freshRun(taskName),
-			session: this.session,
-			onChange: () => this.emit(),
-			onCapture: (captured) => this.resultSink(captured),
-			onQuestion: (run, question) => this.handleGenerationQuestion(run, question),
-			onCompletion: (run, error) => this.handleGenerationCompletion(run, error),
+	async getMessages(): Promise<unknown[]> {
+		return this.session?.messages ?? [];
+	}
+
+	private async open(): Promise<void> {
+		const askQuestion = defineTool({
+			name: "ask_question",
+			label: "Ask Question",
+			description: "Ask the parent a multiple-choice question and wait for its answer.",
+			parameters: Type.Object(
+				{
+					question: Type.String({ minLength: 1 }),
+					alternatives: Type.Array(Type.String({ minLength: 1 }), { minItems: 2, maxItems: 5 }),
+				},
+				{ additionalProperties: false },
+			),
+			execute: async (_id, params, signal) => {
+				const generation = this.current;
+				if (!generation || generation.settled) throw new Error("No active subagent generation.");
+				const question: AgentQuestion = {
+					question_id: randomBytes(16).toString("hex"),
+					question: params.question,
+					options: [...params.alternatives],
+				};
+				const answer = await new Promise<string>((resolve, reject) => {
+					const cleanup = () => signal?.removeEventListener("abort", abort);
+					const abort = () => {
+						if (generation.question?.question.question_id === question.question_id) {
+							delete generation.question;
+							generation.questionArrival = Promise.withResolvers<void>();
+							this.emit();
+						}
+						cleanup();
+						reject(new Error(`Subagent question was cancelled: ${String(signal?.reason ?? "aborted")}`));
+					};
+					generation.question = {
+						question,
+						resolve: (answer) => {
+							cleanup();
+							resolve(answer);
+						},
+						reject: (error) => {
+							cleanup();
+							reject(error);
+						},
+					};
+					generation.questionArrival.resolve();
+					this.emit();
+					this.options.onQuestion?.(this.summary(), question);
+					if (signal?.aborted) abort();
+					else signal?.addEventListener("abort", abort, { once: true });
+				});
+				return { content: [{ type: "text", text: answer }], details: { answer } };
+			},
 		});
-		this.currentGeneration = generation;
-		this.emit();
-		return generation;
-	}
-
-	private handleSessionEvent(event: ChildSessionEvent): boolean | void {
-		if (this.isClosing()) return false;
-		const generation = this.currentGeneration;
-		switch (event.kind) {
-			case "agent-event":
-				generation?.receiveAgentEvent(event.event);
-				return;
-			case "ui-request":
-				return generation?.handleUiRequest(event.request) ?? false;
-			case "oversized-record":
-				generation?.recordOmittedTelemetry();
-				return;
-			case "exit":
-				if (generation) {
-					generation.fail(recoverableTransportFailure(event.error ?? new Error("Subagent process exited.")));
-				}
-				return;
+		const tools = this.options.agent.tools ? [...this.options.agent.tools] : [];
+		const customTools = tools.includes("ask_question") ? [askQuestion] : [];
+		if (this.options.sessionFactory) {
+			this.session = await this.options.sessionFactory(customTools);
+			this.unsubscribe = this.session.subscribe((event) => this.handleEvent(event));
+			return;
 		}
+		const directory = path.join(this.options.agentDir, "subagent-sessions");
+		await fs.promises.mkdir(directory, { recursive: true });
+		const manager = SessionManager.create(this.cwd, directory);
+		const subagentExtension = path.resolve(this.options.agentDir, "extensions", "subagents", "index.ts");
+		const loader = new DefaultResourceLoader({
+			cwd: this.cwd,
+			agentDir: this.options.agentDir,
+			appendSystemPrompt: [this.options.agent.systemPrompt],
+			extensionsOverride: (base) => ({
+				...base,
+				extensions: base.extensions.filter(
+					(extension) =>
+						path.resolve(extension.resolvedPath) !== subagentExtension &&
+						!extension.tools.has("spawn_agent") &&
+						!extension.tools.has("ask_question"),
+				),
+			}),
+		});
+		await loader.reload();
+		const { session } = await createAgentSession({
+			cwd: this.cwd,
+			agentDir: this.options.agentDir,
+			model: this.options.resolvedRun.modelInstance,
+			thinkingLevel: this.options.resolvedRun.effectiveThinking,
+			sessionManager: manager,
+			resourceLoader: loader,
+			customTools,
+			tools,
+		});
+		this.session = session;
+		this.unsubscribe = session.subscribe((event) => this.handleEvent(event));
 	}
 
-	private handleGenerationQuestion(generation: AgentGeneration, question: AgentQuestion): void {
-		if (this.currentGeneration !== generation || this.isClosing()) return;
-		this.options.onQuestion?.(this.summary(), question);
-	}
-
-	private handleGenerationCompletion(generation: AgentGeneration, error: Error | undefined): void {
-		if (this.currentGeneration !== generation) return;
-		if (error === undefined) {
-			const summary = this.summary();
-			if (summary.status === "idle") this.options.onBackgroundComplete?.(summary);
-		} else if (this.phase !== "closing" && this.phase !== "closed" && this.phase !== "aborted") {
-			this.options.onBackgroundComplete?.({ ...this.summary(), status: "failed", error: error.message });
-		}
-		if (!this.options.retain) void this.close().catch(() => {});
-	}
-
-	private async closeInternal(): Promise<void> {
-		if (this.lifecycle === "closed") return;
-		this.lifecycle = "closing";
-		this.emit();
-		const generation = this.currentGeneration;
-		generation?.close(new Error(`Agent ${this.id} was closed.`));
-		const failures: unknown[] = [];
-		try {
-			try {
-				await this.session.close();
-			} catch (error) {
-				failures.push(error);
-			}
-			try {
-				await generation?.drain();
-			} catch (error) {
-				failures.push(error);
-			}
-			try {
-				await generation?.recovery;
-			} catch (error) {
-				failures.push(error);
-			}
-		} finally {
-			this.lifecycle = "closed";
-			this.emit();
-			this.listeners.clear();
-		}
-		if (failures.length > 0) throw new CleanupAggregateError(`Agent ${this.id}`, failures);
-	}
-
-	private freshRun(taskName = ""): MutableRunData {
-		const identity = this.session?.sessionIdentity;
+	private launch(
+		message: string,
+		taskName: string,
+		background: boolean,
+		signal?: AbortSignal,
+	): Promise<ReadonlyRunDetails> {
+		if (!this.session) throw new Error(`Agent ${this.id} did not open its child session.`);
+		const { promise, resolve, reject } = Promise.withResolvers<ReadonlyRunDetails>();
+		void promise.catch(() => {});
 		const run = initRunData({
 			agent: this.options.agent,
 			taskName,
 			profile: this.options.resolvedRun.profile,
 			model: this.options.resolvedRun.model,
 			effectiveThinking: this.options.resolvedRun.effectiveThinking,
-			...(identity === undefined ? {} : { sessionId: identity.sessionId, sessionFile: identity.sessionFile }),
+			contextWindow: this.options.resolvedRun.contextWindow,
+			...(this.session.sessionId ? { sessionId: this.session.sessionId } : {}),
+			...(this.session.sessionFile ? { sessionFile: this.session.sessionFile } : {}),
 			resultId: randomBytes(32).toString("hex"),
 		});
-		run.contextWindow = this.options.resolvedRun.contextWindow;
-		return run;
+		const generation: Generation = {
+			number: ++this.nextGeneration,
+			completion: promise,
+			resolve,
+			reject,
+			run,
+			initialEntryIds: new Set(this.session.sessionManager.getEntries().map((entry) => entry.id)),
+			settled: false,
+			background,
+			aborted: false,
+			questionArrival: Promise.withResolvers<void>(),
+		};
+		this.current = generation;
+		this.phaseState = "running";
+		this.emit();
+		void this.session.prompt(message, { expandPromptTemplates: false }).then(
+			() => this.settle(generation),
+			(error) => this.fail(generation, error),
+		);
+		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, undefined, signal);
 	}
 
-	private snapshot(status: RunStatus = lifecycleStatus({ phase: this.phase })): ReadonlyRunDetails {
-		const generation = this.currentGeneration;
-		if (generation) return generation.snapshot(status);
-		return snapshotRunData(this.initialRun, {
-			agentId: this.id,
-			generation: 0,
-			status,
+	private async settle(generation: Generation): Promise<void> {
+		if (generation.settled || this.current !== generation) return;
+		const manager = this.session?.sessionManager;
+		const entry = manager
+			?.getBranch()
+			.findLast(
+				(candidate) =>
+					!generation.initialEntryIds.has(candidate.id) &&
+					candidate.type === "message" &&
+					candidate.message.role === "assistant",
+			);
+		const text = assistantText(entry) ?? "";
+		const stopReason =
+			entry?.type === "message" && entry.message.role === "assistant" ? entry.message.stopReason : undefined;
+		const complete = stopReason === "stop";
+		const result = storedResult(generation.number, generation.run.resultId, text, complete);
+		const sessionId = this.session?.sessionId ?? generation.run.sessionId;
+		const sessionFile = this.session?.sessionFile ?? generation.run.sessionFile;
+		if (!sessionId || !sessionFile) {
+			this.fail(generation, new Error(`Agent ${this.id} settled without a persisted child session.`));
+			return;
+		}
+		const locator: GenerationResultLocator = {
+			version: 2,
+			generation: generation.number,
+			resultId: result.resultId,
+			sessionId,
+			sessionFile,
+			resultEntryId: entry?.id ?? null,
+			resultSha256: result.sha256,
+		};
+		generation.run.result = resultReference(result);
+		generation.run.resultLocator = locator;
+		generation.run.finalText = resultPreview(text);
+		if (stopReason === "error" && !generation.run.error) {
+			generation.run.error =
+				entry?.type === "message" && entry.message.role === "assistant"
+					? (entry.message.errorMessage ?? "Subagent assistant failed.")
+					: "Subagent assistant failed.";
+		}
+		generation.run.endTime = Date.now();
+		generation.settled = true;
+		const terminalPhase: AgentPhase =
+			generation.aborted || stopReason === "aborted" ? "aborted" : stopReason === "error" ? "failed" : "idle";
+		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
+		const details = this.snapshot();
+		generation.resolve(details);
+		generation.questionArrival.resolve();
+		this.emit();
+		if (
+			generation.background &&
+			this.phaseState !== "closing" &&
+			this.phaseState !== "closed" &&
+			(terminalPhase === "idle" || terminalPhase === "failed")
+		) {
+			this.options.onBackgroundComplete?.(this.summary());
+		}
+		if (!this.options.retain) await this.close();
+	}
+
+	private fail(generation: Generation, cause: unknown): void {
+		if (generation.settled || this.current !== generation) return;
+		const error = toError(cause);
+		generation.run.error = error.message;
+		generation.run.endTime = Date.now();
+		generation.settled = true;
+		const terminalPhase = generation.aborted ? "aborted" : "failed";
+		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
+		generation.reject(error);
+		generation.questionArrival.resolve();
+		this.emit();
+		if (
+			generation.background &&
+			this.phaseState !== "closing" &&
+			this.phaseState !== "closed" &&
+			terminalPhase === "failed"
+		) {
+			this.options.onBackgroundComplete?.(this.summary());
+		}
+		if (!this.options.retain) void this.close();
+	}
+
+	private handleEvent(event: AgentSessionEvent): void {
+		const generation = this.current;
+		if (!generation || generation.settled) return;
+		foldSessionEvent(event, generation.run);
+		this.emit();
+	}
+
+	private cancelPendingQuestion(generation: Generation, message: string): void {
+		const pending = generation.question;
+		if (!pending) return;
+		delete generation.question;
+		pending.reject(new Error(message));
+	}
+
+	private async waitFor(generation: Generation, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
+		const guard = composeAbortSignal(signal, timeoutMs);
+		const question = generation.questionArrival.promise.then(() => {
+			if (generation.question) {
+				generation.background = true;
+				return this.snapshot();
+			}
+			return generation.completion;
 		});
-	}
-
-	private requireGeneration(): AgentGeneration {
-		if (!this.currentGeneration) throw new Error(`Agent ${this.id} has not started.`);
-		return this.currentGeneration;
-	}
-
-	private assertOpen(): void {
-		if (this.isClosing() || !this.session.isOpen) {
-			throw new Error(`Agent ${this.id} was closed during startup.`);
+		if (!guard) return Promise.race([generation.completion, question]);
+		let remove: Disposable | undefined;
+		const interrupted = new Promise<never>((_resolve, reject) => {
+			remove = onAbort(guard.signal, () => {
+				if (!generation.background) generation.background = true;
+				reject(
+					new AgentWaitInterruptedError(guard.timedOut() ? "timed_out" : "cancelled", this.id, guard.signal.reason),
+				);
+			});
+		});
+		try {
+			return await Promise.race([generation.completion, question, interrupted]);
+		} finally {
+			remove?.[Symbol.dispose]();
 		}
 	}
 
-	private isClosing(): boolean {
-		return this.lifecycle === "closing" || this.lifecycle === "closed";
-	}
-
-	private assertAvailableForFollowUp(): void {
-		if (!this.session.isOpen) {
-			throw new Error(`Agent ${this.id} process is dead; close it and spawn a replacement before following up.`);
-		}
-		if (this.isClosing()) throw new Error(`Agent ${this.id} is closed.`);
-		const question = this.currentGeneration?.pendingQuestion;
-		if (question) {
-			throw new Error(
-				`Agent ${this.id} is waiting for an answer to question '${question.question_id}'; use answer_agent.`,
+	private snapshot(status?: "launched"): ReadonlyRunDetails {
+		const current = this.current;
+		if (!current) {
+			return snapshotRunData(
+				initRunData({
+					agent: this.options.agent,
+					taskName: "",
+					profile: this.options.resolvedRun.profile,
+					model: this.options.resolvedRun.model,
+					effectiveThinking: this.options.resolvedRun.effectiveThinking,
+					contextWindow: this.options.resolvedRun.contextWindow,
+					resultId: randomBytes(32).toString("hex"),
+				}),
+				{ agentId: this.id, generation: 0, status: lifecycleStatus({ phase: this.phaseState }) },
 			);
 		}
+		return snapshotRunData(current.run, {
+			agentId: this.id,
+			generation: current.number,
+			status: status ?? lifecycleStatus({ phase: this.phaseState }),
+			...(current.question ? { pendingQuestion: current.question.question } : {}),
+		});
 	}
 
 	private emit(): void {
-		const snapshot = this.snapshot();
-		for (const listener of this.listeners) listener(snapshot);
+		const details = this.snapshot();
+		for (const listener of this.listeners) listener(details);
 	}
 }
 

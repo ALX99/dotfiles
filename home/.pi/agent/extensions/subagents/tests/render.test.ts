@@ -37,19 +37,17 @@ function details(): RunDetails {
 		effectiveThinking: "medium",
 		agentId: "general-1",
 		sessionFile: "/tmp/subagent.jsonl",
-		exitCode: 0,
 		finalText: "",
-		stderr: "",
 		aborted: false,
 		startTime: 0,
 		toolCount: 1,
 		recentTools: [],
 		lastMessage: "",
+		lastActivityTime: 0,
 		liveAssistantPreview: "",
 		tokens: 0,
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 		resultId: "a".repeat(64),
-		omittedTelemetryRecords: 0,
 	};
 }
 

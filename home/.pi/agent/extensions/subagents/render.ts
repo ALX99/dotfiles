@@ -253,8 +253,7 @@ export interface RenderOptions {
 
 export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOptions, theme: Theme): Container {
 	const c = new Container();
-	const failed =
-		details.aborted || details.exitCode !== 0 || details.status === "failed" || details.status === "aborted";
+	const failed = details.aborted || details.status === "failed" || details.status === "aborted";
 	const isRunning =
 		!failed &&
 		(options.isPartial ||
@@ -324,16 +323,6 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 		}
 	}
 
-	if (options.expanded && details.omittedTelemetryRecords > 0) {
-		c.addChild(
-			new Text(
-				theme.fg("warning", `${details.omittedTelemetryRecords} oversized live telemetry record(s) omitted`),
-				0,
-				0,
-			),
-		);
-	}
-
 	if (!isRunning && details.finalText) {
 		c.addChild(new Spacer(1));
 		const preview = options.expanded ? details.finalText : details.finalText.split("\n").slice(0, 3).join("\n");
@@ -345,9 +334,9 @@ export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOp
 		c.addChild(new Text(theme.fg("dim", `session: ${sanitizeTerminalText(details.sessionFile)}`), 0, 0));
 	}
 
-	if (failed && details.stderr.trim()) {
+	if (failed && details.error?.trim()) {
 		c.addChild(new Spacer(1));
-		c.addChild(new Text(theme.fg("error", sanitizeTerminalBlock(details.stderr.trim())), 0, 0));
+		c.addChild(new Text(theme.fg("error", sanitizeTerminalBlock(details.error.trim())), 0, 0));
 	}
 
 	return c;

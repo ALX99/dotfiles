@@ -50,7 +50,6 @@ export const ModelCandidateSchema = z
 
 export const ProfileSchema = z.strictObject({
 	description: nonEmptyString("description"),
-	countsTowardDeepAgentCap: z.boolean(),
 	modelPriority: z.array(ModelCandidateSchema).min(1, "modelPriority must contain at least one candidate"),
 });
 
@@ -63,7 +62,6 @@ export const AgentPolicySchema = z.strictObject({
 
 export const RootPolicySchema = z.strictObject({
 	maxConcurrentRootAgents: z.number().int().min(1),
-	maxConcurrentDeepAgents: z.number().int().min(1),
 });
 
 export const ProfilesSchema = z.strictObject({
@@ -89,11 +87,13 @@ export interface AvailableModelRegistry {
 	getAvailable(): readonly Model<Api>[];
 }
 
-/** The configuration fixed for a child process. This object is frozen before return. */
+/** The configuration fixed for an in-process child session. This object is frozen before return. */
 export interface ResolvedRun {
 	readonly agent: string;
 	readonly profile: string;
 	readonly model: string;
+	/** Native SDK model selected from the parent's authenticated scope. */
+	readonly modelInstance: Model<Api>;
 	readonly effectiveThinking: ModelThinkingLevel;
 	readonly contextWindow: number;
 }
@@ -325,7 +325,7 @@ function resolveCandidate(
 	if (!effectiveThinking) {
 		throw new Error(`Model '${candidate.id}' supports no thinking level at or below requested '${requested}'.`);
 	}
-	return freezeResolvedRun(agent, profileName, candidate.id, effectiveThinking, model.contextWindow);
+	return freezeResolvedRun(agent, profileName, candidate.id, effectiveThinking, model.contextWindow, model);
 }
 
 function supportedThinkingAtOrBelow(model: Model<Api>, requested: ModelThinkingLevel): ModelThinkingLevel | undefined {
@@ -337,11 +337,12 @@ function supportedThinkingAtOrBelow(model: Model<Api>, requested: ModelThinkingL
 function freezeResolvedRun(
 	agent: string,
 	profile: string,
-	model: string,
+	modelName: string,
 	effectiveThinking: ModelThinkingLevel,
 	contextWindow: number,
+	modelInstance: Model<Api>,
 ): ResolvedRun {
-	return Object.freeze({ agent, profile, model, effectiveThinking, contextWindow });
+	return Object.freeze({ agent, profile, model: modelName, modelInstance, effectiveThinking, contextWindow });
 }
 
 function splitModelId(id: string): [string, string] {

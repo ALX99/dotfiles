@@ -1,27 +1,65 @@
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "../../_shared/terminal-text.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import type { AgentSummary, AgentView } from "../agent-types.ts";
-import { formatAgentCounts } from "../dashboard-render.ts";
-import { formatDuration } from "../render.ts";
-
-const UI_REFRESH_MS = 1_000;
 
 export interface RegistryUiBinding {
 	readonly refresh: () => void;
 	readonly close: () => void;
 }
 
+const UI_TICK_MS = 1_000;
+const ACTIVE_STATUSES = new Set(["starting", "running"]);
+
+type WidgetTheme = ExtensionContext["ui"]["theme"];
+
+/** Keep active background work visible next to the editor. */
 export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): RegistryUiBinding {
+	let widgetVisible = false;
+	let requestRender = () => {};
 	let tick: NodeJS.Timeout | undefined;
+
+	const showWidget = () => {
+		if (widgetVisible) return;
+		widgetVisible = true;
+		ctx.ui.setWidget(
+			"subagents",
+			(tui, theme) => {
+				requestRender = () => tui.requestRender();
+				return {
+					render: (width) => renderRunningAgentLines(registry.views(), Date.now(), width, theme),
+					invalidate() {},
+				};
+			},
+			{ placement: "belowEditor" },
+		);
+	};
+	const hideWidget = () => {
+		if (!widgetVisible) return;
+		widgetVisible = false;
+		requestRender = () => {};
+		ctx.ui.setWidget("subagents", undefined);
+	};
+	const startTick = () => {
+		if (tick) return;
+		tick = setInterval(() => requestRender(), UI_TICK_MS).unref();
+	};
+	const stopTick = () => {
+		if (!tick) return;
+		clearInterval(tick);
+		tick = undefined;
+	};
 	const refresh = () => {
-		updateAgentUi(ctx, registry);
-		const active = registry.views().some(isActiveAgent);
-		if (active && !tick) tick = setInterval(() => updateAgentUi(ctx, registry), UI_REFRESH_MS).unref();
-		else if (!active && tick) {
-			clearInterval(tick);
-			tick = undefined;
+		const running = registry.list().filter((summary) => ACTIVE_STATUSES.has(summary.status)).length;
+		ctx.ui.setStatus("subagents", running ? `agents ${running} running` : undefined);
+		if (running > 0) {
+			showWidget();
+			startTick();
+			requestRender();
+		} else {
+			stopTick();
+			hideWidget();
 		}
 	};
 	const unsubscribe = registry.subscribe(refresh);
@@ -29,12 +67,60 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 		refresh,
 		close() {
 			unsubscribe();
-			if (tick) clearInterval(tick);
-			tick = undefined;
+			stopTick();
+			hideWidget();
 			ctx.ui.setStatus("subagents", undefined);
-			ctx.ui.setWidget("subagents", undefined);
 		},
 	};
+}
+
+export function renderRunningAgentLines(
+	views: readonly AgentView[],
+	now: number,
+	width: number,
+	theme: WidgetTheme,
+): string[] {
+	const running = views.filter((view) => ACTIVE_STATUSES.has(view.summary.status));
+	if (running.length === 0 || width <= 0) return [];
+	const noun = running.length === 1 ? "subagent" : "subagents";
+	const lines = [
+		truncateToWidth(`${theme.fg("accent", "●")} ${theme.fg("muted", `${running.length} ${noun} running`)}`, width),
+	];
+	for (const view of running) lines.push(renderAgentLine(view, now, width, theme));
+	return lines;
+}
+
+export function formatActivityAge(elapsedMs: number): string {
+	const seconds = Math.floor(Math.max(0, elapsedMs) / 1_000);
+	if (seconds < 1) return "1s ago";
+	if (seconds < 60) return `${seconds}s ago`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	return `${Math.floor(hours / 24)}d ago`;
+}
+
+function renderAgentLine(view: AgentView, now: number, width: number, theme: WidgetTheme): string {
+	const summary = view.summary;
+	const details = view.details;
+	const label = sanitizeTerminalText(
+		summary.task_name ? `${summary.agent_id} · ${summary.task_name}` : summary.agent_id,
+	);
+	const latestTool = details.recentTools.at(-1);
+	const activity = summary.pending_question
+		? theme.fg("warning", "waiting for input")
+		: latestTool
+			? theme.fg(
+					"accent",
+					sanitizeTerminalText(`${latestTool.name}${latestTool.argsPreview ? ` ${latestTool.argsPreview}` : ""}`),
+				)
+			: theme.fg("dim", summary.status === "starting" ? "starting" : "thinking");
+	const left = `${theme.fg("dim", "  ")}${theme.fg("text", label)}${theme.fg("dim", " · ")}${activity}`;
+	const suffix = theme.fg("dim", ` · ${formatActivityAge(now - details.lastActivityTime)}`);
+	const availableLeft = width - visibleWidth(suffix);
+	if (availableLeft <= 0) return truncateToWidth(suffix, width);
+	return `${truncateToWidth(left, availableLeft)}${suffix}`;
 }
 
 export function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSummary): void {
@@ -42,60 +128,5 @@ export function notifyCompletion(ctx: ExtensionContext | undefined, summary: Age
 	ctx?.ui.notify(
 		summary.status === "failed" ? `Subagent failed: ${label}` : `Subagent complete: ${label}`,
 		summary.status === "failed" ? "error" : "info",
-	);
-}
-
-export function isActiveAgent(view: AgentView): boolean {
-	return view.summary.status === "starting" || view.summary.status === "running";
-}
-
-function updateAgentUi(ctx: ExtensionContext, registry: AgentRegistry): void {
-	const views = registry.views().filter((view) => view.summary.status !== "closed");
-	if (!views.length) {
-		ctx.ui.setStatus("subagents", undefined);
-		ctx.ui.setWidget("subagents", undefined);
-		return;
-	}
-	const active = views.some(isActiveAgent);
-	const failed = views.some((view) => view.summary.status === "failed" || view.summary.status === "aborted");
-	const color = failed ? "error" : active ? "warning" : "success";
-	ctx.ui.setStatus("subagents", ctx.ui.theme.fg(color, `agents ${formatAgentCounts(views)}`));
-
-	const visible = views.filter(
-		(view) => isActiveAgent(view) || view.summary.status === "failed" || view.summary.status === "aborted",
-	);
-	if (!visible.length) {
-		ctx.ui.setWidget("subagents", undefined);
-		return;
-	}
-	ctx.ui.setWidget(
-		"subagents",
-		(_tui, theme) => ({
-			render(width: number): string[] {
-				const lines = [theme.fg("muted", "SUBAGENTS")];
-				for (const view of visible.slice(0, 3)) lines.push(renderAgentWidgetRow(view, width, theme));
-				if (visible.length > 3) lines.push(theme.fg("dim", `  +${visible.length - 3} more`));
-				return lines.map((line) => truncateToWidth(line, width, ""));
-			},
-			invalidate() {},
-		}),
-		{ placement: "belowEditor" },
-	);
-}
-
-function renderAgentWidgetRow(view: AgentView, width: number, theme: Theme): string {
-	const { summary, details } = view;
-	const failed = summary.status === "failed" || summary.status === "aborted";
-	const icon = failed ? theme.fg("error", "✗") : theme.fg("warning", "⟳");
-	const task = sanitizeTerminalText(summary.task_name || summary.agent);
-	const latest = details.recentTools.at(-1);
-	const activity = latest
-		? `${sanitizeTerminalText(latest.name)}${latest.argsPreview ? ` ${sanitizeTerminalText(latest.argsPreview)}` : ""}`
-		: sanitizeTerminalText(details.lastMessage || (failed ? summary.status : "starting…"));
-	const elapsed = formatDuration((details.endTime ?? Date.now()) - details.startTime);
-	return truncateToWidth(
-		`${icon} ${task} · ${summary.agent}/${summary.profile} · ${activity} · ${elapsed}`,
-		width,
-		"…",
 	);
 }
