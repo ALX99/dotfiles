@@ -21,12 +21,13 @@ test("bundled agent files parse with explicit, role-specific tool allowlists", (
 	}
 });
 
-test("parseAgentFile rejects model policy and malformed identity frontmatter", () => {
+test("parseAgentFile requires an explicit YAML tool list and rejects unsupported metadata", () => {
 	const parsed = parseAgentFile(
 		"scout.md",
 		`---
 name: scout
 description: Scout
+tools: read,find
 model: provider/model
 ---
 Prompt.
@@ -35,13 +36,31 @@ Prompt.
 	assert.equal(parsed.success, false);
 	if (parsed.success) return;
 	assert.ok(parsed.errors.some((error) => error.includes("Unrecognized key")));
+	assert.ok(parsed.errors.some((error) => error.includes("expected array")));
+});
+
+test("parseAgentFile rejects duplicate tools and whitespace-containing role names", () => {
+	for (const [frontmatter, expected] of [
+		["name: scout role\ndescription: Scout\ntools: [read]", "name must not contain whitespace"],
+		["name: scout\ndescription: Scout\ntools: [read, read]", "tools must not contain duplicates"],
+	] as const) {
+		const parsed = parseAgentFile("scout.md", `---\n${frontmatter}\n---\nPrompt.\n`);
+		assert.equal(parsed.success, false);
+		if (!parsed.success) assert.ok(parsed.errors.some((error) => error.includes(expected)));
+	}
 });
 
 test("discoverAgents aggregates malformed files and duplicate names", (t) => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-agents-test-"));
 	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-	fs.writeFileSync(path.join(dir, "one.md"), "---\nname: duplicate\ndescription: One\n---\nPrompt one.\n");
-	fs.writeFileSync(path.join(dir, "two.md"), "---\nname: duplicate\ndescription: Two\n---\nPrompt two.\n");
+	fs.writeFileSync(
+		path.join(dir, "one.md"),
+		"---\nname: duplicate\ndescription: One\ntools: [read]\n---\nPrompt one.\n",
+	);
+	fs.writeFileSync(
+		path.join(dir, "two.md"),
+		"---\nname: duplicate\ndescription: Two\ntools: [read]\n---\nPrompt two.\n",
+	);
 	fs.writeFileSync(path.join(dir, "broken.md"), "---\nname: broken\n---\n");
 
 	const result = discoverAgents(dir);

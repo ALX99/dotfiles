@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { toError } from "../_shared/errors.ts";
 import type { AgentSummary } from "./agent-types.ts";
+import { requiresExactResultRead } from "./tool-activation.ts";
 import type { CapacitySnapshot } from "./spawn-admission.ts";
 import { toPiUsage, type ReadonlyRunDetails, type RunUsage } from "./run-state.ts";
 
@@ -55,6 +56,14 @@ ${question.options.map((option) => `- ${option}`).join("\n")}
 Answer with answer_agent, then use wait_agent to collect the resumed run. If external input is required, call ask_question first with only the substantive alternatives; it adds 'Compare options' and 'Something else' automatically.`;
 }
 
+export function formatAgentCompletion(summary: AgentSummary, includeRetention = false): string {
+	const retention = includeRetention ? `\nretained: ${summary.retained}` : "";
+	const exactResultGuidance = requiresExactResultRead(summary)
+		? "\n\nUse read_agent_result for exact cursor-paged reconstruction."
+		: "";
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}${retention}\n\n${summary.final_text || summary.error || "(no output)"}${exactResultGuidance}`;
+}
+
 export function waitDetails(
 	summaries: readonly AgentSummary[],
 	elapsedMs: number,
@@ -75,7 +84,7 @@ export function waitDetails(
 export function textResult<TDetails>(text: string, details: TDetails): AgentToolResult<TDetails> {
 	const bounded = truncateHead(text, { maxBytes: DEFAULT_MAX_BYTES - 512, maxLines: DEFAULT_MAX_LINES - 2 });
 	const output = bounded.truncated
-		? `${bounded.content}\n\n[Management preview truncated; query fewer agents or use read_agent_result to page an exact terminal result.]`
+		? `${bounded.content}\n\n[Tool output truncated; query fewer agents or request a smaller response.]`
 		: bounded.content;
 	return { content: [{ type: "text", text: output }], details };
 }

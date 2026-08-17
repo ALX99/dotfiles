@@ -1,7 +1,7 @@
 /** Persistent in-process Pi SDK subagents with stable, session-runtime IDs. */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { bootstrapSubagents, registerSubagentLifecycle } from "./bootstrap.ts";
+import { createSubagentRuntime } from "./bootstrap.ts";
 import { showAgentDashboard } from "./dashboard.ts";
 import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
@@ -26,11 +26,11 @@ interface SubagentCommandRuntime {
 
 export default function registerSubagents(pi: ExtensionAPI): void {
 	const toolActivation = new SubagentToolController(pi);
-	const runtime = bootstrapSubagents(toolActivation);
+	const runtime = createSubagentRuntime(toolActivation);
 	const managementTools = createManagementTools({ registry: runtime.registry, admission: runtime.admission });
 
-	registerSubagentLifecycle(pi, runtime);
 	pi.on("session_start", (_event, ctx) => {
+		runtime.startSession(ctx);
 		toolActivation.reset();
 		if (runtime.restoredResultCount > 0) toolActivation.activate(["read_agent_result"]);
 		const missing = missingSubagentTools(pi);
@@ -41,6 +41,8 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			);
 		}
 	});
+	pi.on("agent_settled", () => runtime.flushCompletions(pi));
+	pi.on("session_shutdown", () => runtime.shutdown());
 	registerSubagentsCommand(pi, toolActivation, runtime);
 	pi.registerCommand("agents", {
 		description: "Inspect and manage subagents owned by this session",

@@ -11,7 +11,7 @@ import { bindRegistryUi, notifyCompletion, type RegistryUiBinding } from "./ui/w
 
 export const BACKGROUND_COMPLETION_DEBOUNCE_MS = 50;
 
-export class DefaultSubagentRuntime {
+export class SubagentRuntime {
 	readonly agents: AgentConfig[];
 	readonly profiles: ProfilesConfig;
 	readonly agentDir: string;
@@ -45,7 +45,7 @@ export class DefaultSubagentRuntime {
 		this.admission = new SpawnAdmissionController(profiles, this.registry);
 	}
 
-	async startSession(ctx: ExtensionContext): Promise<void> {
+	startSession(ctx: ExtensionContext): void {
 		this.activeContext = ctx;
 		const branch = ctx.sessionManager.getBranch();
 		this.restoredResultCount = this.registry.restoreResultLocators(branch);
@@ -146,7 +146,7 @@ export class DefaultSubagentRuntime {
 	}
 }
 
-export function bootstrapSubagents(toolActivation: SubagentToolActivator): DefaultSubagentRuntime {
+export function createSubagentRuntime(toolActivation: SubagentToolActivator): SubagentRuntime {
 	const discovered = discoverAgents();
 	let agents: AgentConfig[];
 	let agentErrors: string[] = [];
@@ -161,13 +161,7 @@ export function bootstrapSubagents(toolActivation: SubagentToolActivator): Defau
 	const profileResult = loadProfiles(agents);
 	if (profileResult.isErr()) throw new Error([...agentErrors, ...profileResult.error.errors].join("\n"));
 	if (agentErrors.length) throw new Error(agentErrors.join("\n"));
-	return new DefaultSubagentRuntime(agents, profileResult.value, toolActivation);
-}
-
-export function registerSubagentLifecycle(pi: ExtensionAPI, runtime: DefaultSubagentRuntime): void {
-	pi.on("session_start", async (_event, ctx) => runtime.startSession(ctx));
-	pi.on("agent_settled", () => runtime.flushCompletions(pi));
-	pi.on("session_shutdown", () => runtime.shutdown());
+	return new SubagentRuntime(agents, profileResult.value, toolActivation);
 }
 
 function sendCompletions(pi: ExtensionAPI, summaries: readonly AgentSummary[]): void {

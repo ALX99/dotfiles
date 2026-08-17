@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Fast read-only codebase scout for evidence-backed discovery and coverage reporting; no implementation or final review verdicts.
-tools: read,find,grep,ask_question
+tools: [read, find, grep, ask_question]
 ---
 
 Investigate the assigned question and return compressed, evidence-backed

@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "../../_shared/terminal-text.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import { isAgentActive, type AgentSummary, type AgentView } from "../agent-types.ts";
@@ -13,11 +13,40 @@ export interface RegistryUiBinding {
 const UI_TICK_MS = 1_000;
 type WidgetTheme = ExtensionContext["ui"]["theme"];
 
+class RunningAgentsWidget implements Component {
+	private tick: NodeJS.Timeout | undefined;
+	private readonly registry: AgentRegistry;
+	private readonly tui: TUI;
+	private readonly theme: WidgetTheme;
+
+	constructor(registry: AgentRegistry, tui: TUI, theme: WidgetTheme) {
+		this.registry = registry;
+		this.tui = tui;
+		this.theme = theme;
+		this.tick = setInterval(() => this.tui.requestRender(), UI_TICK_MS).unref();
+	}
+
+	render(width: number): string[] {
+		return renderRunningAgentLines(this.registry.views(), Date.now(), width, this.theme);
+	}
+
+	invalidate(): void {}
+
+	refresh(): void {
+		this.tui.requestRender();
+	}
+
+	dispose(): void {
+		if (!this.tick) return;
+		clearInterval(this.tick);
+		this.tick = undefined;
+	}
+}
+
 /** Keep active background work visible next to the editor. */
 export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): RegistryUiBinding {
 	let widgetVisible = false;
-	let requestRender = () => {};
-	let tick: NodeJS.Timeout | undefined;
+	let widget: RunningAgentsWidget | undefined;
 
 	const showWidget = () => {
 		if (widgetVisible) return;
@@ -25,11 +54,9 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 		ctx.ui.setWidget(
 			"subagents",
 			(tui, theme) => {
-				requestRender = () => tui.requestRender();
-				return {
-					render: (width) => renderRunningAgentLines(registry.views(), Date.now(), width, theme),
-					invalidate() {},
-				};
+				widget?.dispose();
+				widget = new RunningAgentsWidget(registry, tui, theme);
+				return widget;
 			},
 			{ placement: "belowEditor" },
 		);
@@ -37,27 +64,17 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 	const hideWidget = () => {
 		if (!widgetVisible) return;
 		widgetVisible = false;
-		requestRender = () => {};
+		widget?.dispose();
+		widget = undefined;
 		ctx.ui.setWidget("subagents", undefined);
-	};
-	const startTick = () => {
-		if (tick) return;
-		tick = setInterval(() => requestRender(), UI_TICK_MS).unref();
-	};
-	const stopTick = () => {
-		if (!tick) return;
-		clearInterval(tick);
-		tick = undefined;
 	};
 	const refresh = () => {
 		const running = registry.list().filter((summary) => isAgentActive(summary.status)).length;
 		ctx.ui.setStatus("subagents", running ? `agents ${running} running` : undefined);
 		if (running > 0) {
 			showWidget();
-			startTick();
-			requestRender();
+			widget?.refresh();
 		} else {
-			stopTick();
 			hideWidget();
 		}
 	};
@@ -66,7 +83,6 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 		refresh,
 		close() {
 			unsubscribe();
-			stopTick();
 			hideWidget();
 			ctx.ui.setStatus("subagents", undefined);
 		},

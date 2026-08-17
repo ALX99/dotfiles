@@ -13,7 +13,7 @@ function model(id: string): Model<Api> {
 	} as Model<Api>;
 }
 
-test("balanced runs prefer Terra at its economical default thinking level", () => {
+test("bundled profiles bind every discovered role and prefer Terra at its economical default", () => {
 	const config = parseAndValidateProfiles(fs.readFileSync(new URL("../profiles.json", import.meta.url), "utf8"), [
 		"scout",
 		"worker",
@@ -30,4 +30,36 @@ test("balanced runs prefer Terra at its economical default thinking level", () =
 
 	assert.equal(run.model, "openai-codex/gpt-5.6-terra");
 	assert.equal(run.effectiveThinking, "medium");
+});
+
+test("profile validation reports configuration relationships before a run can resolve", () => {
+	const config = parseAndValidateProfiles(
+		{
+			rootPolicy: { maxConcurrentRootAgents: 1 },
+			profiles: {
+				fast: {
+					description: "Fast",
+					modelPriority: [
+						{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" },
+						{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" },
+					],
+				},
+			},
+			agentPolicies: {
+				scout: { defaultProfile: "missing", allowedProfiles: ["fast", "missing"] },
+			},
+		},
+		["worker"],
+		"test-profiles.json",
+	);
+
+	assert.equal(config.success, false);
+	if (config.success) return;
+	assert.deepEqual(config.errors, [
+		"test-profiles.json: profiles.fast.modelPriority.1.id: duplicate candidate model id 'openai-codex/gpt' (first at modelPriority.0.id)",
+		"test-profiles.json: agentPolicies.scout: references unknown agent 'scout'",
+		"test-profiles.json: agentPolicies.scout.defaultProfile: references unknown profile 'missing'",
+		"test-profiles.json: agentPolicies.scout.allowedProfiles.1: references unknown profile 'missing'",
+		"test-profiles.json: agentPolicies.worker: missing policy binding for agent 'worker'",
+	]);
 });

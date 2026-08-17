@@ -110,6 +110,7 @@ test("running-agent widget shows only known native context and respects its widt
 test("registry binding shows active work and clears it after settlement", () => {
 	let views = [view({})];
 	let listener: (() => void) | undefined;
+	let renderRequests = 0;
 	const statuses: Array<string | undefined> = [];
 	const widgets: Array<unknown> = [];
 	const binding = bindRegistryUi(
@@ -133,7 +134,15 @@ test("registry binding shows active work and clears it after settlement", () => 
 
 	binding.refresh();
 	assert.equal(statuses.at(-1), "agents 1 running");
-	assert.equal(typeof widgets.at(-1), "function");
+	const widgetFactory = widgets.at(-1);
+	assert.equal(typeof widgetFactory, "function");
+	(widgetFactory as (tui: { requestRender(): void }, theme: never) => unknown)(
+		{ requestRender: () => renderRequests++ },
+		theme as never,
+	);
+
+	listener?.();
+	assert.equal(renderRequests, 1, "registry changes redraw the localized widget instance");
 
 	views = [view({ status: "idle" })];
 	listener?.();

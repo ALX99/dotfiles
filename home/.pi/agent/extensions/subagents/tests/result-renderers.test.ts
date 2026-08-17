@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { ReadonlyRunDetails } from "../run-state.ts";
 import { agentSummaryDetails, textResult, waitDetails } from "../tool-results.ts";
 import { renderRunToolResult, renderSummaryToolResult, renderWaitToolResult } from "../ui/result-renderers.ts";
 
@@ -28,6 +29,32 @@ const minimalTheme = {
 // The focused renderer fixture implements every Theme method these renderers call.
 const theme = minimalTheme as Theme;
 const options = { expanded: false, isPartial: false };
+
+test("run-result ticks stay scoped to their streaming tool row", () => {
+	const details = {
+		agent: "scout",
+		taskName: "inspect parser",
+		profile: "fast",
+		model: "provider/model",
+		effectiveThinking: "low",
+		finalText: "",
+		startTime: 0,
+		toolCount: 0,
+		recentTools: [],
+		lastMessage: "",
+		lastActivityTime: 0,
+		contextUsage: { tokens: null, contextWindow: 10_000, percent: null },
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		resultId: "a".repeat(64),
+		aborted: false,
+	} satisfies ReadonlyRunDetails;
+	const ticks = new Map<string, NodeJS.Timeout>();
+
+	renderRunToolResult(textResult("", details), { ...options, isPartial: true }, theme, ticks, "run-1", () => {});
+	assert.equal(ticks.has("run-1"), true);
+	renderRunToolResult(textResult("", details), options, theme, ticks, "run-1", () => {});
+	assert.equal(ticks.has("run-1"), false);
+});
 
 test("typed summary details flow from result constructors into renderers without adapters", () => {
 	const result = textResult("raw fallback", agentSummaryDetails([summary]));

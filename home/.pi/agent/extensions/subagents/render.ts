@@ -1,7 +1,7 @@
 /**
  * UI rendering for spawn_agent — the tool-call header (renderCall) and the
- * streaming/final result block (renderResult). Pure formatting plus a 1Hz
- * tick interval to keep the elapsed counter alive between tool events.
+ * streaming/final result block (renderResult). Pure formatting; result-update
+ * lifecycle state lives with the result renderer.
  */
 
 import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
@@ -12,8 +12,6 @@ import { clipTerminalText, sanitizeTerminalBlock, sanitizeTerminalText } from ".
 import { contextUsagePercentage, formatContextUsage, formatTokens } from "./ui/format.ts";
 export type { WaitDetails } from "./tool-results.ts";
 import type { WaitDetails } from "./tool-results.ts";
-
-const TICK_INTERVAL_MS = 1000;
 
 // ── formatters ────────────────────────────────────────────────────────
 
@@ -321,25 +319,4 @@ export function renderResultBlock(
 	}
 
 	return c;
-}
-/** Set up (and tear down) a 1Hz invalidation tick while the result is partial.
- * `ticks` is keyed by toolCallId so concurrent spawns don't share a slot. */
-export function manageTick(
-	ticks: Map<string, NodeJS.Timeout>,
-	id: string,
-	isPartial: boolean,
-	invalidate: () => void,
-): void {
-	if (isPartial) {
-		if (ticks.has(id)) return;
-		// .unref() so a missed cleanup (process exits before final renderResult
-		// fires) can't keep the agent alive indefinitely.
-		ticks.set(id, setInterval(invalidate, TICK_INTERVAL_MS).unref());
-	} else {
-		const t = ticks.get(id);
-		if (t) {
-			clearInterval(t);
-			ticks.delete(id);
-		}
-	}
 }

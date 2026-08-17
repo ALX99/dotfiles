@@ -2,13 +2,15 @@ import type { AgentToolResult, Theme, ToolRenderResultOptions } from "@earendil-
 import { Text } from "@earendil-works/pi-tui";
 import { sanitizeTerminalBlock } from "../../_shared/terminal-text.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
-import { manageTick, renderAgentSummaries, renderResultBlock, renderWaitResult } from "../render.ts";
+import { renderAgentSummaries, renderResultBlock, renderWaitResult } from "../render.ts";
 import type { AgentSummaryDetails, WaitDetails } from "../tool-results.ts";
 import { resultText } from "../tool-results.ts";
 
 type RendererToolResult<TDetails> = Omit<AgentToolResult<TDetails>, "details"> & {
 	readonly details?: TDetails;
 };
+
+const RESULT_TICK_INTERVAL_MS = 1_000;
 
 export function renderRunToolResult(
 	result: RendererToolResult<ReadonlyRunDetails>,
@@ -18,12 +20,9 @@ export function renderRunToolResult(
 	toolCallId: string,
 	invalidate: () => void,
 ): Text | ReturnType<typeof renderResultBlock> {
-	if (!result.details) {
-		if (!options.isPartial) manageTick(ticks, toolCallId, false, invalidate);
-		return new Text(fallbackResultText(result), 0, 0);
-	}
-	manageTick(ticks, toolCallId, options.isPartial, invalidate);
-	return renderResultBlock(result.details, options, theme);
+	const details = result.details;
+	updateResultTick(ticks, toolCallId, details ? options.isPartial : false, invalidate);
+	return details ? renderResultBlock(details, options, theme) : new Text(fallbackResultText(result), 0, 0);
 }
 
 export function renderSummaryToolResult(
@@ -49,4 +48,20 @@ export function renderWaitToolResult(
 
 function fallbackResultText(result: Pick<AgentToolResult<unknown>, "content">): string {
 	return sanitizeTerminalBlock(resultText(result));
+}
+
+/** Keep a streaming row's elapsed time current until its final result arrives. */
+function updateResultTick(
+	ticks: Map<string, NodeJS.Timeout>,
+	toolCallId: string,
+	isPartial: boolean,
+	invalidate: () => void,
+): void {
+	const tick = ticks.get(toolCallId);
+	if (!isPartial) {
+		if (tick) clearInterval(tick);
+		ticks.delete(toolCallId);
+		return;
+	}
+	if (!tick) ticks.set(toolCallId, setInterval(invalidate, RESULT_TICK_INTERVAL_MS).unref());
 }
