@@ -6,7 +6,7 @@ import { Container } from "@earendil-works/pi-tui";
 import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
-import type { AgentQuestion, AgentSummary } from "../agent-types.ts";
+import { isAgentActive, type AgentQuestion, type AgentSummary } from "../agent-types.ts";
 import { ManagedAgent } from "../managed-agent.ts";
 import { resolveRun, type ProfilesConfig } from "../profiles.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
@@ -158,7 +158,7 @@ export function createSpawnAgentTool(
 				cleanupUpdate();
 				if (managed) {
 					const summary = managed.summary();
-					if (summary.status === "starting" || summary.status === "running") {
+					if (isAgentActive(summary.status)) {
 						toolActivation.activateForState(summary, true);
 					}
 				}

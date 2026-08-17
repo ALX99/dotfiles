@@ -2,6 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { toError } from "../_shared/errors.ts";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import type { AgentRegistry } from "./agent-registry.ts";
+import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import { isTruncatedResultPreview, validateChildSessionPath } from "./result-store.ts";
 
 const BACK = "← Back";
@@ -21,33 +22,28 @@ export async function showAgentDashboard(ctx: ExtensionCommandContext, registry:
 		if (!selected || selected === BACK) return;
 		const id = selected.split(" · ", 1)[0];
 		if (!id) continue;
-		await showAgent(ctx, registry, id);
+		if (await showAgent(ctx, registry, id)) return;
 	}
 }
 
-async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, id: string): Promise<void> {
+async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, id: string): Promise<boolean> {
 	while (true) {
 		const view = registry.view(id);
 		const summary = view.summary;
 		const actions = ["Inspect output", "Inspect transcript"];
-		if (summary.status === "starting" || summary.status === "running") actions.push("Steer", "Interrupt");
-		if (
-			summary.retained &&
-			summary.status !== "closed" &&
-			summary.status !== "starting" &&
-			summary.status !== "running"
-		) {
+		const active = isAgentActive(summary.status);
+		if (active) actions.push("Steer", "Interrupt");
+		if (summary.retained && summary.status !== "closed" && !active) {
 			actions.push("Follow up");
 		}
 		if (summary.status !== "closed") actions.push("Close");
-		if (summary.session_file && summary.status !== "starting" && summary.status !== "running")
-			actions.push("Take over session");
+		if (summary.session_file && !active) actions.push("Take over session");
 		const action = await ctx.ui.select(`${summary.agent_id} · ${summary.status}`, [
 			`${summary.task_name || "(no task)"}\n${summary.model} · generation ${summary.generation}`,
 			...actions,
 			BACK,
 		]);
-		if (!action || action === BACK) return;
+		if (!action || action === BACK) return false;
 		try {
 			switch (action) {
 				case "Inspect output":
@@ -72,10 +68,9 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 					break;
 				case "Close":
 					if (await ctx.ui.confirm("Close subagent?", "Its retained context will be lost.")) await registry.close(id);
-					return;
+					return false;
 				case "Take over session":
-					await takeOver(ctx, registry, id, summary.session_file);
-					return;
+					return takeOver(ctx, summary.session_file);
 			}
 		} catch (error) {
 			ctx.ui.notify(sanitizeTerminalText(toError(error).message), "error");
@@ -121,12 +116,7 @@ async function displayText(ctx: ExtensionCommandContext, title: string, text: st
 	}
 }
 
-async function takeOver(
-	ctx: ExtensionCommandContext,
-	registry: AgentRegistry,
-	id: string,
-	sessionFile: string | undefined,
-): Promise<void> {
+async function takeOver(ctx: ExtensionCommandContext, sessionFile: string | undefined): Promise<boolean> {
 	if (!sessionFile) throw new Error("This subagent has no session file.");
 	const file = await validateChildSessionPath(sessionFile);
 	if (
@@ -135,12 +125,12 @@ async function takeOver(
 			"This leaves the parent session and closes every retained subagent.",
 		)
 	) {
-		await registry.close(id);
-		await ctx.switchSession(file);
+		return !(await ctx.switchSession(file)).cancelled;
 	}
+	return false;
 }
 
-function agentCounts(summaries: readonly { status: string }[]): string {
-	const running = summaries.filter((summary) => summary.status === "starting" || summary.status === "running").length;
+function agentCounts(summaries: readonly AgentSummary[]): string {
+	const running = summaries.filter((summary) => isAgentActive(summary.status)).length;
 	return `${running} running · ${summaries.length - running} settled`;
 }

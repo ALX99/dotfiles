@@ -4,6 +4,10 @@ export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" 
 
 export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
 
+export function isAgentActive(status: AgentStatus): boolean {
+	return status === "starting" || status === "running";
+}
+
 export interface AgentQuestion {
 	readonly question_id: string;
 	readonly question: string;

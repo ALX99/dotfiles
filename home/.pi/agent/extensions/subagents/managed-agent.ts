@@ -494,6 +494,8 @@ export class ManagedAgent {
 		const generation = this.current;
 		if (!generation || generation.settled) return;
 		foldSessionEvent(event, generation.run);
+		const contextUsage = this.session?.getContextUsage();
+		if (contextUsage) generation.run.contextUsage = { ...contextUsage };
 		this.emit();
 	}
 

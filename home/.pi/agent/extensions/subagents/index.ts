@@ -3,7 +3,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapSubagents, registerSubagentLifecycle } from "./bootstrap.ts";
 import { showAgentDashboard } from "./dashboard.ts";
-import type { AgentSummary } from "./agent-types.ts";
+import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
 import { createManagementTools } from "./tools/management-tools.ts";
 import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
@@ -106,7 +106,7 @@ function restoreUsefulTools(tools: SubagentToolController, runtime: SubagentComm
 	const summaries = runtime.registry.list();
 	if (runtime.registry.hasStoredResults()) tools.activate(["read_agent_result"]);
 	for (const summary of summaries) {
-		const background = summary.status === "starting" || summary.status === "running";
+		const background = isAgentActive(summary.status);
 		tools.activateForState(summary, background);
 	}
 }

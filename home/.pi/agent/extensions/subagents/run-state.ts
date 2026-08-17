@@ -1,5 +1,5 @@
 import type { Usage } from "@earendil-works/pi-ai";
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionEvent, ContextUsage } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
@@ -71,9 +71,9 @@ export interface MutableRunData {
 	lastActivityTime: number;
 	/** Bounded assistant text used to render a live result before settlement. */
 	liveAssistantPreview: string;
-	tokens: number;
+	/** Native session context snapshot, including Pi's post-compaction unknown state. */
+	contextUsage: ContextUsage;
 	usage: RunUsage;
-	contextWindow?: number;
 	resultId: string;
 	result?: AgentResultReference;
 	resultLocator?: GenerationResultLocator;
@@ -88,8 +88,9 @@ export interface RunDetails extends MutableRunData {
 }
 
 export type ReadonlyRunDetails = Readonly<
-	Omit<RunDetails, "recentTools" | "usage" | "liveAssistantPreview"> & {
+	Omit<RunDetails, "recentTools" | "usage" | "liveAssistantPreview" | "contextUsage"> & {
 		readonly recentTools: readonly Readonly<{ name: string; argsPreview: string }>[];
+		readonly contextUsage: Readonly<ContextUsage>;
 		readonly usage: Readonly<RunUsage>;
 	}
 >;
@@ -123,9 +124,8 @@ export function initRunData(params: InitRunDetailsParams): MutableRunData {
 		lastMessage: "",
 		lastActivityTime: startTime,
 		liveAssistantPreview: "",
-		tokens: 0,
+		contextUsage: { tokens: null, contextWindow: params.contextWindow, percent: null },
 		usage: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
-		contextWindow: params.contextWindow,
 		resultId: params.resultId,
 	};
 }
@@ -147,6 +147,7 @@ export function snapshotRunData(details: MutableRunData, state: RunSnapshotState
 		...(state.pendingQuestion === undefined ? {} : { pendingQuestion: state.pendingQuestion }),
 		aborted: state.status === "aborted",
 		recentTools: details.recentTools.map((tool) => ({ ...tool })),
+		contextUsage: { ...details.contextUsage },
 		usage: { ...details.usage },
 	};
 }
@@ -180,8 +181,6 @@ export function foldSessionEvent(event: AgentSessionEvent, details: MutableRunDa
 		details.usage.cacheWrite += usage.cacheWrite ?? 0;
 		details.usage.cost += usage.cost?.total ?? 0;
 		details.usage.turns++;
-		details.tokens =
-			usage.totalTokens ?? (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
 	}
 
 	const text: string[] = [];

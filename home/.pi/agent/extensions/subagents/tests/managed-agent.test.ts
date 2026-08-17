@@ -34,6 +34,9 @@ test("one native session owns foreground, background, steering, follow-up, and c
 		sessionId: manager.getSessionId(),
 		sessionFile: manager.getSessionFile(),
 		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: 3, contextWindow: 1_000, percent: 0.3 };
+		},
 		subscribe(listener: (event: any) => void) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -88,8 +91,7 @@ test("one native session owns foreground, background, steering, follow-up, and c
 	assert.equal(first.status, "idle");
 	assert.equal(first.finalText, "done: Task: inspect");
 	assert.equal(first.usage.output, 2);
-	assert.equal(first.tokens, 3);
-	assert.equal(first.contextWindow, 1_000);
+	assert.deepEqual(first.contextUsage, { tokens: 3, contextWindow: 1_000, percent: 0.3 });
 
 	const background = await agent.followUp("continue", "continue", true);
 	assert.equal(background.status, "launched");
@@ -122,6 +124,9 @@ test("a foreground question returns control and resumes after its answer", async
 		sessionFile: manager.getSessionFile(),
 		sessionManager: manager,
 		messages: [],
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
 		subscribe(listener: (event: any) => void) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -189,6 +194,9 @@ test("closing a child waiting for input cancels the question and cannot regress 
 		sessionFile: manager.getSessionFile(),
 		sessionManager: manager,
 		messages: [],
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
 		subscribe() {
 			return () => {};
 		},
@@ -247,6 +255,9 @@ test("a terminal assistant error is a failed, incomplete generation", async (t) 
 		sessionFile: manager.getSessionFile(),
 		sessionManager: manager,
 		messages: [],
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
 		subscribe(listener: (event: any) => void) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);

@@ -2,7 +2,7 @@ import { getAgentDir, truncateHead, type ExtensionAPI, type ExtensionContext } f
 import { isRecord } from "../_shared/json.ts";
 import { discoverAgents, type AgentConfig } from "./agents.ts";
 import { AgentRegistry, SUBAGENT_SETTLEMENT_CUSTOM_TYPE } from "./agent-registry.ts";
-import { CleanupAggregateError, type AgentQuestion, type AgentSummary } from "./agent-types.ts";
+import { CleanupAggregateError, isAgentActive, type AgentQuestion, type AgentSummary } from "./agent-types.ts";
 import { loadProfiles, type ProfilesConfig } from "./profiles.ts";
 import type { RunUsage } from "./run-state.ts";
 import { SpawnAdmissionController } from "./spawn-admission.ts";
@@ -92,7 +92,7 @@ export class DefaultSubagentRuntime {
 
 	consumeSettledCompletions(summaries: readonly AgentSummary[]): void {
 		for (const summary of summaries) {
-			if (summary.status === "starting" || summary.status === "running") continue;
+			if (isAgentActive(summary.status)) continue;
 			const pending = this.pendingCompletions.get(summary.agent_id);
 			if (pending?.generation === summary.generation) this.pendingCompletions.delete(summary.agent_id);
 		}
@@ -100,7 +100,7 @@ export class DefaultSubagentRuntime {
 	}
 
 	claimUsage(summary: AgentSummary): Readonly<RunUsage> | undefined {
-		if (summary.status === "starting" || summary.status === "running") return undefined;
+		if (isAgentActive(summary.status)) return undefined;
 		const key = usageKey(summary.agent_id, summary.generation);
 		if (this.accountedUsage.has(key)) return undefined;
 		this.accountedUsage.add(key);
