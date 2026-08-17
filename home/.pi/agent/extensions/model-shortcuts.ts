@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const MODEL_SHORTCUTS = [
-	{ shortcut: "alt+1", provider: "openai-codex", model: "gpt-5.6-luna" },
-	{ shortcut: "alt+2", provider: "openai-codex", model: "gpt-5.6-terra" },
-	{ shortcut: "alt+3", provider: "openai-codex", model: "gpt-5.6-sol" },
+	{ shortcut: "alt+1", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max" },
+	{ shortcut: "alt+2", provider: "openai-codex", model: "gpt-5.6-terra", thinkingLevel: "high" },
+	{ shortcut: "alt+3", provider: "openai-codex", model: "gpt-5.6-sol", thinkingLevel: "medium" },
 ] as const;
 
 export default function modelShortcuts(pi: ExtensionAPI) {
@@ -30,7 +30,7 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 					}
 					return;
 				}
-				if (scoped?.thinkingLevel !== undefined) pi.setThinkingLevel(scoped.thinkingLevel);
+				pi.setThinkingLevel(scoped?.thinkingLevel ?? shortcut.thinkingLevel);
 
 				if (ctx.hasUI) {
 					ctx.ui.notify(`Switched to ${shortcut.provider}/${shortcut.model}`, "info");
