@@ -3,6 +3,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "../../_shared/terminal-text.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import type { AgentSummary, AgentView } from "../agent-types.ts";
+import { formatContextPercentage } from "../render.ts";
 
 export interface RegistryUiBinding {
 	readonly refresh: () => void;
@@ -117,7 +118,11 @@ function renderAgentLine(view: AgentView, now: number, width: number, theme: Wid
 				)
 			: theme.fg("dim", summary.status === "starting" ? "starting" : "thinking");
 	const left = `${theme.fg("dim", "  ")}${theme.fg("text", label)}${theme.fg("dim", " · ")}${activity}`;
-	const suffix = theme.fg("dim", ` · ${formatActivityAge(now - details.lastActivityTime)}`);
+	const context = formatContextPercentage(details.tokens, details.contextWindow);
+	const suffix = theme.fg(
+		"dim",
+		`${context ? ` · context ${context}` : ""} · ${formatActivityAge(now - details.lastActivityTime)}`,
+	);
 	const availableLeft = width - visibleWidth(suffix);
 	if (availableLeft <= 0) return truncateToWidth(suffix, width);
 	return `${truncateToWidth(left, availableLeft)}${suffix}`;
