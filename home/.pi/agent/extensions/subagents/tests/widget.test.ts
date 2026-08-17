@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import type { AgentView } from "../agent-types.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import { bindRegistryUi, formatActivityAge, renderRunningAgentLines } from "../ui/widget.ts";
@@ -16,6 +17,8 @@ function view(overrides: {
 	readonly taskName?: string;
 	readonly lastActivityTime?: number;
 	readonly recentTools?: ReadonlyRunDetails["recentTools"];
+	readonly tokens?: number;
+	readonly contextWindow?: number;
 	readonly waiting?: boolean;
 }): AgentView {
 	const agentId = overrides.agentId ?? "worker-1";
@@ -33,8 +36,9 @@ function view(overrides: {
 		recentTools: overrides.recentTools ?? [],
 		lastMessage: "",
 		lastActivityTime: overrides.lastActivityTime ?? 0,
-		tokens: 0,
+		tokens: overrides.tokens ?? 0,
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		...(overrides.contextWindow === undefined ? {} : { contextWindow: overrides.contextWindow }),
 		resultId: "a".repeat(64),
 		aborted: false,
 	} satisfies ReadonlyRunDetails;
@@ -65,6 +69,8 @@ test("running-agent widget summarizes current tools and activity age", () => {
 			view({
 				lastActivityTime: 117_000,
 				recentTools: [{ name: "bash", argsPreview: "pnpm test" }],
+				tokens: 1_200,
+				contextWindow: 10_000,
 			}),
 			view({ agentId: "scout-2", taskName: "Inspect API", lastActivityTime: 60_000, waiting: true }),
 			view({ agentId: "worker-3", status: "idle" }),
@@ -76,7 +82,7 @@ test("running-agent widget summarizes current tools and activity age", () => {
 
 	assert.deepEqual(lines, [
 		"● 2 subagents running",
-		"  worker-1 · Fix parser · bash pnpm test · 3s ago",
+		"  worker-1 · Fix parser · bash pnpm test · context 12% · 3s ago",
 		"  scout-2 · Inspect API · waiting for input · 1m ago",
 	]);
 });
@@ -87,6 +93,24 @@ test("activity ages use compact units", () => {
 	assert.equal(formatActivityAge(60_000), "1m ago");
 	assert.equal(formatActivityAge(3_600_000), "1h ago");
 	assert.equal(formatActivityAge(86_400_000), "1d ago");
+});
+
+test("running-agent widget shows only measured context and respects its width", () => {
+	const withoutUsage = renderRunningAgentLines([view({ contextWindow: 10_000 })], 120_000, 120, theme as never);
+	const withoutWindow = renderRunningAgentLines([view({ tokens: 1_200 })], 120_000, 120, theme as never);
+
+	assert.doesNotMatch(withoutUsage.join("\n"), /context/);
+	assert.doesNotMatch(withoutWindow.join("\n"), /context/);
+
+	for (const width of [1, 10, 40]) {
+		const lines = renderRunningAgentLines(
+			[view({ tokens: 1_200, contextWindow: 10_000, lastActivityTime: 117_000 })],
+			120_000,
+			width,
+			theme as never,
+		);
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+	}
 });
 
 test("registry binding shows active work and clears it after settlement", () => {

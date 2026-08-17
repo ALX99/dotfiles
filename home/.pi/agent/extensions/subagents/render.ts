@@ -4,7 +4,7 @@
  * tick interval to keep the elapsed counter alive between tool events.
  */
 
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type { AgentSummary } from "./agent-types.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
@@ -27,9 +27,14 @@ export function formatTokens(n: number): string {
 	return String(n);
 }
 
+export function formatContextPercentage(tokens: number, window?: number): string | undefined {
+	if (tokens <= 0 || !window) return undefined;
+	return `${Math.round((tokens / window) * 100)}%`;
+}
+
 export function formatContextUsage(tokens: number, window?: number): string {
-	if (!window) return formatTokens(tokens);
-	return `${Math.round((tokens / window) * 100)}%/${formatTokens(window)}`;
+	const percentage = formatContextPercentage(tokens, window);
+	return percentage && window ? `${percentage}/${formatTokens(window)}` : formatTokens(tokens);
 }
 
 export function taskPreview(s: string): string {
@@ -246,12 +251,11 @@ function waitInterruptionSummary(details: WaitDetails): string {
 
 // ── result block ──────────────────────────────────────────────────────
 
-export interface RenderOptions {
-	expanded: boolean;
-	isPartial: boolean;
-}
-
-export function renderResultBlock(details: ReadonlyRunDetails, options: RenderOptions, theme: Theme): Container {
+export function renderResultBlock(
+	details: ReadonlyRunDetails,
+	options: ToolRenderResultOptions,
+	theme: Theme,
+): Container {
 	const c = new Container();
 	const failed = details.aborted || details.status === "failed" || details.status === "aborted";
 	const isRunning =
