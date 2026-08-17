@@ -31,13 +31,10 @@ export class AgentRegistry {
 	}
 
 	async add(agent: ManagedAgent): Promise<void> {
-		const replaced = this.entries.get(agent.id);
-		if (replaced?.kind === "live" && replaced.agent === agent) return;
-		if (replaced?.kind === "live") await this.close(agent.id);
+		const existing = this.entries.get(agent.id);
+		if (existing?.kind === "live" && existing.agent === agent) return;
+		if (existing) throw new Error(`Agent '${agent.id}' is already registered.`);
 		this.removeClosedAgentId(agent.id);
-		this.agentUnsubscribers.get(agent.id)?.();
-		this.agentUnsubscribers.delete(agent.id);
-		this.resultCatalog.forget(agent.id);
 		this.entries.set(agent.id, { kind: "live", agent });
 		this.agentUnsubscribers.set(
 			agent.id,
@@ -178,7 +175,7 @@ export class AgentRegistry {
 		const liveView = agent.view();
 		const view: AgentView = {
 			summary: { ...liveView.summary, status: "closed" },
-			details: { ...liveView.details, status: "closed", aborted: false },
+			details: { ...liveView.details, status: "closed" },
 		};
 		this.entries.set(agent.id, { kind: "archived", view });
 		this.removeClosedAgentId(agent.id);

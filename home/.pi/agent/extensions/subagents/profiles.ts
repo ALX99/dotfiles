@@ -26,11 +26,11 @@ const configKey = (label: string) =>
 	z
 		.string()
 		.min(1, `${label} must not be empty`)
-		.refine((value) => !/\s/u.test(value), `${label} must not contain whitespace`);
+		.refine((value) => !/[\s\p{C}]/u.test(value), `${label} must not contain whitespace or control characters`);
 
 export const ModelCandidateSchema = z
 	.strictObject({
-		id: nonEmptyString("model id").refine((id) => {
+		id: configKey("model id").refine((id) => {
 			const slash = id.indexOf("/");
 			return slash > 0 && slash < id.length - 1;
 		}, "model id must be provider/model-id"),
@@ -54,9 +54,9 @@ export const ProfileSchema = z.strictObject({
 });
 
 export const AgentPolicySchema = z.strictObject({
-	defaultProfile: nonEmptyString("defaultProfile"),
+	defaultProfile: configKey("defaultProfile"),
 	allowedProfiles: z
-		.array(nonEmptyString("allowedProfiles item"))
+		.array(configKey("allowedProfiles item"))
 		.min(1, "allowedProfiles must contain at least one profile"),
 });
 
@@ -264,10 +264,10 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 	const profile = options.config.profiles[profileName];
 	if (!profile) throw new Error(`Profile '${profileName}' configured for agent '${agent}' does not exist.`);
 
+	// An explicit empty scope means no model is permitted. Only callers that omit
+	// scope entirely fall back to every authenticated model.
 	const available =
-		options.scopedModels && options.scopedModels.length > 0
-			? options.scopedModels
-			: options.modelRegistry.getAvailable().map((model): ScopedModel => ({ model }));
+		options.scopedModels ?? options.modelRegistry.getAvailable().map((model): ScopedModel => ({ model }));
 	for (const candidate of profile.modelPriority) {
 		const [provider, modelId] = splitModelId(candidate.id);
 		const scopedModel = available.find(({ model }) => model.provider === provider && model.id === modelId);

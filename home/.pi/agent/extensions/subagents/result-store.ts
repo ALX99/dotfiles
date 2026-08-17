@@ -140,10 +140,6 @@ export class ResultCatalog {
 		this.locators.set(agentId, generations);
 	}
 
-	forget(agentId: string): void {
-		this.locators.delete(agentId);
-	}
-
 	clear(): void {
 		this.locators.clear();
 	}
@@ -159,12 +155,7 @@ export class ResultCatalog {
 	restore(entries: readonly SessionEntry[]): number {
 		this.clear();
 		for (const entry of entries) {
-			const value =
-				entry.type === "custom" && entry.customType === SUBAGENT_SETTLEMENT_CUSTOM_TYPE
-					? entry.data
-					: entry.type === "message" && entry.message.role === "toolResult"
-						? entry.message.details
-						: undefined;
+			const value = persistedSubagentResultValue(entry);
 			for (const candidate of locatorCandidates(value)) this.record(candidate.agentId, candidate.locator);
 		}
 		return this.size;
@@ -264,16 +255,18 @@ export function formatResultCursor(resultId: string, offset: number): string {
 }
 
 export async function validateChildSessionPath(sessionFile: string, agentDir = getAgentDir()): Promise<string> {
-	const directory = path.resolve(agentDir, "subagent-sessions");
+	if (!path.isAbsolute(sessionFile)) throw new Error("Child session path must be absolute.");
 	const candidate = path.resolve(sessionFile);
-	const relative = path.relative(directory, candidate);
+	const directory = await fs.promises.realpath(path.resolve(agentDir, "subagent-sessions"));
+	const resolvedCandidate = await fs.promises.realpath(candidate);
+	const relative = path.relative(directory, resolvedCandidate);
 	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
 		throw new Error("Child session path escapes managed storage.");
 	const stats = await fs.promises.lstat(candidate);
 	if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Child session is not a regular file.");
 	const uid = process.getuid?.();
 	if (uid !== undefined && stats.uid !== uid) throw new Error("Child session is not owned by the current user.");
-	return candidate;
+	return resolvedCandidate;
 }
 
 export async function readChildTranscript(sessionFile: string, agentDir = getAgentDir()): Promise<unknown[]> {
@@ -285,6 +278,27 @@ export function assistantText(entry: SessionEntry | undefined): string | undefin
 	if (entry?.type !== "message" || entry.message.role !== "assistant") return undefined;
 	const text = entry.message.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
 	return text.length ? text.join("\n") : undefined;
+}
+
+function persistedSubagentResultValue(entry: SessionEntry): unknown {
+	if (entry.type === "custom" && entry.customType === SUBAGENT_SETTLEMENT_CUSTOM_TYPE) return entry.data;
+	if (entry.type === "message" && entry.message.role === "toolResult" && isSubagentToolName(entry.message.toolName)) {
+		return entry.message.details;
+	}
+	return undefined;
+}
+
+function isSubagentToolName(value: unknown): boolean {
+	return (
+		value === "spawn_agent" ||
+		value === "followup_agent" ||
+		value === "wait_agent" ||
+		value === "list_agents" ||
+		value === "close_agent" ||
+		value === "interrupt_agent" ||
+		value === "answer_agent" ||
+		value === "send_agent"
+	);
 }
 
 function locatorCandidates(

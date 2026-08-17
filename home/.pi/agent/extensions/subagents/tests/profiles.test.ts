@@ -32,6 +32,56 @@ test("bundled profiles bind every discovered role and prefer Terra at its econom
 	assert.equal(run.effectiveThinking, "medium");
 });
 
+test("profile identifiers reject whitespace and terminal-control characters", () => {
+	const parsed = parseAndValidateProfiles({
+		rootPolicy: { maxConcurrentRootAgents: 1 },
+		profiles: {
+			fast: {
+				description: "Fast",
+				modelPriority: [{ id: "openai-codex/gpt\u001b", defaultThinking: "low", maxThinking: "high" }],
+			},
+		},
+		agentPolicies: { scout: { defaultProfile: "fast profile", allowedProfiles: ["fast"] } },
+	});
+	assert.equal(parsed.success, false);
+	if (parsed.success) return;
+	assert.ok(
+		parsed.errors.some((error) => error.includes("model id must not contain whitespace or control characters")),
+	);
+	assert.ok(
+		parsed.errors.some((error) => error.includes("defaultProfile must not contain whitespace or control characters")),
+	);
+});
+
+test("an explicit empty model scope does not bypass the parent scope", () => {
+	const config = parseAndValidateProfiles(
+		{
+			rootPolicy: { maxConcurrentRootAgents: 1 },
+			profiles: {
+				fast: {
+					description: "Fast",
+					modelPriority: [{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" }],
+				},
+			},
+			agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
+		},
+		["scout"],
+	);
+	assert.ok(config.success);
+	if (!config.success) return;
+
+	assert.throws(
+		() =>
+			resolveRun({
+				config: config.config,
+				modelRegistry: { getAvailable: () => [model("gpt")] },
+				scopedModels: [],
+				agent: "scout",
+			}),
+		/No authenticated model is available/,
+	);
+});
+
 test("profile validation reports configuration relationships before a run can resolve", () => {
 	const config = parseAndValidateProfiles(
 		{

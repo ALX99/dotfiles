@@ -40,6 +40,40 @@ function childSessionFile(t: TestContext): string {
 	return sessionFile;
 }
 
+test("dashboard sanitizes task labels and does not offer steering while input is pending", async (t) => {
+	const agent = {
+		...summary(childSessionFile(t)),
+		task_name: "\u001b]0;owned\u0007choose\rnow",
+		status: "running" as const,
+		pending_question: { question_id: "question-1", question: "Choose?", options: ["A", "B"] },
+	};
+	const options: string[][] = [];
+	const ctx = {
+		mode: "tui",
+		ui: {
+			select: async (_title: string, choices: string[]) => {
+				options.push(choices);
+				return options.length === 1 ? choices[0] : "← Back";
+			},
+			confirm: async () => true,
+			notify: () => {},
+		},
+	};
+	const registry = {
+		views: () => [{ summary: agent }],
+		view: () => ({ summary: agent }),
+	};
+
+	await showAgentDashboard(ctx as never, registry as never);
+
+	assert.ok(
+		options[0]?.every((option) => !option.includes("\u001b") && !option.includes("\u0007") && !option.includes("\r")),
+	);
+	assert.ok(options[1]);
+	assert.equal(options[1]!.includes("Steer"), false);
+	assert.equal(options[1]!.includes("Interrupt"), true);
+});
+
 test("taking over a session ends the dashboard before its command context becomes stale", async (t) => {
 	const sessionFile = childSessionFile(t);
 	const agent = summary(sessionFile);
@@ -57,7 +91,7 @@ test("taking over a session ends the dashboard before its command context become
 			notify: () => {},
 		},
 		switchSession: async (file: string) => {
-			assert.equal(file, sessionFile);
+			assert.equal(path.basename(file), path.basename(sessionFile));
 			stale = true;
 			return { cancelled: false };
 		},

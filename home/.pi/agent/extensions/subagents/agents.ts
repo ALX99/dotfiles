@@ -18,7 +18,10 @@ export interface AgentConfig {
 const nonBlank = (label: string) => z.string().trim().min(1, `${label} must not be blank`);
 
 export const AgentFrontmatterSchema = z.strictObject({
-	name: nonBlank("name").refine((name) => !/\s/u.test(name), "name must not contain whitespace"),
+	name: nonBlank("name").refine(
+		(name) => !/[\s\p{C}]/u.test(name),
+		"name must not contain whitespace or control characters",
+	),
 	description: nonBlank("description"),
 	tools: z.array(nonBlank("tool")).min(1, "tools must contain at least one tool"),
 });

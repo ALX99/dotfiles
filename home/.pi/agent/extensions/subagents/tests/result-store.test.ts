@@ -86,16 +86,32 @@ test("result catalog restores locators from both foreground tool details and bac
 		catalog.restore([
 			{
 				type: "message",
-				message: { role: "toolResult", details: { agentId: "foreground-1", resultLocator: locator } },
+				message: {
+					role: "toolResult",
+					toolName: "spawn_agent",
+					details: { agentId: "foreground-1", resultLocator: locator },
+				},
 			},
 			{
 				type: "message",
-				message: { role: "toolResult", details: { summaries: [{ agent_id: "wait-1", result_locator: locator }] } },
+				message: {
+					role: "toolResult",
+					toolName: "wait_agent",
+					details: { summaries: [{ agent_id: "wait-1", result_locator: locator }] },
+				},
 			},
 			{
 				type: "custom",
 				customType: "subagent-settlement",
 				data: { agent_id: "background-1", result_locator: locator },
+			},
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "unrelated_tool",
+					details: { agentId: "untrusted-1", resultLocator: locator },
+				},
 			},
 		] as never),
 		3,

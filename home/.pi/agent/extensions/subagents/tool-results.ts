@@ -58,10 +58,24 @@ Answer with answer_agent, then use wait_agent to collect the resumed run. If ext
 
 export function formatAgentCompletion(summary: AgentSummary, includeRetention = false): string {
 	const retention = includeRetention ? `\nretained: ${summary.retained}` : "";
+	const retainedNextStep =
+		summary.retained && (summary.status === "idle" || summary.status === "failed" || summary.status === "aborted")
+			? "\n\nThis retained agent is settled. Use followup_agent for another task or close_agent to release its admission slot."
+			: "";
 	const exactResultGuidance = requiresExactResultRead(summary)
 		? "\n\nUse read_agent_result for exact cursor-paged reconstruction."
 		: "";
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}${retention}\n\n${summary.final_text || summary.error || "(no output)"}${exactResultGuidance}`;
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}${retention}\n\n${summary.final_text || summary.error || "(no output)"}${retainedNextStep}${exactResultGuidance}`;
+}
+
+/** Describe a launched background generation without promising invalid controls. */
+export function formatAgentLaunch(summary: AgentSummary): string {
+	const pendingQuestion = formatPendingQuestion(summary);
+	if (pendingQuestion) return pendingQuestion;
+	const nextStep = summary.retained
+		? "Use wait_agent, send_agent, interrupt_agent, or close_agent while it runs. After it settles, use followup_agent or close_agent."
+		: "Use wait_agent, send_agent, interrupt_agent, or close_agent while it runs; one-shot agents archive after settlement.";
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. ${nextStep}`;
 }
 
 export function waitDetails(

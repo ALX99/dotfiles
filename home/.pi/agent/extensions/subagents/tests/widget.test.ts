@@ -78,7 +78,7 @@ test("running-agent widget summarizes current tools and activity age", () => {
 	);
 
 	assert.deepEqual(lines, [
-		"● 2 subagents running",
+		"● 1 subagent running · 1 awaiting input",
 		"  worker-1 · Fix parser · bash pnpm test · context 12% · 3s ago",
 		"  scout-2 · Inspect API · waiting for input · 1m ago",
 	]);

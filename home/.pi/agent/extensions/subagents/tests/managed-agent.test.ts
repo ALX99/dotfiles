@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "../agents.ts";
 import { ManagedAgent } from "../managed-agent.ts";
+import { readLocatedAgentResult } from "../result-store.ts";
 
 const config: AgentConfig = {
 	name: "scout",
@@ -313,4 +314,141 @@ test("a terminal assistant error is a failed, incomplete generation", async (t) 
 	assert.equal(failed.finalText, "partial output");
 	assert.equal(failed.result?.complete, false);
 	assert.equal(agent.summary().status, "failed");
+});
+
+test("a rejected prompt retains any persisted terminal result for durable reading", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-rejected-prompt-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe() {
+			return () => {};
+		},
+		async prompt() {
+			manager.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text: "persisted before prompt rejection" }],
+				stopReason: "stop",
+			} as never);
+			throw new Error("transport disconnected");
+		},
+		async steer() {},
+		async abort() {},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "scout-rejected-prompt",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		sessionFactory: async () => fake as never,
+	});
+	t.after(() => agent.close());
+
+	await assert.rejects(agent.start("inspect", undefined, "inspect", false), /transport disconnected/);
+	const summary = agent.summary();
+	assert.equal(summary.status, "failed");
+	assert.equal(summary.result?.complete, true);
+	assert.ok(summary.result_locator);
+	assert.equal(
+		(await readLocatedAgentResult(summary.result_locator!, agentDir)).text,
+		"persisted before prompt rejection",
+	);
+});
+
+test("closing an active child archives a settled aborted generation with its exact native result", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-close-active-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const listeners = new Set<(event: any) => void>();
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe(listener: (event: any) => void) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		async prompt() {
+			await new Promise<void>(() => {});
+		},
+		async steer() {},
+		async abort() {
+			const assistant = {
+				role: "assistant",
+				content: [{ type: "text", text: "interrupted after exact output" }],
+				stopReason: "aborted",
+			};
+			manager.appendMessage(assistant as never);
+			for (const listener of listeners) listener({ type: "message_end", message: assistant });
+		},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "worker-close-active",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: { ...config, name: "worker" },
+		resolvedRun: { ...resolvedRun, agent: "worker" },
+		retain: true,
+		sessionFactory: async () => fake as never,
+	});
+
+	await agent.start("inspect", undefined, "inspect", true);
+	await agent.close();
+	const details = await agent.wait();
+	assert.equal(agent.phase, "closed");
+	assert.equal(details.status, "closed");
+	assert.equal(details.aborted, true);
+	assert.equal(details.result?.complete, false);
+	assert.ok(details.resultLocator);
+	assert.equal((await readLocatedAgentResult(details.resultLocator!, agentDir)).text, "interrupted after exact output");
+});
+
+test("a prompt without a terminal assistant message cannot be reported as successful", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-missing-terminal-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe() {
+			return () => {};
+		},
+		async prompt() {},
+		async steer() {},
+		async abort() {},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "scout-missing-terminal",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		sessionFactory: async () => fake as never,
+	});
+	t.after(() => agent.close());
+
+	await assert.rejects(agent.start("inspect", undefined, "inspect", false), /terminal assistant message/);
+	const summary = agent.summary();
+	assert.equal(summary.status, "failed");
+	assert.equal(summary.result, undefined);
+	assert.equal(summary.result_locator, undefined);
 });

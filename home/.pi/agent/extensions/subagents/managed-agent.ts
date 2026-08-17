@@ -7,6 +7,7 @@ import {
 	defineTool,
 	SessionManager,
 	type AgentSession,
+	type SessionEntry,
 	type AgentSessionEvent,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -48,6 +49,10 @@ export function reserveManagedAgentIds(agentIds: Iterable<string>): void {
 		if (suffix && Number(suffix) >= nextAgentId) nextAgentId = Number(suffix) + 1;
 	}
 }
+
+type AssistantSessionEntry = Extract<SessionEntry, { type: "message" }> & {
+	readonly message: Extract<Extract<SessionEntry, { type: "message" }>["message"], { role: "assistant" }>;
+};
 
 interface PendingQuestion {
 	readonly question: AgentQuestion;
@@ -201,6 +206,10 @@ export class ManagedAgent {
 				current.aborted = true;
 				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
 				await this.session?.abort().catch(() => {});
+				// abort() waits for Pi to reach idle, but settle defensively here as
+				// well so an incomplete or misbehaving session cannot leave a live
+				// generation behind after its owner is archived.
+				await this.settle(current, false);
 			}
 			this.disposeSession();
 			this.phaseState = "closed";
@@ -411,45 +420,22 @@ export class ManagedAgent {
 		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, undefined, signal);
 	}
 
-	private async settle(generation: Generation): Promise<void> {
+	private async settle(generation: Generation, closeWhenSettled = true): Promise<void> {
 		if (generation.settled || this.current !== generation) return;
-		const manager = this.session?.sessionManager;
-		const entry = manager
-			?.getBranch()
-			.findLast(
-				(candidate) =>
-					!generation.initialEntryIds.has(candidate.id) &&
-					candidate.type === "message" &&
-					candidate.message.role === "assistant",
-			);
-		const text = assistantText(entry) ?? "";
-		const stopReason =
-			entry?.type === "message" && entry.message.role === "assistant" ? entry.message.stopReason : undefined;
-		const complete = stopReason === "stop";
-		const result = storedResult(generation.number, generation.run.resultId, text, complete);
-		const sessionId = this.session?.sessionId ?? generation.run.sessionId;
-		const sessionFile = this.session?.sessionFile ?? generation.run.sessionFile;
-		if (!sessionId || !sessionFile) {
-			this.fail(generation, new Error(`Agent ${this.id} settled without a persisted child session.`));
+		const entry = this.terminalAssistantEntry(generation);
+		if (!entry) {
+			this.fail(generation, new Error(`Agent ${this.id} completed without a terminal assistant message.`));
 			return;
 		}
-		const locator: GenerationResultLocator = {
-			version: 2,
-			generation: generation.number,
-			resultId: result.resultId,
-			sessionId,
-			sessionFile,
-			resultEntryId: entry?.id ?? null,
-			resultSha256: result.sha256,
-		};
-		generation.run.result = resultReference(result);
-		generation.run.resultLocator = locator;
-		generation.run.finalText = resultPreview(text);
+		try {
+			this.persistResult(generation, entry);
+		} catch (cause) {
+			this.fail(generation, cause);
+			return;
+		}
+		const stopReason = entry.message.stopReason;
 		if (stopReason === "error" && !generation.run.error) {
-			generation.run.error =
-				entry?.type === "message" && entry.message.role === "assistant"
-					? (entry.message.errorMessage ?? "Subagent assistant failed.")
-					: "Subagent assistant failed.";
+			generation.run.error = entry.message.errorMessage ?? "Subagent assistant failed.";
 		}
 		generation.run.endTime = Date.now();
 		generation.settled = true;
@@ -468,18 +454,25 @@ export class ManagedAgent {
 		) {
 			this.options.onBackgroundComplete?.(this.summary());
 		}
-		if (!this.options.retain) await this.close();
+		if (closeWhenSettled && !this.options.retain) await this.close();
 	}
 
 	private fail(generation: Generation, cause: unknown): void {
 		if (generation.settled || this.current !== generation) return;
 		const error = toError(cause);
-		generation.run.error = error.message;
+		try {
+			this.persistResult(generation, this.terminalAssistantEntry(generation));
+		} catch (persistenceCause) {
+			generation.run.error = `${error.message} (result persistence failed: ${toError(persistenceCause).message})`;
+		}
+		generation.run.error ??= error.message;
 		generation.run.endTime = Date.now();
 		generation.settled = true;
 		const terminalPhase = generation.aborted ? "aborted" : "failed";
 		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
-		generation.reject(error);
+		const details = this.snapshot();
+		if (generation.aborted) generation.resolve(details);
+		else generation.reject(error);
 		generation.questionArrival.resolve();
 		this.emit();
 		if (
@@ -491,6 +484,36 @@ export class ManagedAgent {
 			this.options.onBackgroundComplete?.(this.summary());
 		}
 		if (!this.options.retain) void this.close();
+	}
+
+	private terminalAssistantEntry(generation: Generation): AssistantSessionEntry | undefined {
+		return this.session?.sessionManager
+			.getBranch()
+			.findLast(
+				(candidate): candidate is AssistantSessionEntry =>
+					!generation.initialEntryIds.has(candidate.id) && isAssistantSessionEntry(candidate),
+			);
+	}
+
+	private persistResult(generation: Generation, entry: AssistantSessionEntry | undefined): void {
+		if (generation.run.resultLocator || !entry) return;
+		const text = assistantText(entry) ?? "";
+		const result = storedResult(generation.number, generation.run.resultId, text, entry.message.stopReason === "stop");
+		const sessionId = this.session?.sessionId ?? generation.run.sessionId;
+		const sessionFile = this.session?.sessionFile ?? generation.run.sessionFile;
+		if (!sessionId || !sessionFile) throw new Error(`Agent ${this.id} settled without a persisted child session.`);
+		const locator: GenerationResultLocator = {
+			version: 2,
+			generation: generation.number,
+			resultId: result.resultId,
+			sessionId,
+			sessionFile,
+			resultEntryId: entry.id,
+			resultSha256: result.sha256,
+		};
+		generation.run.result = resultReference(result);
+		generation.run.resultLocator = locator;
+		generation.run.finalText = resultPreview(text);
 	}
 
 	private handleEvent(event: AgentSessionEvent): void {
@@ -562,6 +585,7 @@ export class ManagedAgent {
 			agentId: this.id,
 			generation: current.number,
 			status: status ?? lifecycleStatus({ phase: this.phaseState }),
+			aborted: current.aborted,
 			...(current.question ? { pendingQuestion: current.question.question } : {}),
 		});
 	}
@@ -570,6 +594,10 @@ export class ManagedAgent {
 		const details = this.snapshot();
 		for (const listener of this.listeners) listener(details);
 	}
+}
+
+function isAssistantSessionEntry(entry: SessionEntry): entry is AssistantSessionEntry {
+	return entry.type === "message" && entry.message.role === "assistant";
 }
 
 export function buildInitialTask(message: string, handoff: string | undefined): string {

@@ -18,7 +18,13 @@ import {
 	trimOptional,
 	trimRequired,
 } from "../schemas.ts";
-import { completedRunResult, formatAgentCompletion, formatPendingQuestion, toolError } from "../tool-results.ts";
+import {
+	completedRunResult,
+	formatAgentCompletion,
+	formatAgentLaunch,
+	formatPendingQuestion,
+	toolError,
+} from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import type { SubagentToolActivator } from "../tool-activation.ts";
@@ -150,7 +156,9 @@ export function createSpawnAgentTool(
 				const summary = managed.summary();
 				toolActivation.activateForState(summary, background);
 				return completedRunResult(
-					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatAgentCompletion(summary, true)),
+					background
+						? formatAgentLaunch(summary)
+						: (formatPendingQuestion(summary) ?? formatAgentCompletion(summary, true)),
 					details,
 					background ? undefined : dependencies.claimUsage(summary),
 				);
@@ -252,8 +260,4 @@ export function spawnGuidelines(
 		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
 		"Use scouts only for bounded, narrow read-only discovery; do not assign scouts implementation, broad exploration, or final review verdicts.",
 	];
-}
-
-function formatLaunch(summary: ReturnType<ManagedAgent["summary"]>): string {
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. One-shot agents archive after settlement.`;
 }

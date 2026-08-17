@@ -69,9 +69,9 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 		ctx.ui.setWidget("subagents", undefined);
 	};
 	const refresh = () => {
-		const running = registry.list().filter((summary) => isAgentActive(summary.status)).length;
-		ctx.ui.setStatus("subagents", running ? `agents ${running} running` : undefined);
-		if (running > 0) {
+		const activity = countActiveAgents(registry.list());
+		ctx.ui.setStatus("subagents", activity.total ? `agents ${formatActivitySummary(activity)}` : undefined);
+		if (activity.total > 0) {
 			showWidget();
 			widget?.refresh();
 		} else {
@@ -95,14 +95,41 @@ export function renderRunningAgentLines(
 	width: number,
 	theme: WidgetTheme,
 ): string[] {
-	const running = views.filter((view) => isAgentActive(view.summary.status));
-	if (running.length === 0 || width <= 0) return [];
-	const noun = running.length === 1 ? "subagent" : "subagents";
+	const active = views.filter((view) => isAgentActive(view.summary.status));
+	if (active.length === 0 || width <= 0) return [];
+	const activity = countActiveAgents(active.map((view) => view.summary));
 	const lines = [
-		truncateToWidth(`${theme.fg("accent", "●")} ${theme.fg("muted", `${running.length} ${noun} running`)}`, width),
+		truncateToWidth(`${theme.fg("accent", "●")} ${theme.fg("muted", formatWidgetActivitySummary(activity))}`, width),
 	];
-	for (const view of running) lines.push(renderAgentLine(view, now, width, theme));
+	for (const view of active) lines.push(renderAgentLine(view, now, width, theme));
 	return lines;
+}
+
+function countActiveAgents(summaries: readonly AgentSummary[]): {
+	readonly running: number;
+	readonly awaitingInput: number;
+	readonly total: number;
+} {
+	const awaitingInput = summaries.filter((summary) => isAgentActive(summary.status) && summary.pending_question).length;
+	const running = summaries.filter((summary) => isAgentActive(summary.status) && !summary.pending_question).length;
+	return { running, awaitingInput, total: running + awaitingInput };
+}
+
+function formatActivitySummary(activity: ReturnType<typeof countActiveAgents>): string {
+	return [
+		...(activity.running === 0 ? [] : [`${activity.running} running`]),
+		...(activity.awaitingInput === 0 ? [] : [`${activity.awaitingInput} awaiting input`]),
+	].join(" · ");
+}
+
+function formatWidgetActivitySummary(activity: ReturnType<typeof countActiveAgents>): string {
+	if (activity.awaitingInput === 0) {
+		return `${activity.running} subagent${activity.running === 1 ? "" : "s"} running`;
+	}
+	if (activity.running === 0) {
+		return `${activity.awaitingInput} subagent${activity.awaitingInput === 1 ? "" : "s"} awaiting input`;
+	}
+	return `${activity.running} subagent${activity.running === 1 ? "" : "s"} running · ${activity.awaitingInput} awaiting input`;
 }
 
 export function formatActivityAge(elapsedMs: number): string {

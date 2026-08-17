@@ -90,25 +90,25 @@ test("deferred tool diagnostics detect host allowlist filtering", () => {
 	);
 });
 
-test("activation is additive and does not rewrite an unchanged active set", () => {
+test("activation is additive, ignores non-subagent names, and does not rewrite an unchanged active set", () => {
 	const api = toolApi(["read", "spawn_agent", "other_extension"]);
-	assert.deepEqual(activateSubagentTools(api as never, ["wait_agent", "read_agent_result"]), [
+	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agent", "read_agent_result"]), [
 		"wait_agent",
 		"read_agent_result",
 	]);
 	assert.deepEqual(api.active(), ["read", "spawn_agent", "other_extension", "wait_agent", "read_agent_result"]);
-	assert.deepEqual(activateSubagentTools(api as never, ["wait_agent"]), []);
+	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agent"]), []);
 	assert.equal(api.writes.length, 1);
 });
 
-test("spawn state activates only controls made useful by background and retained children", () => {
+test("spawn state activates only controls valid for each lifecycle state", () => {
 	const simple = toolApi(["read", "spawn_agent"]);
 	assert.deepEqual(activateForSubagentState(simple as never, summary(), false), []);
 	assert.deepEqual(simple.active(), ["read", "spawn_agent"]);
 
-	const background = toolApi(["spawn_agent"]);
-	activateForSubagentState(background as never, summary({ status: "running" }), true);
-	assert.deepEqual(background.active(), [
+	const running = toolApi(["spawn_agent"]);
+	activateForSubagentState(running as never, summary({ status: "running" }), false);
+	assert.deepEqual(running.active(), [
 		"spawn_agent",
 		"wait_agent",
 		"list_agents",
@@ -119,29 +119,21 @@ test("spawn state activates only controls made useful by background and retained
 
 	const retained = toolApi(["spawn_agent"]);
 	activateForSubagentState(retained as never, summary({ retained: true }), false);
-	assert.deepEqual(retained.active(), [
-		"spawn_agent",
-		"followup_agent",
-		"send_agent",
-		"list_agents",
-		"interrupt_agent",
-		"close_agent",
-	]);
+	assert.deepEqual(retained.active(), ["spawn_agent", "followup_agent", "list_agents", "close_agent"]);
 
-	const retainedBackground = toolApi(["spawn_agent"]);
-	activateForSubagentState(retainedBackground as never, summary({ retained: true, status: "running" }), true);
-	assert.deepEqual(retainedBackground.active(), [
+	const retainedRunning = toolApi(["spawn_agent"]);
+	activateForSubagentState(retainedRunning as never, summary({ retained: true, status: "running" }), false);
+	assert.deepEqual(retainedRunning.active(), [
 		"spawn_agent",
 		"wait_agent",
 		"list_agents",
 		"interrupt_agent",
 		"close_agent",
 		"send_agent",
-		"followup_agent",
 	]);
 });
 
-test("routed questions and oversized results activate their matching tool", () => {
+test("routed questions omit invalid steering and oversized results activate exact reading", () => {
 	const question = toolApi(["spawn_agent"]);
 	activateForSubagentState(
 		question as never,
@@ -155,7 +147,6 @@ test("routed questions and oversized results activate their matching tool", () =
 		"list_agents",
 		"interrupt_agent",
 		"close_agent",
-		"send_agent",
 	]);
 
 	const oversizedText = "x".repeat(50 * 1024);

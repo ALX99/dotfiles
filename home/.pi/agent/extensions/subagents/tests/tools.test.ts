@@ -10,10 +10,11 @@ import {
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
-import { formatAgentCompletion, textResult } from "../tool-results.ts";
+import { formatAgentCompletion, formatAgentLaunch, textResult } from "../tool-results.ts";
 import { createManagementTools } from "../tools/management-tools.ts";
 import { spawnGuidelines, thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
 import type { ProfilesConfig } from "../profiles.ts";
+import { SpawnAdmissionController } from "../spawn-admission.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
 
 const summary: AgentSummary = {
@@ -124,6 +125,49 @@ test("generic tool truncation does not offer unrelated result reconstruction", (
 	if (text?.type === "text") assert.doesNotMatch(text.text, /read_agent_result/);
 });
 
+test("background launch and retained completion advertise only lifecycle-valid next steps", () => {
+	assert.match(formatAgentLaunch({ ...summary, retained: false, status: "running" }), /one-shot agents archive/);
+	assert.match(
+		formatAgentLaunch({ ...summary, retained: true, status: "running" }),
+		/After it settles, use followup_agent/,
+	);
+	const pending = formatAgentLaunch({
+		...summary,
+		status: "running",
+		pending_question: { question_id: "question-1", question: "Proceed?", options: ["Yes", "No"] },
+	});
+	assert.match(pending, /Answer with answer_agent/);
+	assert.doesNotMatch(pending, /send_agent/);
+	const completion = formatAgentCompletion({ ...summary, retained: true, status: "idle" });
+	assert.match(completion, /retained agent is settled/);
+	assert.match(completion, /followup_agent/);
+	assert.match(completion, /close_agent/);
+});
+
+test("admission reports running lifecycle separately from occupied retained-session capacity", () => {
+	const config = {
+		rootPolicy: { maxConcurrentRootAgents: 2 },
+		profiles: {
+			fast: {
+				description: "Fast",
+				modelPriority: [{ id: "provider/model", defaultThinking: "low", maxThinking: "low" }],
+			},
+		},
+		agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
+	} as ProfilesConfig;
+	const admission = new SpawnAdmissionController(config, {
+		capacity: () => [
+			{ ...summary, status: "running" },
+			{ ...summary, agent_id: "scout-2", retained: true },
+		],
+	} as never);
+	assert.deepEqual(admission.capacity(), { root: { live: 1, occupied: 2, limit: 2 } });
+	assert.throws(
+		() => admission.admit({ agent: "scout", profile: "fast" }),
+		/2 admission slots are occupied \(1 currently running\)/,
+	);
+});
+
 test("wait_agent trims a wave, forwards its timeout, and consumes matching delivery once", async () => {
 	const waits: Array<{ id: string; timeout?: number }> = [];
 	const consumed: AgentSummary[][] = [];
@@ -231,7 +275,7 @@ test("list_agents includes a bounded recent closed history", async () => {
 		registry: { list: () => [summary, ...closed] },
 		admission: {
 			capacity: () => ({
-				root: { live: 2, limit: 4 },
+				root: { live: 2, occupied: 2, limit: 4 },
 			}),
 		},
 	} as never).list_agents;
@@ -242,7 +286,7 @@ test("list_agents includes a bounded recent closed history", async () => {
 		["scout-1", ...closed.slice(1).map((agent) => agent.agent_id)],
 	);
 	assert.deepEqual(result.details?.capacity, {
-		root: { live: 2, limit: 4 },
+		root: { live: 2, occupied: 2, limit: 4 },
 	});
 
 	const completeHistory = await tool.execute("call-2", { closed_limit: 32 }, undefined, undefined, {} as never);

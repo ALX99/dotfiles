@@ -135,6 +135,8 @@ export interface RunSnapshotState {
 	readonly generation?: number;
 	readonly status?: RunStatus;
 	readonly pendingQuestion?: AgentQuestion;
+	/** Whether the current generation was interrupted, independent of owner closure. */
+	readonly aborted?: boolean;
 }
 
 export function snapshotRunData(details: MutableRunData, state: RunSnapshotState = {}): ReadonlyRunDetails {
@@ -145,7 +147,7 @@ export function snapshotRunData(details: MutableRunData, state: RunSnapshotState
 		...(state.generation === undefined ? {} : { generation: state.generation }),
 		...(state.status === undefined ? {} : { status: state.status }),
 		...(state.pendingQuestion === undefined ? {} : { pendingQuestion: state.pendingQuestion }),
-		aborted: state.status === "aborted",
+		aborted: state.aborted ?? state.status === "aborted",
 		recentTools: details.recentTools.map((tool) => ({ ...tool })),
 		contextUsage: { ...details.contextUsage },
 		usage: { ...details.usage },
