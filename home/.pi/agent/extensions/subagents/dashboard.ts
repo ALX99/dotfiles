@@ -16,7 +16,7 @@ export async function showAgentDashboard(ctx: ExtensionCommandContext, registry:
 	while (true) {
 		const views = registry.views();
 		const selected = await ctx.ui.select("Subagents", [
-			...views.map((view) => `${view.summary.agent_id} · ${view.summary.status} · ${view.summary.task_name}`),
+			...views.map((view) => dashboardAgentLabel(view.summary)),
 			BACK,
 		]);
 		if (!selected || selected === BACK) return;
@@ -32,17 +32,17 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 		const summary = view.summary;
 		const actions = ["Inspect output", "Inspect transcript"];
 		const active = isAgentActive(summary.status);
-		if (active) actions.push("Steer", "Interrupt");
+		if (active && !summary.pending_question) actions.push("Steer");
+		if (active) actions.push("Interrupt");
 		if (summary.retained && summary.status !== "closed" && !active) {
 			actions.push("Follow up");
 		}
 		if (summary.status !== "closed") actions.push("Close");
 		if (summary.session_file && !active) actions.push("Take over session");
-		const action = await ctx.ui.select(`${summary.agent_id} · ${summary.status}`, [
-			`${summary.task_name || "(no task)"}\n${summary.model} · generation ${summary.generation}`,
-			...actions,
-			BACK,
-		]);
+		const action = await ctx.ui.select(
+			`${dashboardAgentLabel(summary)}\n${sanitizeTerminalText(summary.model)} · generation ${summary.generation}`,
+			[...actions, BACK],
+		);
 		if (!action || action === BACK) return false;
 		try {
 			switch (action) {
@@ -63,11 +63,17 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 					break;
 				}
 				case "Interrupt":
-					if (await ctx.ui.confirm("Interrupt subagent?", summary.task_name || id))
+					if (await ctx.ui.confirm("Interrupt subagent?", sanitizeTerminalText(summary.task_name || id)))
 						await registry.getLive(id).interrupt();
 					break;
 				case "Close":
-					if (await ctx.ui.confirm("Close subagent?", "Its retained context will be lost.")) await registry.close(id);
+					if (
+						await ctx.ui.confirm(
+							"Close subagent?",
+							`Close ${sanitizeTerminalText(summary.task_name || id)}. Its retained context will be lost.`,
+						)
+					)
+						await registry.close(id);
 					return false;
 				case "Take over session":
 					return takeOver(ctx, summary.session_file);
@@ -130,7 +136,17 @@ async function takeOver(ctx: ExtensionCommandContext, sessionFile: string | unde
 	return false;
 }
 
+function dashboardAgentLabel(summary: AgentSummary): string {
+	return [summary.agent_id, summary.status, summary.task_name || "(no task)"].map(sanitizeTerminalText).join(" · ");
+}
+
 function agentCounts(summaries: readonly AgentSummary[]): string {
-	const running = summaries.filter((summary) => isAgentActive(summary.status)).length;
-	return `${running} running · ${summaries.length - running} settled`;
+	const waitingForInput = summaries.filter((summary) => summary.pending_question).length;
+	const running = summaries.filter((summary) => isAgentActive(summary.status) && !summary.pending_question).length;
+	const settled = summaries.length - running - waitingForInput;
+	return [
+		...(running === 0 ? [] : [`${running} running`]),
+		...(waitingForInput === 0 ? [] : [`${waitingForInput} awaiting input`]),
+		`${settled} settled`,
+	].join(" · ");
 }

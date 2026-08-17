@@ -39,9 +39,13 @@ Prompt.
 	assert.ok(parsed.errors.some((error) => error.includes("expected array")));
 });
 
-test("parseAgentFile rejects duplicate tools and whitespace-containing role names", () => {
+test("parseAgentFile rejects duplicate tools and unsafe role names", () => {
 	for (const [frontmatter, expected] of [
 		["name: scout role\ndescription: Scout\ntools: [read]", "name must not contain whitespace"],
+		[
+			"name: scout\u001brole\ndescription: Scout\ntools: [read]",
+			"name must not contain whitespace or control characters",
+		],
 		["name: scout\ndescription: Scout\ntools: [read, read]", "tools must not contain duplicates"],
 	] as const) {
 		const parsed = parseAgentFile("scout.md", `---\n${frontmatter}\n---\nPrompt.\n`);

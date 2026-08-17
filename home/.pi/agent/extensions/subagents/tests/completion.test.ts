@@ -282,7 +282,6 @@ test("background questions steer the parent immediately", async (t) => {
 		"list_agents",
 		"interrupt_agent",
 		"close_agent",
-		"send_agent",
 	]);
 });
 

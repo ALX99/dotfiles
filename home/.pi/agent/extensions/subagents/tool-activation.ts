@@ -15,9 +15,9 @@ export const SUBAGENT_TOOL_NAMES = [
 ] as const;
 
 const SPAWN_AGENT = "spawn_agent";
-const BACKGROUND_LIVE_TOOLS = ["wait_agent", "list_agents", "interrupt_agent", "close_agent", "send_agent"];
-const RETAINED_CHILD_TOOLS = ["followup_agent", "send_agent", "list_agents", "interrupt_agent", "close_agent"];
-const ANSWER_TOOL = ["answer_agent"];
+const RUNNING_AGENT_TOOLS = ["wait_agent", "list_agents", "interrupt_agent", "close_agent", "send_agent"];
+const WAITING_INPUT_TOOLS = ["answer_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"];
+const RETAINED_SETTLED_TOOLS = ["followup_agent", "list_agents", "close_agent"];
 const READ_RESULT_TOOL = ["read_agent_result"];
 const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES);
 type ToolActivationAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
@@ -25,6 +25,7 @@ type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
 
 export interface SubagentToolActivator {
 	activate(names: readonly string[]): readonly string[];
+	/** Expose only controls valid for the supplied lifecycle snapshot. */
 	activateForState(summary: AgentSummary, background: boolean): readonly string[];
 }
 
@@ -69,8 +70,9 @@ export function missingSubagentTools(pi: ToolRegistryAPI): readonly string[] {
 
 /** Start each session with the loader tool only, without disturbing other extensions. */
 export function resetSubagentTools(pi: ToolActivationAPI): void {
-	const next = [...new Set([...pi.getActiveTools().filter((name) => !SUBAGENT_TOOL_SET.has(name)), SPAWN_AGENT])];
-	pi.setActiveTools(next);
+	const active = pi.getActiveTools();
+	const next = [...new Set([...active.filter((name) => !SUBAGENT_TOOL_SET.has(name)), SPAWN_AGENT])];
+	if (!sameToolNames(active, next)) pi.setActiveTools(next);
 }
 
 /** Hide every subagent tool without disturbing tools owned by the host or other extensions. */
@@ -83,27 +85,31 @@ export function deactivateSubagentTools(pi: ToolActivationAPI): void {
 /** Add tools only: this is Pi's signal for native deferred tool loading. */
 export function activateSubagentTools(pi: ToolActivationAPI, names: readonly string[]): readonly string[] {
 	const active = pi.getActiveTools();
-	const added = [...new Set(names)].filter((name) => !active.includes(name));
+	const added = [...new Set(names)].filter((name) => SUBAGENT_TOOL_SET.has(name) && !active.includes(name));
 	if (added.length) pi.setActiveTools([...active, ...added]);
 	return added;
 }
 
 /** Activate controls made useful by a completed spawn or follow-up. */
+/** Lifecycle state is authoritative; the legacy background argument preserves existing callers. */
 export function activateForSubagentState(
 	pi: ToolActivationAPI,
 	summary: AgentSummary,
-	background: boolean,
+	_background: boolean,
 ): readonly string[] {
 	const names: string[] = [];
-	const live = summary.status !== "closed";
-	if (background && live) names.push(...BACKGROUND_LIVE_TOOLS);
-	if (summary.retained && live) names.push(...RETAINED_CHILD_TOOLS);
-	if (summary.pending_question) names.push(...ANSWER_TOOL, ...BACKGROUND_LIVE_TOOLS);
+	if (summary.pending_question) names.push(...WAITING_INPUT_TOOLS);
+	else if (summary.status === "starting" || summary.status === "running") names.push(...RUNNING_AGENT_TOOLS);
+	else if (summary.retained && summary.status !== "closed") names.push(...RETAINED_SETTLED_TOOLS);
 	if (requiresExactResultRead(summary)) names.push(...READ_RESULT_TOOL);
 	return activateSubagentTools(pi, names);
 }
 
 /** The delivered terminal result is incomplete and must be reconstructed from storage. */
+function sameToolNames(left: readonly string[], right: readonly string[]): boolean {
+	return left.length === right.length && left.every((name, index) => name === right[index]);
+}
+
 export function requiresExactResultRead(summary: AgentSummary, maximumDisplayedBytes?: number): boolean {
 	if (summary.result === undefined) return false;
 	const text = summary.final_text ?? "";

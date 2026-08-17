@@ -44,7 +44,7 @@ export function createManagementTools({
 			name: "answer_agent",
 			label: "Answer Agent",
 			description:
-				"Answer a pending multiple-choice question from a direct child. Use the reported question_id and provide either a listed option or a custom answer.",
+				"Answer a pending multiple-choice question from a direct child. Use the reported question_id and provide either a listed option or a custom answer; it is unavailable once that question is resolved.",
 			parameters: AnswerAgentParamsSchema,
 			registry,
 			resultTitle: "answer_agent · answer delivered",
@@ -65,7 +65,8 @@ export function createManagementTools({
 		send_agent: defineManagementTool({
 			name: "send_agent",
 			label: "Send Agent",
-			description: "Steer a currently running subagent at the next message boundary.",
+			description:
+				"Steer a running subagent at its next message boundary. A child waiting for an answer must receive answer_agent instead.",
 			parameters: SendAgentParamsSchema,
 			registry,
 			resultTitle: "send_agent · steering accepted",
@@ -83,7 +84,7 @@ export function createManagementTools({
 			name: "list_agents",
 			label: "List Agents",
 			description:
-				"List subagents owned by this session and their current status. Includes the 10 most-recent archived agents by default; set closed_limit to request more or none.",
+				"List subagents owned by this session and their current status. Capacity distinguishes running children from admission slots occupied by retained idle sessions. Includes the 10 most-recent archived agents by default; set closed_limit to request more or none.",
 			parameters: ListAgentsParamsSchema,
 			registry,
 			resultTitle: "list_agents",
@@ -103,7 +104,7 @@ export function createManagementTools({
 			name: "interrupt_agent",
 			label: "Interrupt Agent",
 			description:
-				"Abort a subagent's current run. Only agents spawned with retain:true remain eligible for follow-up work.",
+				"Abort a running subagent or cancel its pending question. Only agents spawned with retain:true remain eligible for follow-up work.",
 			parameters: AgentIdParamsSchema,
 			registry,
 			resultTitle: "interrupt_agent",

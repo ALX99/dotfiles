@@ -1,4 +1,5 @@
 import type { AgentRegistry } from "./agent-registry.ts";
+import { isAgentActive } from "./agent-types.ts";
 import type { ProfilesConfig } from "./profiles.ts";
 
 export interface SpawnAdmissionRequest {
@@ -7,7 +8,13 @@ export interface SpawnAdmissionRequest {
 }
 
 export interface CapacitySnapshot {
-	readonly root: { readonly live: number; readonly limit: number };
+	readonly root: {
+		/** Children currently starting or running. */
+		readonly live: number;
+		/** Sessions occupying a slot, including idle retained children. */
+		readonly occupied: number;
+		readonly limit: number;
+	};
 }
 
 export class SpawnAdmissionController {
@@ -20,10 +27,11 @@ export class SpawnAdmissionController {
 	}
 
 	capacity(): CapacitySnapshot {
-		const live = this.registry.capacity();
+		const occupied = this.registry.capacity();
 		return Object.freeze({
 			root: Object.freeze({
-				live: live.length,
+				live: occupied.filter((summary) => isAgentActive(summary.status)).length,
+				occupied: occupied.length,
 				limit: this.config.rootPolicy.maxConcurrentRootAgents,
 			}),
 		});
@@ -41,9 +49,9 @@ export class SpawnAdmissionController {
 		}
 
 		const capacity = this.capacity();
-		if (capacity.root.live >= capacity.root.limit) {
+		if (capacity.root.occupied >= capacity.root.limit) {
 			throw new Error(
-				`Root-agent concurrency cap (${capacity.root.limit}) reached. Wait for one-shot agents to settle, follow up a retained live agent, or close a retained agent.`,
+				`Root-agent concurrency cap (${capacity.root.limit}) reached: ${capacity.root.occupied} admission slots are occupied (${capacity.root.live} currently running). Wait for one-shot agents to settle, follow up a retained settled agent, or close a retained agent.`,
 			);
 		}
 	}

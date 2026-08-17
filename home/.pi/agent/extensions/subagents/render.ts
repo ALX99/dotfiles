@@ -107,11 +107,16 @@ export function renderAgentSummaries(
 	theme: Theme,
 ): Container {
 	const c = new Container();
-	const failed = summaries.some((summary) => summary.status === "failed");
-	const icon = failed ? theme.fg("error", "✗") : theme.fg("success", "✓");
 	const showCount = summaries.length !== 1 || toolName === "list_agents";
-	const count = showCount ? theme.fg("muted", ` · ${summaries.length} agent${summaries.length === 1 ? "" : "s"}`) : "";
-	c.addChild(new Text(`${icon} ${theme.fg("toolTitle", theme.bold(toolName))}${count}`, 0, 0));
+	const count = showCount ? ` · ${summaries.length} agent${summaries.length === 1 ? "" : "s"}` : "";
+	const state = summaryState(summaries);
+	c.addChild(
+		new Text(
+			`${state.icon(theme)} ${theme.fg("toolTitle", theme.bold(toolName))}${theme.fg("muted", `${count}${state.label ? ` · ${state.label}` : ""}`)}`,
+			0,
+			0,
+		),
+	);
 	if (!summaries.length) {
 		c.addChild(new Text(theme.fg("dim", "  No subagents in this session."), 0, 0));
 		return c;
@@ -159,11 +164,19 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 	const c = new Container();
 	const settled = details.summaries.filter((summary) => !isAgentActive(summary.status)).length;
 	const allSettled = settled === details.summaries.length;
-	const icon = allSettled ? theme.fg("success", "✓") : theme.fg("warning", "!");
+	const hasFailure =
+		details.outcomes.some((outcome) => outcome.status === "failed") ||
+		details.summaries.some((summary) => summary.status === "failed");
+	const hasAborted = details.summaries.some((summary) => summary.status === "aborted");
 	const interruptionSummary = waitInterruptionSummary(details);
+	const icon = hasFailure
+		? theme.fg("error", "✗")
+		: hasAborted || !allSettled || interruptionSummary
+			? theme.fg("warning", "!")
+			: theme.fg("success", "✓");
 	const suffix = allSettled
 		? `${settled}/${details.summaries.length} settled`
-		: `${settled}/${details.summaries.length} settled · ${details.summaries.length - settled} still running`;
+		: `${settled}/${details.summaries.length} settled · ${details.summaries.length - settled} still active`;
 	c.addChild(
 		new Text(
 			`${icon} ${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· ${suffix}${interruptionSummary} · ${formatDuration(details.elapsedMs)}`)}`,
@@ -190,7 +203,7 @@ function appendAgentSummary(
 		sanitizeTerminalText(summary.profile),
 		...(includeModel ? [sanitizeTerminalText(summary.model), sanitizeTerminalText(summary.effective_thinking)] : []),
 		sanitizeTerminalText(summary.agent_id),
-		summary.status,
+		summary.pending_question ? "awaiting input" : summary.status,
 	];
 	container.addChild(
 		new Text(
@@ -200,26 +213,60 @@ function appendAgentSummary(
 		),
 	);
 	if (!expanded) return;
-	const output = summary.final_text || summary.error;
-	if (output)
-		container.addChild(
-			new Text(theme.fg(summary.status === "failed" ? "error" : "toolOutput", sanitizeTerminalBlock(output)), 2, 0),
-		);
+	if (summary.final_text) {
+		container.addChild(new Text(theme.fg("toolOutput", sanitizeTerminalBlock(summary.final_text)), 2, 0));
+	}
+	if (summary.error) {
+		container.addChild(new Text(theme.fg("error", sanitizeTerminalBlock(summary.error)), 2, 0));
+	}
+}
+
+function summaryState(summaries: readonly AgentSummary[]): {
+	readonly icon: (theme: Theme) => string;
+	readonly label: string;
+} {
+	const failed = summaries.filter((summary) => summary.status === "failed").length;
+	const aborted = summaries.filter((summary) => summary.status === "aborted").length;
+	const awaitingInput = summaries.filter((summary) => summary.pending_question).length;
+	const running = summaries.filter((summary) => isAgentActive(summary.status) && !summary.pending_question).length;
+	const closed = summaries.filter((summary) => summary.status === "closed").length;
+	const label = [
+		...(failed === 0 ? [] : [`${failed} failed`]),
+		...(aborted === 0 ? [] : [`${aborted} aborted`]),
+		...(awaitingInput === 0 ? [] : [`${awaitingInput} awaiting input`]),
+		...(running === 0 ? [] : [`${running} running`]),
+		...(closed === 0 ? [] : [`${closed} closed`]),
+	].join(", ");
+	if (failed > 0) return { icon: (theme) => theme.fg("error", "✗"), label };
+	if (aborted > 0 || awaitingInput > 0) return { icon: (theme) => theme.fg("warning", "!"), label };
+	if (running > 0) return { icon: (theme) => theme.fg("warning", "⟳"), label };
+	if (closed === summaries.length) return { icon: (theme) => theme.fg("dim", "–"), label };
+	return { icon: (theme) => theme.fg("success", "✓"), label };
 }
 
 function agentStatusIcon(summary: AgentSummary, theme: Theme): string {
 	if (summary.status === "failed") return theme.fg("error", "✗");
+	if (summary.status === "aborted" || summary.pending_question) return theme.fg("warning", "!");
 	if (isAgentActive(summary.status)) return theme.fg("warning", "⟳");
 	return summary.status === "idle" ? theme.fg("success", "✓") : theme.fg("dim", "–");
 }
 
 function waitInterruptionSummary(details: WaitDetails): string {
-	const timedOut = details.outcomes.filter((outcome) => outcome.status === "timed_out").length;
-	const cancelled = details.outcomes.filter((outcome) => outcome.status === "cancelled").length;
-	const parts = [
-		...(timedOut === 0 ? [] : [`${timedOut} timed out`]),
-		...(cancelled === 0 ? [] : [`${cancelled} cancelled`]),
-	];
+	const counts = new Map<WaitDetails["outcomes"][number]["status"], number>();
+	for (const outcome of details.outcomes) counts.set(outcome.status, (counts.get(outcome.status) ?? 0) + 1);
+	const parts = ["waiting_input", "deferred", "timed_out", "cancelled", "failed"].flatMap((status) => {
+		const count = counts.get(status as WaitDetails["outcomes"][number]["status"]);
+		if (!count) return [];
+		const label =
+			status === "waiting_input"
+				? "awaiting input"
+				: status === "deferred"
+					? "deferred"
+					: status === "timed_out"
+						? "timed out"
+						: status;
+		return [`${count} ${label}`];
+	});
 	return parts.length === 0 ? "" : ` · ${parts.join(", ")}`;
 }
 

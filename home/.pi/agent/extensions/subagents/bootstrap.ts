@@ -25,7 +25,7 @@ export class SubagentRuntime {
 	private uiBinding: RegistryUiBinding | undefined;
 	private completionTimer: NodeJS.Timeout | undefined;
 	private readonly accountedUsage = new Set<string>();
-	private readonly registryUnsubscribe: () => void;
+	private registryUnsubscribe: (() => void) | undefined;
 	private readonly toolActivation: SubagentToolActivator;
 
 	constructor(
@@ -39,13 +39,15 @@ export class SubagentRuntime {
 		this.agentDir = agentDir;
 		this.toolActivation = toolActivation;
 		this.registry = new AgentRegistry(agentDir);
-		this.registryUnsubscribe = this.registry.subscribe(() => {
-			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
-		});
 		this.admission = new SpawnAdmissionController(profiles, this.registry);
 	}
 
 	startSession(ctx: ExtensionContext): void {
+		this.shuttingDown = false;
+		this.registryUnsubscribe?.();
+		this.registryUnsubscribe = this.registry.subscribe(() => {
+			discardSupersededCompletions(this.pendingCompletions, this.registry.list());
+		});
 		this.activeContext = ctx;
 		const branch = ctx.sessionManager.getBranch();
 		this.restoredResultCount = this.registry.restoreResultLocators(branch);
@@ -113,7 +115,8 @@ export class SubagentRuntime {
 		this.clearCompletionTimer();
 		const failures: unknown[] = [];
 		try {
-			this.registryUnsubscribe();
+			this.registryUnsubscribe?.();
+			this.registryUnsubscribe = undefined;
 			this.uiBinding?.close();
 		} catch (error) {
 			failures.push(error);
@@ -201,16 +204,19 @@ export function formatBackgroundCompletions(summaries: readonly AgentSummary[]):
 function formatBackgroundCompletionContent(summaries: readonly AgentSummary[]): string {
 	const results = summaries.map((summary) => {
 		const output = escapeXml(
-			truncateHead(summary.final_text || summary.error || "(no output)", {
+			truncateHead(summary.final_text || "(no output)", {
 				maxBytes: BACKGROUND_RESULT_MAX_BYTES,
 			}).content,
 		);
+		const error = summary.error
+			? `\n  <error>${escapeXml(truncateHead(summary.error, { maxBytes: BACKGROUND_RESULT_MAX_BYTES }).content)}</error>`
+			: "";
 		const timing = ` started_at="${summary.started_at}"${summary.ended_at === undefined ? "" : ` ended_at="${summary.ended_at}"`}${summary.duration_ms === undefined ? "" : ` duration_ms="${summary.duration_ms}"`}`;
 		const usage = `\n  <usage input="${summary.usage.input}" output="${summary.usage.output}" reasoning="${summary.usage.reasoning ?? 0}" cache_read="${summary.usage.cacheRead}" cache_write="${summary.usage.cacheWrite}" turns="${summary.usage.turns}" cost="${summary.usage.cost}" />`;
 		const resultReference = summary.result
 			? `\n  <result_ref result_id="${summary.result.result_id}" complete="${summary.result.complete}" total_bytes="${summary.result.total_bytes}" sha256="${summary.result.sha256}" />`
 			: "";
-		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${usage}${resultReference}\n</subagent_result>`;
+		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${error}${usage}${resultReference}\n</subagent_result>`;
 	});
 	return results.length === 1 ? (results[0] ?? "") : `<subagent_results>\n${results.join("\n")}\n</subagent_results>`;
 }

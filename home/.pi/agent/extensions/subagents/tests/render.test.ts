@@ -145,6 +145,50 @@ test("management renderers identify targets and replace raw summary JSON", () =>
 	assert.match(result, /inspect parser · scout · fast · opencode-go\/deepseek-v4-flash · low · general-1 · running/);
 });
 
+test("summary and wait renderers do not report active or failed work as success", () => {
+	const running = {
+		...summaryStats,
+		agent_id: "worker-1",
+		agent: "worker",
+		task_name: "fix parser",
+		profile: "balanced",
+		model: "provider/model",
+		effective_thinking: "medium",
+		generation: 1,
+		retained: false,
+		status: "running" as const,
+		pending_question: { question_id: "question-1", question: "Proceed?", options: ["Yes", "No"] },
+	};
+	const failed = {
+		...summaryStats,
+		agent_id: "worker-2",
+		agent: "worker",
+		task_name: "fix parser",
+		profile: "balanced",
+		model: "provider/model",
+		effective_thinking: "medium",
+		generation: 1,
+		retained: false,
+		status: "failed" as const,
+	};
+	const listed = renderAgentSummaries("list_agents", [running], false, renderTheme).render(120).join("\n");
+	const waited = renderWaitResult(
+		{
+			elapsedMs: 100,
+			outcomes: [{ agent_id: failed.agent_id, status: "failed" }],
+			summaries: [failed],
+		},
+		false,
+		renderTheme,
+	)
+		.render(120)
+		.join("\n");
+
+	assert.match(listed, /! list_agents · 1 agent · 1 awaiting input/);
+	assert.match(listed, /awaiting input/);
+	assert.match(waited, /✗ wait_agent · 1\/1 settled · 1 failed/);
+});
+
 test("renderWaitCall names the tasks, count, and timeout", () => {
 	const summaries = [
 		{
@@ -209,7 +253,7 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 		.render(120)
 		.join("\n");
 
-	assert.match(rendered, /1\/2 settled · 1 still running/);
+	assert.match(rendered, /1\/2 settled · 1 still active/);
 	assert.match(rendered, /1 timed out/);
 	assert.match(rendered, /inspect parser · scout · fast · done-123/);
 	assert.match(rendered, /fix parser · worker · balanced · running-/);

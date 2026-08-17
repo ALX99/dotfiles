@@ -50,7 +50,7 @@ export function createReadAgentResultTool(
 		name: "read_agent_result",
 		label: "Read Agent Result",
 		description:
-			"Read an exact subagent result by agent_id, with opaque-cursor or offset pagination. Settled results are persisted and exact; while running, this returns the current bounded preview (complete:false), so prefer wait_agent before reconstructing the terminal result. No filesystem path is accepted.",
+			"Read a subagent generation by agent_id with opaque-cursor or offset pagination. Settled generations are persisted and exact. The active generation of a running agent returns only its bounded preview (complete:false), so wait_agent before reconstructing its terminal result. No filesystem path is accepted.",
 		parameters: ReadAgentResultParamsSchema,
 		async execute(_id, params: ReadAgentResultParams) {
 			const agentId = trimRequired(params.agent_id, "agent_id");
