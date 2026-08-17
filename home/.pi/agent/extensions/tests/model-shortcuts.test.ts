@@ -7,7 +7,7 @@ import modelShortcuts, { MODEL_SHORTCUTS } from "../model-shortcuts.ts";
 interface Shortcut {
 	handler(ctx: {
 		modelRegistry: { find(provider: string, model: string): unknown };
-		scopedModels: Array<{ model: { provider: string; id: string }; thinkingLevel?: "high" }>;
+		scopedModels: Array<{ model: { provider: string; id: string }; thinkingLevel?: "medium" | "high" | "max" }>;
 		hasUI: boolean;
 		ui: { notify(message: string, level: "warning" | "info"): void };
 	}): Promise<void>;
@@ -15,7 +15,7 @@ interface Shortcut {
 
 function registerShortcuts(
 	setModel: (model: unknown) => Promise<boolean>,
-	setThinkingLevel: (level: "high") => void = () => {},
+	setThinkingLevel: (level: "medium" | "high" | "max") => void = () => {},
 ): Map<string, Shortcut> {
 	const shortcuts = new Map<string, Shortcut>();
 	modelShortcuts({
@@ -125,6 +125,30 @@ test("registered shortcut selects only matching scoped models and applies their 
 
 	assert.deepEqual(setModels, [selected]);
 	assert.deepEqual(thinkingLevels, ["high"]);
+});
+
+test("registered shortcuts apply their configured thinking defaults", async () => {
+	const thinkingLevels: string[] = [];
+	const shortcuts = registerShortcuts(
+		async () => true,
+		(level) => thinkingLevels.push(level),
+	);
+
+	for (const configured of MODEL_SHORTCUTS) {
+		const shortcut = shortcuts.get(configured.shortcut);
+		assert.ok(shortcut);
+		await shortcut.handler({
+			modelRegistry: { find: () => ({ provider: configured.provider, id: configured.model }) },
+			scopedModels: [],
+			hasUI: false,
+			ui: { notify: () => {} },
+		});
+	}
+
+	assert.deepEqual(
+		thinkingLevels,
+		MODEL_SHORTCUTS.map(({ thinkingLevel }) => thinkingLevel),
+	);
 });
 
 test("registered shortcut does not select an unscoped catalogue model", async () => {
