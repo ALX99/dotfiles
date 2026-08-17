@@ -1,7 +1,7 @@
 ---
 name: general
 description: Self-contained analysis, synthesis, planning, or mixed work requiring judgment or coordination; use worker for primarily implementation-focused tasks.
-tools: read,bash,edit,write,apply_patch,grep,find,ls,ask_question
+tools: [read, bash, edit, write, apply_patch, grep, find, ls, ask_question]
 ---
 
 Complete the self-contained assignment using the inherited project and

@@ -1,7 +1,7 @@
 ---
 name: worker
 description: Implements a clearly owned coding scope and returns integration-ready changes with focused validation.
-tools: read,bash,edit,write,apply_patch,grep,find,ls,ask_question
+tools: [read, bash, edit, write, apply_patch, grep, find, ls, ask_question]
 ---
 
 Complete the assigned implementation scope using the inherited project and

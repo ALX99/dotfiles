@@ -153,10 +153,6 @@ export function validateProfiles(
 	for (const agent of agents) agentNames.add(typeof agent === "string" ? agent : agent.name);
 
 	for (const [profileName, profile] of Object.entries(config.profiles)) {
-		if (!profileName || /\s/u.test(profileName))
-			errors.push(
-				`${filePath}: profiles.${printPathPart(profileName)}: profile name must not be empty or contain whitespace`,
-			);
 		const candidates = new Map<string, number>();
 		for (const [index, candidate] of profile.modelPriority.entries()) {
 			const previous = candidates.get(candidate.id);
@@ -171,10 +167,6 @@ export function validateProfiles(
 	}
 
 	for (const [agentName, policy] of Object.entries(config.agentPolicies)) {
-		if (!agentName || /\s/u.test(agentName))
-			errors.push(
-				`${filePath}: agentPolicies.${printPathPart(agentName)}: agent name must not be empty or contain whitespace`,
-			);
 		if (agentNames.size > 0 && !agentNames.has(agentName)) {
 			errors.push(`${filePath}: agentPolicies.${printPathPart(agentName)}: references unknown agent '${agentName}'`);
 		}
@@ -276,28 +268,22 @@ export function resolveRun(options: ResolveRunOptions): ResolvedRun {
 		options.scopedModels && options.scopedModels.length > 0
 			? options.scopedModels
 			: options.modelRegistry.getAvailable().map((model): ScopedModel => ({ model }));
-	const authenticated = profile.modelPriority.flatMap((candidate) => {
+	for (const candidate of profile.modelPriority) {
 		const [provider, modelId] = splitModelId(candidate.id);
 		const scopedModel = available.find(({ model }) => model.provider === provider && model.id === modelId);
-		return scopedModel ? [{ candidate, ...scopedModel }] : [];
-	});
-	if (authenticated.length === 0) {
-		throw new Error(
-			`No authenticated model is available for profile '${profileName}'. Configured model priority: ${profile.modelPriority.map((candidate) => candidate.id).join(", ")}.`,
-		);
+		if (scopedModel) {
+			return resolveCandidate(
+				agent,
+				profileName,
+				candidate,
+				scopedModel.model,
+				options.requestedThinking,
+				scopedModel.thinkingLevel,
+			);
+		}
 	}
-
-	const candidate = authenticated[0];
-	if (!candidate) {
-		throw new Error(`Profile '${profileName}' has no authenticated model candidates.`);
-	}
-	return resolveCandidate(
-		agent,
-		profileName,
-		candidate.candidate,
-		candidate.model,
-		options.requestedThinking,
-		candidate.thinkingLevel,
+	throw new Error(
+		`No authenticated model is available for profile '${profileName}'. Configured model priority: ${profile.modelPriority.map((candidate) => candidate.id).join(", ")}.`,
 	);
 }
 

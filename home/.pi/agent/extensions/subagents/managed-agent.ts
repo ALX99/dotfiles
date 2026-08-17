@@ -121,9 +121,15 @@ export class ManagedAgent {
 		this.emit();
 		try {
 			await this.open();
+			if (this.phaseState !== "starting") {
+				this.disposeSession();
+				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
+			}
 		} catch (cause) {
-			this.phaseState = "failed";
-			this.emit();
+			if (this.phaseState === "starting") {
+				this.phaseState = "failed";
+				this.emit();
+			}
 			throw cause;
 		}
 		return this.launch(buildInitialTask(message, handoff), taskName, background, signal);
@@ -196,10 +202,7 @@ export class ManagedAgent {
 				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
 				await this.session?.abort().catch(() => {});
 			}
-			this.unsubscribe?.();
-			this.unsubscribe = undefined;
-			this.session?.dispose();
-			this.session = undefined;
+			this.disposeSession();
 			this.phaseState = "closed";
 			this.emit();
 			this.listeners.clear();
@@ -504,6 +507,13 @@ export class ManagedAgent {
 		if (!pending) return;
 		delete generation.question;
 		pending.reject(new Error(message));
+	}
+
+	private disposeSession(): void {
+		this.unsubscribe?.();
+		this.unsubscribe = undefined;
+		this.session?.dispose();
+		this.session = undefined;
 	}
 
 	private async waitFor(generation: Generation, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {

@@ -18,10 +18,10 @@ import {
 	trimOptional,
 	trimRequired,
 } from "../schemas.ts";
-import { completedRunResult, formatPendingQuestion, toolError } from "../tool-results.ts";
+import { completedRunResult, formatAgentCompletion, formatPendingQuestion, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
-import { requiresExactResultRead, type SubagentToolActivator } from "../tool-activation.ts";
+import type { SubagentToolActivator } from "../tool-activation.ts";
 import type { SpawnAdmissionController } from "../spawn-admission.ts";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
@@ -150,7 +150,7 @@ export function createSpawnAgentTool(
 				const summary = managed.summary();
 				toolActivation.activateForState(summary, background);
 				return completedRunResult(
-					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatCompletion(summary)),
+					background ? formatLaunch(summary) : (formatPendingQuestion(summary) ?? formatAgentCompletion(summary, true)),
 					details,
 					background ? undefined : dependencies.claimUsage(summary),
 				);
@@ -194,11 +194,13 @@ function spawnSchemaOptions(dependencies: SpawnAgentDependencies): SpawnAgentSch
 }
 
 export function thinkingLevelsForProfiles(
-	config: ProfilesConfig,
+	config: Pick<ProfilesConfig, "profiles">,
 	profiles: readonly string[],
 ): readonly ModelThinkingLevel[] {
 	if (profiles.length === 0) throw new Error("No profiles are available for thinking-level advertisement.");
-	const minimumRank = Math.min(
+	// The schema cannot know which authenticated candidate will win at runtime,
+	// so offer only levels every configured fallback accepts.
+	const minimumRank = Math.max(
 		...profiles.flatMap((name) => {
 			const profile = config.profiles[name];
 			if (!profile) throw new Error(`Profile '${name}' is not configured.`);
@@ -254,11 +256,4 @@ export function spawnGuidelines(
 
 function formatLaunch(summary: ReturnType<ManagedAgent["summary"]>): string {
 	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. One-shot agents archive after settlement.`;
-}
-
-function formatCompletion(summary: ReturnType<ManagedAgent["summary"]>): string {
-	const exactResultGuidance = requiresExactResultRead(summary)
-		? "\n\nUse read_agent_result for exact cursor-paged reconstruction."
-		: "";
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\n${summary.final_text || summary.error || "(no output)"}${exactResultGuidance}`;
 }

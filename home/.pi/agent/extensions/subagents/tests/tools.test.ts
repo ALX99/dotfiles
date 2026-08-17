@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { Check } from "typebox/value";
 import { AgentWaitInterruptedError, AgentWaitTimeoutReason, type AgentSummary } from "../agent-types.ts";
+import { resultPreview } from "../result-store.ts";
 import {
 	AnswerAgentParamsSchema,
 	createSpawnAgentSchema,
@@ -9,8 +10,10 @@ import {
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
+import { formatAgentCompletion, textResult } from "../tool-results.ts";
 import { createManagementTools } from "../tools/management-tools.ts";
-import { spawnGuidelines } from "../tools/spawn-agent.ts";
+import { spawnGuidelines, thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
+import type { ProfilesConfig } from "../profiles.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
 
 const summary: AgentSummary = {
@@ -57,6 +60,21 @@ test("spawn schema rejects removed nested budgets and exposes explicit retention
 	assert.equal(Check(schema, { message: "work", agent: "scout", child_spawn_budget: 0 }), false);
 });
 
+test("thinking overrides are safe across every configured model fallback", () => {
+	const config: Pick<ProfilesConfig, "profiles"> = {
+		profiles: {
+			fast: {
+				description: "Fast",
+				modelPriority: [
+					{ id: "provider/first", defaultThinking: "medium", maxThinking: "high" },
+					{ id: "provider/fallback", defaultThinking: "high", maxThinking: "high" },
+				],
+			},
+		},
+	};
+	assert.deepEqual(thinkingLevelsForProfiles(config, ["fast"]), ["high"]);
+});
+
 test("wait schema exposes a bounded caller-selected timeout", () => {
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 1 }), true);
 	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 }), true);
@@ -81,6 +99,29 @@ test("spawn guidance explains compact handoffs for dependent work", () => {
 	const guidance = spawnGuidelines([], [], 1).join("\n");
 	assert.match(guidance, /retry, review\/fix cycle, or replacement/);
 	assert.match(guidance, /does not inherit the parent transcript/);
+});
+
+test("shared terminal completion directs exact reads for every completed generation", () => {
+	const completed = {
+		...summary,
+		retained: true,
+		final_text: resultPreview("x".repeat(50 * 1024)),
+		result: {
+			generation: 1,
+			result_id: "a".repeat(64),
+			complete: true,
+			total_bytes: 50 * 1024,
+			sha256: "b".repeat(64),
+		},
+	};
+	assert.match(formatAgentCompletion(completed), /read_agent_result/);
+});
+
+test("generic tool truncation does not offer unrelated result reconstruction", () => {
+	const result = textResult("x".repeat(100 * 1024), { summaries: [] });
+	const text = result.content[0];
+	assert.equal(text?.type, "text");
+	if (text?.type === "text") assert.doesNotMatch(text.text, /read_agent_result/);
 });
 
 test("wait_agent trims a wave, forwards its timeout, and consumes matching delivery once", async () => {

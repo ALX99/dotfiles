@@ -10,15 +10,17 @@ import { toError } from "../_shared/errors.ts";
 export interface AgentConfig {
 	name: string;
 	description: string;
-	tools?: string[];
+	tools: string[];
 	systemPrompt: string;
 	filePath: string;
 }
 
+const nonBlank = (label: string) => z.string().trim().min(1, `${label} must not be blank`);
+
 export const AgentFrontmatterSchema = z.strictObject({
-	name: z.string().trim().min(1),
-	description: z.string().trim().min(1),
-	tools: z.string().optional(),
+	name: nonBlank("name").refine((name) => !/\s/u.test(name), "name must not contain whitespace"),
+	description: nonBlank("description"),
+	tools: z.array(nonBlank("tool")).min(1, "tools must contain at least one tool"),
 });
 
 export type DiscoverError =
@@ -39,7 +41,7 @@ export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], Discover
 
 	const agents: AgentConfig[] = [];
 	const errors: string[] = [];
-	for (const entry of entries) {
+	for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
 		if (!entry.name.endsWith(".md")) continue;
 		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
 		const filePath = path.join(dir, entry.name);
@@ -91,19 +93,16 @@ export function parseAgentFile(
 		};
 	}
 	if (!body.trim()) return { success: false, errors: [`${filePath}: system prompt must not be empty`] };
-	const tools = parsed.data.tools
-		?.split(",")
-		.map((tool) => tool.trim())
-		.filter(Boolean);
-	if (parsed.data.tools !== undefined && !tools?.length) {
-		return { success: false, errors: [`${filePath}: tools must contain at least one tool when present`] };
+	const duplicateTools = parsed.data.tools.filter((tool, index, tools) => tools.indexOf(tool) !== index);
+	if (duplicateTools.length) {
+		return { success: false, errors: [`${filePath}: tools must not contain duplicates`] };
 	}
 	return {
 		success: true,
 		agent: {
 			name: parsed.data.name,
 			description: parsed.data.description,
-			...(tools === undefined ? {} : { tools }),
+			tools: parsed.data.tools,
 			systemPrompt: body.trim(),
 			filePath,
 		},

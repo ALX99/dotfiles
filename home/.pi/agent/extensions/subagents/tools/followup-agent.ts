@@ -5,7 +5,7 @@ import type { ManagedAgent } from "../managed-agent.ts";
 import { renderManagementCall } from "../render.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { FollowupAgentParamsSchema, preserveRequired, trimOptional, trimRequired } from "../schemas.ts";
-import { completedRunResult, formatPendingQuestion } from "../tool-results.ts";
+import { completedRunResult, formatAgentCompletion, formatPendingQuestion } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import type { SubagentToolActivator } from "../tool-activation.ts";
 
@@ -53,8 +53,7 @@ export function createFollowupAgentTool(
 			toolActivation.activateForState(summary, background);
 			const text = background
 				? `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\nCompletion will be delivered automatically. Use send_agent, followup_agent, wait_agent, interrupt_agent, or close_agent with this agent_id.`
-				: (formatPendingQuestion(summary) ??
-					`agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\n\n${summary.final_text || summary.error || "(no output)"}`);
+				: (formatPendingQuestion(summary) ?? formatAgentCompletion(summary));
 			return completedRunResult(text, details, background ? undefined : dependencies.claimUsage(summary));
 		},
 		renderCall(args, theme, context) {

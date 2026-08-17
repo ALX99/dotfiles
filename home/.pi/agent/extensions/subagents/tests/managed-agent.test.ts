@@ -113,6 +113,32 @@ test("one native session owns foreground, background, steering, follow-up, and c
 	assert.equal(agent.phase, "closed");
 });
 
+test("closing during session startup cannot revive the agent", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-close-startup-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	let resolveSession: ((session: never) => void) | undefined;
+	let disposed = false;
+	const agent = new ManagedAgent({
+		id: "scout-starting",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		sessionFactory: () =>
+			new Promise((resolve) => {
+				resolveSession = resolve as (session: never) => void;
+			}),
+	});
+
+	const starting = agent.start("inspect", undefined, "inspect", false);
+	await agent.close();
+	resolveSession!({ subscribe: () => () => {}, dispose: () => (disposed = true) } as never);
+	await assert.rejects(starting, /closed while its session was starting/);
+	assert.equal(disposed, true);
+	assert.equal(agent.phase, "closed");
+});
+
 test("a foreground question returns control and resumes after its answer", async (t) => {
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-question-test-"));
 	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));

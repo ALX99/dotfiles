@@ -196,6 +196,9 @@ export async function readLocatedAgentResult(
 	const manager = SessionManager.open(sessionFile);
 	if (manager.getSessionId() !== locator.sessionId) throw new Error("Stored subagent session identity does not match.");
 	const entry = locator.resultEntryId === null ? undefined : manager.getEntry(locator.resultEntryId);
+	if (locator.resultEntryId !== null && (entry?.type !== "message" || entry.message.role !== "assistant")) {
+		throw new Error("Stored subagent result entry is missing or is not an assistant message.");
+	}
 	const text = assistantText(entry) ?? "";
 	const result = storedResult(
 		locator.generation,
@@ -264,7 +267,7 @@ export async function validateChildSessionPath(sessionFile: string, agentDir = g
 	const directory = path.resolve(agentDir, "subagent-sessions");
 	const candidate = path.resolve(sessionFile);
 	const relative = path.relative(directory, candidate);
-	if (relative.startsWith("..") || path.isAbsolute(relative))
+	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
 		throw new Error("Child session path escapes managed storage.");
 	const stats = await fs.promises.lstat(candidate);
 	if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Child session is not a regular file.");
@@ -287,13 +290,23 @@ export function assistantText(entry: SessionEntry | undefined): string | undefin
 function locatorCandidates(
 	value: unknown,
 ): Array<{ readonly agentId: string; readonly locator: GenerationResultLocator }> {
-	if (Array.isArray(value)) return value.flatMap(locatorCandidates);
 	if (!isRecord(value)) return [];
-	const agentId =
-		typeof value.agent_id === "string" ? value.agent_id : typeof value.agentId === "string" ? value.agentId : undefined;
-	const locator = parseGenerationResultLocator(value.result_locator ?? value.resultLocator);
-	const nested = Array.isArray(value.summaries) ? value.summaries.flatMap(locatorCandidates) : [];
-	return agentId && locator ? [{ agentId, locator }, ...nested] : nested;
+	const candidate = locatorCandidate(value);
+	const summaries = Array.isArray(value.summaries) ? value.summaries.flatMap(locatorCandidates) : [];
+	return candidate ? [candidate, ...summaries] : summaries;
+}
+
+/** Tool details use RunDetails; durable settlement entries use AgentSummary. */
+function locatorCandidate(
+	value: Readonly<Record<string, unknown>>,
+): { readonly agentId: string; readonly locator: GenerationResultLocator } | undefined {
+	const agentId = typeof value.agentId === "string" ? value.agentId : undefined;
+	const locator = parseGenerationResultLocator(value.resultLocator);
+	if (agentId && locator) return { agentId, locator };
+
+	const summaryAgentId = typeof value.agent_id === "string" ? value.agent_id : undefined;
+	const summaryLocator = parseGenerationResultLocator(value.result_locator);
+	return summaryAgentId && summaryLocator ? { agentId: summaryAgentId, locator: summaryLocator } : undefined;
 }
 
 function parseResultCursor(cursor: string, resultId: string): number {

@@ -6,7 +6,7 @@ import { after, test } from "node:test";
 import type { AgentSummary } from "../agent-types.ts";
 import {
 	BACKGROUND_COMPLETION_DEBOUNCE_MS,
-	DefaultSubagentRuntime,
+	SubagentRuntime,
 	backgroundCompletionsNeedExactRead,
 	formatBackgroundCompletions,
 	formatSubagentQuestion,
@@ -153,7 +153,7 @@ test("subagent questions serialize their routing fields as safe XML", () => {
 });
 
 test("simultaneous idle background completions are delivered in one debounced follow-up", async (t) => {
-	const runtime = new DefaultSubagentRuntime(
+	const runtime = new SubagentRuntime(
 		[],
 		{
 			rootPolicy: {
@@ -166,7 +166,7 @@ test("simultaneous idle background completions are delivered in one debounced fo
 		testAgentDir,
 	);
 	const notifications: string[] = [];
-	await runtime.startSession({
+	runtime.startSession({
 		isIdle: () => true,
 		sessionManager: { getBranch: () => [] },
 		ui: {
@@ -197,7 +197,7 @@ test("simultaneous idle background completions are delivered in one debounced fo
 });
 
 test("consuming completions removes only the matching settled generation", async (t) => {
-	const runtime = new DefaultSubagentRuntime(
+	const runtime = new SubagentRuntime(
 		[],
 		{
 			rootPolicy: {
@@ -210,7 +210,7 @@ test("consuming completions removes only the matching settled generation", async
 		testAgentDir,
 	);
 	t.after(() => runtime.shutdown());
-	await runtime.startSession({
+	runtime.startSession({
 		isIdle: () => false,
 		sessionManager: { getBranch: () => [] },
 		ui: { notify: () => {}, setStatus: () => {}, setWidget: () => {} },
@@ -250,7 +250,7 @@ test("background questions steer the parent immediately", async (t) => {
 			activeTools = next;
 		},
 	} as never;
-	const runtime = new DefaultSubagentRuntime(
+	const runtime = new SubagentRuntime(
 		[],
 		{
 			rootPolicy: {
@@ -287,7 +287,7 @@ test("background questions steer the parent immediately", async (t) => {
 });
 
 test("usage claims restore from persisted wait results across session reload", async (t) => {
-	const runtime = new DefaultSubagentRuntime(
+	const runtime = new SubagentRuntime(
 		[],
 		{
 			rootPolicy: { maxConcurrentRootAgents: 1 },
@@ -298,7 +298,7 @@ test("usage claims restore from persisted wait results across session reload", a
 		testAgentDir,
 	);
 	t.after(() => runtime.shutdown());
-	await runtime.startSession({
+	runtime.startSession({
 		sessionManager: {
 			getBranch: () => [
 				{
