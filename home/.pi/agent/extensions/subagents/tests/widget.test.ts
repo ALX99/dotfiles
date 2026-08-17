@@ -17,8 +17,7 @@ function view(overrides: {
 	readonly taskName?: string;
 	readonly lastActivityTime?: number;
 	readonly recentTools?: ReadonlyRunDetails["recentTools"];
-	readonly tokens?: number;
-	readonly contextWindow?: number;
+	readonly contextUsage?: ReadonlyRunDetails["contextUsage"];
 	readonly waiting?: boolean;
 }): AgentView {
 	const agentId = overrides.agentId ?? "worker-1";
@@ -36,9 +35,8 @@ function view(overrides: {
 		recentTools: overrides.recentTools ?? [],
 		lastMessage: "",
 		lastActivityTime: overrides.lastActivityTime ?? 0,
-		tokens: overrides.tokens ?? 0,
+		contextUsage: overrides.contextUsage ?? { tokens: null, contextWindow: 10_000, percent: null },
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
-		...(overrides.contextWindow === undefined ? {} : { contextWindow: overrides.contextWindow }),
 		resultId: "a".repeat(64),
 		aborted: false,
 	} satisfies ReadonlyRunDetails;
@@ -69,8 +67,7 @@ test("running-agent widget summarizes current tools and activity age", () => {
 			view({
 				lastActivityTime: 117_000,
 				recentTools: [{ name: "bash", argsPreview: "pnpm test" }],
-				tokens: 1_200,
-				contextWindow: 10_000,
+				contextUsage: { tokens: 1_200, contextWindow: 10_000, percent: 12 },
 			}),
 			view({ agentId: "scout-2", taskName: "Inspect API", lastActivityTime: 60_000, waiting: true }),
 			view({ agentId: "worker-3", status: "idle" }),
@@ -95,16 +92,13 @@ test("activity ages use compact units", () => {
 	assert.equal(formatActivityAge(86_400_000), "1d ago");
 });
 
-test("running-agent widget shows only measured context and respects its width", () => {
-	const withoutUsage = renderRunningAgentLines([view({ contextWindow: 10_000 })], 120_000, 120, theme as never);
-	const withoutWindow = renderRunningAgentLines([view({ tokens: 1_200 })], 120_000, 120, theme as never);
-
-	assert.doesNotMatch(withoutUsage.join("\n"), /context/);
-	assert.doesNotMatch(withoutWindow.join("\n"), /context/);
+test("running-agent widget shows only known native context and respects its width", () => {
+	const unknownContext = renderRunningAgentLines([view({})], 120_000, 120, theme as never);
+	assert.doesNotMatch(unknownContext.join("\n"), /context/);
 
 	for (const width of [1, 10, 40]) {
 		const lines = renderRunningAgentLines(
-			[view({ tokens: 1_200, contextWindow: 10_000, lastActivityTime: 117_000 })],
+			[view({ contextUsage: { tokens: 1_200, contextWindow: 10_000, percent: 12 }, lastActivityTime: 117_000 })],
 			120_000,
 			width,
 			theme as never,

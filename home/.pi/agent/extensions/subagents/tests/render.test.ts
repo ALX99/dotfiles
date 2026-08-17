@@ -45,7 +45,7 @@ function details(): RunDetails {
 		lastMessage: "",
 		lastActivityTime: 0,
 		liveAssistantPreview: "",
-		tokens: 0,
+		contextUsage: { tokens: null, contextWindow: 100_000, percent: null },
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 		resultId: "a".repeat(64),
 	};
@@ -81,6 +81,15 @@ test("renderResultBlock keeps collapsed rows compact and expanded rows complete"
 	assert.match(expanded, /general-1/);
 	assert.match(expanded, /src\/parser\.ts/);
 	assert.match(expanded, /four/);
+});
+
+test("renderResultBlock uses Pi context snapshots", () => {
+	const run = details();
+	run.contextUsage = { tokens: 90_000, contextWindow: 100_000, percent: 90 };
+
+	const rendered = renderResultBlock(run, { expanded: true, isPartial: false }, renderTheme).render(120).join("\n");
+
+	assert.match(rendered, /90%\/100\.0k/);
 });
 
 test("management renderers identify targets and replace raw summary JSON", () => {

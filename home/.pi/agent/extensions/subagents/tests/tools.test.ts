@@ -103,7 +103,7 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 					recentTools: [],
 					lastMessage: "",
 					lastActivityTime: 0,
-					tokens: 0,
+					contextUsage: { tokens: null, contextWindow: 100_000, percent: null },
 					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
 					resultId: "a".repeat(64),
 					aborted: false,

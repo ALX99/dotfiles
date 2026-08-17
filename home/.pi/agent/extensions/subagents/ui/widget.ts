@@ -2,8 +2,8 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "../../_shared/terminal-text.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
-import type { AgentSummary, AgentView } from "../agent-types.ts";
-import { formatContextPercentage } from "../render.ts";
+import { isAgentActive, type AgentSummary, type AgentView } from "../agent-types.ts";
+import { formatContextPercentage } from "./format.ts";
 
 export interface RegistryUiBinding {
 	readonly refresh: () => void;
@@ -11,8 +11,6 @@ export interface RegistryUiBinding {
 }
 
 const UI_TICK_MS = 1_000;
-const ACTIVE_STATUSES = new Set(["starting", "running"]);
-
 type WidgetTheme = ExtensionContext["ui"]["theme"];
 
 /** Keep active background work visible next to the editor. */
@@ -52,7 +50,7 @@ export function bindRegistryUi(ctx: ExtensionContext, registry: AgentRegistry): 
 		tick = undefined;
 	};
 	const refresh = () => {
-		const running = registry.list().filter((summary) => ACTIVE_STATUSES.has(summary.status)).length;
+		const running = registry.list().filter((summary) => isAgentActive(summary.status)).length;
 		ctx.ui.setStatus("subagents", running ? `agents ${running} running` : undefined);
 		if (running > 0) {
 			showWidget();
@@ -81,7 +79,7 @@ export function renderRunningAgentLines(
 	width: number,
 	theme: WidgetTheme,
 ): string[] {
-	const running = views.filter((view) => ACTIVE_STATUSES.has(view.summary.status));
+	const running = views.filter((view) => isAgentActive(view.summary.status));
 	if (running.length === 0 || width <= 0) return [];
 	const noun = running.length === 1 ? "subagent" : "subagents";
 	const lines = [
@@ -118,7 +116,7 @@ function renderAgentLine(view: AgentView, now: number, width: number, theme: Wid
 				)
 			: theme.fg("dim", summary.status === "starting" ? "starting" : "thinking");
 	const left = `${theme.fg("dim", "  ")}${theme.fg("text", label)}${theme.fg("dim", " · ")}${activity}`;
-	const context = formatContextPercentage(details.tokens, details.contextWindow);
+	const context = formatContextPercentage(details.contextUsage);
 	const suffix = theme.fg(
 		"dim",
 		`${context ? ` · context ${context}` : ""} · ${formatActivityAge(now - details.lastActivityTime)}`,

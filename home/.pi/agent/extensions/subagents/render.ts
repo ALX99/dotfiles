@@ -6,9 +6,10 @@
 
 import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import type { AgentSummary } from "./agent-types.ts";
+import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
 import { clipTerminalText, sanitizeTerminalBlock, sanitizeTerminalText } from "../_shared/terminal-text.ts";
+import { contextUsagePercentage, formatContextUsage, formatTokens } from "./ui/format.ts";
 export type { WaitDetails } from "./tool-results.ts";
 import type { WaitDetails } from "./tool-results.ts";
 
@@ -19,22 +20,6 @@ const TICK_INTERVAL_MS = 1000;
 export function formatDuration(ms: number): string {
 	const s = ms / 1000;
 	return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
-}
-
-export function formatTokens(n: number): string {
-	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-	return String(n);
-}
-
-export function formatContextPercentage(tokens: number, window?: number): string | undefined {
-	if (tokens <= 0 || !window) return undefined;
-	return `${Math.round((tokens / window) * 100)}%`;
-}
-
-export function formatContextUsage(tokens: number, window?: number): string {
-	const percentage = formatContextPercentage(tokens, window);
-	return percentage && window ? `${percentage}/${formatTokens(window)}` : formatTokens(tokens);
 }
 
 export function taskPreview(s: string): string {
@@ -134,29 +119,7 @@ export function renderAgentSummaries(
 		return c;
 	}
 	for (const summary of summaries) {
-		const running = summary.status === "starting" || summary.status === "running";
-		const statusIcon =
-			summary.status === "failed"
-				? theme.fg("error", "✗")
-				: running
-					? theme.fg("warning", "⟳")
-					: summary.status === "idle"
-						? theme.fg("success", "✓")
-						: theme.fg("dim", "–");
-		c.addChild(
-			new Text(
-				`  ${statusIcon} ${theme.fg("text", sanitizeTerminalText(summary.task_name || summary.agent))} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.model)} · ${sanitizeTerminalText(summary.effective_thinking)} · ${sanitizeTerminalText(summary.agent_id)} · ${summary.status}`)}`,
-				0,
-				0,
-			),
-		);
-		if (expanded) {
-			const output = summary.final_text || summary.error;
-			if (output)
-				c.addChild(
-					new Text(theme.fg(summary.status === "failed" ? "error" : "toolOutput", sanitizeTerminalBlock(output)), 2, 0),
-				);
-		}
+		appendAgentSummary(c, summary, expanded, theme, true);
 	}
 	return c;
 }
@@ -196,9 +159,7 @@ export function renderWaitCall(
 
 export function renderWaitResult(details: WaitDetails, expanded: boolean, theme: Theme): Container {
 	const c = new Container();
-	const settled = details.summaries.filter(
-		(summary) => summary.status !== "starting" && summary.status !== "running",
-	).length;
+	const settled = details.summaries.filter((summary) => !isAgentActive(summary.status)).length;
 	const allSettled = settled === details.summaries.length;
 	const icon = allSettled ? theme.fg("success", "✓") : theme.fg("warning", "!");
 	const interruptionSummary = waitInterruptionSummary(details);
@@ -214,29 +175,44 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 	);
 
 	for (const summary of details.summaries) {
-		const failed = summary.status === "failed";
-		const running = summary.status === "starting" || summary.status === "running";
-		const statusIcon = failed
-			? theme.fg("error", "✗")
-			: running
-				? theme.fg("warning", "⟳")
-				: summary.status === "idle"
-					? theme.fg("success", "✓")
-					: theme.fg("dim", "–");
-		const label = sanitizeTerminalText(summary.task_name || summary.agent);
-		c.addChild(
-			new Text(
-				`  ${statusIcon} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(summary.agent)} · ${sanitizeTerminalText(summary.profile)} · ${sanitizeTerminalText(summary.agent_id)} · ${summary.status}`)}`,
-				0,
-				0,
-			),
-		);
-		if (expanded) {
-			const output = summary.final_text || summary.error;
-			if (output) c.addChild(new Text(theme.fg(failed ? "error" : "toolOutput", sanitizeTerminalBlock(output)), 2, 0));
-		}
+		appendAgentSummary(c, summary, expanded, theme, false);
 	}
 	return c;
+}
+
+function appendAgentSummary(
+	container: Container,
+	summary: AgentSummary,
+	expanded: boolean,
+	theme: Theme,
+	includeModel: boolean,
+): void {
+	const metadata = [
+		sanitizeTerminalText(summary.agent),
+		sanitizeTerminalText(summary.profile),
+		...(includeModel ? [sanitizeTerminalText(summary.model), sanitizeTerminalText(summary.effective_thinking)] : []),
+		sanitizeTerminalText(summary.agent_id),
+		summary.status,
+	];
+	container.addChild(
+		new Text(
+			`  ${agentStatusIcon(summary, theme)} ${theme.fg("text", sanitizeTerminalText(summary.task_name || summary.agent))} ${theme.fg("dim", `· ${metadata.join(" · ")}`)}`,
+			0,
+			0,
+		),
+	);
+	if (!expanded) return;
+	const output = summary.final_text || summary.error;
+	if (output)
+		container.addChild(
+			new Text(theme.fg(summary.status === "failed" ? "error" : "toolOutput", sanitizeTerminalBlock(output)), 2, 0),
+		);
+}
+
+function agentStatusIcon(summary: AgentSummary, theme: Theme): string {
+	if (summary.status === "failed") return theme.fg("error", "✗");
+	if (isAgentActive(summary.status)) return theme.fg("warning", "⟳");
+	return summary.status === "idle" ? theme.fg("success", "✓") : theme.fg("dim", "–");
 }
 
 function waitInterruptionSummary(details: WaitDetails): string {
@@ -316,10 +292,11 @@ export function renderResultBlock(
 		if (details.usage.cacheRead) usageParts.push(theme.fg("dim", `R${formatTokens(details.usage.cacheRead)}`));
 		if (details.usage.cacheWrite) usageParts.push(theme.fg("dim", `W${formatTokens(details.usage.cacheWrite)}`));
 		if (details.usage.cost) usageParts.push(theme.fg("dim", `$${details.usage.cost.toFixed(3)}`));
-		if (details.tokens > 0) {
-			const pct = details.contextWindow ? (details.tokens / details.contextWindow) * 100 : 0;
-			const color = pct > 90 ? "error" : pct > 70 ? "warning" : "dim";
-			usageParts.push(theme.fg(color, formatContextUsage(details.tokens, details.contextWindow)));
+		const contextPercentage = contextUsagePercentage(details.contextUsage);
+		const contextUsage = formatContextUsage(details.contextUsage);
+		if (contextPercentage !== undefined && contextUsage !== undefined) {
+			const color = contextPercentage > 90 ? "error" : contextPercentage > 70 ? "warning" : "dim";
+			usageParts.push(theme.fg(color, contextUsage));
 		}
 		if (usageParts.length) {
 			c.addChild(new Spacer(1));
