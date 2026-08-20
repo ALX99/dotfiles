@@ -1,54 +1,29 @@
 ---
 name: end-state-refactor
-description: Rework a change from its intended user-facing outcome, redesigning internals as needed for a simpler, maintainable end state.
+description: Turn an accepted prototype or existing implementation into the simplest maintainable end state while preserving intended external behavior. Use for a final architecture pass when current internals may be replaced.
 ---
 
 # End-State Refactor
 
-Treat the requested user-facing outcome as the specification, not the submitted implementation. Preserve the intended UX, workflows, and externally observable contracts. Treat the patch and current internals as evidence, not design constraints: architecture, abstractions, state models, module boundaries, and implementation-specific tests may be replaced to produce the simplest maintainable final shape.
+Use the accepted external outcome as the contract, not the current implementation. Treat the patch, architecture, and implementation-specific tests as evidence. Internal design and affected callers may be replaced.
 
-## Steps
+Simplicity means the lowest lifecycle failure surface, not the least code or smallest diff. Reduce independently changing state, modes, boundaries, dependencies, and compatibility paths, especially their interactions.
 
-1. Define the target contract.
-   State the intended user-facing outcome, workflows, externally observable behavior, non-goals, and acceptance criteria.
+## Process
 
-2. Map the relevant boundaries.
-   Inspect the change, current behavior, callers, public APIs, persisted data, configuration, lifecycle, and tests. Distinguish required external compatibility from replaceable implementation details. Do not infer that current behavior is required merely because it exists.
-
-3. Research concrete design questions.
-   Inspect applicable libraries, frameworks, language/runtime features, and platform APIs when they may simplify the target design or remove custom code. Consult official documentation and release notes as needed. Weigh each option against compatibility and maintenance costs.
-
-4. Design and build the final shape from first principles.
-   Choose clear ownership, a source of truth, interfaces, state transitions, and failure behavior. Reorganize or replace internals where that produces a simpler, lower-risk result; retain them only when they are already the best fit. Delete obsolete code, tests, configuration, and compatibility paths. Add migrations only where an external contract requires them.
-
-5. Verify the target contract.
-   Test intended user workflows, relevant failure paths, external boundaries, and required compatibility or migration behavior. Confirm that remaining mutable state has a clear owner, duplicate representations cannot drift, affected transitions and failure paths are covered, and relevant formatting, static, and test checks pass. Review the final diff for implementation-shaped leftovers and accidental complexity.
-
-## Design Criteria
-
-Optimize for the lowest total lifecycle failure surface, not the fewest lines or smallest diff. Prefer designs that are understandable, testable, debuggable, maintainable, upgradeable, and fail predictably.
-
-When redesigning internals, prefer this order:
-
-1. Eliminate unnecessary capabilities, modes, state, integrations, and compatibility paths.
-2. Derive duplicated values from an authoritative input.
-3. Consolidate unavoidable mutable state under one clear owner and source of truth.
-4. Constrain valid states and centralize their transitions.
-5. Localize fallible external effects behind narrow, explicit boundaries.
-6. Reuse suitable capabilities already in the platform or current stack.
-7. Add abstractions, dependencies, configuration, retries, or fallbacks only when they clearly remove more risk than they add.
-
-Internal redesign is permission, not an obligation. Do not create unrelated churn when the existing shape is already the lowest-risk fit.
+1. **Recover the contract and compatibility needs.** Inspect the user-named session, commits, changes, or subsystem together with intent, callers, public APIs, persisted data, documentation, tests, and running behavior when practical. Identify workflows, refresh or restart behavior, and failure semantics. Stated intent outranks an incomplete prototype. Determine whether the work is unreleased or has real consumers or data; ask when evidence conflicts materially, that status is unclear, or external behavior would change.
+2. **Characterize important behavior.** Before a risky redesign, add public-boundary tests for accepted behavior that lacks useful coverage. Replace implementation-coupled tests with idiomatic behavioral and invariant tests.
+3. **Design the final shape.** Map the moving parts and their interactions. Simplify in order: eliminate, derive, consolidate ownership, constrain valid states, localize effects, reuse proven capabilities, then add only when justified. Challenge the obvious local cleanup with one more fundamental alternative. For major changes, check current official guidance and recent release notes only where they inform a concrete design decision.
+4. **Implement directly.** Briefly state the recovered contract and intended redesign, then proceed unless a material external decision remains. Rework shared internals and all affected callers when needed for coherence. Delete superseded code, tests, configuration, compatibility paths, and disposable state. Do not add speculative migrations. Ask before breaking real consumers or data, or before upgrading supported versions; explain the benefit.
+5. **Verify and report.** Exercise affected workflows and failures, operate the feature when practical, run relevant checks, and review the diff for prototype leftovers. Report external behavior preserved or intentionally changed, moving parts removed, resulting ownership and architecture, necessary complexity retained, and validation performed.
 
 ## Rules
 
-- Optimize for the code that should exist, not the smallest diff from the old shape.
-- Preserve intentional user-facing behavior and externally observable contracts; freely replace their internal implementation.
-- Do not let the current patch or architecture constrain the target design.
-- Delete dead compatibility paths instead of making them better.
-- Do not invent a generic framework for one feature.
-- Keep the refactor scoped to what makes the final shape coherent.
-- Treat the existing implementation and its assumptions as untrusted until verified by code, tests, documentation, and relevant callers.
-- Do not treat author intent, existing architecture, or passing narrow tests as evidence that a design is correct.
-- Treat implementation-coupled tests as evidence, not a contract; replace them with behavioral coverage where appropriate.
-- Report material risks to correctness, security, compatibility, maintainability, and failure recovery with evidence and a recommended fix.
+- Preserve required behavior, quality, correctness, security, and external contracts. Necessary complexity must earn its cost through demonstrated correctness, reliability, security, or meaningful performance.
+- Give state one authority. Derive mirrored or duplicated values, and store only state with independent meaning. Make invalid states unrepresentable where practical.
+- Prefer direct control flow and orchestration over indirection. Abstract a stable repeated concept, not a hypothetical future need; three similar uses is a heuristic, not a rule. Use configuration only for real repeated variation.
+- Keep code together when it changes together. Split responsibilities when they are reused or change independently. Prefer current language and framework idioms over accidental local patterns.
+- Validate dynamic input at ingress, then rely on trusted internal types and contracts. Keep deterministic logic separate from fallible effects, but do not introduce layers solely for testing.
+- Remove caches, fallbacks, retries, background processes, compatibility paths, and observability without a demonstrated requirement. Prefer explicit failure to an unsupported recovery mode.
+- Prefer the platform or current stack first, then a mature dependency over substantial custom machinery. Every new moving part must enable required behavior or remove greater lifecycle risk.
+- If the current design appears optimal, make one deliberate pass for a more fundamental simplification. If none exists, avoid churn; make only useful idiomatic or readability improvements and say that no major redesign was warranted.
