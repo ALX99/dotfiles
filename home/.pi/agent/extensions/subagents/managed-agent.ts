@@ -14,6 +14,7 @@ import {
 import { Type } from "typebox";
 import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
+import { getProcessReaper, type ProcessReaper } from "../process-reaper/index.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitInterruptedError,
@@ -82,6 +83,7 @@ export interface ManagedAgentOptions {
 	readonly agent: AgentConfig;
 	readonly resolvedRun: ResolvedRun;
 	readonly retain: boolean;
+	readonly processReaper?: Pick<ProcessReaper, "terminateOwner">;
 	/** Test seam for contract tests; production always constructs an SDK session. */
 	readonly sessionFactory?: (customTools: readonly ToolDefinition[]) => Promise<AgentSession>;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
@@ -97,6 +99,7 @@ export class ManagedAgent {
 	private readonly listeners = new Set<(details: ReadonlyRunDetails) => void>();
 	private readonly cwd: string;
 	private readonly options: ManagedAgentOptions;
+	private readonly processReaper: Pick<ProcessReaper, "terminateOwner">;
 	private session: AgentSession | undefined;
 	private unsubscribe: (() => void) | undefined;
 	private phaseState: AgentPhase = "created";
@@ -108,6 +111,7 @@ export class ManagedAgent {
 		this.options = options;
 		this.id = options.id ?? `${options.agent.name}-${nextAgentId++}`;
 		this.cwd = options.cwd ?? options.defaultCwd;
+		this.processReaper = options.processReaper ?? getProcessReaper();
 	}
 
 	get phase(): AgentPhase {
@@ -187,12 +191,16 @@ export class ManagedAgent {
 
 	async interrupt(): Promise<void> {
 		const current = this.current;
-		if (!current || current.settled || !this.session) return;
+		if (!current || current.settled || !this.session) {
+			await this.reapOwnedProcesses();
+			return;
+		}
 		current.aborted = true;
 		this.phaseState = "aborted";
 		this.cancelPendingQuestion(current, `Agent ${this.id} was interrupted while waiting for input.`);
 		this.emit();
 		await this.session.abort();
+		await this.reapOwnedProcesses();
 	}
 
 	async close(): Promise<void> {
@@ -211,6 +219,7 @@ export class ManagedAgent {
 				// generation behind after its owner is archived.
 				await this.settle(current, false);
 			}
+			await this.reapOwnedProcesses();
 			this.disposeSession();
 			this.phaseState = "closed";
 			this.emit();
@@ -537,6 +546,11 @@ export class ManagedAgent {
 		this.unsubscribe = undefined;
 		this.session?.dispose();
 		this.session = undefined;
+	}
+
+	private async reapOwnedProcesses(): Promise<void> {
+		if (this.session === undefined) return;
+		await this.processReaper.terminateOwner(this.session.sessionId);
 	}
 
 	private async waitFor(generation: Generation, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {

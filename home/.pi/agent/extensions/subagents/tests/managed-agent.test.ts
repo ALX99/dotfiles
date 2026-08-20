@@ -114,6 +114,54 @@ test("one native session owns foreground, background, steering, follow-up, and c
 	assert.equal(agent.phase, "closed");
 });
 
+test("interrupt cleans processes owned by an idle retained agent", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-reaper-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const reaped: string[] = [];
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe() {
+			return () => {};
+		},
+		async prompt() {
+			manager.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text: "done" }],
+				stopReason: "stop",
+			} as never);
+		},
+		async steer() {},
+		async abort() {},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "worker-reaper",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		processReaper: {
+			terminateOwner: async (ownerId) => {
+				reaped.push(ownerId);
+			},
+		},
+		sessionFactory: async () => fake as never,
+	});
+
+	await agent.start("inspect", undefined, "inspect", false);
+	await agent.interrupt();
+	assert.deepEqual(reaped, [manager.getSessionId()]);
+	await agent.close();
+	assert.ok(reaped.every((ownerId) => ownerId === manager.getSessionId()));
+});
+
 test("closing during session startup cannot revive the agent", async (t) => {
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-close-startup-test-"));
 	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
