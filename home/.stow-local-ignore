@@ -1,6 +1,13 @@
 # Ignore JavaScript package-manager directories — tens of thousands of files
 node_modules
 
+# Pi-managed runtime directories are not dotfile configuration.
+\.pi/agent/git(/.*)?$
+\.pi/agent/npm(/.*)?$
+
+# OMP stores its local database and generated configuration here.
+\.omp
+
 # Codex follows skill-directory symlinks, but does not reliably discover a
 # real skill directory whose SKILL.md is a symlink. Justfile manages these.
 \.agents/skills.*
