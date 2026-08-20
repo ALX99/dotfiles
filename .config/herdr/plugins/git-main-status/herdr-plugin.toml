@@ -1,0 +1,27 @@
+id = "dozy.git-main-status"
+name = "Git main status"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Refresh Git upstream refs for Herdr's native status"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "refresh.py", "refresh-all"]
+
+[[actions]]
+id = "refresh"
+title = "Refresh Git status"
+contexts = ["workspace"]
+command = ["python3", "refresh.py", "refresh-all", "--notify"]
+
+[[events]]
+on = "workspace.created"
+command = ["python3", "refresh.py", "refresh-workspace"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "refresh.py", "refresh-workspace"]
+
+[[events]]
+on = "worktree.opened"
+command = ["python3", "refresh.py", "refresh-workspace"]
