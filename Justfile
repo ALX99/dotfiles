@@ -67,6 +67,11 @@ install:
 
     stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
 
+    if command -v herdr >/dev/null 2>&1 &&
+       [[ -f "$HOME/.config/herdr/plugins/git-main-status/herdr-plugin.toml" ]]; then
+      herdr plugin link "$HOME/.config/herdr/plugins/git-main-status" --enabled >/dev/null
+    fi
+
     if [[ $(uname) == Linux ]] &&
        command -v systemctl >/dev/null 2>&1 &&
        [[ -n ${XDG_RUNTIME_DIR:-} && -S "$XDG_RUNTIME_DIR/bus" ]] &&
