@@ -68,8 +68,11 @@ install:
     stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
 
     if command -v herdr >/dev/null 2>&1 &&
-       [[ -f "$HOME/.config/herdr/plugins/git-main-status/herdr-plugin.toml" ]]; then
-      herdr plugin link "$HOME/.config/herdr/plugins/git-main-status" --enabled >/dev/null
+       [[ -d "$HOME/.config/herdr/plugins" ]]; then
+      for plugin_dir in "$HOME/.config/herdr/plugins"/*/; do
+        [[ -f "$plugin_dir/herdr-plugin.toml" ]] || continue
+        herdr plugin link "$plugin_dir" --enabled >/dev/null
+      done
     fi
 
     if [[ $(uname) == Linux ]] &&

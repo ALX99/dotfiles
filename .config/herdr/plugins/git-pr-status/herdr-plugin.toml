@@ -1,0 +1,27 @@
+id = "dozy.git-pr-status"
+name = "GitHub PR status"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Show GitHub pull request status for Herdr worktrees"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "refresh.py", "refresh-all"]
+
+[[actions]]
+id = "refresh"
+title = "Refresh PR status"
+contexts = ["workspace"]
+command = ["python3", "refresh.py", "refresh-all", "--notify"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "refresh.py", "refresh-workspace"]
+
+[[events]]
+on = "worktree.created"
+command = ["python3", "refresh.py", "refresh-workspace"]
+
+[[events]]
+on = "worktree.opened"
+command = ["python3", "refresh.py", "refresh-workspace"]

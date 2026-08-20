@@ -88,6 +88,20 @@ hide_tab_bar_when_single_tab = false
 prompt_new_tab_name = false
 agent_panel_sort = "spaces"
 
+[ui.sidebar.spaces]
+row_gap = 0
+rows = [
+  ["state_icon", "workspace"],
+  [
+    { token = "$pr_draft", fg = "#ffd36a" },
+    { token = "$pr_open", fg = "#8fa8ff" },
+    { token = "$pr_merged", fg = "#78e3b0" },
+    { token = "$pr_closed", fg = "#ff6b8a" },
+    "branch",
+    "git_status",
+  ],
+]
+
 [ui.toast]
 delivery = "herdr"
 delay_seconds = 1
@@ -126,6 +140,12 @@ key = "prefix+u"
 type = "plugin_action"
 command = "dozy.git-main-status.refresh"
 description = "refresh native Git status"
+
+[[keys.command]]
+key = "prefix+p"
+type = "plugin_action"
+command = "dozy.git-pr-status.refresh"
+description = "refresh GitHub PR status"
 
 [[keys.command]]
 key = "alt+t"
