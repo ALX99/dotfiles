@@ -28,12 +28,14 @@ const configKey = (label: string) =>
 		.min(1, `${label} must not be empty`)
 		.refine((value) => !/[\s\p{C}]/u.test(value), `${label} must not contain whitespace or control characters`);
 
+const ModelIdSchema = configKey("model id").refine((id) => {
+	const slash = id.indexOf("/");
+	return slash > 0 && slash < id.length - 1;
+}, "model id must be provider/model-id");
+
 export const ModelCandidateSchema = z
 	.strictObject({
-		id: configKey("model id").refine((id) => {
-			const slash = id.indexOf("/");
-			return slash > 0 && slash < id.length - 1;
-		}, "model id must be provider/model-id"),
+		id: ModelIdSchema,
 		/** The omitted-request default and lowest permitted explicit override. */
 		defaultThinking: ThinkingLevelSchema,
 		maxThinking: ThinkingLevelSchema,
@@ -68,6 +70,8 @@ export const ProfilesSchema = z.strictObject({
 	rootPolicy: RootPolicySchema,
 	profiles: z.record(configKey("profile name"), ProfileSchema),
 	agentPolicies: z.record(configKey("agent name"), AgentPolicySchema),
+	/** Optional weakest-to-strongest ordering used only for capability-hint wording. Unlisted models degrade to neutral advice. */
+	capabilityRanking: z.array(ModelIdSchema).optional(),
 });
 
 export type ProfilesConfig = z.infer<typeof ProfilesSchema>;
@@ -204,6 +208,26 @@ export function validateProfiles(
 			);
 		}
 	}
+	const ranked = new Set(config.capabilityRanking);
+	const unrankedCandidates = [
+		...new Set(Object.values(config.profiles).flatMap((profile) => profile.modelPriority.map((c) => c.id))),
+	].filter((id) => !ranked.has(id));
+	if (unrankedCandidates.length > 0) {
+		errors.push(
+			`${filePath}: capabilityRanking: must list every profile candidate model; missing: ${unrankedCandidates.join(", ")}`,
+		);
+	}
+	const seenRank = new Map<string, number>();
+	for (const [index, id] of (config.capabilityRanking ?? []).entries()) {
+		const previous = seenRank.get(id);
+		if (previous !== undefined) {
+			errors.push(
+				`${filePath}: capabilityRanking.${index}: duplicate model id '${id}' (first at capabilityRanking.${previous})`,
+			);
+		} else {
+			seenRank.set(id, index);
+		}
+	}
 	return errors;
 }
 
@@ -331,7 +355,7 @@ function freezeResolvedRun(
 	return Object.freeze({ agent, profile, model: modelName, modelInstance, effectiveThinking, contextWindow });
 }
 
-function splitModelId(id: string): [string, string] {
+export function splitModelId(id: string): [string, string] {
 	const slash = id.indexOf("/");
 	return [id.slice(0, slash), id.slice(slash + 1)];
 }

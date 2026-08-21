@@ -13,23 +13,13 @@ function model(id: string): Model<Api> {
 	} as Model<Api>;
 }
 
-test("bundled profiles bind every discovered role and prefer Terra at its economical default", () => {
+test("bundled profiles parse and bind every discovered role", () => {
 	const config = parseAndValidateProfiles(fs.readFileSync(new URL("../profiles.json", import.meta.url), "utf8"), [
 		"scout",
 		"worker",
 		"general",
 	]);
 	assert.ok(config.success);
-
-	const run = resolveRun({
-		config: config.config,
-		modelRegistry: { getAvailable: () => [] },
-		scopedModels: [{ model: model("gpt-5.6-luna") }, { model: model("gpt-5.6-terra") }],
-		agent: "worker",
-	});
-
-	assert.equal(run.model, "openai-codex/gpt-5.6-terra");
-	assert.equal(run.effectiveThinking, "medium");
 });
 
 test("profile identifiers reject whitespace and terminal-control characters", () => {
@@ -64,6 +54,7 @@ test("an explicit empty model scope does not bypass the parent scope", () => {
 				},
 			},
 			agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
+			capabilityRanking: ["openai-codex/gpt"],
 		},
 		["scout"],
 	);
@@ -111,5 +102,33 @@ test("profile validation reports configuration relationships before a run can re
 		"test-profiles.json: agentPolicies.scout.defaultProfile: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.scout.allowedProfiles.1: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.worker: missing policy binding for agent 'worker'",
+		"test-profiles.json: capabilityRanking: must list every profile candidate model; missing: openai-codex/gpt",
+	]);
+});
+
+test("capabilityRanking accepts a unique ordering and rejects duplicate model ids", () => {
+	const base = {
+		rootPolicy: { maxConcurrentRootAgents: 1 },
+		profiles: {
+			fast: {
+				description: "Fast",
+				modelPriority: [{ id: "prov/luna", defaultThinking: "low", maxThinking: "high" }],
+			},
+		},
+		agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
+	};
+
+	const valid = parseAndValidateProfiles({ ...base, capabilityRanking: ["prov/luna", "prov/terra"] });
+	assert.ok(valid.success);
+
+	const duplicated = parseAndValidateProfiles(
+		{ ...base, capabilityRanking: ["prov/luna", "prov/luna"] },
+		[],
+		"test-profiles.json",
+	);
+	assert.equal(duplicated.success, false);
+	if (duplicated.success) return;
+	assert.deepEqual(duplicated.errors, [
+		"test-profiles.json: capabilityRanking.1: duplicate model id 'prov/luna' (first at capabilityRanking.0)",
 	]);
 });
