@@ -1,0 +1,20 @@
+id = "dozy.worktree-install"
+name = "Worktree install"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Install JavaScript dependencies when Herdr creates or opens a worktree"
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "install"
+title = "Install dependencies"
+contexts = ["workspace"]
+command = ["python3", "install.py", "install"]
+
+[[events]]
+on = "worktree.created"
+command = ["python3", "install.py", "auto"]
+
+[[events]]
+on = "worktree.opened"
+command = ["python3", "install.py", "auto"]
