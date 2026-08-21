@@ -248,6 +248,36 @@ def latest_pull_request(requests: Sequence[PullRequest]) -> Optional[PullRequest
     )
 
 
+def open_pull_request(workspace: Workspace) -> PullRequest:
+    if workspace.repo is None or workspace.branch is None:
+        raise PluginError(
+            f"{workspace.label}: no Git repository is associated with this workspace"
+        )
+
+    request = latest_pull_request(pull_requests(workspace))
+    if request is None:
+        raise PluginError(
+            f"{workspace.label}: no GitHub pull request found for branch {workspace.branch}"
+        )
+
+    result = command(
+        [
+            github_binary(),
+            "pr",
+            "view",
+            str(request.number),
+            "--web",
+        ],
+        cwd=workspace.repo,
+        timeout=GITHUB_COMMAND_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise PluginError(
+            result.stderr.strip() or result.stdout.strip() or "gh pr view failed"
+        )
+    return request
+
+
 def status_token(request: Optional[PullRequest]) -> Tuple[Optional[str], Optional[str]]:
     if request is None:
         return None, None
@@ -348,7 +378,7 @@ def refresh(
 
 def run(argv: Sequence[str]) -> int:
     if not argv or argv[0] in {"-h", "--help"}:
-        print("usage: refresh.py refresh-all [--notify] | refresh-workspace")
+        print("usage: refresh.py refresh-all [--notify] | refresh-workspace | open")
         return 0
 
     action = argv[0]
@@ -376,6 +406,22 @@ def run(argv: Sequence[str]) -> int:
         except (PluginError, OSError) as error:
             if notify:
                 show_notification("PR status refresh failed", str(error))
+            raise
+
+    if action == "open":
+        workspace_id = current_workspace_id()
+        if not workspace_id:
+            raise PluginError("workspace action did not include a workspace id")
+        try:
+            workspace = workspace_record(workspace_id)
+            request = open_pull_request(workspace)
+            show_notification(
+                "Opened GitHub PR",
+                f"{workspace.label}: #{request.number}",
+            )
+            return 0
+        except (PluginError, OSError) as error:
+            show_notification("Open GitHub PR failed", str(error))
             raise
 
     raise PluginError(f"unknown action: {action}")
