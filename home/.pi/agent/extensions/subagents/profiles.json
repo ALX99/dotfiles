@@ -2,23 +2,20 @@
 	"rootPolicy": {
 		"maxConcurrentRootAgents": 10
 	},
+	"capabilityRanking": [
+		"openai-codex/gpt-5.6-luna",
+		"opencode/x-preview-f-free",
+		"openai-codex/gpt-5.6-terra",
+		"openai-codex/gpt-5.6-sol"
+	],
 	"profiles": {
 		"fast": {
-			"description": "Fast, economical work",
-			"modelPriority": [
-				{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "medium", "maxThinking": "high" },
-				{ "id": "poolside/laguna-s-2.1:free", "defaultThinking": "medium", "maxThinking": "high" },
-				{ "id": "opencode-go/deepseek-v4-flash", "defaultThinking": "high", "maxThinking": "high" },
-				{ "id": "opencode-go/hy3", "defaultThinking": "high", "maxThinking": "high" }
-			]
+			"description": "Fast, economical work: mechanical edits, lookups, and bulk simple changes; not for debugging or design",
+			"modelPriority": [{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" }]
 		},
 		"balanced": {
 			"description": "Routine implementation and analysis with moderate cost",
-			"modelPriority": [
-				{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "medium", "maxThinking": "max" },
-				{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" },
-				{ "id": "opencode-go/glm-5.2", "defaultThinking": "high", "maxThinking": "high" }
-			]
+			"modelPriority": [{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "max", "maxThinking": "max" }]
 		}
 	},
 	"agentPolicies": {
@@ -27,12 +24,12 @@
 			"allowedProfiles": ["fast"]
 		},
 		"worker": {
-			"defaultProfile": "balanced",
-			"allowedProfiles": ["fast", "balanced"]
+			"defaultProfile": "fast",
+			"allowedProfiles": ["fast"]
 		},
 		"general": {
-			"defaultProfile": "balanced",
-			"allowedProfiles": ["fast", "balanced"]
+			"defaultProfile": "fast",
+			"allowedProfiles": ["fast"]
 		}
 	}
 }
