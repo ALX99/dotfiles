@@ -148,6 +148,12 @@ command = "dozy.git-pr-status.refresh"
 description = "refresh GitHub PR status"
 
 [[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "dozy.git-pr-status.open"
+description = "open GitHub PR for worktree"
+
+[[keys.command]]
 key = "alt+t"
 type = "popup"
 # Herdr forwards popup input to the child shell, so the marker lets

@@ -1,8 +1,8 @@
 id = "dozy.git-pr-status"
 name = "GitHub PR status"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.7.0"
-description = "Show GitHub pull request status for Herdr worktrees"
+description = "Show GitHub pull request status and open associated PRs for Herdr worktrees"
 platforms = ["macos", "linux"]
 
 [[startup]]
@@ -13,6 +13,12 @@ id = "refresh"
 title = "Refresh PR status"
 contexts = ["workspace"]
 command = ["python3", "refresh.py", "refresh-all", "--notify"]
+
+[[actions]]
+id = "open"
+title = "Open GitHub PR"
+contexts = ["workspace"]
+command = ["python3", "refresh.py", "open"]
 
 [[events]]
 on = "workspace.focused"
