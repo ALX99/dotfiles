@@ -28,8 +28,6 @@ dialog:
   accept: enter
   cancel: esc
   backspace: backspace
-  up: e
-  down: n
 
 bookmarks:
   h: ~/
