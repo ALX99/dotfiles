@@ -5,14 +5,13 @@ When Herdr creates or opens a Git worktree, pick the package manager from
 the lockfile (bun, then pnpm, then npm) and install in the worktree root,
 or in frontend/ when the root has no package.json. Installs run detached
 so slow registries never block the event hook; output is logged under the
-plugin state directory and reported through Herdr notifications.
+plugin state directory and reported through Herd notifications.
 """
 
 from __future__ import annotations
 
 import fcntl
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -21,23 +20,32 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Sequence
 
-HERDR_COMMAND_TIMEOUT_SECONDS = 10
+_SHARED = Path(__file__).resolve().parent.parent / "_shared"
+sys.path.insert(0, str(_SHARED))
+
+from herdrlib import (  # noqa: E402
+    PluginError,
+    herdr_json,
+    notify,
+    workspace_id_from_context,
+)
+
 INSTALL_TIMEOUT_SECONDS = 30 * 60
 
 # Directories to probe relative to the worktree root, in order. The first
 # directory containing package.json is the install location.
-PROJECT_DIRS: Tuple[Tuple[str, str], ...] = ((".", "root"), ("frontend", "frontend"))
+PROJECT_DIRS: tuple[tuple[str, str], ...] = ((".", "root"), ("frontend", "frontend"))
 
 # Lockfiles per package manager, checked in priority order.
-PACKAGE_MANAGERS: Tuple[Tuple[Tuple[str, ...], str], ...] = (
+PACKAGE_MANAGERS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("bun.lockb", "bun.lock"), "bun"),
     (("pnpm-lock.yaml",), "pnpm"),
     (("package-lock.json", "npm-shrinkwrap.json"), "npm"),
 )
 
-INSTALL_ARGS: Dict[str, Tuple[str, ...]] = {
+INSTALL_ARGS = {
     "bun": ("install",),
     "pnpm": ("install",),
     "npm": ("ci",),
@@ -58,10 +66,6 @@ EXTRA_BIN_DIRS = (
 SCRIPT_PATH = Path(__file__).resolve()
 
 
-class PluginError(RuntimeError):
-    """Raised when Herdr or the checkout cannot provide what is needed."""
-
-
 @dataclass(frozen=True)
 class InstallPlan:
     directory: Path
@@ -75,108 +79,7 @@ class InstallPlan:
         return hashlib.sha256(str(self.directory).encode()).hexdigest()
 
 
-def command(
-    argv: Sequence[str],
-    *,
-    timeout: int = HERDR_COMMAND_TIMEOUT_SECONDS,
-) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy()
-    environment.setdefault("GIT_TERMINAL_PROMPT", "0")
-
-    try:
-        return subprocess.run(
-            list(argv),
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            env=environment,
-            timeout=timeout,
-        )
-    except FileNotFoundError as error:
-        return subprocess.CompletedProcess(list(argv), 127, "", str(error))
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(
-            list(argv),
-            124,
-            "",
-            f"timed out after {timeout} seconds",
-        )
-
-
-def herdr_binary() -> str:
-    return os.environ.get("HERDR_BIN_PATH", "herdr")
-
-
-def herdr_json(args: Sequence[str]) -> Dict[str, Any]:
-    result = command([herdr_binary(), *args])
-    if result.returncode != 0:
-        raise PluginError(
-            f"herdr {' '.join(args)} failed: "
-            f"{result.stderr.strip() or result.stdout.strip()}"
-        )
-
-    try:
-        envelope = json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        raise PluginError(f"herdr returned invalid JSON: {error}") from error
-
-    if "error" in envelope:
-        error = envelope["error"]
-        message = error.get("message", str(error)) if isinstance(error, dict) else str(error)
-        raise PluginError(f"herdr {' '.join(args)} failed: {message}")
-
-    value = envelope.get("result", envelope)
-    if not isinstance(value, dict):
-        raise PluginError(f"herdr {' '.join(args)} returned an unexpected response")
-    return value
-
-
-def show_notification(title: str, body: str) -> None:
-    result = command([herdr_binary(), "notification", "show", title, "--body", body])
-    if result.returncode != 0:
-        print(
-            f"notification failed: {result.stderr.strip() or result.stdout.strip()}",
-            file=sys.stderr,
-        )
-
-
-def current_workspace_id() -> Optional[str]:
-    value = os.environ.get("HERDR_WORKSPACE_ID")
-    if value:
-        return value
-
-    raw_context = os.environ.get("HERDR_PLUGIN_CONTEXT_JSON")
-    if not raw_context:
-        return None
-    try:
-        context = json.loads(raw_context)
-    except json.JSONDecodeError:
-        return None
-    value = context.get("workspace_id") if isinstance(context, dict) else None
-    return value if isinstance(value, str) and value else None
-
-
-def worktree_checkout(workspace_id: str) -> Optional[Tuple[str, Path]]:
-    """Return (label, checkout path) when the workspace is a linked worktree."""
-    payload = herdr_json(["workspace", "get", workspace_id])
-    info = payload.get("workspace")
-    if not isinstance(info, dict):
-        raise PluginError(f"workspace {workspace_id} was not found")
-
-    worktree = info.get("worktree")
-    if not isinstance(worktree, dict) or worktree.get("is_linked_worktree") is not True:
-        return None
-
-    label = str(info.get("label") or workspace_id)
-    checkout_path = worktree.get("checkout_path")
-    if not isinstance(checkout_path, str):
-        return None
-    path = Path(checkout_path)
-    return (label, path) if path.is_dir() else None
-
-
-def resolve_binary(name: str) -> Optional[str]:
+def resolve_binary(name: str) -> str | None:
     found = shutil.which(name)
     if found:
         return found
@@ -187,7 +90,7 @@ def resolve_binary(name: str) -> Optional[str]:
     return None
 
 
-def detect_plan(root: Path) -> Optional[InstallPlan]:
+def detect_plan(root: Path) -> InstallPlan | None:
     """Pick the install directory and package manager for a checkout.
 
     Returns None when there is nothing to install. Raises PluginError when
@@ -224,7 +127,7 @@ def log_file(plan: InstallPlan) -> Path:
     return logs / f"{plan.key[:16]}.log"
 
 
-def acquire_lock(plan: InstallPlan) -> Optional[int]:
+def acquire_lock(plan: InstallPlan) -> int | None:
     """Take the per-directory install lock; return its fd or None if held.
 
     Uses POSIX record locks (fcntl.lockf): they are released automatically
@@ -243,7 +146,7 @@ def acquire_lock(plan: InstallPlan) -> Optional[int]:
     return fd
 
 
-def run_install(plan: InstallPlan, destination: Path) -> Tuple[bool, str]:
+def run_install(plan: InstallPlan, destination: Path) -> tuple[bool, str]:
     """Run the install synchronously, appending output to destination."""
     started = time.monotonic()
     argv = [plan.binary, *INSTALL_ARGS[plan.package_manager]]
@@ -284,7 +187,7 @@ def run_install(plan: InstallPlan, destination: Path) -> Tuple[bool, str]:
     return ok, detail
 
 
-def perform_install(plan: InstallPlan, label: str, *, force: bool) -> Tuple[bool, str]:
+def perform_install(plan: InstallPlan, label: str, *, force: bool) -> tuple[bool, str]:
     """Guarded, locked install. The single execution path for every mode."""
     if not force and (plan.directory / "node_modules").exists():
         return True, "already installed"
@@ -298,7 +201,7 @@ def perform_install(plan: InstallPlan, label: str, *, force: bool) -> Tuple[bool
         os.close(lock_fd)
 
     title = "Worktree install finished" if ok else "Worktree install failed"
-    show_notification(title, f"{label}: {plan.package_manager} install {detail}")
+    notify(title, f"{label}: {plan.package_manager} install {detail}")
     return ok, detail
 
 
@@ -325,24 +228,42 @@ def spawn_worker(label: str, root: Path, *, force: bool) -> None:
     )
 
 
-def install_in_workspace(*, force: bool) -> int:
-    workspace_id = current_workspace_id()
+def current_checkout() -> tuple[str, Path] | None:
+    """Return (label, checkout path) for this workspace when it is a linked worktree."""
+    workspace_id = workspace_id_from_context()
     if not workspace_id:
-        return 0
+        return None
 
+    info = herdr_json(["workspace", "get", workspace_id]).get("workspace", {})
+    if not isinstance(info, dict):
+        raise PluginError(f"workspace {workspace_id} was not found")
+
+    worktree = info.get("worktree")
+    if not isinstance(worktree, dict) or worktree.get("is_linked_worktree") is not True:
+        return None
+
+    label = str(info.get("label") or workspace_id)
+    checkout_path = worktree.get("checkout_path")
+    if not isinstance(checkout_path, str):
+        return None
+    path = Path(checkout_path)
+    return (label, path) if path.is_dir() else None
+
+
+def install_in_workspace(*, force: bool) -> int:
     try:
-        checkout = worktree_checkout(workspace_id)
+        checkout = current_checkout()
+        if checkout is None:
+            return 0
+        label, root = checkout
     except (PluginError, OSError) as error:
-        show_notification("Worktree install failed", str(error))
+        notify("Worktree install failed", str(error))
         return 1
-    if checkout is None:
-        return 0
-    label, root = checkout
 
     try:
         plan = detect_plan(root)
     except PluginError as error:
-        show_notification("Worktree install failed", f"{label}: {error}")
+        notify("Worktree install failed", f"{label}: {error}")
         return 1
     if plan is None:
         return 0
@@ -363,8 +284,10 @@ def run_direct(directory: Path) -> int:
         print(f"worktree-install: {error}", file=sys.stderr)
         return 1
     if plan is None:
-        print(f"worktree-install: no installable JavaScript project in {directory}",
-              file=sys.stderr)
+        print(
+            f"worktree-install: no installable JavaScript project in {directory}",
+            file=sys.stderr,
+        )
         return 1
 
     ok, detail = perform_install(plan, directory.name, force=True)
@@ -384,7 +307,7 @@ def run_worker_command(argv: Sequence[str]) -> int:
     return 0 if ok else 1
 
 
-def run(argv: Sequence[str]) -> int:
+def main(argv: Sequence[str]) -> int:
     if not argv or argv[0] in {"-h", "--help"}:
         print("usage: install.py auto | install | run <directory>")
         return 0
@@ -406,7 +329,7 @@ def run(argv: Sequence[str]) -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(run(sys.argv[1:]))
+        raise SystemExit(main(sys.argv[1:]))
     except (PluginError, OSError) as error:
         print(f"worktree-install: {error}", file=sys.stderr)
         raise SystemExit(1)
