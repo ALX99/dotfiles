@@ -1,33 +1,20 @@
 FROM archlinux:base
 
+# DisableSandboxSyscalls lets pacman run under Docker's seccomp profile.
+# Only bootstrap essentials live here; every versioned tool comes from the
+# stowed ~/.config/mise/config.toml via `mise install` in bootstrap.sh.
 RUN sed -i '/^#DisableSandboxSyscalls/s/^#//' /etc/pacman.conf \
     && pacman -Syu --noconfirm --needed \
       base-devel \
-      bash \
       ca-certificates \
-      cue \
-      fd \
-      fzf \
       git \
-      go \
-      github-cli \
-      jq \
-      just \
-      neovim \
-      nodejs \
-      npm \
+      less \
+      mise \
       openssh \
-      pnpm \
-      python \
-      python-pip \
-      ripgrep \
-      rust \
-      shellcheck \
       stow \
       sudo \
       tmux \
       unzip \
-      less \
     && pacman -Scc --noconfirm
 
 RUN useradd --create-home --shell /bin/bash codespace \
@@ -36,9 +23,9 @@ RUN useradd --create-home --shell /bin/bash codespace \
     && printf '%s\n' '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/codespace \
     && chmod 0440 /etc/sudoers.d/codespace
 
-ENV EDITOR=nvim \
-    VISUAL=nvim \
-    SHELL=/bin/bash
+# Inert until bootstrap.sh runs `mise install`; interactive shells get
+# `mise activate` from ~/.bashrc instead.
+ENV PATH="/home/codespace/.local/share/mise/shims:${PATH}"
 
 USER codespace
 WORKDIR /workspaces

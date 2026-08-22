@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Typecheck, lint, and test pi extensions"
+#MISE dir="home/.pi/agent/extensions"
+#MISE depends=["pi:deps"]
+#MISE aliases=["check"]
+exec pnpm run check

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Format pi extensions"
+#MISE dir="home/.pi/agent/extensions"
+#MISE depends=["pi:deps"]
+#MISE aliases=["fmt"]
+exec pnpm run format

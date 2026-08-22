@@ -5,10 +5,16 @@
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
-# Activate mise in shells that source this file, including its
-# directory-change and prompt hooks.
+# Interactive shells get full mise activation with its directory-change and
+# prompt hooks so tools switch automatically per project. Non-interactive
+# shells only need to resolve binaries, which the shims directory provides
+# without spawning mise.
 if command -v mise >/dev/null 2>&1; then
-  eval "$(mise activate bash)"
+  if [[ $- == *i* ]]; then
+    eval "$(mise activate bash)"
+  elif [[ -d $HOME/.local/share/mise/shims ]]; then
+    export PATH="$HOME/.local/share/mise/shims:$PATH"
+  fi
 fi
 
 # If not running interactively, don't do anything
@@ -179,6 +185,12 @@ _mise_add_prompt_command 2>/dev/null || true
 # cmdhist save multiple-line commands in the same history entry
 # huponexit send SIGHUP to all jobs when an interactive login shell exits
 shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist huponexit
+
+# Shell-integration cache used by .aliasrc.
+if [[ -r $HOME/.bashrc.d/integration-cache.bash ]]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.bashrc.d/integration-cache.bash"
+fi
 
 # Load aliases
 if [ -f "$HOME/.aliasrc" ]; then

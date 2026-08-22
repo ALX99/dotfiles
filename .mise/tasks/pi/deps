@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Install pi extension dependencies (node_modules from lockfile)"
+#MISE dir="home/.pi/agent/extensions"
+#MISE sources=["pnpm-lock.yaml", "package.json"]
+#MISE outputs=["node_modules"]
+#MISE aliases=["install-pi"]
+exec pnpm install --frozen-lockfile
