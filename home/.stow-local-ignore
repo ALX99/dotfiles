@@ -9,5 +9,6 @@ node_modules
 \.omp
 
 # Codex follows skill-directory symlinks, but does not reliably discover a
-# real skill directory whose SKILL.md is a symlink. Justfile manages these.
+# real skill directory whose SKILL.md is a symlink. The `install` mise task
+# manages these.
 \.agents/skills.*

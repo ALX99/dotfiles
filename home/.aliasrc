@@ -11,7 +11,7 @@ alias \
   e="\$EDITOR" \
   g="git" \
   k='kubectl' \
-  p="paccy" \
+  mr="mise run" \
   se="sudoedit" \
   cat="bat"
 
@@ -86,14 +86,12 @@ alias \
   utop='htop -t -u $(whoami)' \
   perms="stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
-  update="paccy -Syu" \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
   vset='_x() { read -r "$1" && export "$1"; }; _x' \
   set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
-  unset_aws_profile='unset AWS_PROFILE' \
-  ytmp3='yt-dlp -x --audio-format mp3 --audio-quality 0 -o "$HOME/Downloads/%(title)s.%(ext)s"'
+  unset_aws_profile='unset AWS_PROFILE'
 
 # Fuzzy file picker
 alias \
@@ -193,17 +191,18 @@ bind -m vi-insert -x '"\eh": _arg_help'
 bind -m vi-insert -x '"\eH": _man_help'
 bind -x $'"\C-l":clear;' # Ctrl+l to clear screen
 
-command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
+command -v direnv >/dev/null 2>&1 &&
+  __cached_integration direnv "$(command -v direnv)" hook bash
 
 # =============================================================================
 # External sources
 # =============================================================================
 _sh="${SHELL##*/}"
 
-[ -f "/usr/share/fzf/key-bindings.$_sh" ] && . "/usr/share/fzf/key-bindings.$_sh"
 [ -f "/usr/share/doc/pkgfile/command-not-found.$_sh" ] && . "/usr/share/doc/pkgfile/command-not-found.$_sh"
-# shellcheck disable=SC2206
-_fzf_dirs=(/opt/homebrew/Cellar/fzf/*/shell)
-[ -f "${_fzf_dirs[-1]}/key-bindings.$_sh" ] && . "${_fzf_dirs[-1]}/key-bindings.$_sh"
 
-unset _sh _fzf_dirs
+# fzf >= 0.48 emits its shell integration inline instead of shipping script files.
+command -v fzf >/dev/null 2>&1 &&
+  __cached_integration fzf "$(command -v fzf)" --bash
+
+unset _sh

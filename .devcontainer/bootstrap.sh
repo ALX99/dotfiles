@@ -4,14 +4,22 @@ set -euo pipefail
 repo_dir=$(git rev-parse --show-toplevel)
 cd "$repo_dir"
 
-just install
+# Workspace paths are outside $HOME, so mise requires explicit trust.
+mise trust "$repo_dir"
+
+mise run install
+
+# The stowed global config now declares every tool; install it and put shims
+# on PATH so the rest of this script uses mise-managed binaries (gh, herdr).
+mise install
+export PATH="$HOME/.local/share/mise/shims:$PATH"
 
 if [[ -d "$HOME/.ssh" ]]; then
   chmod 700 "$HOME/.ssh"
   [[ ! -e "$HOME/.ssh/config" ]] || chmod 600 "$HOME/.ssh/config"
 fi
 
-just install-pi
+mise run pi:deps
 
 gh config set git_protocol https --host github.com
 

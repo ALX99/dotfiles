@@ -1,0 +1,10 @@
+# Personal-machine packages, loaded with MISE_ENV=private.
+[bootstrap.packages]
+"brew:binwalk" = {}
+"brew:ffmpeg" = {} # dep-heavy; brew builds
+"brew:imagemagick" = {} # dep-heavy; brew builds
+"brew:optipng" = {}
+"brew:p7zip" = {}
+"brew:qemu" = {} # dep-heavy; brew builds
+"brew:radare2" = {} # framework w/ libs
+"brew:squashfs" = {}

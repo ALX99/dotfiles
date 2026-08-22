@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#MISE description="Apply imperative Linux settings not declared in mise.linux.toml [bootstrap.*]"
+#MISE confirm="linux-system makes privileged host changes. Run 'MISE_ENV=linux mise bootstrap' first. Continue?"
+set -euo pipefail
+
+[[ $(uname) == Linux ]] || { echo 'Linux system configuration can only run on Linux.' >&2; exit 1; }
+repo_dir=$(git rev-parse --show-toplevel)
+
+# Declarative resources (packages/files/services) converge via:
+#   $ MISE_ENV=linux mise bootstrap
+
+# AUR-only packages: mise's pacman backend cannot install these, so they are
+# handled imperatively here instead of in mise.linux.toml [bootstrap.packages].
+aur_packages=(brave-bin czkawka-gui-bin fcitx5-mozc-ut pi ventoy-bin visual-studio-code-bin)
+missing_aur=()
+for pkg in "${aur_packages[@]}"; do
+  pacman -Qi "$pkg" >/dev/null 2>&1 || missing_aur+=("$pkg")
+done
+if ((${#missing_aur[@]})); then
+  command -v yay >/dev/null 2>&1 || {
+    echo 'yay is required to install AUR packages; install it first:' >&2
+    printf '  %s\n' "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si" >&2
+    exit 1
+  }
+  yay -S --needed "${missing_aur[@]}"
+fi
+
+sudo sed -i '/Color/s/^#//g' /etc/pacman.conf
+
+# Requires power-profiles-daemon.service from [bootstrap.services].
+powerprofilesctl set balanced
+
+sudo ln -sfT "$repo_dir/misc/pacman-hooks" /etc/pacman.d/hooks
+sudo ln -sfT dash /usr/bin/sh
+
+printf 'Linux system configuration completed.\n'

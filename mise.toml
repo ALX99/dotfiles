@@ -1,0 +1,32 @@
+# Base config, auto-loaded everywhere. Machine-specific packages layer in via
+# MISE_ENV from mise.private.toml / mise.linux.toml.
+
+# On brew because they're source-built, dependency-coupled, or self-referential.
+[bootstrap.packages]
+"brew:bash-completion@2" = {}
+"brew:coreutils" = {}
+"brew:curl" = {}
+"brew:findutils" = {}
+"brew:gawk" = {}
+"brew:gnu-sed" = {}
+"brew:gnu-tar" = {}
+"brew:htop" = {}
+"brew:stow" = {}
+"brew:tmux" = {}
+"brew:tree" = {}
+
+[bootstrap.directories]
+"~/.agents/skills" = {}
+"~/.claude/skills" = {}
+"~/Library/Keyboard Layouts" = { mode = "0700" }
+
+# After applying, enable under System Settings → Keyboard → Text Input → + → Others.
+[bootstrap.files]
+"~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout" = { source = "misc/keymaps/Colemak-DH-ANSI.keylayout", mode = "0644" }
+
+[tools]
+"aqua:cue-lang/cue" = "latest" # karabiner:* tasks
+"aqua:jqlang/jq" = "latest"
+
+# Automation lives in .mise/tasks/: flat entry points (install, linux-system),
+# <area>/<action> subsystem tasks (pi:check, karabiner:gen).

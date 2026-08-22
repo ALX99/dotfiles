@@ -1,0 +1,4 @@
+
+# Private-machine CLI extras
+[tools]
+"aqua:gleam-lang/gleam" = "latest"

@@ -9,7 +9,7 @@
 		"typecheck": "tsc -p tsconfig.json",
 		"lint": "oxlint --type-aware --report-unused-disable-directives --max-warnings 0",
 		"deadcode": "knip",
-		"test:extensions": "node --test --test-concurrency=4 '**/tests/*.test.ts' '**/tests/*.test.mjs'",
+		"test:extensions": "node --test --test-reporter=dot --test-concurrency=4 '**/tests/*.test.ts' '**/tests/*.test.mjs'",
 		"test": "pnpm run test:extensions",
 		"peers:check": "pnpm peers check",
 		"check": "pnpm run peers:check && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run deadcode && pnpm test"

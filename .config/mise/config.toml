@@ -1,0 +1,63 @@
+[tools]
+# Core things
+go = "latest"
+node = "latest"
+rust = "stable"
+python = "latest"
+zig = "latest"
+"aqua:oven-sh/bun" = "latest"
+"aqua:pnpm/pnpm" = "latest"
+"aqua:gleam-lang/gleam" = "latest"
+"npm:typescript" = "latest"
+
+# Harnesses
+"github:can1357/oh-my-pi" = "latest"
+"github:vercel-labs/fx" = "latest"
+"aqua:openai/codex" = "latest"
+
+# AI stuff
+"npm:skills" = "latest"
+"aqua:vercel-labs/agent-browser" = "latest"
+"npm:chrome-devtools-mcp" = "latest"
+"npm:portless" = "latest"
+"aqua:ogulcancelik/herdr" = "latest"
+
+# Dev
+"aqua:mvdan/sh" = "latest"
+"aqua:casey/just" = "latest"
+"aqua:astral-sh/uv" = "latest"
+"pipx:black" = "latest"
+"aqua:golangci/golangci-lint" = "latest"
+"go:golang.org/x/tools/gopls" = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+
+# CLIs
+"aqua:cli/cli" = "latest"
+"aqua:sharkdp/bat" = "latest"
+"aqua:sharkdp/fd" = "latest"
+"aqua:junegunn/fzf" = "latest"
+"aqua:dandavison/delta" = "latest"
+"aqua:sharkdp/hyperfine" = "latest"
+"aqua:jqlang/jq" = "latest"
+"aqua:jesseduffield/lazygit" = "latest"
+"aqua:BurntSushi/ripgrep" = "latest"
+"aqua:koalaman/shellcheck" = "latest"
+"aqua:tree-sitter/tree-sitter" = "latest"
+"aqua:neovim/neovim" = "latest"
+"aqua:mikefarah/yq" = "latest"
+"cargo:tokei" = "latest"
+"aqua:jdx/usage" = "latest" # mise's generated shell completions shell out to it
+
+[settings]
+minimum_release_age = "24h"
+
+# --- aube policy (mise's native npm installer) -------------------------------
+# Aube reads these as env vars (its only non-.npmrc surface; .npmrc is shared
+# with real npm which rejects unknown keys). CLI flags override these.
+[env]
+AUBE_JAIL_BUILDS = "true"
+AUBE_TRUST_POLICY = "no-downgrade"
+AUBE_MINIMUM_RELEASE_AGE_STRICT = "true"
+AUBE_STRICT_STORE_INTEGRITY = "true"
+AUBE_STRICT_DEP_BUILDS = "true"
+AUBE_ALLOWED_UNPOPULAR_PACKAGES = "skills,chrome-devtools-mcp,portless"
