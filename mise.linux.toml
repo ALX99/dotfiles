@@ -1,0 +1,132 @@
+# Loaded with MISE_ENV=linux; converged by `mise bootstrap`. Imperative
+# leftovers and AUR-only packages live in .mise/tasks/linux-system.
+
+[bootstrap.packages]
+"pacman:7zip" = {}
+"pacman:alsa-utils" = {}
+"pacman:anki" = {}
+"pacman:bash-completion" = {}
+"pacman:bind" = {}
+"pacman:blueman" = {}
+"pacman:bluetui" = {}
+"pacman:bluez" = {}
+"pacman:bluez-utils" = {}
+"pacman:btop" = {}
+"pacman:copyparty" = {}
+"pacman:dash" = {}
+"pacman:docker" = {}
+"pacman:docker-buildx" = {}
+"pacman:docker-compose" = {}
+"pacman:dunst" = {}
+"pacman:easyeffects" = {}
+"pacman:entr" = {}
+"pacman:eslint-language-server" = {}
+"pacman:exfat-utils" = {}
+"pacman:expac" = {}
+"pacman:fastfetch" = {}
+"pacman:fcitx5" = {}
+"pacman:fcitx5-configtool" = {}
+"pacman:fcitx5-gtk" = {}
+"pacman:fcitx5-qt" = {}
+"pacman:fuzzel" = {}
+"pacman:gammastep" = {}
+"pacman:ghostty" = {}
+"pacman:git" = {}
+"pacman:gnome-keyring" = {}
+"pacman:gnome-sound-recorder" = {}
+"pacman:go-tools" = {}
+"pacman:go-yq" = {}
+"pacman:graphviz" = {}
+"pacman:grim" = {}
+"pacman:htop" = {}
+"pacman:hyprland" = {}
+"pacman:imv" = {}
+"pacman:intel-media-sdk" = {}
+"pacman:intel-ucode" = {}
+"pacman:iw" = {}
+"pacman:iwd" = {}
+"pacman:keyd" = {}
+"pacman:libnotify" = {}
+"pacman:libva-utils" = {}
+"pacman:linux-firmware" = {}
+"pacman:lsp-plugins-lv2" = {}
+"pacman:lua-language-server" = {}
+"pacman:lxqt-openssh-askpass" = {}
+"pacman:man-db" = {}
+"pacman:man-pages" = {}
+"pacman:mpv" = {}
+"pacman:nano" = {}
+"pacman:ncdu" = {}
+"pacman:noto-fonts" = {}
+"pacman:noto-fonts-cjk" = {}
+"pacman:noto-fonts-emoji" = {}
+"pacman:openssh" = {}
+"pacman:otf-font-awesome" = {}
+"pacman:otf-geist-mono-nerd" = {}
+"pacman:otf-monaspace" = {}
+"pacman:pacman-contrib" = {}
+"pacman:pavucontrol" = {}
+"pacman:pcmanfm" = {}
+"pacman:perl-image-exiftool" = {}
+"pacman:pipewire-alsa" = {}
+"pacman:pipewire-pulse" = {}
+"pacman:pkgfile" = {}
+"pacman:plocate" = {}
+"pacman:power-profiles-daemon" = {}
+"pacman:pyright" = {}
+"pacman:sof-firmware" = {}
+"pacman:sudo" = {}
+"pacman:swaybg" = {}
+"pacman:systemd-resolvconf" = {}
+"pacman:tailwindcss-language-server" = {}
+"pacman:tmux" = {}
+"pacman:tree" = {}
+"pacman:ttf-0xproto-nerd" = {}
+"pacman:ttf-cascadia-code" = {}
+"pacman:ttf-fira-code" = {}
+"pacman:ttf-jetbrains-mono-nerd" = {}
+"pacman:ttf-nerd-fonts-symbols-mono" = {}
+"pacman:ttf-profont-nerd" = {}
+"pacman:ttf-terminus-nerd" = {}
+"pacman:ttf-victor-mono-nerd" = {}
+"pacman:typescript-language-server" = {}
+"pacman:unrar" = {}
+"pacman:unzip" = {}
+"pacman:upower" = {}
+"pacman:usbutils" = {}
+"pacman:uwsm" = {}
+"pacman:valkey" = {}
+"pacman:veracrypt" = {}
+"pacman:vscode-html-languageserver" = {}
+"pacman:vscode-json-languageserver" = {}
+"pacman:vulkan-intel" = {}
+"pacman:waybar" = {}
+"pacman:webp-pixbuf-loader" = {}
+"pacman:wl-clipboard" = {}
+"pacman:xdg-desktop-portal-gtk" = {}
+"pacman:xdg-desktop-portal-hyprland" = {}
+"pacman:xdg-desktop-portal-wlr" = {}
+"pacman:xdg-utils" = {}
+"pacman:yaml-language-server" = {}
+"pacman:zathura" = {}
+"pacman:zathura-pdf-poppler" = {}
+"pacman:zip" = {}
+"pacman:zram-generator" = {}
+
+[bootstrap.directories]
+"/etc/systemd/sleep.conf.d" = { mode = "0755" }
+"/etc/systemd/logind.conf.d" = { mode = "0755" }
+"/etc/systemd/resolved.conf.d" = { mode = "0755" }
+
+[bootstrap.files]
+"/usr/share/X11/xkb/symbols/colemak" = { source = "misc/keymaps/colemak" }
+"/etc/keyd/default.conf" = { source = "misc/keymaps/keyd.conf" }
+"/etc/systemd/zram-generator.conf" = { source = "misc/systemd-config/zram-generator.conf" }
+"/etc/systemd/sleep.conf.d/99-sleep.conf" = { source = "misc/systemd-config/99-sleep.conf" }
+"/etc/systemd/logind.conf.d/99-logind.conf" = { source = "misc/systemd-config/99-logind.conf" }
+"/etc/sudoers.d/99-sudoers" = { source = "misc/99-sudoers", mode = "0644" }
+
+[bootstrap.services]
+"power-profiles-daemon.service" = {}
+"fstrim.timer" = {}
+"bluetooth.service" = {}

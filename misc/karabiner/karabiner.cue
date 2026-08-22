@@ -1,5 +1,5 @@
 // This is the source of truth for .config/karabiner/karabiner.json.
-// Run `just karabiner-generate` after editing this file.
+// Run `mise run karabiner:gen` after editing this file.
 package karabiner
 
 #InputSourceCondition: {

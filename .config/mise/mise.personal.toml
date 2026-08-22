@@ -1,0 +1,23 @@
+# Personal profile: tools only wanted on personal machines.
+# Loaded on top of config.toml when MISE_ENV=personal (see home/.profile).
+# [tools] merges additively; entries here never affect the default env.
+[tools]
+# Core things
+"aqua:gleam-lang/gleam" = "latest"
+rust = "stable"
+
+# Harnesses
+"github:can1357/oh-my-pi" = "latest"
+"github:vercel-labs/fx" = "latest"
+
+# AI stuff
+"aqua:vercel-labs/agent-browser" = "latest"
+"npm:portless" = "latest"
+
+# Dev
+"aqua:casey/just" = "latest"
+
+# CLIs
+"aqua:sharkdp/hyperfine" = "latest"
+"aqua:koalaman/shellcheck" = "latest"
+"cargo:tokei" = "latest"

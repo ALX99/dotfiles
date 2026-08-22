@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+#MISE description="Stow user dotfiles into $HOME and link shared agent skills"
+set -euo pipefail
+shopt -s nullglob
+
+repo_dir=$(git rev-parse --show-toplevel)
+
+link_if_missing() {
+  local target="$1" link="$2"
+
+  if [[ -e "$link" || -L "$link" ]]; then
+    [[ -L "$link" && $(readlink "$link") == "$target" ]] ||
+      printf 'Skipping existing path: %s\n' "$link"
+    return
+  fi
+
+  printf 'Linking: %s -> %s\n' "$link" "$target"
+  ln -s "$target" "$link"
+}
+
+clean_broken_skill_links() {
+  local repo_name=${repo_dir##*/}
+  local link target
+
+  while IFS= read -r -d '' link; do
+    [[ ! -e "$link" ]] || continue
+    target=$(readlink "$link")
+
+    if [[ "$target" == "$repo_dir/"* || "$target" == "$repo_name/"* || "$target" == *"/$repo_name/"* ]] ||
+       [[ "$link" == "$HOME/.claude/skills/"* && "$target" == "../../.agents/skills/"* ]]; then
+      printf 'Removing broken symlink: %s -> %s\n' "$link" "$target"
+      rm -f "$link"
+    fi
+  done < <(
+    find "$HOME/.agents/skills" "$HOME/.claude/skills" \
+      -mindepth 1 -maxdepth 1 -type l -print0 2>/dev/null
+  )
+}
+
+mkdir -p "$HOME/.config" "$HOME/.local" "$HOME/.agents/skills" "$HOME/.claude/skills"
+
+clean_broken_skill_links
+
+stow --dir "$repo_dir" --target "$HOME/.local" --restow .local
+stow --dir "$repo_dir" --target "$HOME" --restow home
+
+# Keep repo skills where they are while allowing other tools to add their
+# own entries to ~/.agents/skills and ~/.claude/skills.
+for skill_dir in "$repo_dir"/home/.agents/skills/*/; do
+  skill_name=$(basename "$skill_dir")
+  link_if_missing "$skill_dir" "$HOME/.agents/skills/$skill_name"
+done
+
+for skill_dir in "$HOME"/.agents/skills/*/; do
+  skill_name=$(basename "$skill_dir")
+  link_if_missing "../../.agents/skills/$skill_name" "$HOME/.claude/skills/$skill_name"
+done
+
+stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
+
+if command -v herdr >/dev/null 2>&1 &&
+   [[ -d "$HOME/.config/herdr/plugins" ]]; then
+  for plugin_dir in "$HOME/.config/herdr/plugins"/*/; do
+    [[ -f "$plugin_dir/herdr-plugin.toml" ]] || continue
+    herdr plugin link "$plugin_dir" --enabled >/dev/null
+  done
+fi
+
+if [[ $(uname) == Linux ]] &&
+   command -v systemctl >/dev/null 2>&1 &&
+   [[ -n ${XDG_RUNTIME_DIR:-} && -S "$XDG_RUNTIME_DIR/bus" ]] &&
+   systemctl --user show-environment >/dev/null 2>&1; then
+  systemctl --user enable --now ssh-agent
+fi
+
+if [[ ! -d "$HOME/.pi/agent/extensions/node_modules" ]]; then
+  printf "Hint: run 'mise run pi:deps' to install pi extension dependencies\n"
+fi
+
+printf 'User configuration completed.\n'
