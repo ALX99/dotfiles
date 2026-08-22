@@ -7,7 +7,8 @@ usage() {
 Usage: sbx [options] -- command [arguments...]
 
 Run a command under `codex sandbox`. The command may read the filesystem, but
-may write only to the current workspace, /tmp, ~/.pi, ~/.config, XDG state and
+may write only to the current workspace, the enclosing repository's .git
+directory, /tmp, ~/.pi, ~/.config, XDG state and
 cache directories, pnpm data, Android, Java, Kotlin, and Gradle state, Codex's
 temporary directories, and any additional directories named with --write.
 
@@ -77,7 +78,15 @@ pnpm_home=${PNPM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/pnpm}
 append_unique_root "$(resolve_dir /tmp)"
 append_unique_root "$(resolve_dir "$HOME/.pi")"
 append_unique_root "$(resolve_dir "$HOME/.config")"
-append_existing_root "$PWD/.git"
+# The enclosing repository's metadata may sit above the working directory
+# (running from a subdirectory) or point elsewhere (linked worktrees), so
+# resolve it instead of assuming "$PWD/.git".
+if git_dir=$(git -C "$PWD" rev-parse --absolute-git-dir 2>/dev/null); then
+	append_existing_root "$git_dir"
+fi
+if git_common_dir=$(git -C "$PWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+	append_existing_root "$git_common_dir"
+fi
 append_existing_root "$state"
 append_existing_root "$cache"
 append_existing_root "$pnpm_home"
