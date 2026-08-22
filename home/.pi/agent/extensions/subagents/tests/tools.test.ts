@@ -1,8 +1,9 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { Check } from "typebox/value";
-import { AgentWaitInterruptedError, AgentWaitTimeoutReason, type AgentSummary } from "../agent-types.ts";
+import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
 import { resultPreview } from "../result-store.ts";
+import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
 	AnswerAgentParamsSchema,
 	createSpawnAgentSchema,
@@ -76,10 +77,9 @@ test("thinking overrides are safe across every configured model fallback", () =>
 	assert.deepEqual(thinkingLevelsForProfiles(config, ["fast"]), ["high"]);
 });
 
-test("wait schema exposes a bounded caller-selected timeout", () => {
-	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 1 }), true);
-	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 }), true);
-	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 30 * 60 * 1_000 + 1 }), false);
+test("wait schema rejects the removed caller-selected timeout", () => {
+	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"] }), true);
+	assert.equal(Check(WaitAgentParamsSchema, { agent_ids: ["scout-1"], timeout_ms: 1 }), false);
 });
 
 test("list schema accepts a bounded archived-agent limit", () => {
@@ -168,14 +168,14 @@ test("admission reports running lifecycle separately from occupied retained-sess
 	);
 });
 
-test("wait_agent trims a wave, forwards its timeout, and consumes matching delivery once", async () => {
-	const waits: Array<{ id: string; timeout?: number }> = [];
+test("wait_agent trims a wave and consumes matching delivery once", async () => {
+	const waits: string[] = [];
 	const consumed: AgentSummary[][] = [];
 	const runtime = {
 		registry: {
 			summary: () => summary,
-			wait: async (id: string, timeout?: number) => {
-				waits.push({ id, ...(timeout === undefined ? {} : { timeout }) });
+			wait: async (id: string) => {
+				waits.push(id);
 				return {
 					agent: "scout",
 					taskName: "inspect",
@@ -199,32 +199,71 @@ test("wait_agent trims a wave, forwards its timeout, and consumes matching deliv
 			consumed.push([...summaries]);
 		},
 	};
-	await executeWaitAgent({ agent_ids: [" scout-1 ", "scout-1"], timeout_ms: 321 }, runtime, undefined, () => 0);
-	assert.deepEqual(waits, [{ id: "scout-1", timeout: 321 }]);
+	await executeWaitAgent({ agent_ids: [" scout-1 ", "scout-1"] }, runtime, undefined, () => 0);
+	assert.deepEqual(waits, ["scout-1"]);
 	assert.deepEqual(consumed, [[summary]]);
 });
 
-test("wait_agent applies one deadline to its whole wave without cancelling children", async () => {
+test("wait_agent shares one composed signal across its wave", async () => {
+	const controller = new AbortController();
 	const signals: AbortSignal[] = [];
-	const result = await executeWaitAgent(
-		{ agent_ids: ["scout-1", "scout-2"], timeout_ms: 10 },
+	const execution = executeWaitAgent(
+		{ agent_ids: ["scout-1", "scout-2"] },
 		{
 			registry: {
 				summary: (id: string) => ({ ...summary, agent_id: id, status: "running" }),
-				wait: async (id: string, _timeout: number | undefined, signal: AbortSignal | undefined) => {
+				wait: async (id: string, signal: AbortSignal | undefined) => {
 					assert.ok(signal);
 					signals.push(signal);
-					return new Promise((_, reject) => {
-						signal.addEventListener(
+					return new Promise<ReadonlyRunDetails>((_, reject) => {
+						signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+					});
+				},
+			},
+			consumeSettledCompletions: () => {},
+		},
+		controller.signal,
+	);
+	controller.abort(new Error("parent moved on"));
+	await assert.rejects(execution, /parent moved on/);
+	assert.equal(signals.length, 2);
+	assert.equal(signals[0], signals[1]);
+});
+
+test("wait_agent releases its wave when one child asks for input", async () => {
+	const waitingDetails: ReadonlyRunDetails = {
+		agent: "scout",
+		taskName: "inspect",
+		profile: "fast",
+		model: "provider/model",
+		effectiveThinking: "low",
+		finalText: "",
+		startTime: 0,
+		toolCount: 0,
+		recentTools: [],
+		lastMessage: "",
+		lastActivityTime: 0,
+		contextUsage: { tokens: null, contextWindow: 100_000, percent: null },
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+		resultId: "a".repeat(64),
+		aborted: false,
+		pendingQuestion: { question_id: "question-1", question: "Proceed?", options: ["Yes", "No"] },
+	};
+	const released: unknown[] = [];
+	const result = await executeWaitAgent(
+		{ agent_ids: ["scout-1", "scout-2"] },
+		{
+			registry: {
+				summary: (id: string) => ({ ...summary, agent_id: id }),
+				wait: async (id: string, signal: AbortSignal | undefined) => {
+					if (id === "scout-1") return waitingDetails;
+					return new Promise<ReadonlyRunDetails>((_, reject) => {
+						signal?.addEventListener(
 							"abort",
-							() =>
-								reject(
-									new AgentWaitInterruptedError(
-										signal.reason instanceof AgentWaitTimeoutReason ? "timed_out" : "cancelled",
-										id,
-										signal.reason,
-									),
-								),
+							() => {
+								released.push(signal.reason);
+								reject(new AgentWaitInterruptedError(id, signal.reason));
+							},
 							{ once: true },
 						);
 					});
@@ -234,11 +273,11 @@ test("wait_agent applies one deadline to its whole wave without cancelling child
 		},
 		undefined,
 	);
-	assert.equal(signals.length, 2);
-	assert.equal(signals[0], signals[1]);
+	assert.equal(released.length, 1);
+	assert.ok(released[0] instanceof AgentWaitDeferredReason);
 	assert.deepEqual(
 		result.details.outcomes.map((outcome) => outcome.status),
-		["timed_out", "timed_out"],
+		["waiting_input", "cancelled"],
 	);
 });
 

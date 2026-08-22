@@ -252,7 +252,7 @@ test("a foreground question returns control and resumes after its answer", async
 	assert.deepEqual(questions, [waiting.pendingQuestion?.question_id]);
 
 	await agent.answerQuestion(waiting.pendingQuestion!.question_id, "Simple");
-	const settled = await agent.wait(1_000);
+	const settled = await agent.wait();
 	assert.equal(settled.finalText, "answer:Simple");
 	assert.deepEqual(completions, ["answer:Simple"]);
 	assert.equal(agent.phase, "closed");
@@ -499,4 +499,200 @@ test("a prompt without a terminal assistant message cannot be reported as succes
 	assert.equal(summary.status, "failed");
 	assert.equal(summary.result, undefined);
 	assert.equal(summary.result_locator, undefined);
+});
+
+const stallUsage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } };
+
+function appendAssistant(
+	manager: ReturnType<typeof SessionManager.create>,
+	listeners: Set<(event: any) => void>,
+	text: string,
+	stopReason: string,
+): void {
+	const assistant = {
+		role: "assistant",
+		content: [{ type: "text", text }],
+		stopReason,
+		usage: stallUsage,
+	};
+	manager.appendMessage(assistant as never);
+	for (const listener of listeners) listener({ type: "message_end", message: assistant });
+}
+
+test("a silent generation is aborted internally and reported as failed, not aborted", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-stall-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const listeners = new Set<(event: any) => void>();
+	let aborts = 0;
+	const reaped: string[] = [];
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe(listener: (event: any) => void) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		async prompt() {
+			await new Promise<void>(() => {});
+		},
+		async steer() {},
+		async abort() {
+			aborts++;
+			appendAssistant(manager, listeners, "partial before stall", "aborted");
+		},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "scout-stalled",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		stallTimeoutMs: 20,
+		processReaper: {
+			terminateOwner: async (ownerId) => {
+				reaped.push(ownerId);
+			},
+		},
+		sessionFactory: async () => fake as never,
+	});
+	t.after(() => agent.close());
+
+	const stalled = await agent.start("inspect", undefined, "inspect", false);
+	assert.equal(stalled.status, "failed");
+	assert.equal(stalled.aborted, false);
+	assert.match(stalled.error ?? "", /stalled: no activity for 20ms/);
+	assert.equal(stalled.result?.complete, false);
+	assert.ok(stalled.resultLocator);
+	assert.equal(aborts, 1);
+	assert.deepEqual(reaped, [manager.getSessionId()]);
+});
+
+test("ongoing activity keeps deferring the stall watchdog until silence exceeds the threshold", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-stall-activity-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const listeners = new Set<(event: any) => void>();
+	let aborts = 0;
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe(listener: (event: any) => void) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		async prompt() {
+			const interval = setInterval(() => {
+				for (const listener of listeners) {
+					listener({
+						type: "tool_execution_start",
+						toolCallId: "call-1",
+						toolName: "read",
+						args: { path: "src/index.ts" },
+					});
+				}
+			}, 5);
+			await new Promise((resolve) => setTimeout(resolve, 150));
+			clearInterval(interval);
+			appendAssistant(manager, listeners, "done after long silent work", "stop");
+		},
+		async steer() {},
+		async abort() {
+			aborts++;
+		},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "scout-active",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		stallTimeoutMs: 40,
+		sessionFactory: async () => fake as never,
+	});
+	t.after(() => agent.close());
+
+	const details = await agent.start("build", undefined, "build", false);
+	assert.equal(details.status, "idle");
+	assert.ok(details.toolCount > 0);
+	assert.equal(details.finalText, "done after long silent work");
+	assert.equal(aborts, 0);
+});
+
+test("a pending question exempts the generation from the stall watchdog", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-stall-question-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	let questionTool: ToolDefinition | undefined;
+	let aborts = 0;
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe() {
+			return () => {};
+		},
+		async prompt() {
+			await questionTool!.execute(
+				"question-call",
+				{ question: "Continue?", alternatives: ["Yes", "No"] },
+				undefined,
+				undefined,
+				{} as never,
+			);
+			manager.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text: "answered" }],
+				stopReason: "stop",
+				usage: stallUsage,
+			} as never);
+		},
+		async steer() {},
+		async abort() {
+			aborts++;
+		},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		id: "worker-stall-question",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: { ...config, name: "worker", tools: ["ask_question"] },
+		resolvedRun: { ...resolvedRun, agent: "worker" },
+		retain: true,
+		stallTimeoutMs: 10,
+		sessionFactory: async (customTools) => {
+			questionTool = customTools[0];
+			return fake as never;
+		},
+	});
+	t.after(() => agent.close());
+
+	const waiting = await agent.start("choose", undefined, "choose", false);
+	assert.ok(waiting.pendingQuestion);
+	// Several watchdog periods elapse while the human has not answered yet.
+	await new Promise((resolve) => setTimeout(resolve, 60));
+	assert.ok(agent.summary().pending_question);
+	assert.equal(aborts, 0);
+
+	await agent.answerQuestion(waiting.pendingQuestion!.question_id, "Yes");
+	const settled = await agent.wait();
+	assert.equal(settled.status, "idle");
+	assert.equal(settled.finalText, "answered");
+	assert.equal(aborts, 0);
 });

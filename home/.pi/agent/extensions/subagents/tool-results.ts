@@ -15,7 +15,7 @@ export interface AgentSummaryDetails {
 	readonly capacity?: CapacitySnapshot;
 }
 
-export type WaitOutcomeStatus = "settled" | "waiting_input" | "deferred" | "timed_out" | "cancelled" | "failed";
+export type WaitOutcomeStatus = "settled" | "waiting_input" | "cancelled" | "failed";
 
 export interface WaitOutcome {
 	readonly agent_id: string;
@@ -25,7 +25,6 @@ export interface WaitOutcome {
 
 export interface WaitDetails extends AgentSummaryDetails {
 	readonly elapsedMs: number;
-	readonly timeoutMs?: number;
 	readonly outcomes: readonly WaitOutcome[];
 	readonly accountedGenerations?: readonly {
 		readonly agentId: string;
@@ -81,18 +80,12 @@ export function formatAgentLaunch(summary: AgentSummary): string {
 export function waitDetails(
 	summaries: readonly AgentSummary[],
 	elapsedMs: number,
-	timeoutMs: number | undefined,
 	outcomes: readonly WaitOutcome[] = summaries.map((summary) => ({
 		agent_id: summary.agent_id,
 		status: "settled",
 	})),
 ): WaitDetails {
-	return {
-		summaries,
-		elapsedMs,
-		...(timeoutMs === undefined ? {} : { timeoutMs }),
-		outcomes,
-	};
+	return { summaries, elapsedMs, outcomes };
 }
 
 export function textResult<TDetails>(text: string, details: TDetails): AgentToolResult<TDetails> {

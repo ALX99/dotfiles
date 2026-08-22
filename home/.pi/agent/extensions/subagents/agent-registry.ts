@@ -59,9 +59,9 @@ export class AgentRegistry {
 		return entry.kind === "live" ? entry.agent.summary() : entry.view.summary;
 	}
 
-	async wait(id: string, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
+	async wait(id: string, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
 		const entry = this.requireEntry(id);
-		return entry.kind === "live" ? entry.agent.wait(timeoutMs, signal) : entry.view.details;
+		return entry.kind === "live" ? entry.agent.wait(signal) : entry.view.details;
 	}
 
 	async readTranscript(id: string): Promise<unknown[]> {

@@ -131,17 +131,15 @@ export function renderAgentSummaries(
 
 export function renderWaitCall(
 	agentIds: readonly string[],
-	timeoutMs: number | undefined,
 	summaries: readonly AgentSummary[],
 	theme: Theme,
 ): Container {
 	const c = new Container();
 	const summaryById = new Map(summaries.map((summary) => [summary.agent_id, summary]));
 	const count = agentIds.length;
-	const deadline = timeoutMs === undefined ? "" : ` · up to ${formatDuration(timeoutMs)}`;
 	c.addChild(
 		new Text(
-			`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${count} agent${count === 1 ? "" : "s"} to settle${deadline}`)}`,
+			`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${count} agent${count === 1 ? "" : "s"} to settle`)}`,
 			0,
 			0,
 		),
@@ -254,17 +252,10 @@ function agentStatusIcon(summary: AgentSummary, theme: Theme): string {
 function waitInterruptionSummary(details: WaitDetails): string {
 	const counts = new Map<WaitDetails["outcomes"][number]["status"], number>();
 	for (const outcome of details.outcomes) counts.set(outcome.status, (counts.get(outcome.status) ?? 0) + 1);
-	const parts = ["waiting_input", "deferred", "timed_out", "cancelled", "failed"].flatMap((status) => {
+	const parts = ["waiting_input", "cancelled", "failed"].flatMap((status) => {
 		const count = counts.get(status as WaitDetails["outcomes"][number]["status"]);
 		if (!count) return [];
-		const label =
-			status === "waiting_input"
-				? "awaiting input"
-				: status === "deferred"
-					? "deferred"
-					: status === "timed_out"
-						? "timed out"
-						: status;
+		const label = status === "waiting_input" ? "awaiting input" : status;
 		return [`${count} ${label}`];
 	});
 	return parts.length === 0 ? "" : ` · ${parts.join(", ")}`;
