@@ -189,7 +189,7 @@ test("summary and wait renderers do not report active or failed work as success"
 	assert.match(waited, /✗ wait_agent · 1\/1 settled · 1 failed/);
 });
 
-test("renderWaitCall names the tasks, count, and timeout", () => {
+test("renderWaitCall names the tasks and count", () => {
 	const summaries = [
 		{
 			...summaryStats,
@@ -204,9 +204,10 @@ test("renderWaitCall names the tasks, count, and timeout", () => {
 			status: "running" as const,
 		},
 	];
-	const rendered = renderWaitCall(["general-1"], 5_000, summaries, renderTheme).render(120).join("\n");
+	const rendered = renderWaitCall(["general-1"], summaries, renderTheme).render(120).join("\n");
 
-	assert.match(rendered, /waiting for 1 agent to settle · up to 5\.0s/);
+	assert.match(rendered, /waiting for 1 agent to settle/);
+	assert.doesNotMatch(rendered, /up to/);
 	assert.match(rendered, /inspect parser · general-1/);
 });
 
@@ -214,10 +215,9 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 	const rendered = renderWaitResult(
 		{
 			elapsedMs: 1_000,
-			timeoutMs: 1_000,
 			outcomes: [
 				{ agent_id: "done-12345678", status: "settled" },
-				{ agent_id: "running-12345678", status: "timed_out" },
+				{ agent_id: "running-12345678", status: "cancelled" },
 			],
 			summaries: [
 				{
@@ -254,7 +254,7 @@ test("renderWaitResult distinguishes settled and still-running agents", () => {
 		.join("\n");
 
 	assert.match(rendered, /1\/2 settled · 1 still active/);
-	assert.match(rendered, /1 timed out/);
+	assert.match(rendered, /1 cancelled/);
 	assert.match(rendered, /inspect parser · scout · fast · done-123/);
 	assert.match(rendered, /fix parser · worker · balanced · running-/);
 	assert.doesNotMatch(rendered, /Parser finding/);

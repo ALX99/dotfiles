@@ -66,7 +66,7 @@ test("typed summary details flow from result constructors into renderers without
 });
 
 test("typed wait details preserve timing and summary rendering", () => {
-	const details = waitDetails([summary], 2_500, 10_000);
+	const details = waitDetails([summary], 2_500);
 	const result = textResult("raw fallback", details);
 	const rendered = renderWaitToolResult(result, options, theme).render(120).join("\n");
 

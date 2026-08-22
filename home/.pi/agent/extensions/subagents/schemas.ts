@@ -4,7 +4,6 @@ import { type Static, Type } from "typebox";
 export const MAX_TASK_NAME_CHARS = 200;
 export const MAX_AGENT_ID_CHARS = 128;
 export const MAX_WAIT_AGENTS = 32;
-export const MAX_WAIT_TIMEOUT_MS = 30 * 60 * 1_000;
 
 const nonBlank = { minLength: 1, pattern: "\\S" } as const;
 const agentId = Type.String({
@@ -125,15 +124,9 @@ export const WaitAgentParamsSchema = Type.Object(
 		agent_ids: Type.Array(agentId, {
 			minItems: 1,
 			maxItems: MAX_WAIT_AGENTS,
-			description: "Agent IDs to wait for. Duplicates are ignored after trimming.",
+			description:
+				"Agent IDs to wait for as one barrier until each settles or requests input. Duplicates are ignored after trimming.",
 		}),
-		timeout_ms: Type.Optional(
-			Type.Integer({
-				minimum: 1,
-				maximum: MAX_WAIT_TIMEOUT_MS,
-				description: `Caller-selected wait timeout in milliseconds, up to ${MAX_WAIT_TIMEOUT_MS}.`,
-			}),
-		),
 	},
 	{ additionalProperties: false },
 );

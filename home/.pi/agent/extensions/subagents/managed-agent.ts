@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomBytes } from "node:crypto";
+import { addAbortListener } from "node:events";
 import {
 	createAgentSession,
 	DefaultResourceLoader,
@@ -12,7 +13,6 @@ import {
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { composeAbortSignal, onAbort } from "../_shared/abort.ts";
 import { toError } from "../_shared/errors.ts";
 import { getProcessReaper, type ProcessReaper } from "../process-reaper/index.ts";
 import type { AgentConfig } from "./agents.ts";
@@ -44,6 +44,15 @@ import {
 
 let nextAgentId = 1;
 
+/** Silent child time before a generation is considered stuck and aborted internally. */
+export const AGENT_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
+
+function formatStallDuration(ms: number): string {
+	if (ms < 1_000) return `${Math.round(ms)}ms`;
+	if (ms < 60_000) return `${Math.round(ms / 1_000)}s`;
+	return `${Math.round(ms / 60_000)}m`;
+}
+
 export function reserveManagedAgentIds(agentIds: Iterable<string>): void {
 	for (const id of agentIds) {
 		const suffix = /-(\d+)$/.exec(id)?.[1];
@@ -71,6 +80,8 @@ interface Generation {
 	settled: boolean;
 	background: boolean;
 	aborted: boolean;
+	/** Set when the stall watchdog aborted this generation for inactivity. */
+	stalled: boolean;
 	questionArrival: ReturnType<typeof Promise.withResolvers<void>>;
 	question?: PendingQuestion;
 }
@@ -86,6 +97,8 @@ export interface ManagedAgentOptions {
 	readonly processReaper?: Pick<ProcessReaper, "terminateOwner">;
 	/** Test seam for contract tests; production always constructs an SDK session. */
 	readonly sessionFactory?: (customTools: readonly ToolDefinition[]) => Promise<AgentSession>;
+	/** Test seam for the stall-watchdog threshold; production uses AGENT_STALL_TIMEOUT_MS. */
+	readonly stallTimeoutMs?: number;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
@@ -106,6 +119,7 @@ export class ManagedAgent {
 	private current: Generation | undefined;
 	private nextGeneration = 0;
 	private closePromise: Promise<void> | undefined;
+	private stallTimer: NodeJS.Timeout | undefined;
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
@@ -183,10 +197,10 @@ export class ManagedAgent {
 		this.emit();
 	}
 
-	async wait(timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
+	async wait(signal?: AbortSignal): Promise<ReadonlyRunDetails> {
 		const current = this.current;
 		if (!current || current.settled || current.question) return this.snapshot();
-		return this.waitFor(current, timeoutMs, signal);
+		return this.waitFor(current, signal);
 	}
 
 	async interrupt(): Promise<void> {
@@ -208,6 +222,7 @@ export class ManagedAgent {
 		this.closePromise = (async () => {
 			if (this.phaseState === "closed") return;
 			this.phaseState = "closing";
+			this.clearStallWatchdog();
 			this.emit();
 			const current = this.current;
 			if (current && !current.settled) {
@@ -417,20 +432,23 @@ export class ManagedAgent {
 			settled: false,
 			background,
 			aborted: false,
+			stalled: false,
 			questionArrival: Promise.withResolvers<void>(),
 		};
 		this.current = generation;
 		this.phaseState = "running";
+		this.watchForStall(generation);
 		this.emit();
 		void this.session.prompt(message, { expandPromptTemplates: false }).then(
 			() => this.settle(generation),
 			(error) => this.fail(generation, error),
 		);
-		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, undefined, signal);
+		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, signal);
 	}
 
 	private async settle(generation: Generation, closeWhenSettled = true): Promise<void> {
 		if (generation.settled || this.current !== generation) return;
+		this.clearStallWatchdog();
 		const entry = this.terminalAssistantEntry(generation);
 		if (!entry) {
 			this.fail(generation, new Error(`Agent ${this.id} completed without a terminal assistant message.`));
@@ -443,13 +461,21 @@ export class ManagedAgent {
 			return;
 		}
 		const stopReason = entry.message.stopReason;
+		if (generation.stalled && !generation.run.error) {
+			generation.run.error = this.stallErrorMessage();
+		}
 		if (stopReason === "error" && !generation.run.error) {
 			generation.run.error = entry.message.errorMessage ?? "Subagent assistant failed.";
 		}
 		generation.run.endTime = Date.now();
 		generation.settled = true;
-		const terminalPhase: AgentPhase =
-			generation.aborted || stopReason === "aborted" ? "aborted" : stopReason === "error" ? "failed" : "idle";
+		const terminalPhase: AgentPhase = generation.stalled
+			? "failed"
+			: generation.aborted || stopReason === "aborted"
+				? "aborted"
+				: stopReason === "error"
+					? "failed"
+					: "idle";
 		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
 		const details = this.snapshot();
 		generation.resolve(details);
@@ -468,13 +494,14 @@ export class ManagedAgent {
 
 	private fail(generation: Generation, cause: unknown): void {
 		if (generation.settled || this.current !== generation) return;
+		this.clearStallWatchdog();
 		const error = toError(cause);
 		try {
 			this.persistResult(generation, this.terminalAssistantEntry(generation));
 		} catch (persistenceCause) {
 			generation.run.error = `${error.message} (result persistence failed: ${toError(persistenceCause).message})`;
 		}
-		generation.run.error ??= error.message;
+		generation.run.error ??= generation.stalled ? this.stallErrorMessage() : error.message;
 		generation.run.endTime = Date.now();
 		generation.settled = true;
 		const terminalPhase = generation.aborted ? "aborted" : "failed";
@@ -541,6 +568,59 @@ export class ManagedAgent {
 		pending.reject(new Error(message));
 	}
 
+	/** Arm the per-generation liveness watchdog; activity stamps keep deferring it. */
+	private watchForStall(generation: Generation): void {
+		this.clearStallWatchdog();
+		const thresholdMs = this.stallTimeoutMs();
+		const schedule = (delayMs: number) => {
+			this.stallTimer = setTimeout(() => this.checkForStall(generation, thresholdMs, schedule), delayMs);
+			this.stallTimer.unref?.();
+		};
+		schedule(thresholdMs);
+	}
+
+	private checkForStall(generation: Generation, thresholdMs: number, schedule: (delayMs: number) => void): void {
+		if (generation.settled || this.current !== generation) return;
+		// A child parked at ask_question emits no events while waiting for its
+		// answer; poll again later instead of treating the human as a hang.
+		if (generation.question) {
+			schedule(thresholdMs);
+			return;
+		}
+		const remainingMs = thresholdMs - (Date.now() - generation.run.lastActivityTime);
+		if (remainingMs > 0) {
+			schedule(remainingMs);
+			return;
+		}
+		void this.recoverStalledGeneration(generation);
+	}
+
+	/** Abort a silent generation so it settles through the normal failure path. */
+	private async recoverStalledGeneration(generation: Generation): Promise<void> {
+		if (generation.settled || this.current !== generation || generation.question) return;
+		generation.stalled = true;
+		await this.session?.abort().catch(() => {});
+		await this.reapOwnedProcesses();
+		// abort() waits for Pi to reach idle and prompt resolution then flows into
+		// settle()/fail(), but settle defensively here as well so an incomplete or
+		// misbehaving session cannot leave an unsettled stalled generation behind.
+		await this.settle(generation);
+	}
+
+	private clearStallWatchdog(): void {
+		if (this.stallTimer === undefined) return;
+		clearTimeout(this.stallTimer);
+		this.stallTimer = undefined;
+	}
+
+	private stallTimeoutMs(): number {
+		return this.options.stallTimeoutMs ?? AGENT_STALL_TIMEOUT_MS;
+	}
+
+	private stallErrorMessage(): string {
+		return `Subagent stalled: no activity for ${formatStallDuration(this.stallTimeoutMs())}; the run was aborted internally.`;
+	}
+
 	private disposeSession(): void {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
@@ -553,8 +633,7 @@ export class ManagedAgent {
 		await this.processReaper.terminateOwner(this.session.sessionId);
 	}
 
-	private async waitFor(generation: Generation, timeoutMs?: number, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
-		const guard = composeAbortSignal(signal, timeoutMs);
+	private async waitFor(generation: Generation, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
 		const question = generation.questionArrival.promise.then(() => {
 			if (generation.question) {
 				generation.background = true;
@@ -562,14 +641,12 @@ export class ManagedAgent {
 			}
 			return generation.completion;
 		});
-		if (!guard) return Promise.race([generation.completion, question]);
+		if (!signal) return Promise.race([generation.completion, question]);
 		let remove: Disposable | undefined;
 		const interrupted = new Promise<never>((_resolve, reject) => {
-			remove = onAbort(guard.signal, () => {
+			remove = addAbortListener(signal, () => {
 				if (!generation.background) generation.background = true;
-				reject(
-					new AgentWaitInterruptedError(guard.timedOut() ? "timed_out" : "cancelled", this.id, guard.signal.reason),
-				);
+				reject(new AgentWaitInterruptedError(this.id, signal.reason));
 			});
 		});
 		try {

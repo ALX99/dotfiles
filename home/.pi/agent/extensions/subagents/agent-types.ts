@@ -42,9 +42,7 @@ export interface AgentView {
 	readonly details: ReadonlyRunDetails;
 }
 
-export type WaitInterruptionKind = "timed_out" | "cancelled" | "deferred";
-
-/** Internal reason used to release a wait wave when one child needs input. */
+/** Internal reason used to release every wait in a wave when one child needs input. */
 export class AgentWaitDeferredReason extends Error {
 	constructor() {
 		super("Another agent in this wait wave needs input.");
@@ -52,29 +50,11 @@ export class AgentWaitDeferredReason extends Error {
 	}
 }
 
-/** Internal reason used to release every wait in a wave at one deadline. */
-export class AgentWaitTimeoutReason extends Error {
-	constructor() {
-		super("The wait-agent deadline expired.");
-		this.name = "AgentWaitTimeoutReason";
-	}
-}
-
-/** A wait ended without changing the subagent's underlying run. */
+/** A wait ended because the parent stopped waiting; the child's run continues unaffected. */
 export class AgentWaitInterruptedError extends Error {
-	readonly kind: WaitInterruptionKind;
-
-	constructor(kind: WaitInterruptionKind, agentId: string, cause?: unknown) {
-		super(
-			kind === "timed_out"
-				? `Timed out waiting for agent ${agentId}.`
-				: kind === "deferred"
-					? `Stopped waiting for agent ${agentId} because another agent needs input.`
-					: `Waiting for agent ${agentId} was aborted.`,
-			{ cause },
-		);
+	constructor(agentId: string, cause?: unknown) {
+		super(`Waiting for agent ${agentId} was aborted.`, { cause });
 		this.name = "AgentWaitInterruptedError";
-		this.kind = kind;
 	}
 }
 
