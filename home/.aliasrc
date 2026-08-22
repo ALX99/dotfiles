@@ -97,8 +97,8 @@ alias \
 alias \
   pf='rg --files | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
   pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
-  ef='nvim "$(pf)"' \
-  ef.='nvim "$(pf.)"'
+  ef="nvim -c \"lua vim.schedule(function() require('fff').find_files({ query = '!**/.* ' }) end)\"" \
+  ef.="nvim -c \"lua vim.schedule(function() require('fff').find_files() end)\""
 
 # =============================================================================
 # Platform-specific aliases
