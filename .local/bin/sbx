@@ -60,13 +60,9 @@ append_existing_root() {
 toml_quote() {
 	local value=$1
 
+	# resolve_dir rejects quotes and control characters, so backslash is the
+	# only character that needs escaping inside the TOML string.
 	value=${value//\\/\\\\}
-	value=${value//\"/\\\"}
-	value=${value//$'\b'/\\b}
-	value=${value//$'\t'/\\t}
-	value=${value//$'\n'/\\n}
-	value=${value//$'\f'/\\f}
-	value=${value//$'\r'/\\r}
 	printf '"%s"' "$value"
 }
 
@@ -149,15 +145,13 @@ fi
 # Extend Codex's built-in workspace profile instead of maintaining a Seatbelt
 # policy here. Codex supplies the workspace and temporary write roots, protects
 # sensitive workspace metadata, and selects the platform sandbox implementation.
-profile='{ extends = ":workspace"'
-if ((${#writable_roots[@]})); then
-	profile+=', workspace_roots = {'
-	for path in "${writable_roots[@]}"; do
-		profile+=" $(toml_quote "$path") = true,"
-	done
-	profile+=' }'
-fi
-profile+=', network = { enabled = true } }'
+# writable_roots is seeded with /tmp, ~/.pi, and ~/.config before option
+# parsing, so workspace_roots is always emitted.
+profile='{ extends = ":workspace", workspace_roots = {'
+for path in "${writable_roots[@]}"; do
+	profile+=" $(toml_quote "$path") = true,"
+done
+profile+=' }, network = { enabled = true } }'
 
 if "$print_profile"; then
 	printf 'permissions.sbx = %s\n' "$profile"
