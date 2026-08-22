@@ -1,0 +1,22 @@
+id = "dozy.tmpsh"
+name = "Tmpsh"
+version = "0.3.0"
+min_herdr_version = "0.7.0"
+description = "Spawn a throwaway tmpsh shell in its own focused workspace"
+platforms = ["macos", "linux"]
+
+# Keybound launcher: stages the pane entrypoint below as an unzoomed tab,
+# then moves it into a new focused workspace (see spawn.sh).
+[[actions]]
+id = "spawn"
+title = "Spawn tmpsh space"
+contexts = ["workspace"]
+command = ["sh", "spawn.sh"]
+
+# The pane itself runs the stowed tmpsh, whose exit trap deletes the temp
+# directory; Herdr closes the emptied workspace afterwards.
+[[panes]]
+id = "tmpsh"
+title = "tmpsh"
+placement = "tab"
+command = ["sh", "tmpsh-pane.sh"]

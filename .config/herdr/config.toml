@@ -170,3 +170,9 @@ command = 'if command -v pi >/dev/null 2>&1; then exec pi; else exec claude; fi'
 description = "open pi or claude"
 width = "95%"
 height = "95%"
+
+[[keys.command]]
+key = "prefix+shift+t"
+type = "plugin_action"
+command = "dozy.tmpsh.spawn"
+description = "spawn tmpsh space (temp folder)"
