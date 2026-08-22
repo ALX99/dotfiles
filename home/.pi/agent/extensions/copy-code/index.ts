@@ -71,7 +71,7 @@ export function registerCopyCodeCommand(
 	copy: (text: string) => Promise<void> = copyToClipboard,
 ): void {
 	pi.registerCommand("cc", {
-		description: "Copy a selected fenced code block from the last agent reply",
+		description: "Copy a code block from the last agent reply directly when there is only one, otherwise ask",
 		handler: async (_args, ctx) => {
 			await copyCodeFromLastReply(ctx, copy);
 		},
@@ -100,11 +100,14 @@ async function copyCodeFromLastReply(
 		return;
 	}
 
-	const options = blocks.map(formatBlockOption);
-	const selected = await ctx.ui.select("Select a code block to copy", options);
-	if (selected === undefined) return;
+	let selectedIndex = 0;
+	if (blocks.length > 1) {
+		const options = blocks.map(formatBlockOption);
+		const selected = await ctx.ui.select("Select a code block to copy", options);
+		if (selected === undefined) return;
+		selectedIndex = options.indexOf(selected);
+	}
 
-	const selectedIndex = options.indexOf(selected);
 	const block = blocks[selectedIndex]!;
 
 	try {
