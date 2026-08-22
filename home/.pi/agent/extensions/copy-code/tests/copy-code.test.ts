@@ -123,6 +123,43 @@ test("/cc selects and copies the requested block", async () => {
 	assert.deepEqual(notifications, ["Copied sh code block to the clipboard."]);
 });
 
+test("/cc copies directly when the reply has a single block", async () => {
+	let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
+	const register = (name: string, definition: { handler: typeof handler }): void => {
+		assert.equal(name, "cc");
+		handler = definition.handler;
+	};
+	const pi = { registerCommand: register } as unknown as ExtensionAPI;
+	const copied: string[] = [];
+	registerCopyCodeCommand(pi, async (text) => {
+		copied.push(text);
+	});
+	assert.ok(handler);
+
+	const notifications: string[] = [];
+	let selectCalled = false;
+	const ctx = {
+		hasUI: true,
+		waitForIdle: async () => {},
+		sessionManager: {
+			getBranch: () => [assistantEntry(["Some prose.", "```bash", "echo only", "```"].join("\n"))],
+		},
+		ui: {
+			select: async () => {
+				selectCalled = true;
+				return undefined;
+			},
+			notify: (message: string) => notifications.push(message),
+		},
+	} as unknown as ExtensionCommandContext;
+
+	await handler("", ctx);
+
+	assert.equal(selectCalled, false);
+	assert.deepEqual(copied, ["echo only"]);
+	assert.deepEqual(notifications, ["Copied bash code block to the clipboard."]);
+});
+
 test("the default extension registers /cc", () => {
 	let registered = false;
 	copyCodeExtension({
