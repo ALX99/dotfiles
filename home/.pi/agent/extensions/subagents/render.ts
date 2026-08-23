@@ -136,20 +136,25 @@ export function renderWaitCall(
 ): Container {
 	const c = new Container();
 	const summaryById = new Map(summaries.map((summary) => [summary.agent_id, summary]));
-	const count = agentIds.length;
+	const rows = agentIds.map((id) => ({ id, summary: summaryById.get(id) }));
+	const count = rows.filter((row) => !row.summary || isAgentActive(row.summary.status)).length;
+	const total = rows.length;
+	const scope = count === total ? `${count}` : `${count}/${total}`;
 	c.addChild(
 		new Text(
-			`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${count} agent${count === 1 ? "" : "s"} to settle`)}`,
+			`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${scope} agent${total === 1 ? "" : "s"} to settle`)}`,
 			0,
 			0,
 		),
 	);
-	for (const id of agentIds) {
-		const summary = summaryById.get(id);
+	for (const { id, summary } of rows) {
 		const label = sanitizeTerminalText(summary?.task_name || summary?.agent || id);
+		const settled = summary !== undefined && !isAgentActive(summary.status);
+		const icon = settled ? agentStatusIcon(summary, theme) : theme.fg("warning", "⟳");
+		const status = settled ? ` · ${summary.status}` : "";
 		c.addChild(
 			new Text(
-				`${theme.fg("warning", "  ⟳")} ${theme.fg("text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(id)}`)}`,
+				`  ${icon} ${theme.fg(settled ? "dim" : "text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(id)}${status}`)}`,
 				0,
 				0,
 			),

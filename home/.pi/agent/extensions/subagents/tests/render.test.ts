@@ -211,6 +211,39 @@ test("renderWaitCall names the tasks and count", () => {
 	assert.match(rendered, /inspect parser · general-1/);
 });
 
+test("renderWaitCall excludes already-settled agents from the waiting count", () => {
+	const summaries = [
+		{
+			...summaryStats,
+			agent_id: "general-1",
+			agent: "general",
+			task_name: "advise on UX",
+			profile: "fast",
+			model: "opencode-go/deepseek-v4-flash",
+			effective_thinking: "low",
+			generation: 1,
+			retained: false,
+			status: "idle" as const,
+		},
+		{
+			...summaryStats,
+			agent_id: "scout-2",
+			agent: "scout",
+			task_name: "survey prior art",
+			profile: "fast",
+			model: "opencode-go/deepseek-v4-flash",
+			effective_thinking: "low",
+			generation: 1,
+			retained: false,
+			status: "running" as const,
+		},
+	];
+	const rendered = renderWaitCall(["general-1", "scout-2"], summaries, renderTheme).render(120).join("\n");
+
+	assert.match(rendered, /waiting for 1\/2 agents to settle/);
+	assert.match(rendered, /advise on UX · general-1 · idle/);
+});
+
 test("renderWaitResult distinguishes settled and still-running agents", () => {
 	const rendered = renderWaitResult(
 		{
