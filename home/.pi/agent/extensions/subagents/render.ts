@@ -11,7 +11,7 @@ import type { ReadonlyRunDetails } from "./run-state.ts";
 import { clipTerminalText, sanitizeTerminalBlock, sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import { contextUsagePercentage, formatContextUsage, formatTokens } from "./ui/format.ts";
 export type { WaitDetails } from "./tool-results.ts";
-import type { WaitDetails } from "./tool-results.ts";
+import type { WaitDetails, WaitOutcomeStatus } from "./tool-results.ts";
 
 // ── formatters ────────────────────────────────────────────────────────
 
@@ -255,9 +255,9 @@ function agentStatusIcon(summary: AgentSummary, theme: Theme): string {
 }
 
 function waitInterruptionSummary(details: WaitDetails): string {
-	const counts = new Map<WaitDetails["outcomes"][number]["status"], number>();
+	const counts = new Map<WaitOutcomeStatus, number>();
 	for (const outcome of details.outcomes) counts.set(outcome.status, (counts.get(outcome.status) ?? 0) + 1);
-	const summarized: readonly WaitDetails["outcomes"][number]["status"][] = ["waiting_input", "cancelled", "failed"];
+	const summarized: readonly WaitOutcomeStatus[] = ["waiting_input", "cancelled", "failed"];
 	const parts = summarized.flatMap((status) => {
 		const count = counts.get(status);
 		if (!count) return [];

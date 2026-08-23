@@ -4,6 +4,17 @@ export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" 
 
 export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
 
+const LIFECYCLE_STATUS = {
+	created: "starting",
+	starting: "starting",
+	running: "running",
+	idle: "idle",
+	failed: "failed",
+	aborted: "aborted",
+	closing: "closed",
+	closed: "closed",
+} as const satisfies Record<AgentPhase, AgentStatus>;
+
 export function isAgentActive(status: AgentStatus): boolean {
 	return status === "starting" || status === "running";
 }
@@ -59,16 +70,6 @@ export class AgentWaitInterruptedError extends Error {
 }
 
 export function lifecycleStatus(lifecycle: { readonly phase: AgentPhase }): AgentStatus {
-	const LIFECYCLE_STATUS = {
-		created: "starting",
-		starting: "starting",
-		running: "running",
-		idle: "idle",
-		failed: "failed",
-		aborted: "aborted",
-		closing: "closed",
-		closed: "closed",
-	} as const satisfies Record<AgentPhase, AgentStatus>;
 	return LIFECYCLE_STATUS[lifecycle.phase];
 }
 
