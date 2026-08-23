@@ -281,8 +281,8 @@ function usageKey(agentId: string, generation: number): string {
 }
 
 function usageKeyFromValue(agentId: unknown, generation: unknown): string | undefined {
-	return typeof agentId === "string" && Number.isInteger(generation) && (generation as number) > 0
-		? usageKey(agentId, generation as number)
+	return typeof agentId === "string" && typeof generation === "number" && Number.isInteger(generation) && generation > 0
+		? usageKey(agentId, generation)
 		: undefined;
 }
 

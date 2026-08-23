@@ -44,7 +44,7 @@ export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], Discover
 
 	const agents: AgentConfig[] = [];
 	const errors: string[] = [];
-	for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+	for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
 		if (!entry.name.endsWith(".md")) continue;
 		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
 		const filePath = path.join(dir, entry.name);

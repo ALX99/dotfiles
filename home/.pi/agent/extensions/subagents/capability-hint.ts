@@ -92,12 +92,11 @@ export function buildCapabilityHint(input: CapabilityHintInput): string | undefi
 		if (child < parentRank) verdict = "weaker";
 	}
 	const prefix = `Live subagent models: ${mapping}; you are running ${current}.`;
-	switch (verdict) {
-		case "weaker":
-			return `${prefix} Use spawn_agent for well-scoped mechanical execution, and keep debugging, design decisions, and multi-step reasoning in your own context whenever the child's resolved model is weaker.`;
-		case "stronger":
-			return `${prefix} Children run models at least as capable as yours, so delegating demanding work via spawn_agent is safe; mind the added cost.`;
-		case "neutral":
-			return `${prefix} Match task difficulty to each child's resolved model before delegating reasoning-heavy work via spawn_agent.`;
-	}
+	const advice =
+		verdict === "weaker"
+			? "Use spawn_agent for well-scoped mechanical execution, and keep debugging, design decisions, and multi-step reasoning in your own context whenever the child's resolved model is weaker."
+			: verdict === "stronger"
+				? "Children run models at least as capable as yours, so delegating demanding work via spawn_agent is safe; mind the added cost."
+				: "Match task difficulty to each child's resolved model before delegating reasoning-heavy work via spawn_agent.";
+	return `${prefix} ${advice}`;
 }

@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { APPLY_PATCH_TOOL_NAME } from "./codex-apply-patch/types.ts";
+import { isRecord } from "./_shared/json.ts";
 
 /**
  * Pi only loads context files at startup from the global agent dir and the
@@ -49,11 +50,13 @@ export function patchTargetPaths(patch: string): string[] {
 /** Absolute paths a tool call will touch. Unrecognized tools contribute nothing. */
 export function toolCallTargetPaths(toolName: string, input: unknown, cwd: string): string[] {
 	if (toolName === "read" || toolName === "edit" || toolName === "write") {
-		const path = (input as { path?: unknown }).path;
+		if (!isRecord(input)) return [];
+		const path = input.path;
 		return typeof path === "string" ? [resolveAgainstCwd(path, cwd)] : [];
 	}
 	if (toolName === APPLY_PATCH_TOOL_NAME) {
-		const patch = (input as { patch?: unknown }).patch;
+		if (!isRecord(input)) return [];
+		const patch = input.patch;
 		return typeof patch === "string" ? patchTargetPaths(patch).map((path) => resolveAgainstCwd(path, cwd)) : [];
 	}
 	return [];
@@ -108,9 +111,10 @@ export function injectedContextPaths(entries: readonly SessionEntry[]): string[]
 	const paths: string[] = [];
 	for (const entry of entries) {
 		if (entry.type !== "custom_message" || entry.customType !== NESTED_CONTEXT_MESSAGE_TYPE) continue;
-		const details = entry.details as { paths?: unknown } | undefined;
-		if (!Array.isArray(details?.paths)) continue;
-		for (const path of details.paths) {
+		if (!isRecord(entry.details)) continue;
+		const recorded = entry.details.paths;
+		if (!Array.isArray(recorded)) continue;
+		for (const path of recorded) {
 			if (typeof path === "string") paths.push(path);
 		}
 	}
@@ -149,8 +153,9 @@ export default function nestedContext(pi: ExtensionAPI): void {
 	});
 
 	pi.registerMessageRenderer(NESTED_CONTEXT_MESSAGE_TYPE, (message, options, theme) => {
-		const details = message.details as { paths?: readonly string[] } | undefined;
-		const summary = details?.paths?.join(", ") ?? "";
+		const details = isRecord(message.details) ? message.details : undefined;
+		const recorded = details?.paths;
+		const summary = Array.isArray(recorded) ? recorded.join(", ") : "";
 		return new Text(theme.fg("dim", `nested context: ${summary}`), options.outputPad, 0);
 	});
 }

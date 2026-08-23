@@ -51,8 +51,8 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	});
 	pi.on("agent_settled", () => runtime.flushCompletions(pi));
 	pi.on("before_agent_start", (event, ctx) => {
-		if (!toolActivation.enabled || !ctx.model) return;
-		if (!event.systemPromptOptions?.selectedTools?.includes("spawn_agent")) return;
+		if (!toolActivation.enabled || !ctx.model) return undefined;
+		if (!event.systemPromptOptions?.selectedTools?.includes("spawn_agent")) return undefined;
 		// An empty scope means every authenticated model is usable, mirroring resolveRun.
 		const scopedModels = ctx.scopedModels;
 		const hint = buildCapabilityHint({

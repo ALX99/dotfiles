@@ -46,12 +46,18 @@ function quoteShellArgument(value: string): string {
 	return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
+function errnoCode(error: unknown): string | undefined {
+	if (!(error instanceof Error) || !("code" in error)) return undefined;
+	const { code } = error;
+	return typeof code === "string" ? code : undefined;
+}
+
 function defaultGroupExists(pid: number): boolean {
 	try {
 		process.kill(process.platform === "win32" ? pid : -pid, 0);
 		return true;
 	} catch (error) {
-		return (error as NodeJS.ErrnoException).code === "EPERM";
+		return errnoCode(error) === "EPERM";
 	}
 }
 
@@ -60,7 +66,7 @@ function defaultProcessExists(pid: number): boolean {
 		process.kill(pid, 0);
 		return true;
 	} catch (error) {
-		return (error as NodeJS.ErrnoException).code === "EPERM";
+		return errnoCode(error) === "EPERM";
 	}
 }
 
@@ -88,7 +94,7 @@ async function readPid(marker: string): Promise<number | undefined> {
 	try {
 		return parsePid(await fsp.readFile(marker, "utf8"));
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+		if (errnoCode(error) === "ENOENT") return undefined;
 		throw error;
 	}
 }
@@ -199,7 +205,7 @@ export class ProcessReaper {
 		try {
 			await fsp.rmdir(path.join(this.state.rootDir, hash(ownerId)));
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = errnoCode(error);
 			if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
 		}
 		await this.removeRootIfEmpty();
@@ -209,7 +215,7 @@ export class ProcessReaper {
 		try {
 			await fsp.rmdir(this.state.rootDir);
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = errnoCode(error);
 			if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
 		}
 	}
@@ -226,7 +232,7 @@ export function getProcessReaper(): ProcessReaper {
 	return new ProcessReaper({}, state);
 }
 
-export function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): void {
+function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): void {
 	pi.on("tool_call", (event, ctx) => {
 		if (!isToolCallEventType("bash", event)) return;
 		const ownerId = ctx.sessionManager.getSessionId();

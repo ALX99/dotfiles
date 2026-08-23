@@ -101,8 +101,9 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 	const { version, generation, resultId, sessionId, sessionFile, resultEntryId, resultSha256 } = value;
 	if (
 		version !== 2 ||
+		typeof generation !== "number" ||
 		!Number.isSafeInteger(generation) ||
-		(generation as number) < 1 ||
+		generation < 1 ||
 		typeof resultId !== "string" ||
 		!RESULT_ID_PATTERN.test(resultId) ||
 		typeof sessionId !== "string" ||
@@ -117,7 +118,7 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 	}
 	return Object.freeze({
 		version,
-		generation: generation as number,
+		generation,
 		resultId,
 		sessionId,
 		sessionFile,

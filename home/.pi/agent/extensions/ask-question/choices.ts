@@ -153,7 +153,7 @@ export function toggleOptionSelection(
 	if (selectedIndices.includes(currentIndex)) {
 		return selectedIndices.filter((index) => index !== currentIndex);
 	}
-	return [...selectedIndices, currentIndex].sort((left, right) => left - right);
+	return [...selectedIndices, currentIndex].toSorted((left, right) => left - right);
 }
 
 export function getSubmittedChoices(
@@ -166,7 +166,7 @@ export function getSubmittedChoices(
 
 	const submittedIndices = selectedIndices.length === 0 ? [currentIndex] : selectedIndices;
 	return [...submittedIndices]
-		.sort((left, right) => left - right)
+		.toSorted((left, right) => left - right)
 		.map((index) => options[index])
 		.filter((option): option is QuestionOption => option?.kind === "alternative");
 }

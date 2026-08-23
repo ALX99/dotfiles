@@ -59,22 +59,17 @@ export class AgentWaitInterruptedError extends Error {
 }
 
 export function lifecycleStatus(lifecycle: { readonly phase: AgentPhase }): AgentStatus {
-	switch (lifecycle.phase) {
-		case "created":
-		case "starting":
-			return "starting";
-		case "running":
-			return "running";
-		case "idle":
-			return "idle";
-		case "failed":
-			return "failed";
-		case "aborted":
-			return "aborted";
-		case "closing":
-		case "closed":
-			return "closed";
-	}
+	const LIFECYCLE_STATUS = {
+		created: "starting",
+		starting: "starting",
+		running: "running",
+		idle: "idle",
+		failed: "failed",
+		aborted: "aborted",
+		closing: "closed",
+		closed: "closed",
+	} as const satisfies Record<AgentPhase, AgentStatus>;
+	return LIFECYCLE_STATUS[lifecycle.phase];
 }
 
 export class CleanupAggregateError extends AggregateError {

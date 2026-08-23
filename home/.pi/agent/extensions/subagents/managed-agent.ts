@@ -344,9 +344,9 @@ export class ManagedAgent {
 					};
 					generation.question = {
 						question,
-						resolve: (answer) => {
+						resolve: (resolvedAnswer) => {
 							cleanup();
-							resolve(answer);
+							resolve(resolvedAnswer);
 						},
 						reject: (error) => {
 							cleanup();

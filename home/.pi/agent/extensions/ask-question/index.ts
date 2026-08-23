@@ -44,7 +44,7 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 						const options = makeQuestionOptions(question.alternatives);
 						const optionsText = options.map((option) => sanitizeTerminalText(option.label)).join(", ");
 						return (
-							`${index === 0 ? theme.fg("toolTitle", theme.bold("ask_question ")) : "             "}` +
+							(index === 0 ? theme.fg("toolTitle", theme.bold("ask_question ")) : "             ") +
 							theme.fg("muted", sanitizeTerminalText(question.question)) +
 							`\n${theme.fg("dim", `  Options: ${optionsText}`)}`
 						);

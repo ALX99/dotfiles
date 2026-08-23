@@ -260,6 +260,8 @@ export function renderThinkingWaveBorder(width: number, position: number, theme:
 
 /* ─── footer ─── */
 
+const requestRenderNoop = (): void => {};
+
 export default function (pi: ExtensionAPI) {
 	let requestRender: (() => void) | undefined;
 
@@ -280,7 +282,7 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 	let agentActive = false;
 	let wavePosition = 0;
 	let waveTimer: ReturnType<typeof setInterval> | undefined;
-	let requestRender = () => {};
+	let requestRender: () => void = requestRenderNoop;
 
 	const startAgentActivity = () => {
 		if (agentActive) return;

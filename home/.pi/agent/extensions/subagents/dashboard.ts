@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { toError } from "../_shared/errors.ts";
+import { isRecord } from "../_shared/json.ts";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import type { AgentRegistry } from "./agent-registry.ts";
 import { isAgentActive, type AgentSummary } from "./agent-types.ts";
@@ -104,13 +105,18 @@ async function inspectOutput(ctx: ExtensionCommandContext, registry: AgentRegist
 
 async function inspectTranscript(ctx: ExtensionCommandContext, registry: AgentRegistry, id: string): Promise<void> {
 	const messages = await registry.readTranscript(id);
-	const text = messages
-		.map((message) => {
-			const record = message as { role?: string; content?: Array<{ type?: string; text?: string }> };
-			return `${record.role ?? "message"}: ${(record.content ?? []).flatMap((part) => (part.type === "text" ? [part.text ?? ""] : [])).join("\n")}`;
-		})
-		.join("\n\n");
+	const text = messages.map(transcriptLine).join("\n\n");
 	await displayText(ctx, `${id} transcript`, text || "(no transcript)");
+}
+
+function transcriptLine(message: unknown): string {
+	if (!isRecord(message)) return "message:";
+	const role = typeof message.role === "string" ? message.role : "message";
+	const content = Array.isArray(message.content) ? message.content : [];
+	const body = content
+		.flatMap((part) => (isRecord(part) && part.type === "text" && typeof part.text === "string" ? [part.text] : []))
+		.join("\n");
+	return `${role}: ${body}`;
 }
 
 async function displayText(ctx: ExtensionCommandContext, title: string, text: string): Promise<void> {

@@ -1,7 +1,8 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"categories": {
-		"correctness": "error"
+		"correctness": "error",
+		"suspicious": "error"
 	},
 	"rules": {
 		"typescript/no-floating-promises": "error",
@@ -12,7 +13,11 @@
 		{
 			"files": ["**/tests/**"],
 			"rules": {
-				"typescript/no-floating-promises": "off"
+				"typescript/no-floating-promises": "off",
+				"typescript/no-unsafe-type-assertion": "off",
+				"typescript/no-unnecessary-type-assertion": "off",
+				"typescript/no-unnecessary-type-conversion": "off",
+				"unicorn/consistent-function-scoping": "off"
 			}
 		}
 	],
