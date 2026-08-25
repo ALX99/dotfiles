@@ -33,6 +33,7 @@ The user may have provided a description when invoking this skill. Use it; other
 - Push with `git push -u origin HEAD`.
 - Create a draft PR targeting the **default branch** with `gh pr create --draft --base <default> --title "..." --body "..."`. Use a HEREDOC for the body.
 - Always target the default branch unless the user explicitly specifies a different base.
+- When updating an existing PR, always keep its title and description in sync with the current changes. Update both together whenever the scope, behavior, or implementation changes; never leave one stale.
 
 ### Title
 
