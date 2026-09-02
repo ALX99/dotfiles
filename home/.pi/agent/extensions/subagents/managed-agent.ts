@@ -41,6 +41,14 @@ import {
 	type MutableRunData,
 	type ReadonlyRunDetails,
 } from "./run-state.ts";
+import {
+	routeAgentTurnInput,
+	type AgentTurnInput,
+	type AnswerTurnInput,
+	type FollowUpTurnInput,
+	type StartTurnInput,
+	type SteerTurnInput,
+} from "./turn-routing.ts";
 
 let nextAgentId = 1;
 
@@ -139,7 +147,43 @@ export class ManagedAgent {
 		background: boolean,
 		signal?: AbortSignal,
 	): Promise<ReadonlyRunDetails> {
-		if (this.phaseState !== "created") throw new Error("Subagent already started.");
+		return this.submit({ kind: "start", message, handoff, taskName, background, signal });
+	}
+
+	async followUp(
+		message: string,
+		taskName: string,
+		background: boolean,
+		signal?: AbortSignal,
+	): Promise<ReadonlyRunDetails> {
+		return this.submit({ kind: "follow_up", message, taskName, background, signal });
+	}
+
+	async steer(message: string): Promise<void> {
+		await this.submit({ kind: "steer", message });
+	}
+
+	async answerQuestion(questionId: string, answer: string): Promise<void> {
+		await this.submit({ kind: "answer", questionId, answer });
+	}
+
+	private submit(input: StartTurnInput | FollowUpTurnInput): Promise<ReadonlyRunDetails>;
+	private submit(input: SteerTurnInput | AnswerTurnInput): Promise<void>;
+	private async submit(input: AgentTurnInput): Promise<ReadonlyRunDetails | void> {
+		const route = routeAgentTurnInput(this.turnRoutingState(), input);
+		switch (route.action) {
+			case "open_and_launch":
+				return this.openAndLaunch(route.input);
+			case "launch":
+				return this.launch(route.input.message, route.input.taskName, route.input.background, route.input.signal);
+			case "steer":
+				return this.steerActiveTurn(route.input);
+			case "answer":
+				return this.answerPendingQuestion(route.input);
+		}
+	}
+
+	private async openAndLaunch(input: StartTurnInput): Promise<ReadonlyRunDetails> {
 		this.phaseState = "starting";
 		this.emit();
 		try {
@@ -155,46 +199,33 @@ export class ManagedAgent {
 			}
 			throw cause;
 		}
-		return this.launch(buildInitialTask(message, handoff), taskName, background, signal);
+		return this.launch(buildInitialTask(input.message, input.handoff), input.taskName, input.background, input.signal);
 	}
 
-	async followUp(
-		message: string,
-		taskName: string,
-		background: boolean,
-		signal?: AbortSignal,
-	): Promise<ReadonlyRunDetails> {
-		if (!this.options.retain)
-			throw new Error(`Agent ${this.id} is one-shot. Spawn with retain:true before using followup_agent.`);
-		if (this.phaseState === "closed" || this.phaseState === "closing") throw new Error(`Agent ${this.id} is closed.`);
-		if (this.current?.question) {
-			throw new Error(
-				`Agent ${this.id} is waiting for '${this.current.question.question.question_id}'; use answer_agent.`,
-			);
-		}
-		if (this.phaseState === "starting" || this.phaseState === "running") {
-			throw new Error(`Agent ${this.id} is still running; use send_agent or wait_agent before a follow-up.`);
-		}
-		return this.launch(message, taskName, background, signal);
+	private async steerActiveTurn(input: SteerTurnInput): Promise<void> {
+		const session = this.session;
+		if (!session) throw new Error(`Agent ${this.id} lost its running session.`);
+		await session.steer(input.message);
 	}
 
-	async steer(message: string): Promise<void> {
-		if (!this.session || (this.phaseState !== "starting" && this.phaseState !== "running")) {
-			throw new Error(`Agent ${this.id} is not running.`);
-		}
-		if (this.current?.question) throw new Error(`Agent ${this.id} is waiting for input; use answer_agent.`);
-		await this.session.steer(message);
-	}
-
-	async answerQuestion(questionId: string, answer: string): Promise<void> {
+	private answerPendingQuestion(input: AnswerTurnInput): void {
 		const pending = this.current?.question;
-		if (!pending || pending.question.question_id !== questionId) {
-			throw new Error(`Agent ${this.id} has no pending question '${questionId}'.`);
-		}
+		if (!pending || pending.question.question_id !== input.questionId)
+			throw new Error(`Agent ${this.id} lost its pending question.`);
 		delete this.current!.question;
 		this.current!.questionArrival = Promise.withResolvers<void>();
-		pending.resolve(answer);
+		pending.resolve(input.answer);
 		this.emit();
+	}
+
+	private turnRoutingState() {
+		return {
+			agentId: this.id,
+			phase: this.phaseState,
+			retained: this.options.retain,
+			hasSession: this.session !== undefined,
+			pendingQuestionId: this.current?.question?.question.question_id,
+		};
 	}
 
 	async wait(signal?: AbortSignal): Promise<ReadonlyRunDetails> {
