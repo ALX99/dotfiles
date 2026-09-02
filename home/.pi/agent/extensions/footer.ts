@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import { sanitizeTerminalText } from "./_shared/terminal-text.ts";
 import { registerAgentActivity } from "./_shared/agent-activity.ts";
+import { getProcessReaper } from "./process-reaper/index.ts";
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -205,6 +206,12 @@ export function renderContextPercentage(usage: ContextUsage, theme: FooterTheme)
 	return colorizeRgb(`${Math.round(usage.percent)}%`, contextGradientColor(normalizedPercent), theme);
 }
 
+/** Shows the process groups that process-reaper currently retains for cleanup. */
+export function renderBackgroundProcessCount(backgroundGroups: number, theme: FooterTheme): string {
+	if (backgroundGroups <= 0) return "";
+	return theme.fg("dim", `bg:${backgroundGroups}`);
+}
+
 /**
  * Draws a full-width editor border that fills from left to right as context
  * grows through a smooth green → yellow → orange → red ramp. The footer
@@ -350,17 +357,27 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 
 function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	let requestRender: (() => void) | undefined;
+	const processReaper = getProcessReaper();
 
 	pi.on("turn_end", () => {
 		requestRender?.();
 	});
 
 	ctx.ui.setFooter((tui, theme, footerData) => {
-		requestRender = () => tui.requestRender();
-		const unsubBranch = footerData.onBranchChange(requestRender);
+		const footerRequestRender = () => tui.requestRender();
+		requestRender = footerRequestRender;
+		let backgroundGroups = 0;
+		const unsubBranch = footerData.onBranchChange(footerRequestRender);
+		const unsubProcessReaper = processReaper.onBackgroundGroupChange((count) => {
+			backgroundGroups = count;
+			footerRequestRender();
+		});
 
 		return {
-			dispose: unsubBranch,
+			dispose: () => {
+				unsubBranch();
+				unsubProcessReaper();
+			},
 			invalidate() {},
 			render(width: number): string[] {
 				/* left: cwd, branch, model/thinking */
@@ -371,6 +388,9 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 				if (branchName) {
 					leftParts.push(theme.fg("dim", "git:") + theme.fg("accent", sanitizeTerminalText(branchName)));
 				}
+
+				const processCount = renderBackgroundProcessCount(backgroundGroups, theme);
+				if (processCount) leftParts.push(processCount);
 
 				const model = ctx.model;
 				if (model) {

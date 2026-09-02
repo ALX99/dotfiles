@@ -17,9 +17,12 @@ interface OwnerProcesses {
 	readonly groups: Set<number>;
 }
 
+type BackgroundGroupCountListener = (backgroundGroups: number) => void;
+
 interface ProcessReaperState {
 	readonly rootDir: string;
 	readonly owners: Map<string, OwnerProcesses>;
+	readonly listeners: Set<BackgroundGroupCountListener>;
 }
 
 interface ProcessReaperGlobal {
@@ -148,17 +151,20 @@ export class ProcessReaper {
 		const owner = this.state.owners.get(ownerId);
 		const marker = owner?.markers.get(toolCallId);
 		if (owner === undefined || marker === undefined) return;
+		const previousBackgroundGroups = this.backgroundGroupCount();
 
 		const pid = await readPid(marker);
 		owner.markers.delete(toolCallId);
 		if (pid !== undefined && this.groupExists(pid)) owner.groups.add(pid);
 		await fsp.rm(marker, { force: true });
 		await this.removeOwnerIfEmpty(ownerId, owner);
+		this.notifyBackgroundGroupChange(previousBackgroundGroups);
 	}
 
 	async terminateOwner(ownerId: string): Promise<void> {
 		const owner = this.state.owners.get(ownerId);
 		if (owner === undefined) return;
+		const previousBackgroundGroups = this.backgroundGroupCount();
 
 		// A settled Bash shell has exited. A process now using its PID belongs
 		// to a later process group and must not be signalled.
@@ -184,6 +190,15 @@ export class ProcessReaper {
 		this.state.owners.delete(ownerId);
 		await fsp.rm(path.join(this.state.rootDir, hash(ownerId)), { recursive: true, force: true });
 		await this.removeRootIfEmpty();
+		this.notifyBackgroundGroupChange(previousBackgroundGroups);
+	}
+
+	/** Subscribe to background-group count changes. The current count is emitted immediately. */
+	onBackgroundGroupChange(listener: BackgroundGroupCountListener): () => void {
+		const listeners = getListeners(this.state);
+		listeners.add(listener);
+		listener(this.backgroundGroupCount());
+		return () => listeners.delete(listener);
 	}
 
 	private owner(ownerId: string): OwnerProcesses {
@@ -222,10 +237,29 @@ export class ProcessReaper {
 			if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
 		}
 	}
+
+	private backgroundGroupCount(): number {
+		let count = 0;
+		for (const owner of this.state.owners.values()) count += owner.groups.size;
+		return count;
+	}
+
+	private notifyBackgroundGroupChange(previousBackgroundGroups: number): void {
+		const backgroundGroups = this.backgroundGroupCount();
+		if (backgroundGroups === previousBackgroundGroups) return;
+		for (const listener of getListeners(this.state)) listener(backgroundGroups);
+	}
 }
 
 function createState(rootDir: string): ProcessReaperState {
-	return { rootDir, owners: new Map() };
+	return { rootDir, owners: new Map(), listeners: new Set() };
+}
+
+function getListeners(state: ProcessReaperState): Set<BackgroundGroupCountListener> {
+	if (state.listeners) return state.listeners;
+	const listeners = new Set<BackgroundGroupCountListener>();
+	Object.defineProperty(state, "listeners", { configurable: true, enumerable: true, value: listeners, writable: true });
+	return listeners;
 }
 
 export function getProcessReaper(): ProcessReaper {

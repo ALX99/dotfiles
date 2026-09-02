@@ -73,6 +73,37 @@ test("shares owner state across in-process extension instances", async () => {
 	assert.equal(await pathExists(marker), false);
 });
 
+test("publishes retained background-group count changes", async (t) => {
+	const live = new Set([4321]);
+	const reaper = new ProcessReaper({
+		rootDir: await temporaryRoot(t),
+		groupExists: (pid) => live.has(pid),
+		processExists: () => false,
+		signalGroup: (_pid, signal) => {
+			if (signal === "SIGKILL") live.clear();
+		},
+		sleep: async () => {},
+	});
+	const counts: number[] = [];
+	const unsubscribe = reaper.onBackgroundGroupChange((count) => counts.push(count));
+
+	assert.equal(counts.at(-1), 0);
+	const initialCountEvents = counts.length;
+	reaper.prepareCommand("session", "call", "sleep 30 &");
+	assert.equal(counts.length, initialCountEvents);
+	await fs.writeFile(reaper.markerPath("session", "call"), "4321\n", "utf8");
+	await reaper.finishCommand("session", "call");
+	assert.equal(counts.at(-1), 1);
+
+	await reaper.terminateOwner("session");
+	assert.equal(counts.at(-1), 0);
+	const countEvents = counts.length;
+	unsubscribe();
+	reaper.prepareCommand("session", "after-unsubscribe", "true");
+	assert.equal(counts.length, countEvents);
+	await reaper.terminateOwner("session");
+});
+
 test("terminates only the requested owner's process groups", async (t) => {
 	const signals: Array<readonly [number, "SIGTERM" | "SIGKILL"]> = [];
 	const live = new Set([4321, 9876]);

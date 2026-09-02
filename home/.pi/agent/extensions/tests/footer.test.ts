@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
 	buildFooterViewModel,
 	contextGradientColor,
+	renderBackgroundProcessCount,
 	renderContextBorder,
 	renderContextPercentage,
 	renderThinkingWaveBorder,
@@ -37,6 +38,11 @@ test("renderContextPercentage renders only the percentage above the context wind
 
 test("renderContextPercentage renders negative percentages", () => {
 	assert.equal(stripAnsi(renderContextPercentage({ tokens: 0, percent: -5 }, renderTheme)), "-5%");
+});
+
+test("renderBackgroundProcessCount only shows retained background groups", () => {
+	assert.equal(renderBackgroundProcessCount(0, renderTheme), "");
+	assert.equal(stripAnsi(renderBackgroundProcessCount(3, renderTheme)), "bg:3");
 });
 
 test("contextGradientColor interpolates through green, yellow, orange, and red", () => {
