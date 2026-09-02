@@ -157,6 +157,22 @@ export function snapshotRunData(details: MutableRunData, state: RunSnapshotState
 /** Fold bounded presentation data from the native session event stream. */
 export function foldSessionEvent(event: AgentSessionEvent, details: MutableRunData): void {
 	details.lastActivityTime = Date.now();
+	if (event.type === "compaction_end") {
+		details.contextUsage = { tokens: null, contextWindow: details.contextUsage.contextWindow, percent: null };
+		if (event.errorMessage) {
+			const error = retainedText(event.errorMessage, MAX_ACTIVITY_CHARACTERS);
+			details.error = error;
+			details.lastMessage = error;
+		} else if (event.aborted) {
+			const error = "Context compaction was aborted.";
+			details.error = error;
+			details.lastMessage = error;
+		} else {
+			delete details.error;
+			details.lastMessage = `Context compacted (${event.reason}).`;
+		}
+		return;
+	}
 	if (event.type === "tool_execution_start") {
 		details.toolCount++;
 		details.recentTools.push({

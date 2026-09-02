@@ -33,7 +33,10 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 				pi.setThinkingLevel(scoped?.thinkingLevel ?? shortcut.thinkingLevel);
 
 				if (ctx.hasUI) {
-					ctx.ui.notify(`Switched to ${shortcut.provider}/${shortcut.model}`, "info");
+					ctx.ui.notify(
+						`Switched to ${shortcut.provider}/${shortcut.model} (${pi.getThinkingLevel()} thinking)`,
+						"info",
+					);
 				}
 			},
 		});

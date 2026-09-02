@@ -6,7 +6,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test, type TestContext } from "node:test";
-import { getProcessReaper, ProcessReaper, registerProcessReaper } from "../index.ts";
+import registerProcessReaper, { getProcessReaper, ProcessReaper } from "../index.ts";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
 	const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "process-reaper-test-"));

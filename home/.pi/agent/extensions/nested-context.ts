@@ -148,7 +148,7 @@ export default function nestedContext(pi: ExtensionAPI): void {
 				display: true,
 				details: { paths: discovered.map((file) => file.path) },
 			},
-			{ deliverAs: "steer" },
+			{ deliverAs: "steer", triggerTurn: false },
 		);
 	});
 

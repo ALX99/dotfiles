@@ -16,6 +16,7 @@ interface Shortcut {
 function registerShortcuts(
 	setModel: (model: unknown) => Promise<boolean>,
 	setThinkingLevel: (level: "medium" | "high" | "max") => void = () => {},
+	getThinkingLevel: () => string = () => "max",
 ): Map<string, Shortcut> {
 	const shortcuts = new Map<string, Shortcut>();
 	modelShortcuts({
@@ -24,6 +25,7 @@ function registerShortcuts(
 		},
 		setModel,
 		setThinkingLevel,
+		getThinkingLevel,
 	} as unknown as ExtensionAPI);
 	return shortcuts;
 }
@@ -60,6 +62,7 @@ test("registered shortcut switches to its configured model and notifies the user
 		notifications.map(({ level }) => level),
 		["info"],
 	);
+	assert.match(notifications[0]!.message, /max thinking/u);
 });
 
 test("registered shortcut reports unavailable models without attempting a switch", async () => {

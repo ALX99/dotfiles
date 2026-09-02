@@ -15,6 +15,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import { sanitizeTerminalText } from "./_shared/terminal-text.ts";
+import { registerAgentActivity } from "./_shared/agent-activity.ts";
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -304,8 +305,10 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 		requestRender();
 	};
 
-	pi.on("agent_start", startAgentActivity);
-	pi.on("agent_settled", stopAgentActivity);
+	registerAgentActivity(pi, {
+		settleEvent: "agent_settled",
+		onActiveChange: (active) => (active ? startAgentActivity() : stopAgentActivity()),
+	});
 	pi.on("session_shutdown", () => {
 		stopAgentActivity();
 		ctx.ui.setWorkingVisible(true);

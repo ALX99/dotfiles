@@ -72,10 +72,13 @@ function defaultProcessExists(pid: number): boolean {
 
 function defaultSignalGroup(pid: number, signal: ProcessSignal): void {
 	if (process.platform === "win32") {
-		spawn("taskkill", ["/T", "/F", "/PID", String(pid)], {
+		const child = spawn("taskkill", ["/T", "/F", "/PID", String(pid)], {
 			stdio: "ignore",
 			windowsHide: true,
 		});
+		// A process can exit between the existence check and taskkill. Consume
+		// the resulting asynchronous spawn error just like POSIX signal races.
+		child.once("error", () => {});
 		return;
 	}
 	process.kill(-pid, signal);

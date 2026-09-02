@@ -28,7 +28,7 @@ Within Pi extensions, session snapshots are authoritative for branch-local plan 
 
 ## Critical Constraints
 
-Keep tracked links as links: `CLAUDE.md` targets this file, `home/.bash_profile` targets `.profile`, and the Claude/Codex instruction links lead to `home/.pi/agent/APPEND_SYSTEM.md`. Extensions require Node 26+, pnpm, tabs, and `oxfmt`; Pi, Pi AI, and Pi TUI are pinned to `0.84.2`. Keep the package manifest, lockfile, workspace policy, and `codex-apply-patch` grammar synchronized when upgrading those packages. That extension uses Pi's native grammar-tool support and replaces Pi's edit/write tools only for the `openai-codex` provider. Subagent children are one-shot leaves by default; retained children are the follow-up path. Colemak-DH navigation is coordinated across Nvim, tmux, Sail, keyd, Karabiner, Ghostty, and readline.
+Keep tracked links as links: `CLAUDE.md` targets this file, `home/.bash_profile` targets `.profile`, and the Claude/Codex instruction links lead to `home/.pi/agent/APPEND_SYSTEM.md`. Extensions require Node 26+, pnpm, tabs, and `oxfmt`; Pi, Pi AI, and Pi TUI are pinned to `0.84.4`. Keep the package manifest, lockfile, workspace policy, and `codex-apply-patch` grammar synchronized when upgrading those packages. That extension uses Pi's native grammar-tool support and replaces Pi's edit/write tools only for the `openai-codex` provider. Subagent children are one-shot leaves by default; retained children are the follow-up path. Colemak-DH navigation is coordinated across Nvim, tmux, Sail, keyd, Karabiner, Ghostty, and readline.
 
 ## Maintenance
 

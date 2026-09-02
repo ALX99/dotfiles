@@ -8,6 +8,7 @@
 
 import { spawn } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { registerAgentActivity } from "./_shared/agent-activity.ts";
 import { toError } from "./_shared/errors.ts";
 
 type CaffeinateProcess = {
@@ -69,11 +70,10 @@ export default function caffeinate(pi: ExtensionAPI): void {
 		process.emitWarning(error, { type: "CaffeinateError" }),
 	);
 
-	// Start caffeinate when the agent begins processing a user prompt.
-	pi.on("agent_start", () => controller.start());
-
-	// Stop caffeinate when the agent finishes.
-	pi.on("agent_end", () => controller.stop());
+	registerAgentActivity(pi, {
+		settleEvent: "agent_end",
+		onActiveChange: (active) => (active ? controller.start() : controller.stop()),
+	});
 
 	// Safety net: clean up on session shutdown (quit, reload, switch, fork).
 	pi.on("session_shutdown", () => controller.stop());

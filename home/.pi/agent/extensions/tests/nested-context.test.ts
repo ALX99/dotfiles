@@ -29,6 +29,7 @@ function writeTree(root: string, files: Record<string, string>): void {
 interface SentMessage {
 	content: string;
 	details?: unknown;
+	options?: { deliverAs?: "steer" | "followUp" | "nextTurn"; triggerTurn?: boolean };
 }
 
 interface ToolCallEvent {
@@ -63,8 +64,8 @@ function loadExtension(): ExtensionHarness {
 		on(name: string, handler: never) {
 			harness.handlers.set(name, handler);
 		},
-		sendMessage(message: SentMessage) {
-			harness.sent.push(message);
+		sendMessage(message: SentMessage, options?: SentMessage["options"]) {
+			harness.sent.push({ ...message, ...(options === undefined ? {} : { options }) });
 		},
 		registerMessageRenderer() {},
 	} as unknown as ExtensionAPI);
@@ -168,6 +169,7 @@ test("injects discovered context once per path and steers it into the conversati
 	const message = harness.sent[0]!;
 	assert.equal(message.details && (message.details as { paths: string[] }).paths[0], join(root, "A/B/AGENTS.md"));
 	assert.match(message.content, /rules for B/);
+	assert.deepEqual(message.options, { deliverAs: "steer", triggerTurn: false });
 
 	// Same subtree again: cached, no duplicate injection.
 	await harness.fireToolCall({ toolName: "read", toolCallId: "t2", input: { path: join(root, "A/other.ts") } }, root);
