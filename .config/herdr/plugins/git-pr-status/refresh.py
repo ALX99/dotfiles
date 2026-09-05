@@ -38,7 +38,6 @@ class Workspace:
     label: str
     repo: Path | None
     branch: str | None
-    linked_worktree: bool
 
 
 @dataclass(frozen=True)
@@ -56,17 +55,9 @@ def github_binary() -> str:
 
 def workspace_record(ref: WorkspaceRef) -> Workspace:
     """Resolve the linked worktree checkout and its current branch."""
-    worktree = ref.worktree or {}
-    linked_worktree = worktree.get("is_linked_worktree") is True
-
-    repo: Path | None = None
-    if linked_worktree:
-        checkout_path = worktree.get("checkout_path")
-        if isinstance(checkout_path, str) and checkout_path:
-            repo = git_repo(Path(checkout_path))
-
+    repo = git_repo(ref.checkout_path) if ref.linked_worktree else None
     branch = git_text(repo, ["branch", "--show-current"]) if repo else None
-    return Workspace(ref.workspace_id, ref.label, repo, branch, linked_worktree)
+    return Workspace(ref.workspace_id, ref.label, repo, branch)
 
 
 def pull_requests(workspace: Workspace) -> list[PullRequest]:
@@ -201,20 +192,14 @@ def refresh_workspace(workspace: Workspace) -> tuple[bool, str | None]:
     Only workspaces with a real PR lookup count as checked; workspaces
     outside Git worktrees just get their stale tokens cleared.
     """
-    if not workspace.linked_worktree or workspace.repo is None or workspace.branch is None:
-        try:
-            report_status(workspace, None, None)
-        except (PluginError, OSError) as error:
-            return False, f"{workspace.label}: {error}"
-        return False, None
-
+    checked = workspace.repo is not None and workspace.branch is not None
     try:
-        request = latest_pull_request(pull_requests(workspace))
+        request = latest_pull_request(pull_requests(workspace)) if checked else None
         token, value = status_token(request)
         report_status(workspace, token, value)
     except (PluginError, OSError) as error:
         return False, f"{workspace.label}: {error}"
-    return True, None
+    return checked, None
 
 
 def refresh(workspaces: Sequence[Workspace], *, notify_user: bool) -> int:

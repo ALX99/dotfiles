@@ -5,8 +5,8 @@
 # Usage: __cached_integration <name> <tool-path> [command args...]
 #
 # The entry is invalidated when the tool binary is newer than the cached
-# script (upgrade or reinstall). Generation failures leave an existing cache
-# entry untouched.
+# script (upgrade or reinstall). Publish only complete, valid scripts. Each
+# shell owns its temporary file so concurrent startups cannot clobber it.
 
 __cached_integration() {
   local name=$1
@@ -17,9 +17,15 @@ __cached_integration() {
   script="$cache_dir/$name.sh"
 
   if [[ ! -s $script || $1 -nt $script ]]; then
-    mkdir -p "$cache_dir"
-    "$@" > "$cache_dir/$name.tmp" &&
-      mv "$cache_dir/$name.tmp" "$script"
+    (
+      mkdir -p "$cache_dir" || exit
+      temporary=$(mktemp "$cache_dir/$name.XXXXXX") || exit
+      trap 'rm -f "$temporary"' EXIT
+      "$@" > "$temporary" &&
+        [[ -s $temporary ]] &&
+        bash -n "$temporary" &&
+        mv "$temporary" "$script"
+    )
   fi
 
   # shellcheck disable=SC1090

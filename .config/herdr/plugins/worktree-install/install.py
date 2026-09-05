@@ -27,8 +27,8 @@ sys.path.insert(0, str(_SHARED))
 
 from herdrlib import (  # noqa: E402
     PluginError,
-    herdr_json,
     notify,
+    workspace_get,
     workspace_id_from_context,
 )
 
@@ -234,20 +234,11 @@ def current_checkout() -> tuple[str, Path] | None:
     if not workspace_id:
         return None
 
-    info = herdr_json(["workspace", "get", workspace_id]).get("workspace", {})
-    if not isinstance(info, dict):
-        raise PluginError(f"workspace {workspace_id} was not found")
-
-    worktree = info.get("worktree")
-    if not isinstance(worktree, dict) or worktree.get("is_linked_worktree") is not True:
+    ref = workspace_get(workspace_id)
+    path = ref.checkout_path
+    if not ref.linked_worktree or path is None or not path.is_dir():
         return None
-
-    label = str(info.get("label") or workspace_id)
-    checkout_path = worktree.get("checkout_path")
-    if not isinstance(checkout_path, str):
-        return None
-    path = Path(checkout_path)
-    return (label, path) if path.is_dir() else None
+    return ref.label, path
 
 
 def install_in_workspace(*, force: bool) -> int:

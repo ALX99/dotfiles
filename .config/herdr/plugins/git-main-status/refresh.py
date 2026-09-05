@@ -69,10 +69,7 @@ def workspace_record(ref: WorkspaceRef) -> Workspace:
     the panes' current directories are probed for a repository.
     """
     try:
-        repo: Path | None = None
-        checkout_path = ref.worktree.get("checkout_path") if ref.worktree else None
-        if isinstance(checkout_path, str) and checkout_path:
-            repo = git_repo(Path(checkout_path))
+        repo = git_repo(ref.checkout_path)
 
         if repo is None:
             repo = pane_repo(ref.workspace_id)
