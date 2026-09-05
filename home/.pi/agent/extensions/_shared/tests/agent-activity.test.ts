@@ -21,4 +21,14 @@ test("agent activity pauses during UI prompts and resumes afterward", () => {
 	handlers.get("agent_settled")!();
 
 	assert.deepEqual(changes, [true, false, true, false]);
+
+	// Replacing a session while its dialog is open must not suppress later work.
+	handlers.get("agent_start")!();
+	handlers.get("ui_prompt_start")!();
+	handlers.get("session_shutdown")!();
+	handlers.get("session_start")!();
+	handlers.get("agent_start")!();
+	assert.equal(changes.at(-1), true);
+	handlers.get("session_shutdown")!();
+	assert.equal(changes.at(-1), false);
 });

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { ScopedModel } from "@earendil-works/pi-coding-agent";
 
-import { buildCapabilityHint, findScopedRankingError } from "../capability-hint.ts";
+import { buildCapabilityHint } from "../capability-hint.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 
 function config(ranking?: string[]): ProfilesConfig {
@@ -27,19 +27,6 @@ function config(ranking?: string[]): ProfilesConfig {
 		},
 	};
 }
-
-test("scoped ranking coverage passes when ranked, fails with all missing ids, and skips unscoped sessions", () => {
-	const ranked = findScopedRankingError(config(["prov/luna", "prov/terra"]), models(["luna", "terra"]));
-	assert.equal(ranked, undefined);
-
-	const failing = findScopedRankingError(config(["prov/luna"]), models(["luna", "terra"]));
-	assert.ok(failing);
-	assert.match(failing, /missing: prov\/terra/);
-	assert.match(failing, /extensions\/subagents\/profiles\.json/);
-
-	assert.equal(findScopedRankingError(config(), undefined), undefined);
-	assert.equal(findScopedRankingError(config(), []), undefined);
-});
 
 const models = (ids: readonly string[]): readonly ScopedModel[] =>
 	ids.map((id) => ({ model: { provider: "prov", id } }) as ScopedModel);

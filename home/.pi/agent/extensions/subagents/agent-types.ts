@@ -1,13 +1,23 @@
 import type { ReadonlyRunDetails, RunUsage } from "./run-state.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
-export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" | "aborted" | "closing" | "closed";
+export type AgentPhase =
+	| "created"
+	| "starting"
+	| "running"
+	| "interrupting"
+	| "idle"
+	| "failed"
+	| "aborted"
+	| "closing"
+	| "closed";
 
-export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
+export type AgentStatus = Exclude<AgentPhase, "created" | "closing" | "interrupting">;
 
 const LIFECYCLE_STATUS = {
 	created: "starting",
 	starting: "starting",
 	running: "running",
+	interrupting: "running",
 	idle: "idle",
 	failed: "failed",
 	aborted: "aborted",

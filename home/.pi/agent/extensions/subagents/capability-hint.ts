@@ -1,4 +1,4 @@
-/** capabilityRanking interpretation: per-turn hint wording and startup contracts. */
+/** Optional capability ranking affects advice, never execution eligibility. */
 
 import type { ScopedModel } from "@earendil-works/pi-coding-agent";
 import { splitModelId, type ProfilesConfig } from "./profiles.ts";
@@ -8,30 +8,6 @@ export interface CapabilityHintInput {
 	readonly agents: readonly { readonly name: string }[];
 	readonly availableModels: readonly ScopedModel[];
 	readonly currentModel?: { readonly provider: string; readonly id: string };
-}
-
-function unrankedModelIds(config: ProfilesConfig, modelIds: readonly string[]): string[] {
-	const ranked = new Set(config.capabilityRanking);
-	return [...new Set(modelIds)].filter((id) => !ranked.has(id));
-}
-
-/**
- * Startup contract for directional wording: every session-scoped model can
- * become the parent, so each must be ranked. An absent or empty scope means
- * "every authenticated model" and cannot be enforced against a hand-maintained
- * ranking, so it deliberately passes.
- */
-export function findScopedRankingError(
-	config: ProfilesConfig,
-	scopedModels?: readonly ScopedModel[],
-): string | undefined {
-	if (!scopedModels || scopedModels.length === 0) return undefined;
-	const missing = unrankedModelIds(
-		config,
-		scopedModels.map(({ model }) => `${model.provider}/${model.id}`),
-	);
-	if (missing.length === 0) return undefined;
-	return `Subagent capabilityRanking must list every scoped model; missing: ${missing.join(", ")}. Rank them in extensions/subagents/profiles.json or narrow your scoped models.`;
 }
 
 /**

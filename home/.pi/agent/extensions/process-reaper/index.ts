@@ -195,7 +195,7 @@ export class ProcessReaper {
 
 	/** Subscribe to background-group count changes. The current count is emitted immediately. */
 	onBackgroundGroupChange(listener: BackgroundGroupCountListener): () => void {
-		const listeners = getListeners(this.state);
+		const listeners = this.state.listeners;
 		listeners.add(listener);
 		listener(this.backgroundGroupCount());
 		return () => listeners.delete(listener);
@@ -247,19 +247,12 @@ export class ProcessReaper {
 	private notifyBackgroundGroupChange(previousBackgroundGroups: number): void {
 		const backgroundGroups = this.backgroundGroupCount();
 		if (backgroundGroups === previousBackgroundGroups) return;
-		for (const listener of getListeners(this.state)) listener(backgroundGroups);
+		for (const listener of this.state.listeners) listener(backgroundGroups);
 	}
 }
 
 function createState(rootDir: string): ProcessReaperState {
 	return { rootDir, owners: new Map(), listeners: new Set() };
-}
-
-function getListeners(state: ProcessReaperState): Set<BackgroundGroupCountListener> {
-	if (state.listeners) return state.listeners;
-	const listeners = new Set<BackgroundGroupCountListener>();
-	Object.defineProperty(state, "listeners", { configurable: true, enumerable: true, value: listeners, writable: true });
-	return listeners;
 }
 
 export function getProcessReaper(): ProcessReaper {

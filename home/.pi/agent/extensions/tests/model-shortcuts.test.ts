@@ -6,6 +6,7 @@ import modelShortcuts, { MODEL_SHORTCUTS } from "../model-shortcuts.ts";
 
 interface Shortcut {
 	handler(ctx: {
+		isIdle?: () => boolean;
 		modelRegistry: { find(provider: string, model: string): unknown };
 		scopedModels: Array<{ model: { provider: string; id: string }; thinkingLevel?: "medium" | "high" | "max" }>;
 		hasUI: boolean;
@@ -17,11 +18,18 @@ function registerShortcuts(
 	setModel: (model: unknown) => Promise<boolean>,
 	setThinkingLevel: (level: "medium" | "high" | "max") => void = () => {},
 	getThinkingLevel: () => string = () => "max",
+	handlers = new Map<string, () => Promise<void> | void>(),
 ): Map<string, Shortcut> {
 	const shortcuts = new Map<string, Shortcut>();
 	modelShortcuts({
+		on(event: string, handler: () => Promise<void> | void) {
+			handlers.set(event, handler);
+		},
 		registerShortcut(shortcut: string, definition: unknown) {
-			shortcuts.set(shortcut, definition as Shortcut);
+			const registered = definition as Shortcut;
+			shortcuts.set(shortcut, {
+				handler: (ctx) => registered.handler({ isIdle: () => true, ...ctx } as Parameters<Shortcut["handler"]>[0]),
+			});
 		},
 		setModel,
 		setThinkingLevel,
@@ -170,4 +178,59 @@ test("registered shortcut does not select an unscoped catalogue model", async ()
 	});
 
 	assert.equal(setModelCalls, 0);
+});
+
+test("busy shortcuts keep only the latest choice and session shutdown discards queued work", async () => {
+	const handlers = new Map<string, () => Promise<void> | void>();
+	const models: unknown[] = [];
+	let idle = false;
+	const shortcuts = registerShortcuts(
+		async (model) => {
+			models.push(model);
+			return true;
+		},
+		undefined,
+		undefined,
+		handlers,
+	);
+	const ctx = {
+		isIdle: () => idle,
+		modelRegistry: { find: (_provider: string, id: string) => id },
+		scopedModels: [],
+		hasUI: false,
+		ui: { notify() {} },
+	};
+	await shortcuts.get("alt+1")!.handler(ctx);
+	await shortcuts.get("alt+2")!.handler(ctx);
+	idle = true;
+	await handlers.get("agent_settled")!();
+	assert.deepEqual(models, ["gpt-5.6-terra"]);
+	idle = false;
+	await shortcuts.get("alt+3")!.handler(ctx);
+	await handlers.get("session_shutdown")!();
+	idle = true;
+	await handlers.get("agent_settled")!();
+	assert.deepEqual(models, ["gpt-5.6-terra"]);
+});
+
+test("a model switch completing after session replacement cannot apply stale thinking settings", async () => {
+	const handlers = new Map<string, () => Promise<void> | void>();
+	const switched = Promise.withResolvers<boolean>();
+	const thinking: string[] = [];
+	const shortcuts = registerShortcuts(
+		() => switched.promise,
+		(level) => thinking.push(level),
+		undefined,
+		handlers,
+	);
+	const request = shortcuts.get("alt+1")!.handler({
+		modelRegistry: { find: () => ({ id: "model" }) },
+		scopedModels: [],
+		hasUI: false,
+		ui: { notify() {} },
+	});
+	await handlers.get("session_shutdown")!();
+	switched.resolve(true);
+	await request;
+	assert.deepEqual(thinking, []);
 });

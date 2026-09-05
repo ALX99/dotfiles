@@ -21,7 +21,6 @@ export class AgentRegistry {
 	private readonly entries = new Map<string, RegistryEntry>();
 	private readonly resultCatalog: ResultCatalog;
 	private readonly agentUnsubscribers = new Map<string, () => void>();
-	private readonly closedAgentIds: string[] = [];
 	private readonly listeners = new Set<() => void>();
 	private readonly agentDir: string;
 
@@ -34,7 +33,6 @@ export class AgentRegistry {
 		const existing = this.entries.get(agent.id);
 		if (existing?.kind === "live" && existing.agent === agent) return;
 		if (existing) throw new Error(`Agent '${agent.id}' is already registered.`);
-		this.removeClosedAgentId(agent.id);
 		this.entries.set(agent.id, { kind: "live", agent });
 		this.agentUnsubscribers.set(
 			agent.id,
@@ -135,23 +133,19 @@ export class AgentRegistry {
 	}
 
 	async closeAll(): Promise<void> {
-		const failures: unknown[] = [];
-		try {
-			const outcomes = await Promise.allSettled(
-				[...this.entries.values()]
-					.filter((entry): entry is Extract<RegistryEntry, { kind: "live" }> => entry.kind === "live")
-					.map((entry) => entry.agent.close()),
-			);
-			for (const outcome of outcomes) if (outcome.status === "rejected") failures.push(outcome.reason);
-		} finally {
-			for (const unsubscribe of this.agentUnsubscribers.values()) unsubscribe();
-			this.agentUnsubscribers.clear();
-			this.entries.clear();
-			this.resultCatalog.clear();
-			this.closedAgentIds.length = 0;
-			this.emit();
-		}
+		const outcomes = await Promise.allSettled(
+			[...this.entries.values()]
+				.filter((entry): entry is Extract<RegistryEntry, { kind: "live" }> => entry.kind === "live")
+				.map((entry) => this.close(entry.agent.id)),
+		);
+		const failures = outcomes.flatMap((outcome) => (outcome.status === "rejected" ? [outcome.reason] : []));
+		// A failed cleanup still has an owner and must remain retryable.
 		if (failures.length > 0) throw new CleanupAggregateError("Agent registry", failures);
+		for (const unsubscribe of this.agentUnsubscribers.values()) unsubscribe();
+		this.agentUnsubscribers.clear();
+		this.entries.clear();
+		this.resultCatalog.clear();
+		this.emit();
 	}
 
 	private requireEntry(id: string): RegistryEntry {
@@ -177,21 +171,14 @@ export class AgentRegistry {
 			summary: { ...liveView.summary, status: "closed" },
 			details: { ...liveView.details, status: "closed" },
 		};
+		// Map insertion order is the archive order; no second eviction queue.
+		this.entries.delete(agent.id);
 		this.entries.set(agent.id, { kind: "archived", view });
-		this.removeClosedAgentId(agent.id);
-		this.closedAgentIds.push(agent.id);
-		while (this.closedAgentIds.length > DEFAULT_MAX_CLOSED_AGENT_HISTORY) {
-			const evictedId = this.closedAgentIds.shift();
-			if (evictedId !== undefined && this.entries.get(evictedId)?.kind === "archived") {
-				this.entries.delete(evictedId);
-			}
+		const archived = [...this.entries].filter(([, entry]) => entry.kind === "archived");
+		for (const [id] of archived.slice(0, Math.max(0, archived.length - DEFAULT_MAX_CLOSED_AGENT_HISTORY))) {
+			this.entries.delete(id);
 		}
 		this.emit();
-	}
-
-	private removeClosedAgentId(id: string): void {
-		const index = this.closedAgentIds.indexOf(id);
-		if (index >= 0) this.closedAgentIds.splice(index, 1);
 	}
 
 	private emit(): void {

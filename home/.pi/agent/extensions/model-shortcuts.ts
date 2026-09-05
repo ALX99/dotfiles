@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { toError } from "./_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
 	{ shortcut: "alt+1", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max" },
@@ -7,51 +8,60 @@ export const MODEL_SHORTCUTS = [
 ] as const;
 
 export default function modelShortcuts(pi: ExtensionAPI) {
-	let pending: (typeof MODEL_SHORTCUTS)[number] | undefined;
+	let pending: { shortcut: (typeof MODEL_SHORTCUTS)[number]; ctx: ExtensionContext; epoch: number } | undefined;
 	let applying = false;
+	let epoch = 0;
 
-	const applyPending = async (ctx: ExtensionContext): Promise<void> => {
-		if (applying || !isIdle(ctx)) return;
-		const shortcut = pending;
-		if (!shortcut) return;
-		pending = undefined;
+	const applyPending = async (): Promise<void> => {
+		if (applying) return;
 		applying = true;
 		try {
-			await applyShortcut(pi, shortcut, ctx);
+			while (pending && pending.ctx.isIdle()) {
+				const request = pending;
+				pending = undefined;
+				const isCurrent = () => request.epoch === epoch;
+				try {
+					await applyShortcut(pi, request.shortcut, request.ctx, isCurrent);
+				} catch (error) {
+					if (isCurrent() && request.ctx.hasUI)
+						request.ctx.ui.notify(`Could not switch model: ${toError(error).message}`, "warning");
+				}
+			}
 		} finally {
 			applying = false;
 		}
-		await applyPending(ctx);
 	};
 
-	pi.on?.("agent_settled", (_event, ctx) => applyPending(ctx));
+	const reset = (): void => {
+		epoch++;
+		pending = undefined;
+	};
+	pi.on("session_start", reset);
+	pi.on("session_shutdown", reset);
+	pi.on("agent_settled", () => applyPending());
 
 	for (const shortcut of MODEL_SHORTCUTS) {
 		pi.registerShortcut(shortcut.shortcut, {
 			description: `Switch to ${shortcut.model}`,
 			handler: async (ctx) => {
-				if (!isIdle(ctx) || applying) {
-					pending = shortcut;
+				pending = { shortcut, ctx, epoch };
+				if (!ctx.isIdle() || applying) {
 					if (ctx.hasUI) {
 						ctx.ui.notify(`Queued ${shortcut.model}; it will switch after the current turn settles.`, "info");
 					}
 					return;
 				}
-				pending = shortcut;
-				await applyPending(ctx);
+				await applyPending();
 			},
 		});
 	}
-}
-
-function isIdle(ctx: ExtensionContext): boolean {
-	return ctx.isIdle?.() ?? true;
 }
 
 async function applyShortcut(
 	pi: Pick<ExtensionAPI, "getThinkingLevel" | "setModel" | "setThinkingLevel">,
 	shortcut: (typeof MODEL_SHORTCUTS)[number],
 	ctx: ExtensionContext,
+	isCurrent: () => boolean,
 ): Promise<void> {
 	const scoped = ctx.scopedModels.find(
 		({ model }) => model.provider === shortcut.provider && model.id === shortcut.model,
@@ -63,6 +73,7 @@ async function applyShortcut(
 	}
 
 	const switched = await pi.setModel(model);
+	if (!isCurrent()) return;
 	if (!switched) {
 		if (ctx.hasUI) ctx.ui.notify(`No API key for ${shortcut.provider}/${shortcut.model}`, "warning");
 		return;

@@ -102,7 +102,6 @@ test("profile validation reports configuration relationships before a run can re
 		"test-profiles.json: agentPolicies.scout.defaultProfile: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.scout.allowedProfiles.1: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.worker: missing policy binding for agent 'worker'",
-		"test-profiles.json: capabilityRanking: must list every profile candidate model; missing: openai-codex/gpt",
 	]);
 });
 
@@ -120,6 +119,8 @@ test("capabilityRanking accepts a unique ordering and rejects duplicate model id
 
 	const valid = parseAndValidateProfiles({ ...base, capabilityRanking: ["prov/luna", "prov/terra"] });
 	assert.ok(valid.success);
+	assert.ok(parseAndValidateProfiles(base).success);
+	assert.ok(parseAndValidateProfiles({ ...base, capabilityRanking: ["prov/terra"] }).success);
 
 	const duplicated = parseAndValidateProfiles(
 		{ ...base, capabilityRanking: ["prov/luna", "prov/luna"] },

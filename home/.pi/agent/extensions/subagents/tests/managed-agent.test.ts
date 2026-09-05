@@ -3,9 +3,23 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import {
+	createAgentSession,
+	DefaultResourceLoader,
+	ModelRuntime,
+	SettingsManager,
+	SessionManager,
+	type AgentSession,
+	type ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import nestedContext from "../../nested-context.ts";
+import skillsExtension from "../../skills/index.ts";
+import codexCompat from "../../codex-apply-patch/index.ts";
+import modelShortcuts from "../../model-shortcuts.ts";
 import type { AgentConfig } from "../agents.ts";
 import { ManagedAgent } from "../managed-agent.ts";
+import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
 import { readLocatedAgentResult } from "../result-store.ts";
 
 const config: AgentConfig = {
@@ -23,6 +37,98 @@ const resolvedRun = {
 	effectiveThinking: "low" as const,
 	contextWindow: 1_000,
 };
+
+function sdkStub(session: object): AgentSession {
+	return {
+		async bindExtensions() {},
+		extensionRunner: { async emit() {} },
+		...session,
+	} as unknown as AgentSession;
+}
+
+test("native child session initializes extensions, routes questions, persists results and shuts down", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-native-"));
+	const cwd = path.join(agentDir, "project");
+	fs.mkdirSync(path.join(cwd, "src"), { recursive: true });
+	fs.writeFileSync(path.join(cwd, "src", "AGENTS.md"), "Keep the native integration contract.");
+	fs.writeFileSync(path.join(cwd, "src", "input.txt"), "local evidence");
+	const faux = fauxProvider({ provider: "managed-native", api: "managed-native-api" });
+	const modelRuntime = await ModelRuntime.create({ modelsPath: null, refreshOnCreate: false });
+	modelRuntime.registerNativeProvider(faux.provider);
+	const lifecycle: string[] = [];
+	let session: AgentSession | undefined;
+	const agent = new ManagedAgent({
+		agentDir,
+		defaultCwd: cwd,
+		agent: { ...config, tools: ["read", "edit", "write", "apply_patch", "ask_question"] },
+		resolvedRun: { ...resolvedRun, modelInstance: faux.getModel() },
+		retain: true,
+		sessionFactory: async (customTools) => {
+			const settingsManager = SettingsManager.inMemory();
+			const loader = new DefaultResourceLoader({
+				cwd,
+				agentDir,
+				settingsManager,
+				extensionFactories: [
+					nestedContext,
+					skillsExtension,
+					codexCompat,
+					modelShortcuts,
+					(pi) => {
+						pi.on("session_start", () => {
+							lifecycle.push("start");
+						});
+						pi.on("session_shutdown", () => {
+							lifecycle.push("shutdown");
+						});
+					},
+				],
+			});
+			await loader.reload();
+			assert.deepEqual(loader.getExtensions().errors, []);
+			({ session } = await createAgentSession({
+				cwd,
+				agentDir,
+				modelRuntime,
+				model: faux.getModel(),
+				settingsManager,
+				sessionManager: SessionManager.create(cwd, path.join(agentDir, "subagent-sessions")),
+				resourceLoader: loader,
+				customTools: [...customTools],
+				tools: ["read", "edit", "write", "apply_patch", "ask_question"],
+			}));
+			return session;
+		},
+	});
+	t.after(async () => {
+		await agent.close();
+		fs.rmSync(agentDir, { recursive: true, force: true });
+	});
+	faux.setResponses([
+		fauxAssistantMessage(fauxToolCall("read", { path: "src/input.txt" }), { stopReason: "toolUse" }),
+		(context) => {
+			assert.match(JSON.stringify(context.messages), /Keep the native integration contract/);
+			return fauxAssistantMessage(
+				fauxToolCall("ask_question", { question: "Which path?", alternatives: ["Simple", "Flexible"] }),
+				{ stopReason: "toolUse" },
+			);
+		},
+		fauxAssistantMessage("native result"),
+	]);
+	const waiting = await agent.start("inspect and ask", undefined, "native", false);
+	assert.deepEqual(lifecycle, ["start"]);
+	assert.ok(session);
+	assert.ok(!session.getActiveToolNames().includes("apply_patch"));
+	assert.ok(session.getActiveToolNames().includes("write"));
+	assert.ok(waiting.pendingQuestion, JSON.stringify(waiting));
+	await agent.answerQuestion(waiting.pendingQuestion.question_id, "Simple");
+	const result = await agent.wait();
+	assert.equal(result.finalText, "native result");
+	assert.ok(result.resultLocator);
+	assert.equal((await readLocatedAgentResult(result.resultLocator, agentDir)).text, "native result");
+	await agent.close();
+	assert.deepEqual(lifecycle, ["start", "shutdown"]);
+});
 
 test("one native session owns foreground, background, steering, follow-up, and closure transitions", async (t) => {
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-test-"));
@@ -83,7 +189,7 @@ test("one native session owns foreground, background, steering, follow-up, and c
 		agent: config,
 		resolvedRun,
 		retain: true,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 		onBackgroundComplete: (summary) => completed.push(`${summary.agent_id}:${summary.generation}`),
 	});
 	t.after(() => agent.close());
@@ -152,7 +258,7 @@ test("interrupt cleans processes owned by an idle retained agent", async (t) => 
 				reaped.push(ownerId);
 			},
 		},
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 
 	await agent.start("inspect", undefined, "inspect", false);
@@ -182,7 +288,7 @@ test("closing during session startup cannot revive the agent", async (t) => {
 
 	const starting = agent.start("inspect", undefined, "inspect", false);
 	await agent.close();
-	resolveSession!({ subscribe: () => () => {}, dispose: () => (disposed = true) } as never);
+	resolveSession!(sdkStub({ subscribe: () => () => {}, dispose: () => (disposed = true) }) as never);
 	await assert.rejects(starting, /closed while its session was starting/);
 	assert.equal(disposed, true);
 	assert.equal(agent.phase, "closed");
@@ -239,7 +345,7 @@ test("a foreground question returns control and resumes after its answer", async
 		retain: false,
 		sessionFactory: async (customTools) => {
 			questionTool = customTools[0];
-			return fake as never;
+			return sdkStub(fake);
 		},
 		onQuestion: (_summary, question) => questions.push(question.question_id),
 		onBackgroundComplete: (summary) => completions.push(summary.final_text ?? ""),
@@ -302,7 +408,7 @@ test("closing a child waiting for input cancels the question and cannot regress 
 		retain: true,
 		sessionFactory: async (customTools) => {
 			questionTool = customTools[0];
-			return fake as never;
+			return sdkStub(fake);
 		},
 	});
 
@@ -352,7 +458,7 @@ test("a terminal assistant error is a failed, incomplete generation", async (t) 
 		agent: config,
 		resolvedRun,
 		retain: true,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 	t.after(() => agent.close());
 
@@ -397,7 +503,7 @@ test("a rejected prompt retains any persisted terminal result for durable readin
 		agent: config,
 		resolvedRun,
 		retain: true,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 	t.after(() => agent.close());
 
@@ -450,7 +556,7 @@ test("closing an active child archives a settled aborted generation with its exa
 		agent: { ...config, name: "worker" },
 		resolvedRun: { ...resolvedRun, agent: "worker" },
 		retain: true,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 
 	await agent.start("inspect", undefined, "inspect", true);
@@ -490,7 +596,7 @@ test("a prompt without a terminal assistant message cannot be reported as succes
 		agent: config,
 		resolvedRun,
 		retain: true,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 	t.after(() => agent.close());
 
@@ -502,6 +608,144 @@ test("a prompt without a terminal assistant message cannot be reported as succes
 });
 
 const stallUsage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } };
+
+test("interruption reserves the generation until abort settles and rejects overlapping follow-ups", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-interrupt-race-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const abortGate = Promise.withResolvers<void>();
+	const promptGate = Promise.withResolvers<void>();
+	const cleanupStarted = Promise.withResolvers<void>();
+	const cleanupGate = Promise.withResolvers<void>();
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		subscribe: () => () => {},
+		prompt: () => promptGate.promise,
+		async abort() {
+			await abortGate.promise;
+			appendAssistant(manager, new Set(), "interrupted", "aborted");
+			promptGate.resolve();
+		},
+		dispose() {},
+	};
+	const agent = new ManagedAgent({
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		processReaper: {
+			async terminateOwner() {
+				cleanupStarted.resolve();
+				await cleanupGate.promise;
+			},
+		},
+		sessionFactory: async () => sdkStub(fake),
+	});
+	t.after(() => agent.close());
+	await agent.start("first", undefined, "first", true);
+	const waiting = agent.wait();
+	const interrupting = agent.interrupt();
+	assert.equal(agent.occupiesCapacity(), true);
+	await assert.rejects(agent.followUp("overlap", "overlap", true), /still running/);
+	abortGate.resolve();
+	await cleanupStarted.promise;
+	await assert.rejects(agent.followUp("during cleanup", "during cleanup", true), /still running/);
+	cleanupGate.resolve();
+	await interrupting;
+	assert.equal((await waiting).status, "aborted");
+	assert.equal((await agent.wait()).aborted, true);
+	assert.equal(agent.summary().generation, 1);
+});
+
+test("failed cleanup still disposes the session and can be retried", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-cleanup-failure-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	let disposed = 0;
+	let attempts = 0;
+	const registry = new AgentRegistry(agentDir);
+	const agent = new ManagedAgent({
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		processReaper: {
+			async terminateOwner(owner) {
+				assert.equal(owner, manager.getSessionId());
+				if (++attempts === 1) throw new Error("process cleanup failed");
+			},
+		},
+		sessionFactory: async () =>
+			sdkStub({
+				sessionId: manager.getSessionId(),
+				sessionFile: manager.getSessionFile(),
+				sessionManager: manager,
+				subscribe: () => () => {},
+				async prompt() {
+					appendAssistant(manager, new Set(), "done", "stop");
+				},
+				dispose() {
+					disposed++;
+				},
+			}),
+	});
+	await registry.add(agent);
+	assert.equal(registry.capacity().length, 1);
+	await agent.start("work", undefined, "work", false);
+	await assert.rejects(registry.closeAll(), /cleanup failed/);
+	assert.equal(disposed, 1);
+	assert.equal(agent.phase, "closing");
+	assert.equal(registry.getLive(agent.id), agent);
+	assert.equal(registry.capacity().length, 1);
+	await registry.closeAll();
+	assert.equal(attempts, 2);
+	assert.equal(disposed, 1);
+	assert.equal(agent.phase, "closed");
+	assert.deepEqual(registry.list(), []);
+});
+
+test("archive eviction follows closure order while exact results outlive dashboard history", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-archive-"));
+	const registry = new AgentRegistry(agentDir);
+	t.after(async () => {
+		await registry.closeAll();
+		fs.rmSync(agentDir, { recursive: true, force: true });
+	});
+	const agents: ManagedAgent[] = [];
+	for (let index = 0; index < DEFAULT_MAX_CLOSED_AGENT_HISTORY + 1; index++) {
+		const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+		const agent = new ManagedAgent({
+			agentDir,
+			defaultCwd: agentDir,
+			agent: config,
+			resolvedRun,
+			retain: true,
+			sessionFactory: async () =>
+				sdkStub({
+					sessionId: manager.getSessionId(),
+					sessionFile: manager.getSessionFile(),
+					sessionManager: manager,
+					subscribe: () => () => {},
+					async prompt() {
+						appendAssistant(manager, new Set(), `result ${index}`, "stop");
+					},
+					dispose() {},
+				}),
+		});
+		await registry.add(agent);
+		await agent.start("work", undefined, "work", false);
+		agents.push(agent);
+	}
+	for (const agent of agents.toReversed()) await registry.close(agent.id);
+	assert.equal(registry.list().length, DEFAULT_MAX_CLOSED_AGENT_HISTORY);
+	assert.throws(() => registry.summary(agents.at(-1)!.id), /Unknown agent_id/);
+	assert.equal((await registry.readResult(agents.at(-1)!.id)).text, `result ${DEFAULT_MAX_CLOSED_AGENT_HISTORY}`);
+	assert.equal(registry.summary(agents[0]!.id).status, "closed");
+});
 
 function appendAssistant(
 	manager: ReturnType<typeof SessionManager.create>,
@@ -560,7 +804,7 @@ test("a silent generation is aborted internally and reported as failed, not abor
 				reaped.push(ownerId);
 			},
 		},
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 	t.after(() => agent.close());
 
@@ -620,7 +864,7 @@ test("ongoing activity keeps deferring the stall watchdog until silence exceeds 
 		resolvedRun,
 		retain: true,
 		stallTimeoutMs: 40,
-		sessionFactory: async () => fake as never,
+		sessionFactory: async () => sdkStub(fake),
 	});
 	t.after(() => agent.close());
 
@@ -678,7 +922,7 @@ test("a pending question exempts the generation from the stall watchdog", async 
 		stallTimeoutMs: 10,
 		sessionFactory: async (customTools) => {
 			questionTool = customTools[0];
-			return fake as never;
+			return sdkStub(fake);
 		},
 	});
 	t.after(() => agent.close());

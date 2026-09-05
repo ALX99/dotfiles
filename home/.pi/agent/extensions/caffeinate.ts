@@ -74,7 +74,4 @@ export default function caffeinate(pi: ExtensionAPI): void {
 		settleEvent: "agent_end",
 		onActiveChange: (active) => (active ? controller.start() : controller.stop()),
 	});
-
-	// Safety net: clean up on session shutdown (quit, reload, switch, fork).
-	pi.on("session_shutdown", () => controller.stop());
 }

@@ -18,6 +18,7 @@ import { getProcessReaper, type ProcessReaper } from "../process-reaper/index.ts
 import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitInterruptedError,
+	CleanupAggregateError,
 	lifecycleStatus,
 	type AgentPhase,
 	type AgentQuestion,
@@ -125,7 +126,6 @@ export class ManagedAgent {
 	private unsubscribe: (() => void) | undefined;
 	private phaseState: AgentPhase = "created";
 	private current: Generation | undefined;
-	private nextGeneration = 0;
 	private closePromise: Promise<void> | undefined;
 	private stallTimer: NodeJS.Timeout | undefined;
 
@@ -192,8 +192,18 @@ export class ManagedAgent {
 				this.disposeSession();
 				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
 			}
+			await this.session!.bindExtensions({
+				mode: "print",
+				onError: (error) =>
+					process.emitWarning(`${error.extensionPath}: ${error.error}`, { type: "SubagentExtensionError" }),
+			});
+			if (this.phaseState !== "starting") {
+				this.disposeSession();
+				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
+			}
 		} catch (cause) {
 			if (this.phaseState === "starting") {
+				this.disposeSession();
 				this.phaseState = "failed";
 				this.emit();
 			}
@@ -213,6 +223,7 @@ export class ManagedAgent {
 		if (!pending || pending.question.question_id !== input.questionId)
 			throw new Error(`Agent ${this.id} lost its pending question.`);
 		delete this.current!.question;
+		this.current!.run.lastActivityTime = Date.now();
 		this.current!.questionArrival = Promise.withResolvers<void>();
 		pending.resolve(input.answer);
 		this.emit();
@@ -238,20 +249,42 @@ export class ManagedAgent {
 		const current = this.current;
 		if (!current || current.settled || !this.session) {
 			await this.reapOwnedProcesses();
+			this.finishInterruption();
 			return;
 		}
 		current.aborted = true;
-		this.phaseState = "aborted";
+		this.phaseState = "interrupting";
+		this.clearStallWatchdog();
 		this.cancelPendingQuestion(current, `Agent ${this.id} was interrupted while waiting for input.`);
 		this.emit();
-		await this.session.abort();
-		await this.reapOwnedProcesses();
+		try {
+			await this.session.abort();
+		} finally {
+			await this.reapOwnedProcesses();
+			this.finishInterruption();
+		}
+	}
+
+	private finishInterruption(): void {
+		if (this.phaseState !== "interrupting") return;
+		this.phaseState = "aborted";
+		if (this.current) this.settle(this.current);
 	}
 
 	async close(): Promise<void> {
+		if (this.phaseState === "closed") return;
 		if (this.closePromise) return this.closePromise;
-		this.closePromise = (async () => {
-			if (this.phaseState === "closed") return;
+		this.closePromise = this.closeSession();
+		try {
+			await this.closePromise;
+		} finally {
+			this.closePromise = undefined;
+		}
+	}
+
+	private async closeSession(): Promise<void> {
+		const failures: unknown[] = [];
+		try {
 			this.phaseState = "closing";
 			this.clearStallWatchdog();
 			this.emit();
@@ -259,19 +292,31 @@ export class ManagedAgent {
 			if (current && !current.settled) {
 				current.aborted = true;
 				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
-				await this.session?.abort().catch(() => {});
+				try {
+					await this.session?.abort();
+				} catch (error) {
+					failures.push(error);
+				}
 				// abort() waits for Pi to reach idle, but settle defensively here as
 				// well so an incomplete or misbehaving session cannot leave a live
 				// generation behind after its owner is archived.
-				await this.settle(current, false);
+				this.settle(current);
 			}
+			await this.session?.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
 			await this.reapOwnedProcesses();
-			this.disposeSession();
-			this.phaseState = "closed";
-			this.emit();
-			this.listeners.clear();
-		})();
-		return this.closePromise;
+		} catch (error) {
+			failures.push(error);
+		} finally {
+			try {
+				this.disposeSession();
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		if (failures.length > 0) throw new CleanupAggregateError(`Agent ${this.id}`, failures);
+		this.phaseState = "closed";
+		this.emit();
+		this.listeners.clear();
 	}
 
 	summary(): AgentSummary {
@@ -311,8 +356,13 @@ export class ManagedAgent {
 	}
 
 	occupiesCapacity(): boolean {
-		if (this.phaseState === "closed" || this.phaseState === "closing") return false;
-		return this.phaseState === "starting" || this.session !== undefined;
+		if (this.phaseState === "closed") return false;
+		return (
+			this.phaseState === "created" ||
+			this.phaseState === "starting" ||
+			this.phaseState === "closing" ||
+			this.session !== undefined
+		);
 	}
 
 	hasPendingResult(generation: number): boolean {
@@ -347,6 +397,7 @@ export class ManagedAgent {
 			name: "ask_question",
 			label: "Ask Question",
 			description: "Ask the parent a multiple-choice question and wait for its answer.",
+			executionMode: "sequential",
 			parameters: Type.Object(
 				{
 					question: Type.String({ minLength: 1 }),
@@ -355,8 +406,10 @@ export class ManagedAgent {
 				{ additionalProperties: false },
 			),
 			execute: async (_id, params, signal) => {
+				signal?.throwIfAborted();
 				const generation = this.current;
 				if (!generation || generation.settled) throw new Error("No active subagent generation.");
+				if (generation.question) throw new Error("The subagent already has a pending question.");
 				const question: AgentQuestion = {
 					question_id: randomBytes(16).toString("hex"),
 					question: params.question,
@@ -454,7 +507,7 @@ export class ManagedAgent {
 			resultId: randomBytes(32).toString("hex"),
 		});
 		const generation: Generation = {
-			number: ++this.nextGeneration,
+			number: (this.current?.number ?? 0) + 1,
 			completion: promise,
 			resolve,
 			reject,
@@ -470,33 +523,36 @@ export class ManagedAgent {
 		this.phaseState = "running";
 		this.watchForStall(generation);
 		this.emit();
-		void this.session.prompt(message, { expandPromptTemplates: false }).then(
-			() => this.settle(generation),
-			(error) => this.fail(generation, error),
-		);
+		void this.session
+			.prompt(message, { expandPromptTemplates: false })
+			.then(
+				() => this.settle(generation),
+				(error) => this.settle(generation, toError(error)),
+			)
+			.catch((error: unknown) => this.reportCleanupFailure(error));
 		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, signal);
 	}
 
-	private async settle(generation: Generation, closeWhenSettled = true): Promise<void> {
-		if (generation.settled || this.current !== generation) return;
+	private settle(generation: Generation, failure?: Error): void {
+		if (generation.settled || this.current !== generation || this.phaseState === "interrupting") return;
 		this.clearStallWatchdog();
 		const entry = this.terminalAssistantEntry(generation);
-		if (!entry) {
-			this.fail(generation, new Error(`Agent ${this.id} completed without a terminal assistant message.`));
-			return;
-		}
+		if (!entry) failure ??= new Error(`Agent ${this.id} completed without a terminal assistant message.`);
 		try {
 			this.persistResult(generation, entry);
 		} catch (cause) {
-			this.fail(generation, cause);
-			return;
+			const persistenceError = toError(cause);
+			failure = failure
+				? new Error(`${failure.message} (result persistence failed: ${persistenceError.message})`, { cause: failure })
+				: persistenceError;
 		}
-		const stopReason = entry.message.stopReason;
-		if (generation.stalled && !generation.run.error) {
+		const stopReason = entry?.message.stopReason;
+		if (generation.stalled) {
 			generation.run.error = this.stallErrorMessage();
-		}
-		if (stopReason === "error" && !generation.run.error) {
-			generation.run.error = entry.message.errorMessage ?? "Subagent assistant failed.";
+		} else if (failure) {
+			generation.run.error = failure.message;
+		} else if (stopReason === "error" && !generation.run.error) {
+			generation.run.error = entry?.message.errorMessage ?? "Subagent assistant failed.";
 		}
 		generation.run.endTime = Date.now();
 		generation.settled = true;
@@ -504,12 +560,13 @@ export class ManagedAgent {
 			? "failed"
 			: generation.aborted || stopReason === "aborted"
 				? "aborted"
-				: stopReason === "error"
+				: failure || stopReason === "error"
 					? "failed"
 					: "idle";
 		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
 		const details = this.snapshot();
-		generation.resolve(details);
+		if (failure && !generation.aborted) generation.reject(failure);
+		else generation.resolve(details);
 		generation.questionArrival.resolve();
 		this.emit();
 		if (
@@ -520,37 +577,9 @@ export class ManagedAgent {
 		) {
 			this.options.onBackgroundComplete?.(this.summary());
 		}
-		if (closeWhenSettled && !this.options.retain) await this.close();
-	}
-
-	private fail(generation: Generation, cause: unknown): void {
-		if (generation.settled || this.current !== generation) return;
-		this.clearStallWatchdog();
-		const error = toError(cause);
-		try {
-			this.persistResult(generation, this.terminalAssistantEntry(generation));
-		} catch (persistenceCause) {
-			generation.run.error = `${error.message} (result persistence failed: ${toError(persistenceCause).message})`;
+		if (!this.options.retain && this.phaseState !== "closing" && this.phaseState !== "closed") {
+			void this.close().catch((error: unknown) => this.reportCleanupFailure(error));
 		}
-		generation.run.error ??= generation.stalled ? this.stallErrorMessage() : error.message;
-		generation.run.endTime = Date.now();
-		generation.settled = true;
-		const terminalPhase = generation.aborted ? "aborted" : "failed";
-		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
-		const details = this.snapshot();
-		if (generation.aborted) generation.resolve(details);
-		else generation.reject(error);
-		generation.questionArrival.resolve();
-		this.emit();
-		if (
-			generation.background &&
-			this.phaseState !== "closing" &&
-			this.phaseState !== "closed" &&
-			terminalPhase === "failed"
-		) {
-			this.options.onBackgroundComplete?.(this.summary());
-		}
-		if (!this.options.retain) void this.close();
 	}
 
 	private terminalAssistantEntry(generation: Generation): AssistantSessionEntry | undefined {
@@ -623,19 +652,27 @@ export class ManagedAgent {
 			schedule(remainingMs);
 			return;
 		}
-		void this.recoverStalledGeneration(generation);
+		void this.recoverStalledGeneration(generation).catch((error: unknown) => this.reportCleanupFailure(error));
 	}
 
 	/** Abort a silent generation so it settles through the normal failure path. */
 	private async recoverStalledGeneration(generation: Generation): Promise<void> {
 		if (generation.settled || this.current !== generation || generation.question) return;
 		generation.stalled = true;
-		await this.session?.abort().catch(() => {});
-		await this.reapOwnedProcesses();
-		// abort() waits for Pi to reach idle and prompt resolution then flows into
-		// settle()/fail(), but settle defensively here as well so an incomplete or
-		// misbehaving session cannot leave an unsettled stalled generation behind.
-		await this.settle(generation);
+		this.phaseState = "interrupting";
+		this.clearStallWatchdog();
+		try {
+			await this.session?.abort();
+		} finally {
+			await this.reapOwnedProcesses();
+			this.finishInterruption();
+		}
+	}
+
+	private reportCleanupFailure(error: unknown): void {
+		if (this.current) this.current.run.error = `${this.current.run.error ?? ""}\n${toError(error).message}`.trim();
+		this.emit();
+		process.emitWarning(toError(error), { type: "SubagentCleanupError" });
 	}
 
 	private clearStallWatchdog(): void {
@@ -653,15 +690,20 @@ export class ManagedAgent {
 	}
 
 	private disposeSession(): void {
-		this.unsubscribe?.();
+		const unsubscribe = this.unsubscribe;
+		const session = this.session;
 		this.unsubscribe = undefined;
-		this.session?.dispose();
 		this.session = undefined;
+		try {
+			unsubscribe?.();
+		} finally {
+			session?.dispose();
+		}
 	}
 
 	private async reapOwnedProcesses(): Promise<void> {
-		if (this.session === undefined) return;
-		await this.processReaper.terminateOwner(this.session.sessionId);
+		const owner = this.session?.sessionId ?? this.current?.run.sessionId;
+		if (owner !== undefined) await this.processReaper.terminateOwner(owner);
 	}
 
 	private async waitFor(generation: Generation, signal?: AbortSignal): Promise<ReadonlyRunDetails> {

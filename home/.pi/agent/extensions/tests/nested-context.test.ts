@@ -169,7 +169,7 @@ test("injects discovered context once per path and steers it into the conversati
 	const message = harness.sent[0]!;
 	assert.equal(message.details && (message.details as { paths: string[] }).paths[0], join(root, "A/B/AGENTS.md"));
 	assert.match(message.content, /rules for B/);
-	assert.deepEqual(message.options, { deliverAs: "steer", triggerTurn: false });
+	assert.deepEqual(message.options, { deliverAs: "steer", triggerTurn: true });
 
 	// Same subtree again: cached, no duplicate injection.
 	await harness.fireToolCall({ toolName: "read", toolCallId: "t2", input: { path: join(root, "A/other.ts") } }, root);
@@ -216,6 +216,32 @@ test("a restored branch seeds the cache from its own injections", async () => {
 	await harness.fireSessionStart("resume");
 	await harness.fireToolCall({ toolName: "read", toolCallId: "t1", input: { path: "A/f.ts" } }, root);
 	assert.equal(harness.sent.length, 0);
+});
+
+test("tree navigation restores only the destination branch's injected context", async () => {
+	const root = makeRepo();
+	writeTree(root, { "A/AGENTS.md": "branch rules" });
+	const harness = loadExtension();
+	const call = { toolName: "read", toolCallId: "read", input: { path: "A/f.ts" } };
+	await harness.fireToolCall(call, root);
+	const navigate = harness.handlers.get("session_tree");
+	assert.ok(navigate);
+	await navigate({} as never, { sessionManager: { getBranch: () => [] } } as never);
+	await harness.fireToolCall(call, root);
+	assert.equal(harness.sent.length, 2);
+	await navigate(
+		{} as never,
+		{ sessionManager: { getBranch: () => [injectedEntry([join(root, "A/AGENTS.md")])] } } as never,
+	);
+	await harness.fireToolCall(call, root);
+	assert.equal(harness.sent.length, 2);
+});
+
+test("nested context works when the session cwd is the filesystem root", () => {
+	const root = makeRepo();
+	writeTree(root, { "A/AGENTS.md": "rules" });
+	const files = collectNestedContextFiles(join(root, "A/file.ts"), "/", new Set());
+	assert.ok(files.some((file) => file.path === join(root, "A/AGENTS.md")));
 });
 
 test("injectedContextPaths reads only matching custom messages with string paths", () => {

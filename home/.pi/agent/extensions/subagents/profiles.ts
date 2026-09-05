@@ -208,15 +208,6 @@ export function validateProfiles(
 			);
 		}
 	}
-	const ranked = new Set(config.capabilityRanking);
-	const unrankedCandidates = [
-		...new Set(Object.values(config.profiles).flatMap((profile) => profile.modelPriority.map((c) => c.id))),
-	].filter((id) => !ranked.has(id));
-	if (unrankedCandidates.length > 0) {
-		errors.push(
-			`${filePath}: capabilityRanking: must list every profile candidate model; missing: ${unrankedCandidates.join(", ")}`,
-		);
-	}
 	const seenRank = new Map<string, number>();
 	for (const [index, id] of (config.capabilityRanking ?? []).entries()) {
 		const previous = seenRank.get(id);

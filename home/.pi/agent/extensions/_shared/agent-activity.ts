@@ -5,6 +5,7 @@ export interface AgentActivity {
 	stopAgent(): void;
 	startPrompt(): void;
 	stopPrompt(): void;
+	reset(): void;
 }
 
 export interface AgentActivityOptions {
@@ -42,12 +43,19 @@ export function createAgentActivity(onActiveChange: (active: boolean) => void): 
 			promptActive = false;
 			sync();
 		},
+		reset() {
+			agentActive = false;
+			promptActive = false;
+			sync();
+		},
 	};
 }
 
 /** Register one lifecycle owner for indicators that follow agent activity. */
 export function registerAgentActivity(pi: ExtensionAPI, options: AgentActivityOptions): void {
 	const activity = createAgentActivity(options.onActiveChange);
+	pi.on("session_start", () => activity.reset());
+	pi.on("session_shutdown", () => activity.reset());
 	pi.on("agent_start", () => activity.startAgent());
 	if (options.settleEvent === "agent_end") {
 		pi.on("agent_end", () => activity.stopAgent());

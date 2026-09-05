@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
-import type { ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { APPLY_PATCH_TOOL_NAME } from "./codex-apply-patch/types.ts";
 import { isRecord } from "./_shared/json.ts";
@@ -85,7 +85,8 @@ export function collectNestedContextFiles(filePath: string, cwd: string, loaded:
 	const subtreeRoot = resolve(cwd);
 	let dir = dirname(resolveAgainstCwd(filePath, cwd));
 	const found: NestedContextFile[] = [];
-	while (dir.startsWith(`${subtreeRoot}${sep}`)) {
+	const prefix = subtreeRoot.endsWith(sep) ? subtreeRoot : `${subtreeRoot}${sep}`;
+	while (dir !== subtreeRoot && dir.startsWith(prefix)) {
 		const contextFile = readFirstContextFile(dir);
 		if (contextFile && !loaded.has(contextFile.path)) {
 			loaded.add(contextFile.path);
@@ -129,15 +130,18 @@ export default function nestedContext(pi: ExtensionAPI): void {
 	// The cache mirrors what the conversation actually contains, so restored
 	// sessions (resume/fork/switch/reload) never re-inject context that is
 	// already part of their history.
-	pi.on("session_start", (_event, ctx) => {
+	const restore = (_event: unknown, ctx: ExtensionContext): void => {
 		loaded.clear();
 		for (const path of injectedContextPaths(ctx.sessionManager.getBranch())) loaded.add(path);
-	});
+	};
+	pi.on("session_start", restore);
+	pi.on("session_tree", restore);
 
 	pi.on("tool_call", (event, ctx) => {
+		const pending = new Set(loaded);
 		const discovered: NestedContextFile[] = [];
 		for (const target of toolCallTargetPaths(event.toolName, event.input, ctx.cwd)) {
-			discovered.push(...collectNestedContextFiles(target, ctx.cwd, loaded));
+			discovered.push(...collectNestedContextFiles(target, ctx.cwd, pending));
 		}
 		if (discovered.length === 0) return;
 
@@ -148,8 +152,11 @@ export default function nestedContext(pi: ExtensionAPI): void {
 				display: true,
 				details: { paths: discovered.map((file) => file.path) },
 			},
-			{ deliverAs: "steer", triggerTurn: false },
+			// tool_call runs during streaming. Pi only steers when triggerTurn is
+			// enabled; false defers the instructions until the entire run ends.
+			{ deliverAs: "steer", triggerTurn: true },
 		);
+		for (const file of discovered) loaded.add(file.path);
 	});
 
 	pi.registerMessageRenderer(NESTED_CONTEXT_MESSAGE_TYPE, (message, options, theme) => {

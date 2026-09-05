@@ -18,6 +18,8 @@ This Stow-managed personal repository holds shell tooling, desktop applications,
 
 Within Pi extensions, `skills/index.ts` reconciles live and restored skill visibility through one name-to-selection map; native session entries remain the durable source for branch-local selections. `subagents/managed-agent.ts` owns live session transitions, questions, usage, and cleanup of its session's process groups; `subagents/result-store.ts` indexes compact native-entry locators persisted in parent session results or settlement entries, enabling exact reads across restart. `process-reaper/index.ts` owns a process-local group registry; its temporary marker files only hand PIDs from Bash to that registry and are not durable session state. Role prompts in `subagents/agents/` are separate from the runtime.
 
+Managed children explicitly bind Pi extension startup and emit shutdown before disposal. One settlement path owns both successful and failed generations; interruption keeps the generation unavailable until process cleanup finishes. Failed closure disposes the SDK session but retains the registry owner for a cleanup retry. Archive eviction order comes from the registry map, while exact-result locators outlive dashboard history. Capability rankings affect advice only: unranked models remain usable when permitted by profiles and the parent model scope. Nested context restores on branch navigation and uses native steering so instructions reach the next model step.
+
 ## Where to Start
 
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.

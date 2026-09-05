@@ -81,7 +81,8 @@ export function routeAgentTurnInput(state: AgentTurnRoutingState, input: AgentTu
 			if (!state.retained) throw reject(state, "one_shot");
 			if (state.phase === "closed" || state.phase === "closing") throw reject(state, "closed");
 			if (state.pendingQuestionId) throw reject(state, "question_pending");
-			if (state.phase === "starting" || state.phase === "running") throw reject(state, "turn_active");
+			if (state.phase === "starting" || state.phase === "running" || state.phase === "interrupting")
+				throw reject(state, "turn_active");
 			if (!state.hasSession) throw reject(state, "not_started");
 			return { action: "launch", input };
 		case "steer":
