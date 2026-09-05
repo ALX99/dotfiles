@@ -127,13 +127,27 @@ class WorkspaceParsingTest(unittest.TestCase):
             {
                 "workspace_id": "w1",
                 "label": "demo",
-                "worktree": {"is_linked_worktree": True},
+                "worktree": {"is_linked_worktree": True, "checkout_path": "/tmp/repo"},
             }
         )
         assert ref is not None
         self.assertEqual(ref.workspace_id, "w1")
         self.assertEqual(ref.label, "demo")
-        self.assertEqual(ref.worktree, {"is_linked_worktree": True})
+        self.assertEqual(ref.checkout_path, Path("/tmp/repo"))
+        self.assertTrue(ref.linked_worktree)
+
+    def test_malformed_worktree_fields_are_normalized(self) -> None:
+        for worktree in (None, [], "bad", {}, {"checkout_path": ""},
+                         {"checkout_path": 7, "is_linked_worktree": "true"}):
+            with self.subTest(worktree=worktree):
+                ref = self.ref_from({"workspace_id": "w1", "worktree": worktree})
+                self.assertIsNone(ref.checkout_path)
+                self.assertFalse(ref.linked_worktree)
+
+    def test_main_checkout_retains_path_without_becoming_linked(self) -> None:
+        ref = self.ref_from({"workspace_id": "w1", "worktree": {"checkout_path": "/repo"}})
+        self.assertEqual(ref.checkout_path, Path("/repo"))
+        self.assertFalse(ref.linked_worktree)
 
     def test_missing_or_empty_label_defaults_to_id(self) -> None:
         self.assertEqual(self.ref_from({"workspace_id": "w1"}).label, "w1")

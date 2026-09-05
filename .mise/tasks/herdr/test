@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Test Herdr plugins without a running Herdr server"
+set -euo pipefail
+
+# Separate interpreters keep plugin modules with the same name isolated.
+for tests in .config/herdr/plugins/*/tests; do
+  python3 -m unittest discover -s "$tests"
+done

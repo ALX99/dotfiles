@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Check shell syntax and run shell behavior tests"
+set -euo pipefail
+
+for script in home/.bashrc home/.profile home/.aliasrc home/.bashrc.d/*.bash; do
+  bash -n "$script"
+done
+python3 -m unittest discover -s tests/shell

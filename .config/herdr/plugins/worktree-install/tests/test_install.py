@@ -57,6 +57,10 @@ def wait_for(path: Path, timeout: float = 30.0) -> bool:
 class DetectPlanTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
+        # Selection tests exercise lockfile priority, not the host's toolchain.
+        binaries = mock.patch.object(install, "resolve_binary", side_effect=lambda name: f"/bin/{name}")
+        binaries.start()
+        self.addCleanup(binaries.stop)
 
     def test_prefers_bun_then_pnpm_then_npm(self) -> None:
         write_files(
@@ -204,6 +208,15 @@ class WorkspaceFlowTest(unittest.TestCase):
             self.assertFalse(self.marker.exists())
         finally:
             os.close(lock_fd)
+
+    def test_auto_ignores_empty_checkout_path(self) -> None:
+        self.workspace_payload["workspace"]["worktree"]["checkout_path"] = ""
+        (self.bin_dir / "herdr.json").write_text(json.dumps(self.workspace_payload))
+        with mock.patch.dict(os.environ, {
+            "HERDR_BIN_PATH": str(self.bin_dir / "herdr"),
+            "HERDR_WORKSPACE_ID": "w1",
+        }):
+            self.assertIsNone(install.current_checkout(), "empty path must not resolve to the working directory")
 
     def test_auto_ignores_non_worktree_workspace(self) -> None:
         self.workspace_payload["workspace"]["worktree"]["is_linked_worktree"] = False

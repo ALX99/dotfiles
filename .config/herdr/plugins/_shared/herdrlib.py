@@ -137,7 +137,8 @@ class WorkspaceRef:
 
     workspace_id: str
     label: str
-    worktree: dict[str, Any] | None
+    checkout_path: Path | None
+    linked_worktree: bool
 
 
 def _workspace_ref(info: Any) -> WorkspaceRef | None:
@@ -150,10 +151,14 @@ def _workspace_ref(info: Any) -> WorkspaceRef | None:
     if not isinstance(label, str) or not label:
         label = workspace_id
     worktree = info.get("worktree")
+    if not isinstance(worktree, dict):
+        worktree = {}
+    checkout_path = worktree.get("checkout_path")
     return WorkspaceRef(
         workspace_id,
         label,
-        worktree if isinstance(worktree, dict) else None,
+        Path(checkout_path) if isinstance(checkout_path, str) and checkout_path else None,
+        worktree.get("is_linked_worktree") is True,
     )
 
 

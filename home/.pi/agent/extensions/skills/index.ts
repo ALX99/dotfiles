@@ -6,6 +6,7 @@ import {
 	type Skill,
 } from "@earendil-works/pi-coding-agent";
 
+import { isRecord } from "../_shared/json.ts";
 import { inspectSkills, summarizeSkillTokens } from "./analysis.ts";
 import { formatSkillsSummary, showSkillsPanel, showSkillsSelector, type SkillsPanelOptions } from "./ui.ts";
 
@@ -18,27 +19,25 @@ interface PersistedSkillsState {
 }
 
 interface RuntimeState {
-	/** Undefined means the current session has not resolved its skill inventory yet. */
-	skills: Skill[] | undefined;
-	enabledNames: Set<string>;
-	/** Consumed by the first inventory sync, then discarded. */
-	persistedState: PersistedSkillsState | undefined;
+	/** Last inventory, used only when Pi does not provide one. */
+	skills: Skill[];
+	/** One selection per known name; missing names are enabled by default. */
+	selection: Map<string, boolean>;
 }
 
 export default function skillsExtension(pi: ExtensionAPI): void {
 	const state: RuntimeState = {
-		skills: undefined,
-		enabledNames: new Set(),
-		persistedState: undefined,
+		skills: [],
+		selection: new Map(),
 	};
 
 	pi.on("session_start", (_event, ctx) => restoreState(state, ctx));
 	pi.on("session_tree", (_event, ctx) => restoreState(state, ctx));
 
 	pi.on("before_agent_start", (event) => {
-		const skills = event.systemPromptOptions.skills ?? state.skills ?? [];
-		syncSkills(state, skills);
-		const systemPrompt = rewriteSkillPrompt(event, state.enabledNames);
+		const skills = event.systemPromptOptions.skills ?? state.skills;
+		const enabledNames = syncSkills(state, skills);
+		const systemPrompt = rewriteSkillPrompt(event, enabledNames);
 		return systemPrompt === undefined ? undefined : { systemPrompt };
 	});
 
@@ -46,29 +45,29 @@ export default function skillsExtension(pi: ExtensionAPI): void {
 		description: "Inspect and toggle model-visible Pi skills for this session",
 		handler: async (_args, ctx) => {
 			const options = ctx.getSystemPromptOptions();
-			const skills = options.skills ?? state.skills ?? [];
-			syncSkills(state, skills);
+			const skills = options.skills ?? state.skills;
+			const enabledNames = syncSkills(state, skills);
 			const locked = isSessionLocked(ctx);
 
 			const analyses = await inspectSkills(skills, pi.getActiveTools());
 			const readActive = options.selectedTools?.includes("read") ?? true;
-			let tokens = summarizeSkillTokens(analyses, state.enabledNames, readActive);
+			const getTokens = () => summarizeSkillTokens(analyses, enabledNames, readActive);
 			const onToggle = (name: string, enabled: boolean): void => {
 				if (isSessionLocked(ctx)) {
 					ctx.ui.notify("Skill toggles are locked after the first user message.", "warning");
 					return;
 				}
-				if (enabled) state.enabledNames.add(name);
-				else state.enabledNames.delete(name);
+				if (enabled) enabledNames.add(name);
+				else enabledNames.delete(name);
+				state.selection.set(name, enabled);
 				persistState(pi, state);
-				tokens = summarizeSkillTokens(analyses, state.enabledNames, readActive);
 			};
 			const panelOptions: SkillsPanelOptions = {
 				analyses,
-				enabledNames: state.enabledNames,
+				enabledNames,
 				locked,
 				readActive,
-				getTokens: () => tokens,
+				getTokens,
 				onToggle,
 			};
 
@@ -80,7 +79,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
 				await showSkillsSelector(ctx, panelOptions);
 				return;
 			}
-			ctx.ui.notify(formatSkillsSummary(analyses, state.enabledNames, locked, readActive, tokens), "info");
+			ctx.ui.notify(formatSkillsSummary(analyses, enabledNames, locked, readActive, getTokens()), "info");
 		},
 	});
 }
@@ -112,60 +111,35 @@ export function rewriteSkillPrompt(
 }
 
 function restoreState(state: RuntimeState, ctx: ExtensionContext): void {
-	state.skills = undefined;
-	state.enabledNames = new Set();
-	state.persistedState = undefined;
+	state.skills = [];
+	state.selection.clear();
 
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type !== "custom" || entry.customType !== SKILLS_STATE_ENTRY) continue;
 		const persisted = parsePersistedState(entry.data);
-		if (persisted !== undefined) state.persistedState = persisted;
+		if (persisted === undefined) continue;
+		const enabledNames = new Set(persisted.enabledNames);
+		state.selection = new Map(persisted.knownNames.map((name) => [name, enabledNames.has(name)]));
 	}
 }
 
-function syncSkills(state: RuntimeState, skills: readonly Skill[]): void {
-	if (state.skills === undefined) {
-		state.enabledNames = initialEnabledNames(skills, state.persistedState);
-		state.persistedState = undefined;
-	} else {
-		state.enabledNames = reconcileEnabledNames(state.skills, state.enabledNames, skills);
-	}
+/** Reconcile restored and live selections through the same inventory boundary. */
+function syncSkills(state: RuntimeState, skills: readonly Skill[]): Set<string> {
+	state.selection = new Map(
+		skills.map((skill) => [skill.name, isModelInvocable(skill) && (state.selection.get(skill.name) ?? true)]),
+	);
 	state.skills = [...skills];
-}
-
-function initialEnabledNames(skills: readonly Skill[], persisted: PersistedSkillsState | undefined): Set<string> {
-	if (persisted === undefined) return new Set(skills.filter(isModelInvocable).map(({ name }) => name));
-
-	const knownNames = new Set(persisted.knownNames);
-	const persistedEnabledNames = new Set(persisted.enabledNames);
-	return new Set(
-		skills
-			.filter(isModelInvocable)
-			.filter(({ name }) => !knownNames.has(name) || persistedEnabledNames.has(name))
-			.map(({ name }) => name),
-	);
-}
-
-function reconcileEnabledNames(
-	previousSkills: readonly Skill[],
-	previousEnabledNames: ReadonlySet<string>,
-	nextSkills: readonly Skill[],
-): Set<string> {
-	const previousNames = new Set(previousSkills.map(({ name }) => name));
-	return new Set(
-		nextSkills
-			.filter(isModelInvocable)
-			.filter(({ name }) => !previousNames.has(name) || previousEnabledNames.has(name))
-			.map(({ name }) => name),
-	);
+	return new Set([...state.selection].filter(([, enabled]) => enabled).map(([name]) => name));
 }
 
 function persistState(pi: ExtensionAPI, state: RuntimeState): void {
-	if (state.skills === undefined) return;
 	const saved: PersistedSkillsState = {
 		version: 1,
-		knownNames: [...new Set(state.skills.map(({ name }) => name))].toSorted(),
-		enabledNames: [...state.enabledNames].toSorted(),
+		knownNames: [...state.selection.keys()].toSorted(),
+		enabledNames: [...state.selection]
+			.filter(([, enabled]) => enabled)
+			.map(([name]) => name)
+			.toSorted(),
 	};
 	pi.appendEntry(SKILLS_STATE_ENTRY, saved);
 }
@@ -181,10 +155,6 @@ function parsePersistedState(data: unknown): PersistedSkillsState | undefined {
 function asStringArray(value: unknown): string[] | undefined {
 	if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return undefined;
 	return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
 }
 
 function isModelInvocable(skill: Skill): boolean {

@@ -1,6 +1,7 @@
 .worktrees/
 worktrees/
 /docs/
+__pycache__/
 
 
 .config/mpv/watch_later/*

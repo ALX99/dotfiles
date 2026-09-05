@@ -10,6 +10,22 @@ i like to keep things fairly minimal. if you are interested in my skills,
 check them out in the [skills directory](home/.agents/skills/) or run
 `npx skills add ALX99/dotfiles --list`.
 
+## checks
+
+Run `mise run check` for the Pi, Herdr, and shell checks. Pi requires Node 26+
+and the pnpm version pinned in its package manifest; the script tests require
+Python 3.10+, Bash, and Git. Checks do not install dotfiles into your home directory.
+
+| Command | Coverage |
+| --- | --- |
+| `mise run pi:check` | Locked dependencies, formatting, types, lint, dead code, and Pi tests |
+| `mise run herdr:test` | Herdr plugin tests using CLI fixtures and temporary Git repositories |
+| `mise run shell:test` | Shell syntax and integration-cache behavior |
+
+Without mise, run the script tests with `bash .mise/tasks/herdr/test` and
+`bash .mise/tasks/shell/test` from the repository root. ShellCheck runs separately
+in CI; Karabiner changes also need `mise run karabiner:check`.
+
 ## software i like
 
 - distro: [arch](https://archlinux.org/)

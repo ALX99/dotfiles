@@ -1,0 +1,37 @@
+name: Script tests
+
+on:
+  push:
+    paths:
+      - ".config/herdr/**"
+      - "home/.bash*"
+      - "home/.bashrc.d/**"
+      - "home/.profile"
+      - "home/.aliasrc"
+      - "tests/shell/**"
+      - ".mise/tasks/**"
+      - ".github/workflows/scripts.yml"
+  pull_request:
+    paths:
+      - ".config/herdr/**"
+      - "home/.bash*"
+      - "home/.bashrc.d/**"
+      - "home/.profile"
+      - "home/.aliasrc"
+      - "tests/shell/**"
+      - ".mise/tasks/**"
+      - ".github/workflows/scripts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bash .mise/tasks/herdr/test
+      - run: bash .mise/tasks/shell/test
