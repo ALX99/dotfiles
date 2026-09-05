@@ -65,7 +65,11 @@ export class SubagentRuntime {
 		this.pendingCompletions.clear();
 		if (completions.length) {
 			if (backgroundCompletionsNeedExactRead(completions)) this.toolActivation.activate(["read_agent_result"]);
-			sendCompletions(pi, completions);
+			sendCompletions(
+				pi,
+				completions,
+				this.registry.list().filter((summary) => isAgentActive(summary.status)),
+			);
 		}
 	}
 
@@ -167,11 +171,19 @@ export function createSubagentRuntime(toolActivation: SubagentToolActivator): Su
 	return new SubagentRuntime(agents, profileResult.value, toolActivation);
 }
 
-function sendCompletions(pi: ExtensionAPI, summaries: readonly AgentSummary[]): void {
+function sendCompletions(
+	pi: ExtensionAPI,
+	summaries: readonly AgentSummary[],
+	remaining: readonly AgentSummary[],
+): void {
 	pi.sendMessage(
 		{
 			customType: "subagent-completion",
-			content: formatBackgroundCompletions(summaries),
+			content:
+				formatBackgroundCompletions(summaries) +
+				(remaining.length
+					? `\nAgents still active: ${remaining.map((summary) => summary.agent_id).join(", ")}. Handle pending questions or wait_agent for remaining required results before finishing.`
+					: ""),
 			display: true,
 			details: summaries.length === 1 && summaries[0] ? summaries[0] : summaries,
 		},
@@ -216,7 +228,7 @@ function formatBackgroundCompletionContent(summaries: readonly AgentSummary[]): 
 		const resultReference = summary.result
 			? `\n  <result_ref result_id="${summary.result.result_id}" complete="${summary.result.complete}" total_bytes="${summary.result.total_bytes}" sha256="${summary.result.sha256}" />`
 			: "";
-		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${error}${usage}${resultReference}\n</subagent_result>`;
+		return `<subagent_result agent_id="${escapeXmlAttribute(summary.agent_id)}" task_name="${escapeXmlAttribute(summary.task_name)}" generation="${summary.generation}" status="${escapeXmlAttribute(summary.status)}" outcome="${summary.outcome ?? "unknown"}" profile="${escapeXmlAttribute(summary.profile)}" model="${escapeXmlAttribute(summary.model)}"${timing}>\n  <output>${output}</output>${error}${usage}${resultReference}\n</subagent_result>`;
 	});
 	return results.length === 1 ? (results[0] ?? "") : `<subagent_results>\n${results.join("\n")}\n</subagent_results>`;
 }

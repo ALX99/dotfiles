@@ -50,6 +50,8 @@ export function sumRunUsage(usages: readonly Readonly<RunUsage>[]): RunUsage {
 	};
 }
 
+export type GenerationOutcome = "succeeded" | "failed" | "aborted" | "incomplete";
+
 export type RunStatus = "starting" | "running" | "idle" | "failed" | "aborted" | "closed" | "launched";
 
 export interface MutableRunData {
@@ -63,6 +65,10 @@ export interface MutableRunData {
 	/** Bounded presentation/transport preview of the settled terminal result. */
 	finalText: string;
 	error?: string;
+	outcome?: GenerationOutcome;
+	cleanupError?: string;
+	startupMs?: number;
+	firstResponseMs?: number;
 	startTime: number;
 	endTime?: number;
 	toolCount: number;

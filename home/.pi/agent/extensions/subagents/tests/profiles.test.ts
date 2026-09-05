@@ -28,7 +28,9 @@ test("profile identifiers reject whitespace and terminal-control characters", ()
 		profiles: {
 			fast: {
 				description: "Fast",
-				modelPriority: [{ id: "openai-codex/gpt\u001b", defaultThinking: "low", maxThinking: "high" }],
+				modelPriority: [
+					{ id: "openai-codex/gpt\u001b", minThinking: "low", defaultThinking: "low", maxThinking: "high" },
+				],
 			},
 		},
 		agentPolicies: { scout: { defaultProfile: "fast profile", allowedProfiles: ["fast"] } },
@@ -50,11 +52,10 @@ test("an explicit empty model scope does not bypass the parent scope", () => {
 			profiles: {
 				fast: {
 					description: "Fast",
-					modelPriority: [{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" }],
+					modelPriority: [{ id: "openai-codex/gpt", minThinking: "low", defaultThinking: "low", maxThinking: "high" }],
 				},
 			},
 			agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
-			capabilityRanking: ["openai-codex/gpt"],
 		},
 		["scout"],
 	);
@@ -81,8 +82,8 @@ test("profile validation reports configuration relationships before a run can re
 				fast: {
 					description: "Fast",
 					modelPriority: [
-						{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" },
-						{ id: "openai-codex/gpt", defaultThinking: "low", maxThinking: "high" },
+						{ id: "openai-codex/gpt", minThinking: "low", defaultThinking: "low", maxThinking: "high" },
+						{ id: "openai-codex/gpt", minThinking: "low", defaultThinking: "low", maxThinking: "high" },
 					],
 				},
 			},
@@ -102,33 +103,28 @@ test("profile validation reports configuration relationships before a run can re
 		"test-profiles.json: agentPolicies.scout.defaultProfile: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.scout.allowedProfiles.1: references unknown profile 'missing'",
 		"test-profiles.json: agentPolicies.worker: missing policy binding for agent 'worker'",
-		"test-profiles.json: capabilityRanking: must list every profile candidate model; missing: openai-codex/gpt",
 	]);
 });
 
-test("capabilityRanking accepts a unique ordering and rejects duplicate model ids", () => {
-	const base = {
+test("thinking requests override scoped defaults while respecting independent bounds", () => {
+	const parsed = parseAndValidateProfiles({
 		rootPolicy: { maxConcurrentRootAgents: 1 },
 		profiles: {
 			fast: {
 				description: "Fast",
-				modelPriority: [{ id: "prov/luna", defaultThinking: "low", maxThinking: "high" }],
+				modelPriority: [{ id: "openai-codex/gpt", minThinking: "low", defaultThinking: "high", maxThinking: "high" }],
 			},
 		},
 		agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
+	});
+	assert.ok(parsed.success);
+	const options = {
+		config: parsed.config,
+		modelRegistry: { getAvailable: () => [model("gpt")] },
+		scopedModels: [{ model: model("gpt"), thinkingLevel: "high" as const }],
+		agent: "scout",
 	};
-
-	const valid = parseAndValidateProfiles({ ...base, capabilityRanking: ["prov/luna", "prov/terra"] });
-	assert.ok(valid.success);
-
-	const duplicated = parseAndValidateProfiles(
-		{ ...base, capabilityRanking: ["prov/luna", "prov/luna"] },
-		[],
-		"test-profiles.json",
-	);
-	assert.equal(duplicated.success, false);
-	if (duplicated.success) return;
-	assert.deepEqual(duplicated.errors, [
-		"test-profiles.json: capabilityRanking.1: duplicate model id 'prov/luna' (first at capabilityRanking.0)",
-	]);
+	assert.equal(resolveRun({ ...options, requestedThinking: "low" }).effectiveThinking, "low");
+	assert.throws(() => resolveRun({ ...options, requestedThinking: "off" }), /minimum/);
+	assert.throws(() => resolveRun({ ...options, requestedThinking: "max" }), /cap/);
 });

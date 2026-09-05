@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "../agents.ts";
-import { ManagedAgent } from "../managed-agent.ts";
+import { ManagedAgent, createChildResourceLoader } from "../managed-agent.ts";
 import { readLocatedAgentResult } from "../result-store.ts";
 
 const config: AgentConfig = {
@@ -357,11 +357,13 @@ test("a terminal assistant error is a failed, incomplete generation", async (t) 
 	t.after(() => agent.close());
 
 	const failed = await agent.start("inspect", undefined, "inspect", false);
-	assert.equal(failed.status, "failed");
+	assert.equal(failed.status, "idle");
+	assert.equal(failed.outcome, "failed");
 	assert.equal(failed.error, "provider unavailable");
 	assert.equal(failed.finalText, "partial output");
 	assert.equal(failed.result?.complete, false);
-	assert.equal(agent.summary().status, "failed");
+	assert.equal(agent.summary().status, "idle");
+	assert.equal(agent.summary().outcome, "failed");
 });
 
 test("a rejected prompt retains any persisted terminal result for durable reading", async (t) => {
@@ -403,7 +405,8 @@ test("a rejected prompt retains any persisted terminal result for durable readin
 
 	await assert.rejects(agent.start("inspect", undefined, "inspect", false), /transport disconnected/);
 	const summary = agent.summary();
-	assert.equal(summary.status, "failed");
+	assert.equal(summary.status, "idle");
+	assert.equal(summary.outcome, "failed");
 	assert.equal(summary.result?.complete, true);
 	assert.ok(summary.result_locator);
 	assert.equal(
@@ -496,7 +499,8 @@ test("a prompt without a terminal assistant message cannot be reported as succes
 
 	await assert.rejects(agent.start("inspect", undefined, "inspect", false), /terminal assistant message/);
 	const summary = agent.summary();
-	assert.equal(summary.status, "failed");
+	assert.equal(summary.status, "idle");
+	assert.equal(summary.outcome, "failed");
 	assert.equal(summary.result, undefined);
 	assert.equal(summary.result_locator, undefined);
 });
@@ -565,7 +569,8 @@ test("a silent generation is aborted internally and reported as failed, not abor
 	t.after(() => agent.close());
 
 	const stalled = await agent.start("inspect", undefined, "inspect", false);
-	assert.equal(stalled.status, "failed");
+	assert.equal(stalled.status, "idle");
+	assert.equal(stalled.outcome, "failed");
 	assert.equal(stalled.aborted, false);
 	assert.match(stalled.error ?? "", /stalled: no activity for 20ms/);
 	assert.equal(stalled.result?.complete, false);
@@ -695,4 +700,114 @@ test("a pending question exempts the generation from the stall watchdog", async 
 	assert.equal(settled.status, "idle");
 	assert.equal(settled.finalText, "answered");
 	assert.equal(aborts, 0);
+});
+
+test("startup deadline releases capacity and disposes a late session without launching", async () => {
+	const pending = Promise.withResolvers<any>();
+	let disposed = 0;
+	let prompted = 0;
+	const agent = new ManagedAgent({
+		agentDir: os.tmpdir(),
+		defaultCwd: os.tmpdir(),
+		agent: config,
+		resolvedRun,
+		retain: false,
+		startupTimeoutMs: 5,
+		sessionFactory: () => pending.promise,
+	});
+	await assert.rejects(agent.start("inspect", undefined, "inspect", true), /startup timed out/);
+	assert.equal(agent.phase, "closed");
+	assert.equal(agent.occupiesCapacity(), false);
+	pending.resolve({
+		dispose() {
+			disposed++;
+		},
+		prompt() {
+			prompted++;
+		},
+	});
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(disposed, 1);
+	assert.equal(prompted, 0);
+});
+
+test("streamed deltas avoid history scans and closure preserves outcome despite cleanup failure", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-stream-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const listeners = new Set<(event: any) => void>();
+	let scans = 0;
+	let notifications = 0;
+	let disposed = false;
+	const cleanup = Promise.withResolvers<void>();
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		subscribe(listener: (event: any) => void) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		getContextUsage() {
+			scans++;
+			return { tokens: 10, percent: 1, contextWindow: 1000 };
+		},
+		async prompt() {
+			for (let i = 0; i < 1000; i++)
+				for (const listener of listeners) listener({ type: "message_update", message: { role: "assistant" } });
+			appendAssistant(manager, listeners, "done", "stop");
+		},
+		dispose() {
+			disposed = true;
+		},
+	};
+	const agent = new ManagedAgent({
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: false,
+		sessionFactory: async () => fake as never,
+		processReaper: {
+			terminateOwner: async () => {
+				throw new Error("cleanup failed");
+			},
+		},
+		onCleanupError: () => cleanup.resolve(),
+	});
+	agent.subscribe(() => notifications++);
+	const result = await agent.start("inspect", undefined, "inspect", false);
+	await cleanup.promise;
+	assert.equal(scans, 1);
+	assert.ok(notifications < 10);
+	assert.equal(result.outcome, "succeeded");
+	assert.equal(agent.summary().outcome, "succeeded");
+	assert.equal(agent.summary().status, "closed");
+	assert.match(agent.summary().cleanup_error!, /cleanup failed/);
+	assert.ok(agent.summary().startup_ms! >= 0);
+	assert.ok(agent.summary().first_response_ms! >= 0);
+	assert.equal(disposed, true);
+});
+
+test("child resource loading excludes unrelated factories before initialization", async (t) => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "child-resources-test-"));
+	t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+	const agentDir = path.join(root, "agent");
+	const extensions = path.join(agentDir, "extensions");
+	fs.mkdirSync(extensions, { recursive: true });
+	fs.writeFileSync(
+		path.join(extensions, "unrelated.ts"),
+		'export default function() { throw new Error("unrelated factory executed"); }',
+	);
+	fs.writeFileSync(path.join(extensions, "nested-context.ts"), "export default function() {}");
+	fs.writeFileSync(path.join(root, "AGENTS.md"), "Project instructions survive.");
+	const loader = createChildResourceLoader(root, agentDir, "Role instructions.");
+	await loader.reload();
+	assert.deepEqual(loader.getExtensions().errors, []);
+	assert.deepEqual(
+		loader.getExtensions().extensions.map((extension) => path.basename(extension.resolvedPath)),
+		["nested-context.ts"],
+	);
+	assert.ok(loader.getAgentsFiles().agentsFiles.some((file) => file.content.includes("Project instructions survive.")));
+	assert.ok(loader.getAppendSystemPrompt().includes("Role instructions."));
 });

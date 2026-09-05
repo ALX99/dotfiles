@@ -15,7 +15,7 @@ export interface AgentSummaryDetails {
 	readonly capacity?: CapacitySnapshot;
 }
 
-export type WaitOutcomeStatus = "settled" | "waiting_input" | "cancelled" | "failed";
+export type WaitOutcomeStatus = "settled" | "waiting_input" | "running" | "cancelled" | "failed";
 
 export interface WaitOutcome {
 	readonly agent_id: string;
@@ -64,7 +64,7 @@ export function formatAgentCompletion(summary: AgentSummary, includeRetention = 
 	const exactResultGuidance = requiresExactResultRead(summary)
 		? "\n\nUse read_agent_result for exact cursor-paged reconstruction."
 		: "";
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}${retention}\n\n${summary.final_text || summary.error || "(no output)"}${retainedNextStep}${exactResultGuidance}`;
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\noutcome: ${summary.outcome ?? "pending"}\ngeneration: ${summary.generation}${retention}\n\n${summary.final_text || summary.error || "(no output)"}${retainedNextStep}${exactResultGuidance}`;
 }
 
 /** Describe a launched background generation without promising invalid controls. */
@@ -74,7 +74,7 @@ export function formatAgentLaunch(summary: AgentSummary): string {
 	const nextStep = summary.retained
 		? "Use wait_agent, send_agent, interrupt_agent, or close_agent while it runs. After it settles, use followup_agent or close_agent."
 		: "Use wait_agent, send_agent, interrupt_agent, or close_agent while it runs; one-shot agents archive after settlement.";
-	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. ${nextStep}`;
+	return `agent_id: ${summary.agent_id}\nstatus: ${summary.status}\noutcome: ${summary.outcome ?? "pending"}\ngeneration: ${summary.generation}\nretained: ${summary.retained}\n\nCompletion will be delivered automatically. ${nextStep}`;
 }
 
 export function waitDetails(

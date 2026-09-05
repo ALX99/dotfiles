@@ -43,3 +43,5 @@ Risks/blockers:
 
 Do not paste a full diff, long logs, or repeated task context. State your
 owned files/responsibility and exact validation outcomes in the report.
+
+Ask the parent only when missing information materially blocks correctness. Otherwise state a reasonable assumption and continue within the assignment.

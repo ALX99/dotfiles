@@ -36,11 +36,15 @@ const ModelIdSchema = configKey("model id").refine((id) => {
 export const ModelCandidateSchema = z
 	.strictObject({
 		id: ModelIdSchema,
-		/** The omitted-request default and lowest permitted explicit override. */
+		/** Independent floor, default, and ceiling for explicit requests. */
+		minThinking: ThinkingLevelSchema,
 		defaultThinking: ThinkingLevelSchema,
 		maxThinking: ThinkingLevelSchema,
 	})
 	.superRefine((candidate, ctx) => {
+		if (thinkingRank(candidate.minThinking) > thinkingRank(candidate.defaultThinking)) {
+			ctx.addIssue({ code: "custom", path: ["minThinking"], message: "minThinking must not exceed defaultThinking" });
+		}
 		if (thinkingRank(candidate.defaultThinking) > thinkingRank(candidate.maxThinking)) {
 			ctx.addIssue({
 				code: "custom",
@@ -70,8 +74,6 @@ export const ProfilesSchema = z.strictObject({
 	rootPolicy: RootPolicySchema,
 	profiles: z.record(configKey("profile name"), ProfileSchema),
 	agentPolicies: z.record(configKey("agent name"), AgentPolicySchema),
-	/** Optional weakest-to-strongest ordering used only for capability-hint wording. Unlisted models degrade to neutral advice. */
-	capabilityRanking: z.array(ModelIdSchema).optional(),
 });
 
 export type ProfilesConfig = z.infer<typeof ProfilesSchema>;
@@ -208,26 +210,6 @@ export function validateProfiles(
 			);
 		}
 	}
-	const ranked = new Set(config.capabilityRanking);
-	const unrankedCandidates = [
-		...new Set(Object.values(config.profiles).flatMap((profile) => profile.modelPriority.map((c) => c.id))),
-	].filter((id) => !ranked.has(id));
-	if (unrankedCandidates.length > 0) {
-		errors.push(
-			`${filePath}: capabilityRanking: must list every profile candidate model; missing: ${unrankedCandidates.join(", ")}`,
-		);
-	}
-	const seenRank = new Map<string, number>();
-	for (const [index, id] of (config.capabilityRanking ?? []).entries()) {
-		const previous = seenRank.get(id);
-		if (previous !== undefined) {
-			errors.push(
-				`${filePath}: capabilityRanking.${index}: duplicate model id '${id}' (first at capabilityRanking.${previous})`,
-			);
-		} else {
-			seenRank.set(id, index);
-		}
-	}
 	return errors;
 }
 
@@ -319,11 +301,11 @@ function resolveCandidate(
 	requestedThinking: ModelThinkingLevel | undefined,
 	scopedThinking: ModelThinkingLevel | undefined,
 ): ResolvedRun {
-	const requested = scopedThinking ?? requestedThinking ?? candidate.defaultThinking;
+	const requested = requestedThinking ?? scopedThinking ?? candidate.defaultThinking;
 	assertThinkingLevel(requested);
-	if (thinkingRank(requested) < thinkingRank(candidate.defaultThinking)) {
+	if (thinkingRank(requested) < thinkingRank(candidate.minThinking)) {
 		throw new Error(
-			`Requested thinking '${requested}' is below profile '${profileName}' candidate '${candidate.id}' minimum '${candidate.defaultThinking}'.`,
+			`Requested thinking '${requested}' is below profile '${profileName}' candidate '${candidate.id}' minimum '${candidate.minThinking}'.`,
 		);
 	}
 	if (thinkingRank(requested) > thinkingRank(candidate.maxThinking)) {
@@ -332,7 +314,7 @@ function resolveCandidate(
 		);
 	}
 	const effectiveThinking = supportedThinkingAtOrBelow(model, requested);
-	if (!effectiveThinking) {
+	if (!effectiveThinking || thinkingRank(effectiveThinking) < thinkingRank(candidate.minThinking)) {
 		throw new Error(`Model '${candidate.id}' supports no thinking level at or below requested '${requested}'.`);
 	}
 	return freezeResolvedRun(agent, profileName, candidate.id, effectiveThinking, model.contextWindow, model);

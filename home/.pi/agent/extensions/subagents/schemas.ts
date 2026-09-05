@@ -125,7 +125,7 @@ export const WaitAgentParamsSchema = Type.Object(
 			minItems: 1,
 			maxItems: MAX_WAIT_AGENTS,
 			description:
-				"Agent IDs to wait for as one barrier until each settles or requests input. Duplicates are ignored after trimming.",
+				"Agent IDs to wait on until any settles or requests input. Remaining agents keep running; use remaining_agent_ids for the next wait. Duplicates are ignored after trimming.",
 		}),
 	},
 	{ additionalProperties: false },

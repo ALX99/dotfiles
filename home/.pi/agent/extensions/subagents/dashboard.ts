@@ -41,7 +41,7 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 		if (summary.status !== "closed") actions.push("Close");
 		if (summary.session_file && !active) actions.push("Take over session");
 		const action = await ctx.ui.select(
-			`${dashboardAgentLabel(summary)}\n${sanitizeTerminalText(summary.model)} · generation ${summary.generation}`,
+			`${dashboardAgentLabel(summary)}\n${sanitizeTerminalText(summary.model)} · generation ${summary.generation}\n${agentTimings(summary)}`,
 			[...actions, BACK],
 		);
 		if (!action || action === BACK) return false;
@@ -143,7 +143,13 @@ async function takeOver(ctx: ExtensionCommandContext, sessionFile: string | unde
 }
 
 function dashboardAgentLabel(summary: AgentSummary): string {
-	return [summary.agent_id, summary.status, summary.task_name || "(no task)"].map(sanitizeTerminalText).join(" · ");
+	return [
+		summary.agent_id,
+		summary.outcome ? `${summary.status} (${summary.outcome})` : summary.status,
+		summary.task_name || "(no task)",
+	]
+		.map(sanitizeTerminalText)
+		.join(" · ");
 }
 
 function agentCounts(summaries: readonly AgentSummary[]): string {
@@ -155,4 +161,17 @@ function agentCounts(summaries: readonly AgentSummary[]): string {
 		...(waitingForInput === 0 ? [] : [`${waitingForInput} awaiting input`]),
 		`${settled} settled`,
 	].join(" · ");
+}
+
+function agentTimings(summary: AgentSummary): string {
+	return [
+		...(summary.startup_ms === undefined ? [] : [`Startup ${formatSeconds(summary.startup_ms)}`]),
+		...(summary.first_response_ms === undefined ? [] : [`First response ${formatSeconds(summary.first_response_ms)}`]),
+		`Run ${formatSeconds(summary.duration_ms ?? Math.max(0, Date.now() - summary.started_at))}`,
+		...(summary.cleanup_error ? [`Cleanup failed: ${sanitizeTerminalText(summary.cleanup_error)}`] : []),
+	].join(" · ");
+}
+
+function formatSeconds(ms: number): string {
+	return `${(ms / 1000).toFixed(1)}s`;
 }

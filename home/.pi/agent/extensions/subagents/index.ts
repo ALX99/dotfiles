@@ -2,7 +2,7 @@
 
 import type { ExtensionAPI, ScopedModel } from "@earendil-works/pi-coding-agent";
 import { createSubagentRuntime } from "./bootstrap.ts";
-import { buildCapabilityHint, findScopedRankingError } from "./capability-hint.ts";
+import { buildCapabilityHint } from "./capability-hint.ts";
 import { showAgentDashboard } from "./dashboard.ts";
 import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
@@ -10,7 +10,7 @@ import { createManagementTools } from "./tools/management-tools.ts";
 import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
 import { createSpawnAgentTool } from "./tools/spawn-agent.ts";
 import { createWaitAgentTool } from "./tools/wait-agent.ts";
-import { missingSubagentTools, SubagentToolController, deactivateSubagentTools } from "./tool-activation.ts";
+import { missingSubagentTools, SubagentToolController } from "./tool-activation.ts";
 
 export { isCompletionSuperseded } from "./bootstrap.ts";
 export { createSpawnAgentSchema, WaitAgentParamsSchema } from "./schemas.ts";
@@ -30,14 +30,6 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	const managementTools = createManagementTools({ registry: runtime.registry, admission: runtime.admission });
 
 	pi.on("session_start", (_event, ctx) => {
-		const rankingError = findScopedRankingError(runtime.profiles, ctx.scopedModels);
-		if (rankingError) {
-			// The runner catches handler throws and reports them; keep the failure
-			// visible in the TUI and leave this session without subagent tools.
-			deactivateSubagentTools(pi);
-			ctx.ui.notify(rankingError, "error");
-			throw new Error(rankingError);
-		}
 		runtime.startSession(ctx);
 		toolActivation.reset();
 		if (runtime.restoredResultCount > 0) toolActivation.activate(["read_agent_result"]);
@@ -53,13 +45,13 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	pi.on("before_agent_start", (event, ctx) => {
 		if (!toolActivation.enabled || !ctx.model) return undefined;
 		if (!event.systemPromptOptions?.selectedTools?.includes("spawn_agent")) return undefined;
-		// An empty scope means every authenticated model is usable, mirroring resolveRun.
+		// Preserve an explicit empty scope, mirroring resolveRun.
 		const scopedModels = ctx.scopedModels;
 		const hint = buildCapabilityHint({
 			config: runtime.profiles,
 			agents: runtime.agents,
 			availableModels:
-				scopedModels && scopedModels.length > 0
+				scopedModels !== undefined
 					? scopedModels
 					: ctx.modelRegistry.getAvailable().map((model): ScopedModel => ({ model })),
 			currentModel: ctx.model,
@@ -82,6 +74,18 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			registry: runtime.registry,
 			ticks: runtime.ticks,
 			onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+			onCleanupError: (summary, error) => {
+				pi.appendEntry("subagent-cleanup-error", { summary, error: error.message });
+				pi.sendMessage(
+					{
+						customType: "subagent-cleanup-error",
+						content: `Agent ${summary.agent_id} cleanup failed: ${error.message}. Its task outcome is ${summary.outcome ?? "unknown"}.`,
+						display: true,
+						details: summary,
+					},
+					{ deliverAs: "followUp", triggerTurn: true },
+				);
+			},
 			onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),

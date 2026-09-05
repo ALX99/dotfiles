@@ -1,16 +1,15 @@
-import type { ReadonlyRunDetails, RunUsage } from "./run-state.ts";
+import type { GenerationOutcome, ReadonlyRunDetails, RunUsage } from "./run-state.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
-export type AgentPhase = "created" | "starting" | "running" | "idle" | "failed" | "aborted" | "closing" | "closed";
+export type AgentPhase = "created" | "starting" | "running" | "idle" | "closing" | "closed";
 
-export type AgentStatus = Exclude<AgentPhase, "created" | "closing">;
+/** Legacy terminal statuses remain readable in previously persisted results. */
+export type AgentStatus = Exclude<AgentPhase, "created" | "closing"> | "failed" | "aborted";
 
 const LIFECYCLE_STATUS = {
 	created: "starting",
 	starting: "starting",
 	running: "running",
 	idle: "idle",
-	failed: "failed",
-	aborted: "aborted",
 	closing: "closed",
 	closed: "closed",
 } as const satisfies Record<AgentPhase, AgentStatus>;
@@ -37,6 +36,10 @@ export interface AgentSummary {
 	readonly generation: number;
 	readonly retained: boolean;
 	readonly status: AgentStatus;
+	readonly outcome?: GenerationOutcome;
+	readonly cleanup_error?: string;
+	readonly startup_ms?: number;
+	readonly first_response_ms?: number;
 	readonly started_at: number;
 	readonly ended_at?: number;
 	readonly duration_ms?: number;
@@ -53,10 +56,10 @@ export interface AgentView {
 	readonly details: ReadonlyRunDetails;
 }
 
-/** Internal reason used to release every wait in a wave when one child needs input. */
+/** Internal reason used to release every wait in a wave when any child settles or needs input. */
 export class AgentWaitDeferredReason extends Error {
 	constructor() {
-		super("Another agent in this wait wave needs input.");
+		super("Another agent in this wait wave settled or needs input.");
 		this.name = "AgentWaitDeferredReason";
 	}
 }

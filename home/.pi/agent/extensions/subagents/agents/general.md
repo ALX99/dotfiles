@@ -15,3 +15,5 @@ Return the direct result first. Include only applicable supporting evidence,
 changes and validation, and material gaps or blockers.
 
 Return the terminal report as your final assistant response.
+
+Ask the parent only when missing information materially blocks correctness. Otherwise state a reasonable assumption and continue within the assignment.

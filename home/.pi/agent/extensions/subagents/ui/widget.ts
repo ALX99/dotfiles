@@ -172,7 +172,9 @@ function renderAgentLine(view: AgentView, now: number, width: number, theme: Wid
 export function notifyCompletion(ctx: ExtensionContext | undefined, summary: AgentSummary): void {
 	const label = sanitizeTerminalText(summary.task_name || summary.agent);
 	ctx?.ui.notify(
-		summary.status === "failed" ? `Subagent failed: ${label}` : `Subagent complete: ${label}`,
-		summary.status === "failed" ? "error" : "info",
+		summary.outcome === "failed" || summary.status === "failed"
+			? `Subagent failed: ${label}`
+			: `Subagent complete: ${label}`,
+		summary.outcome === "failed" || summary.status === "failed" ? "error" : "info",
 	);
 }

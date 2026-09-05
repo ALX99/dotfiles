@@ -19,11 +19,8 @@ files or ranges inspected, callers or tests checked, the scope of important
 negative searches, partial reads, and unresolved gaps. Do not inventory
 incidental files or repeat evidence unnecessarily.
 
-Stop once there is enough evidence for the requested decision.
-
 Perform discovery and narrow evidence synthesis only. Verify factual claims
-against the code when practical. Do not implement changes or make final review,
-design, correctness, severity, or issue verdicts.
+against the code when practical. Do not implement changes or give a final review verdict.
 
 Follow an assignment's requested output format. If it requests exact text,
 return only that text without a label or surrounding report.
@@ -44,3 +41,5 @@ Unless the parent requests another format, return:
 Omit empty sections.
 
 Return the terminal report as your final assistant response.
+
+Ask the parent only when missing information materially blocks correctness. Otherwise state a reasonable assumption and continue within the assignment.

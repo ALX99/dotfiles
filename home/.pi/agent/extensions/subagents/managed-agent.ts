@@ -53,6 +53,9 @@ import {
 let nextAgentId = 1;
 
 /** Silent child time before a generation is considered stuck and aborted internally. */
+export const AGENT_STARTUP_TIMEOUT_MS = 120_000;
+const PRESENTATION_INTERVAL_MS = 150;
+
 export const AGENT_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
 
 function formatStallDuration(ms: number): string {
@@ -107,6 +110,8 @@ export interface ManagedAgentOptions {
 	readonly sessionFactory?: (customTools: readonly ToolDefinition[]) => Promise<AgentSession>;
 	/** Test seam for the stall-watchdog threshold; production uses AGENT_STALL_TIMEOUT_MS. */
 	readonly stallTimeoutMs?: number;
+	readonly startupTimeoutMs?: number;
+	readonly onCleanupError?: (summary: AgentSummary, error: Error) => void;
 	readonly onBackgroundComplete?: (summary: AgentSummary) => void;
 	readonly onQuestion?: (summary: AgentSummary, question: AgentQuestion) => void;
 }
@@ -127,6 +132,8 @@ export class ManagedAgent {
 	private current: Generation | undefined;
 	private nextGeneration = 0;
 	private closePromise: Promise<void> | undefined;
+	private startupMs: number | undefined;
+	private presentationTimer: NodeJS.Timeout | undefined;
 	private stallTimer: NodeJS.Timeout | undefined;
 
 	constructor(options: ManagedAgentOptions) {
@@ -186,18 +193,32 @@ export class ManagedAgent {
 	private async openAndLaunch(input: StartTurnInput): Promise<ReadonlyRunDetails> {
 		this.phaseState = "starting";
 		this.emit();
+		const started = Date.now();
+		let timer: NodeJS.Timeout | undefined;
 		try {
-			await this.open();
+			await Promise.race([
+				this.open(),
+				new Promise<never>((_, reject) => {
+					timer = setTimeout(
+						() => reject(new Error(`Agent ${this.id} startup timed out.`)),
+						this.options.startupTimeoutMs ?? AGENT_STARTUP_TIMEOUT_MS,
+					);
+				}),
+			]);
+			this.startupMs = Date.now() - started;
 			if (this.phaseState !== "starting") {
 				this.disposeSession();
 				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
 			}
 		} catch (cause) {
 			if (this.phaseState === "starting") {
-				this.phaseState = "failed";
+				this.phaseState = "idle";
 				this.emit();
 			}
+			await this.close().catch((error) => this.reportCleanupError(error));
 			throw cause;
+		} finally {
+			clearTimeout(timer);
 		}
 		return this.launch(buildInitialTask(input.message, input.handoff), input.taskName, input.background, input.signal);
 	}
@@ -241,7 +262,6 @@ export class ManagedAgent {
 			return;
 		}
 		current.aborted = true;
-		this.phaseState = "aborted";
 		this.cancelPendingQuestion(current, `Agent ${this.id} was interrupted while waiting for input.`);
 		this.emit();
 		await this.session.abort();
@@ -255,23 +275,55 @@ export class ManagedAgent {
 			this.phaseState = "closing";
 			this.clearStallWatchdog();
 			this.emit();
+			const errors: unknown[] = [];
 			const current = this.current;
 			if (current && !current.settled) {
 				current.aborted = true;
 				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
-				await this.session?.abort().catch(() => {});
-				// abort() waits for Pi to reach idle, but settle defensively here as
-				// well so an incomplete or misbehaving session cannot leave a live
-				// generation behind after its owner is archived.
-				await this.settle(current, false);
+				try {
+					await this.session?.abort();
+				} catch (error) {
+					errors.push(error);
+				}
+				try {
+					await this.settle(current, false);
+				} catch (error) {
+					errors.push(error);
+				}
 			}
-			await this.reapOwnedProcesses();
-			this.disposeSession();
+			try {
+				await this.reapOwnedProcesses();
+			} catch (error) {
+				errors.push(error);
+			}
+			try {
+				this.disposeSession();
+			} catch (error) {
+				errors.push(error);
+			}
+			const failure = errors.length
+				? new AggregateError(errors, errors.map((error) => toError(error).message).join("; "))
+				: undefined;
+			if (failure && current) current.run.cleanupError = failure.message;
 			this.phaseState = "closed";
 			this.emit();
 			this.listeners.clear();
+			if (failure) throw failure;
 		})();
 		return this.closePromise;
+	}
+
+	private reportCleanupError(cause: unknown): void {
+		this.options.onCleanupError?.(this.summary(), toError(cause));
+	}
+
+	private async closeAfterSettlement(): Promise<void> {
+		if (this.options.retain || this.phaseState === "closing" || this.phaseState === "closed") return;
+		try {
+			await this.close();
+		} catch (error) {
+			this.reportCleanupError(error);
+		}
 	}
 
 	summary(): AgentSummary {
@@ -289,6 +341,10 @@ export class ManagedAgent {
 			generation: details.generation ?? 0,
 			retained: this.options.retain,
 			status: lifecycleStatus({ phase: this.phaseState }),
+			...(details.outcome ? { outcome: details.outcome } : {}),
+			...(details.cleanupError ? { cleanup_error: details.cleanupError } : {}),
+			...(details.startupMs === undefined ? {} : { startup_ms: details.startupMs }),
+			...(details.firstResponseMs === undefined ? {} : { first_response_ms: details.firstResponseMs }),
 			started_at: details.startTime,
 			...(details.endTime === undefined ? {} : { ended_at: details.endTime }),
 			...(durationMs === undefined ? {} : { duration_ms: durationMs }),
@@ -396,29 +452,15 @@ export class ManagedAgent {
 		const tools = this.options.agent.tools ? [...this.options.agent.tools] : [];
 		const customTools = tools.includes("ask_question") ? [askQuestion] : [];
 		if (this.options.sessionFactory) {
-			this.session = await this.options.sessionFactory(customTools);
-			this.unsubscribe = this.session.subscribe((event) => this.handleEvent(event));
+			this.attachSession(await this.options.sessionFactory(customTools));
 			return;
 		}
 		const directory = path.join(this.options.agentDir, "subagent-sessions");
 		await fs.promises.mkdir(directory, { recursive: true });
 		const manager = SessionManager.create(this.cwd, directory);
-		const subagentExtension = path.resolve(this.options.agentDir, "extensions", "subagents", "index.ts");
-		const loader = new DefaultResourceLoader({
-			cwd: this.cwd,
-			agentDir: this.options.agentDir,
-			appendSystemPrompt: [this.options.agent.systemPrompt],
-			extensionsOverride: (base) => ({
-				...base,
-				extensions: base.extensions.filter(
-					(extension) =>
-						path.resolve(extension.resolvedPath) !== subagentExtension &&
-						!extension.tools.has("spawn_agent") &&
-						!extension.tools.has("ask_question"),
-				),
-			}),
-		});
+		const loader = createChildResourceLoader(this.cwd, this.options.agentDir, this.options.agent.systemPrompt);
 		await loader.reload();
+		if (this.phaseState !== "starting") throw new Error(`Agent ${this.id} was closed while its session was starting.`);
 		const { session } = await createAgentSession({
 			cwd: this.cwd,
 			agentDir: this.options.agentDir,
@@ -429,6 +471,14 @@ export class ManagedAgent {
 			customTools,
 			tools,
 		});
+		this.attachSession(session);
+	}
+
+	private attachSession(session: AgentSession): void {
+		if (this.phaseState !== "starting") {
+			session.dispose();
+			throw new Error(`Agent ${this.id} was closed while its session was starting.`);
+		}
 		this.session = session;
 		this.unsubscribe = session.subscribe((event) => this.handleEvent(event));
 	}
@@ -453,6 +503,7 @@ export class ManagedAgent {
 			...(this.session.sessionFile ? { sessionFile: this.session.sessionFile } : {}),
 			resultId: randomBytes(32).toString("hex"),
 		});
+		if (this.nextGeneration === 0 && this.startupMs !== undefined) run.startupMs = this.startupMs;
 		const generation: Generation = {
 			number: ++this.nextGeneration,
 			completion: promise,
@@ -470,10 +521,13 @@ export class ManagedAgent {
 		this.phaseState = "running";
 		this.watchForStall(generation);
 		this.emit();
-		void this.session.prompt(message, { expandPromptTemplates: false }).then(
-			() => this.settle(generation),
-			(error) => this.fail(generation, error),
-		);
+		void this.session
+			.prompt(message, { expandPromptTemplates: false })
+			.then(
+				() => this.settle(generation),
+				(error) => this.fail(generation, error),
+			)
+			.catch((error) => this.reportCleanupError(error));
 		return background ? Promise.resolve(this.snapshot("launched")) : this.waitFor(generation, signal);
 	}
 
@@ -500,14 +554,22 @@ export class ManagedAgent {
 		}
 		generation.run.endTime = Date.now();
 		generation.settled = true;
-		const terminalPhase: AgentPhase = generation.stalled
+		const terminalPhase = generation.stalled
 			? "failed"
 			: generation.aborted || stopReason === "aborted"
 				? "aborted"
 				: stopReason === "error"
 					? "failed"
 					: "idle";
-		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
+		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = "idle";
+		generation.run.outcome =
+			terminalPhase === "failed"
+				? "failed"
+				: terminalPhase === "aborted"
+					? "aborted"
+					: stopReason === "stop"
+						? "succeeded"
+						: "incomplete";
 		const details = this.snapshot();
 		generation.resolve(details);
 		generation.questionArrival.resolve();
@@ -520,7 +582,7 @@ export class ManagedAgent {
 		) {
 			this.options.onBackgroundComplete?.(this.summary());
 		}
-		if (closeWhenSettled && !this.options.retain) await this.close();
+		if (closeWhenSettled) await this.closeAfterSettlement();
 	}
 
 	private fail(generation: Generation, cause: unknown): void {
@@ -536,7 +598,8 @@ export class ManagedAgent {
 		generation.run.endTime = Date.now();
 		generation.settled = true;
 		const terminalPhase = generation.aborted ? "aborted" : "failed";
-		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
+		generation.run.outcome = terminalPhase;
+		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = "idle";
 		const details = this.snapshot();
 		if (generation.aborted) generation.resolve(details);
 		else generation.reject(error);
@@ -550,7 +613,7 @@ export class ManagedAgent {
 		) {
 			this.options.onBackgroundComplete?.(this.summary());
 		}
-		if (!this.options.retain) void this.close();
+		void this.closeAfterSettlement();
 	}
 
 	private terminalAssistantEntry(generation: Generation): AssistantSessionEntry | undefined {
@@ -587,9 +650,22 @@ export class ManagedAgent {
 		const generation = this.current;
 		if (!generation || generation.settled) return;
 		foldSessionEvent(event, generation.run);
-		const contextUsage = this.session?.getContextUsage();
-		if (contextUsage) generation.run.contextUsage = { ...contextUsage };
-		this.emit();
+		if (
+			generation.run.firstResponseMs === undefined &&
+			(event.type === "message_update" || event.type === "message_end") &&
+			event.message.role === "assistant"
+		) {
+			generation.run.firstResponseMs = Date.now() - generation.run.startTime;
+		}
+		if (event.type === "message_end" || event.type === "compaction_end") {
+			const contextUsage = this.session?.getContextUsage();
+			if (contextUsage) generation.run.contextUsage = { ...contextUsage };
+		}
+		if (!this.presentationTimer)
+			this.presentationTimer = setTimeout(() => {
+				this.presentationTimer = undefined;
+				this.emit();
+			}, PRESENTATION_INTERVAL_MS);
 	}
 
 	private cancelPendingQuestion(generation: Generation, message: string): void {
@@ -623,7 +699,7 @@ export class ManagedAgent {
 			schedule(remainingMs);
 			return;
 		}
-		void this.recoverStalledGeneration(generation);
+		void this.recoverStalledGeneration(generation).catch((error) => this.reportCleanupError(error));
 	}
 
 	/** Abort a silent generation so it settles through the normal failure path. */
@@ -655,8 +731,9 @@ export class ManagedAgent {
 	private disposeSession(): void {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
-		this.session?.dispose();
+		const session = this.session;
 		this.session = undefined;
+		session?.dispose();
 	}
 
 	private async reapOwnedProcesses(): Promise<void> {
@@ -713,6 +790,8 @@ export class ManagedAgent {
 	}
 
 	private emit(): void {
+		clearTimeout(this.presentationTimer);
+		this.presentationTimer = undefined;
 		const details = this.snapshot();
 		for (const listener of this.listeners) listener(details);
 	}
@@ -726,4 +805,18 @@ export function buildInitialTask(message: string, handoff: string | undefined): 
 	return handoff?.trim()
 		? `Task: ${message}\n\nParent context (may be incomplete; use it to understand the assignment and verify factual claims when material):\n${handoff}`
 		: `Task: ${message}`;
+}
+
+/** Load only session-relevant extensions, before any factory executes. Project instructions and skills still use native discovery. */
+export function createChildResourceLoader(cwd: string, agentDir: string, systemPrompt: string): DefaultResourceLoader {
+	const childExtensions = ["codex-apply-patch/index.ts", "nested-context.ts", "process-reaper/index.ts"]
+		.map((relative) => path.resolve(agentDir, "extensions", relative))
+		.filter((file) => fs.existsSync(file));
+	return new DefaultResourceLoader({
+		cwd,
+		agentDir,
+		appendSystemPrompt: [systemPrompt],
+		noExtensions: true,
+		additionalExtensionPaths: childExtensions,
+	});
 }

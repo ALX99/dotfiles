@@ -3,7 +3,12 @@ import { renderWaitCall } from "../render.ts";
 import { uniqueAgentIds, WaitAgentParamsSchema } from "../schemas.ts";
 import { jsonResult, waitDetails, type WaitDetails, type WaitOutcome } from "../tool-results.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
-import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
+import {
+	AgentWaitDeferredReason,
+	AgentWaitInterruptedError,
+	isAgentActive,
+	type AgentSummary,
+} from "../agent-types.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
 import { sumRunUsage, toPiUsage } from "../run-state.ts";
 import type { WaitAgentParams } from "../schemas.ts";
@@ -33,7 +38,7 @@ export function createWaitAgentTool(
 		name: "wait_agent",
 		label: "Wait Agent",
 		description:
-			"Wait as one multi-agent barrier for specified subagents to settle or request input. A matching queued completion is consumed exactly once.",
+			"Wait until any specified subagent settles or requests input. Other children keep running. Use the returned remaining_agent_ids for the next wait; answer pending questions first.",
 		parameters: WaitAgentParamsSchema,
 		async execute(_id, params, signal) {
 			const result = await executeWaitAgent(params, dependencies, signal, now);
@@ -77,13 +82,20 @@ export async function executeWaitAgent(
 	const wave = new AbortController();
 	const waitSignal = signal ? AbortSignal.any([wave.signal, signal]) : wave.signal;
 	const waits = Promise.allSettled(
-		requested.map(async (id) => {
-			const details = await runtime.registry.wait(id, waitSignal);
-			if (details.pendingQuestion && !wave.signal.aborted) {
-				wave.abort(new AgentWaitDeferredReason());
-			}
-			return details;
-		}),
+		requested
+			.map(async (id) => {
+				const details = await runtime.registry.wait(id, waitSignal);
+				if (!wave.signal.aborted) {
+					wave.abort(new AgentWaitDeferredReason());
+				}
+				return details;
+			})
+			.map((wait) =>
+				wait.catch((error) => {
+					if (!wave.signal.aborted) wave.abort(new AgentWaitDeferredReason());
+					throw error;
+				}),
+			),
 	);
 	// Children reject promptly through the shared signal, so caller cancellation
 	// surfaces here as a throw while wave release surfaces as cancelled outcomes.
@@ -92,7 +104,18 @@ export async function executeWaitAgent(
 	const summaries = requested.map((id) => runtime.registry.summary(id));
 	const outcomes = settled.map((outcome, index) => waitOutcome(requested[index]!, outcome));
 	runtime.consumeSettledCompletions(summaries);
-	return jsonResult({ summaries, outcomes }, waitDetails(summaries, Math.max(0, now() - startTime), outcomes));
+	const remaining = summaries.filter((summary) => isAgentActive(summary.status)).map((summary) => summary.agent_id);
+	return jsonResult(
+		{
+			remaining_agent_ids: remaining,
+			guidance: remaining.length
+				? "Other agents still need attention. Answer pending questions, continue non-overlapping work, or wait_agent with remaining_agent_ids. Collect required results before finishing."
+				: "All requested agents have settled.",
+			summaries,
+			outcomes,
+		},
+		waitDetails(summaries, Math.max(0, now() - startTime), outcomes),
+	);
 }
 
 function waitOutcome(id: string, outcome: PromiseSettledResult<ReadonlyRunDetails>): WaitOutcome {
@@ -102,7 +125,7 @@ function waitOutcome(id: string, outcome: PromiseSettledResult<ReadonlyRunDetail
 	const cancelled = outcome.reason instanceof AgentWaitInterruptedError;
 	return {
 		agent_id: id,
-		status: cancelled ? "cancelled" : "failed",
+		status: cancelled ? "running" : "failed",
 		...(cancelled ? {} : { error: errorMessage(outcome.reason) }),
 	};
 }

@@ -40,6 +40,7 @@ export interface SpawnAgentDependencies {
 	readonly registry: Pick<AgentRegistry, "add">;
 	readonly ticks: Map<string, NodeJS.Timeout>;
 	readonly onBackgroundComplete: (summary: AgentSummary) => void;
+	readonly onCleanupError?: (summary: AgentSummary, error: Error) => void;
 	readonly onQuestion: (summary: AgentSummary, question: AgentQuestion) => void;
 	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
 }
@@ -126,6 +127,7 @@ export function createSpawnAgentTool(
 						cleanupUpdate();
 						dependencies.onBackgroundComplete(summary);
 					},
+					...(dependencies.onCleanupError ? { onCleanupError: dependencies.onCleanupError } : {}),
 					onQuestion: (summary, question) => dependencies.onQuestion(summary, question),
 				});
 				await dependencies.registry.add(managed);
@@ -212,7 +214,7 @@ export function thinkingLevelsForProfiles(
 		...profiles.flatMap((name) => {
 			const profile = config.profiles[name];
 			if (!profile) throw new Error(`Profile '${name}' is not configured.`);
-			return profile.modelPriority.map((candidate) => THINKING_LEVELS.indexOf(candidate.defaultThinking));
+			return profile.modelPriority.map((candidate) => THINKING_LEVELS.indexOf(candidate.minThinking));
 		}),
 	);
 	const maximumRank = Math.min(
@@ -254,10 +256,10 @@ export function spawnGuidelines(
 			: [
 					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
-		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch as one barrier with that wave's IDs; the barrier blocks until each child settles or asks for input, so poll agent status when you only need progress. Do not build repeated automatic turns or a task scheduler.",
+		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch to wait on that wave's IDs; waiting returns when any child settles or needs input and identifies remaining work. Collect the remaining results before declaring the assignment complete. Do not build repeated automatic turns or a task scheduler.",
 		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. Once work is delegated, do not duplicate its assigned scope: while the subagent runs, address only non-overlapping needs or wait for its result. The current agent owns synthesis and proportionate, risk-based final verification.",
 		"When a new child task depends on prior work—especially a retry, review/fix cycle, or replacement for an earlier child—put the compact factual delta in handoff: decisions, findings, exact paths or symbols, constraints, and validation failures or results. The child has its own context and does not inherit the parent transcript. Keep the assignment self-contained in message, do not repeat it in handoff, and never paste the parent transcript; omit handoff for independent work.",
-		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
+		"Give each assignment an objective, owned scope, necessary context, acceptance criteria, and expected result. For workers, note concurrent edits and required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
 		"Use scouts only for bounded, narrow read-only discovery; do not assign scouts implementation, broad exploration, or final review verdicts.",
 	];
 }

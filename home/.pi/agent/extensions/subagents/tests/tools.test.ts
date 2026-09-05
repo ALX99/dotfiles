@@ -68,8 +68,8 @@ test("thinking overrides are safe across every configured model fallback", () =>
 			fast: {
 				description: "Fast",
 				modelPriority: [
-					{ id: "provider/first", defaultThinking: "medium", maxThinking: "high" },
-					{ id: "provider/fallback", defaultThinking: "high", maxThinking: "high" },
+					{ id: "provider/first", minThinking: "medium", defaultThinking: "medium", maxThinking: "high" },
+					{ id: "provider/fallback", minThinking: "high", defaultThinking: "high", maxThinking: "high" },
 				],
 			},
 		},
@@ -150,7 +150,7 @@ test("admission reports running lifecycle separately from occupied retained-sess
 		profiles: {
 			fast: {
 				description: "Fast",
-				modelPriority: [{ id: "provider/model", defaultThinking: "low", maxThinking: "low" }],
+				modelPriority: [{ id: "provider/model", minThinking: "low", defaultThinking: "low", maxThinking: "low" }],
 			},
 		},
 		agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
@@ -277,7 +277,7 @@ test("wait_agent releases its wave when one child asks for input", async () => {
 	assert.ok(released[0] instanceof AgentWaitDeferredReason);
 	assert.deepEqual(
 		result.details.outcomes.map((outcome) => outcome.status),
-		["waiting_input", "cancelled"],
+		["waiting_input", "running"],
 	);
 });
 
@@ -339,4 +339,43 @@ test("list_agents includes a bounded recent closed history", async () => {
 		noHistory.details?.summaries.map((agent) => agent.agent_id),
 		["scout-1"],
 	);
+});
+
+test("wait_agent wakes on completion and leaves a slow child running", async () => {
+	const done = { ...summary, agent_id: "done" };
+	const slow = { ...summary, agent_id: "slow", status: "running" as const };
+	const consumed: AgentSummary[] = [];
+	let released = false;
+	const result = await executeWaitAgent(
+		{ agent_ids: ["done", "slow"] },
+		{
+			registry: {
+				summary: (id) => (id === "done" ? done : slow),
+				wait: async (id, signal) => {
+					if (id === "done") return { status: "idle" } as ReadonlyRunDetails;
+					return new Promise<ReadonlyRunDetails>((_, reject) => {
+						signal!.addEventListener(
+							"abort",
+							() => {
+								released = true;
+								reject(new AgentWaitInterruptedError(id, signal!.reason));
+							},
+							{ once: true },
+						);
+					});
+				},
+			},
+			consumeSettledCompletions: (summaries) => consumed.push(...summaries.filter((item) => item.status !== "running")),
+		},
+		undefined,
+	);
+	assert.equal(released, true);
+	assert.deepEqual(
+		result.details.outcomes.map((item) => item.status),
+		["settled", "running"],
+	);
+	assert.deepEqual(consumed, [done]);
+	const content = result.content[0];
+	assert.equal(content?.type, "text");
+	if (content?.type === "text") assert.deepEqual(JSON.parse(content.text).remaining_agent_ids, ["slow"]);
 });

@@ -2,20 +2,28 @@
 	"rootPolicy": {
 		"maxConcurrentRootAgents": 10
 	},
-	"capabilityRanking": [
-		"openai-codex/gpt-5.6-luna",
-		"opencode/x-preview-f-free",
-		"openai-codex/gpt-5.6-terra",
-		"openai-codex/gpt-5.6-sol"
-	],
 	"profiles": {
 		"fast": {
 			"description": "Fast, economical work: mechanical edits, lookups, and bulk simple changes; not for debugging or design",
-			"modelPriority": [{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" }]
+			"modelPriority": [
+				{
+					"id": "openai-codex/gpt-5.6-luna",
+					"defaultThinking": "medium",
+					"maxThinking": "max",
+					"minThinking": "low"
+				}
+			]
 		},
 		"balanced": {
 			"description": "Routine implementation and analysis with moderate cost",
-			"modelPriority": [{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "max", "maxThinking": "max" }]
+			"modelPriority": [
+				{
+					"id": "openai-codex/gpt-5.6-terra",
+					"defaultThinking": "high",
+					"maxThinking": "max",
+					"minThinking": "low"
+				}
+			]
 		}
 	},
 	"agentPolicies": {
@@ -25,11 +33,11 @@
 		},
 		"worker": {
 			"defaultProfile": "fast",
-			"allowedProfiles": ["fast"]
+			"allowedProfiles": ["fast", "balanced"]
 		},
 		"general": {
-			"defaultProfile": "fast",
-			"allowedProfiles": ["fast"]
+			"defaultProfile": "balanced",
+			"allowedProfiles": ["fast", "balanced"]
 		}
 	}
 }

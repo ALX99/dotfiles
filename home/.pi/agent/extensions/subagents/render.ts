@@ -169,8 +169,8 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 	const allSettled = settled === details.summaries.length;
 	const hasFailure =
 		details.outcomes.some((outcome) => outcome.status === "failed") ||
-		details.summaries.some((summary) => summary.status === "failed");
-	const hasAborted = details.summaries.some((summary) => summary.status === "aborted");
+		details.summaries.some((summary) => summary.outcome === "failed" || summary.status === "failed");
+	const hasAborted = details.summaries.some((summary) => summary.outcome === "aborted" || summary.status === "aborted");
 	const interruptionSummary = waitInterruptionSummary(details);
 	const icon = hasFailure
 		? theme.fg("error", "✗")
@@ -206,7 +206,11 @@ function appendAgentSummary(
 		sanitizeTerminalText(summary.profile),
 		...(includeModel ? [sanitizeTerminalText(summary.model), sanitizeTerminalText(summary.effective_thinking)] : []),
 		sanitizeTerminalText(summary.agent_id),
-		summary.pending_question ? "awaiting input" : summary.status,
+		summary.pending_question
+			? "awaiting input"
+			: summary.outcome
+				? `${summary.status} (${summary.outcome})`
+				: summary.status,
 	];
 	container.addChild(
 		new Text(
@@ -228,8 +232,8 @@ function summaryState(summaries: readonly AgentSummary[]): {
 	readonly icon: (theme: Theme) => string;
 	readonly label: string;
 } {
-	const failed = summaries.filter((summary) => summary.status === "failed").length;
-	const aborted = summaries.filter((summary) => summary.status === "aborted").length;
+	const failed = summaries.filter((summary) => summary.outcome === "failed" || summary.status === "failed").length;
+	const aborted = summaries.filter((summary) => summary.outcome === "aborted" || summary.status === "aborted").length;
 	const awaitingInput = summaries.filter((summary) => summary.pending_question).length;
 	const running = summaries.filter((summary) => isAgentActive(summary.status) && !summary.pending_question).length;
 	const closed = summaries.filter((summary) => summary.status === "closed").length;
@@ -248,16 +252,17 @@ function summaryState(summaries: readonly AgentSummary[]): {
 }
 
 function agentStatusIcon(summary: AgentSummary, theme: Theme): string {
-	if (summary.status === "failed") return theme.fg("error", "✗");
-	if (summary.status === "aborted" || summary.pending_question) return theme.fg("warning", "!");
+	if (summary.outcome === "failed" || summary.status === "failed") return theme.fg("error", "✗");
+	if (summary.outcome === "aborted" || summary.status === "aborted" || summary.pending_question)
+		return theme.fg("warning", "!");
 	if (isAgentActive(summary.status)) return theme.fg("warning", "⟳");
-	return summary.status === "idle" ? theme.fg("success", "✓") : theme.fg("dim", "–");
+	return summary.outcome === "succeeded" || summary.status === "idle" ? theme.fg("success", "✓") : theme.fg("dim", "–");
 }
 
 function waitInterruptionSummary(details: WaitDetails): string {
 	const counts = new Map<WaitOutcomeStatus, number>();
 	for (const outcome of details.outcomes) counts.set(outcome.status, (counts.get(outcome.status) ?? 0) + 1);
-	const summarized: readonly WaitOutcomeStatus[] = ["waiting_input", "cancelled", "failed"];
+	const summarized: readonly WaitOutcomeStatus[] = ["waiting_input", "running", "cancelled", "failed"];
 	const parts = summarized.flatMap((status) => {
 		const count = counts.get(status);
 		if (!count) return [];
@@ -275,7 +280,8 @@ export function renderResultBlock(
 	theme: Theme,
 ): Container {
 	const c = new Container();
-	const failed = details.aborted || details.status === "failed" || details.status === "aborted";
+	const failed =
+		details.aborted || details.outcome === "failed" || details.status === "failed" || details.status === "aborted";
 	const isRunning =
 		!failed &&
 		(options.isPartial ||
