@@ -5,26 +5,26 @@
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "0.84.1",
+  "lastChangelogVersion": "0.85.1",
   "retry": {
-    "maxRetries": 10,
+    "maxRetries": 20,
     "enabled": true
   },
   "packages": [
-    "npm:@ff-labs/pi-fff@0.10.0"
+    "npm:@ff-labs/pi-fff"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.6-terra",
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.6-luna",
-    "opencode-go/glm-5.2",
-    "opencode-go/deepseek-v4-flash"
+    "openai-codex/gpt-6-astra"
   ],
   "theme": "stellar",
-  "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "enableInstallTelemetry": false,
   "terminal": {
     "showTerminalProgress": true
-  }
+  },
+  "tuiMode": "fullscreen",
+  "hideThinkingBlock": true
 }
