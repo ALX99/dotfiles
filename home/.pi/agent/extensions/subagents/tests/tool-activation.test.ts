@@ -157,7 +157,6 @@ test("routed questions omit invalid steering and oversized results activate exac
 			result_id: "a".repeat(64),
 			complete: true,
 			total_bytes: Buffer.byteLength(oversizedText, "utf8"),
-			sha256: "a".repeat(64),
 		},
 	});
 	assert.equal(requiresExactResultRead(oversized), true);
@@ -177,7 +176,6 @@ test("complete small results do not activate exact reading", () => {
 				result_id: "a".repeat(64),
 				complete: true,
 				total_bytes: 13,
-				sha256: "b".repeat(64),
 			},
 		}),
 		false,
@@ -191,7 +189,6 @@ test("complete small results do not activate exact reading", () => {
 					result_id: "a".repeat(64),
 					complete: true,
 					total_bytes: 12,
-					sha256: "b".repeat(64),
 				},
 			}),
 		),

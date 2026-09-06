@@ -112,7 +112,6 @@ test("shared terminal completion directs exact reads for every completed generat
 			result_id: "a".repeat(64),
 			complete: true,
 			total_bytes: 50 * 1024,
-			sha256: "b".repeat(64),
 		},
 	};
 	assert.match(formatAgentCompletion(completed), /read_agent_result/);

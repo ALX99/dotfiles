@@ -24,7 +24,6 @@ test("a compact native entry locator restores and pages an exact result", async 
 		sessionId: manager.getSessionId(),
 		sessionFile: manager.getSessionFile()!,
 		resultEntryId: entryId,
-		resultSha256: result.sha256,
 	};
 	assert.deepEqual(await readLocatedAgentResult(locator, agentDir), result);
 
@@ -63,7 +62,6 @@ test("a locator cannot treat a missing native result entry as an empty result", 
 				sessionId: manager.getSessionId(),
 				sessionFile: manager.getSessionFile()!,
 				resultEntryId: "missing-entry",
-				resultSha256: result.sha256,
 			},
 			agentDir,
 		),
@@ -79,7 +77,6 @@ test("result catalog restores locators from both foreground tool details and bac
 		sessionId: "child-session",
 		sessionFile: "/managed/subagent-sessions/child.jsonl",
 		resultEntryId: "entry",
-		resultSha256: "b".repeat(64),
 	};
 	const catalog = new ResultCatalog();
 	assert.equal(

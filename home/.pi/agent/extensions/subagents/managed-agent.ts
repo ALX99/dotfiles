@@ -605,7 +605,6 @@ export class ManagedAgent {
 			sessionId,
 			sessionFile,
 			resultEntryId: entry.id,
-			resultSha256: result.sha256,
 		};
 		generation.run.result = resultReference(result);
 		generation.run.resultLocator = locator;

@@ -77,7 +77,6 @@ test("background completions keep previews bounded and direct exact reads", () =
 				result_id: "a".repeat(64),
 				complete: true,
 				total_bytes: 50 * 1024,
-				sha256: "b".repeat(64),
 			},
 		},
 	]);
@@ -94,7 +93,6 @@ test("background completions keep previews bounded and direct exact reads", () =
 					result_id: "a".repeat(64),
 					complete: true,
 					total_bytes: 50 * 1024,
-					sha256: "b".repeat(64),
 				},
 			},
 		]),
@@ -111,7 +109,6 @@ test("complete background results do not direct exact reads", () => {
 			result_id: "a".repeat(64),
 			complete: true,
 			total_bytes: 15,
-			sha256: "b".repeat(64),
 		},
 	};
 	assert.equal(backgroundCompletionsNeedExactRead([result]), false);
@@ -124,7 +121,6 @@ test("aggregate completion truncation requires exact reads even when each result
 		result_id: "a".repeat(64),
 		complete: true,
 		total_bytes: 2_000,
-		sha256: "b".repeat(64),
 	};
 	const summaries = Array.from({ length: 9 }, (_, index) => ({
 		...summary(1),

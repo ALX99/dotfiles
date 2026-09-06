@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createHash } from "node:crypto";
 import { getAgentDir, SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 
 export const SUBAGENT_SETTLEMENT_CUSTOM_TYPE = "subagent-settlement";
@@ -19,7 +18,6 @@ export interface StoredAgentResult {
 	readonly text: string;
 	readonly complete: boolean;
 	readonly totalBytes: number;
-	readonly sha256: string;
 }
 
 /** The one entry needed to reproduce a completed generation's terminal text. */
@@ -30,7 +28,6 @@ export interface GenerationResultLocator {
 	readonly sessionId: string;
 	readonly sessionFile: string;
 	readonly resultEntryId: string | null;
-	readonly resultSha256: string;
 }
 
 export interface AgentResultReference {
@@ -38,7 +35,6 @@ export interface AgentResultReference {
 	readonly result_id: string;
 	readonly complete: boolean;
 	readonly total_bytes: number;
-	readonly sha256: string;
 }
 
 export interface ResultPage {
@@ -52,7 +48,6 @@ export interface ResultPage {
 	readonly done: boolean;
 	readonly complete: boolean;
 	readonly total_bytes: number;
-	readonly sha256: string;
 }
 
 export function storedResult(generation: number, resultId: string, text: string, complete: boolean): StoredAgentResult {
@@ -63,7 +58,6 @@ export function storedResult(generation: number, resultId: string, text: string,
 		text,
 		complete,
 		totalBytes: Buffer.byteLength(text, "utf8"),
-		sha256: sha256(text),
 	});
 }
 
@@ -73,7 +67,6 @@ export function resultReference(result: StoredAgentResult): AgentResultReference
 		result_id: result.resultId,
 		complete: result.complete,
 		total_bytes: result.totalBytes,
-		sha256: result.sha256,
 	});
 }
 
@@ -98,7 +91,7 @@ export function isTruncatedResultPreview(text: string): boolean {
 
 export function parseGenerationResultLocator(value: unknown): GenerationResultLocator | undefined {
 	if (!isRecord(value)) return undefined;
-	const { version, generation, resultId, sessionId, sessionFile, resultEntryId, resultSha256 } = value;
+	const { version, generation, resultId, sessionId, sessionFile, resultEntryId } = value;
 	if (
 		version !== 2 ||
 		typeof generation !== "number" ||
@@ -110,9 +103,7 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 		!sessionId ||
 		typeof sessionFile !== "string" ||
 		!sessionFile ||
-		(resultEntryId !== null && (typeof resultEntryId !== "string" || !resultEntryId)) ||
-		typeof resultSha256 !== "string" ||
-		!RESULT_ID_PATTERN.test(resultSha256)
+		(resultEntryId !== null && (typeof resultEntryId !== "string" || !resultEntryId))
 	) {
 		return undefined;
 	}
@@ -123,7 +114,6 @@ export function parseGenerationResultLocator(value: unknown): GenerationResultLo
 		sessionId,
 		sessionFile,
 		resultEntryId,
-		resultSha256,
 	});
 }
 
@@ -198,7 +188,6 @@ export async function readLocatedAgentResult(
 		text,
 		entry?.type === "message" && entry.message.role === "assistant" && entry.message.stopReason === "stop",
 	);
-	if (result.sha256 !== locator.resultSha256) throw new Error("Stored subagent result integrity check failed.");
 	return result;
 }
 
@@ -245,7 +234,6 @@ export function paginateStoredResult(
 		done,
 		complete: result.complete,
 		total_bytes: result.totalBytes,
-		sha256: result.sha256,
 	});
 }
 
@@ -334,10 +322,6 @@ function parseResultCursor(cursor: string, resultId: string): number {
 
 function assertResultId(resultId: string): void {
 	if (!RESULT_ID_PATTERN.test(resultId)) throw new Error("Invalid result identity.");
-}
-
-function sha256(value: string): string {
-	return createHash("sha256").update(value).digest("hex");
 }
 
 function isLowSurrogate(code: number): boolean {
