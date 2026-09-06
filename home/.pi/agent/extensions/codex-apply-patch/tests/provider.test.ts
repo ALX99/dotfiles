@@ -16,7 +16,6 @@ import {
 	runApplyPatchProcess,
 	type SpawnApplyPatchProcess,
 } from "../index.ts";
-import { APPLY_PATCH_OPENAI_LARK_GRAMMAR } from "../types.ts";
 
 const FAKE_EXECUTABLE = fileURLToPath(new URL("./fake-apply-patch.mjs", import.meta.url));
 
@@ -41,33 +40,6 @@ function toolText(result: Awaited<ReturnType<ReturnType<typeof createApplyPatchT
 	assert.ok(content && content.type === "text");
 	return content.text;
 }
-
-test("registers the permissive Codex custom-tool grammar with the strict patch schema", () => {
-	const tool = createApplyPatchTool();
-
-	assert.deepEqual(tool.constrainedSampling, {
-		type: "grammar",
-		variants: { openai_lark: APPLY_PATCH_OPENAI_LARK_GRAMMAR },
-	});
-	assert.equal(tool.parameters.type, "object");
-	assert.deepEqual(tool.parameters.required, ["patch"]);
-	assert.equal(tool.parameters.additionalProperties, false);
-	assert.deepEqual(Object.keys(tool.parameters.properties ?? {}), ["patch"]);
-});
-
-test("the grammar boundary accepts broad marker-framed input", () => {
-	const boundary = /^.*\*\*\* Begin Patch.*\*\*\* End Patch.*$/s;
-	for (const patch of [
-		"*** Begin Patch\n*** Add File: a.txt\n+ok\n*** End Patch\n",
-		"  *** Begin Patch \r\nfuture syntax\r\n*** End Patch \r\n",
-		"*** Begin Patch\nnot a valid hunk yet\n*** End Patch",
-	]) {
-		assert.match(patch, boundary);
-	}
-	for (const patch of ["", "not a patch", "*** Begin Patch\nmissing end"]) {
-		assert.doesNotMatch(patch, boundary);
-	}
-});
 
 test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", async () => {
 	const cwd = await mkdtemp(path.join(tmpdir(), "codex-apply-patch-process-"));

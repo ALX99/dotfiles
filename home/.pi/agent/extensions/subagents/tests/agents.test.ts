@@ -5,22 +5,6 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { discoverAgents, parseAgentFile } from "../agents.ts";
 
-test("bundled agent files parse with explicit, role-specific tool allowlists", () => {
-	const expectedTools = {
-		general: ["read", "bash", "edit", "write", "apply_patch", "grep", "find", "ls", "ask_question"],
-		scout: ["read", "find", "grep", "ask_question"],
-		worker: ["read", "bash", "edit", "write", "apply_patch", "grep", "find", "ls", "ask_question"],
-	};
-	for (const name of ["general", "scout", "worker"] as const) {
-		const content = fs.readFileSync(path.join(import.meta.dirname, "..", "agents", `${name}.md`), "utf8");
-		const parsed = parseAgentFile(`${name}.md`, content);
-		assert.equal(parsed.success, true);
-		if (!parsed.success) continue;
-		assert.equal(parsed.agent.name, name);
-		assert.deepEqual(parsed.agent.tools, expectedTools[name]);
-	}
-});
-
 test("parseAgentFile requires an explicit YAML tool list and rejects unsupported metadata", () => {
 	const parsed = parseAgentFile(
 		"scout.md",

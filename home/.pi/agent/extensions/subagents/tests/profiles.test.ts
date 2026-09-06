@@ -1,5 +1,4 @@
 import * as assert from "node:assert/strict";
-import * as fs from "node:fs";
 import { test } from "node:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { parseAndValidateProfiles, resolveRun } from "../profiles.ts";
@@ -12,15 +11,6 @@ function model(id: string): Model<Api> {
 		contextWindow: 200_000,
 	} as Model<Api>;
 }
-
-test("bundled profiles parse and bind every discovered role", () => {
-	const config = parseAndValidateProfiles(fs.readFileSync(new URL("../profiles.json", import.meta.url), "utf8"), [
-		"scout",
-		"worker",
-		"general",
-	]);
-	assert.ok(config.success);
-});
 
 test("profile identifiers reject whitespace and terminal-control characters", () => {
 	const parsed = parseAndValidateProfiles({

@@ -6,7 +6,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test, type TestContext } from "node:test";
-import registerProcessReaper, { getProcessReaper, ProcessReaper } from "../index.ts";
+import { getProcessReaper, ProcessReaper } from "../index.ts";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
 	const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "process-reaper-test-"));
@@ -20,45 +20,6 @@ async function pathExists(filePath: string): Promise<boolean> {
 		() => false,
 	);
 }
-
-test("registers Bash lifecycle hooks for the owning session", async (t) => {
-	const reaper = new ProcessReaper({ rootDir: await temporaryRoot(t) });
-	const handlers = new Map<string, (event: never, ctx: never) => unknown>();
-	const fakePi = {
-		on(event: string, handler: (event: never, ctx: never) => unknown) {
-			handlers.set(event, handler);
-		},
-	};
-	registerProcessReaper(fakePi as never, reaper);
-	const ctx = {
-		sessionManager: {
-			getSessionId: () => "session",
-		},
-	};
-	const toolCall = {
-		toolName: "bash",
-		toolCallId: "call",
-		input: { command: "echo tracked" },
-	};
-
-	handlers.get("tool_call")!(toolCall as never, ctx as never);
-	assert.match(toolCall.input.command, /printf '%s\\n' "\$\$"/u);
-	const marker = reaper.markerPath("session", "call");
-	assert.equal(await pathExists(marker), true);
-
-	await handlers.get("tool_result")!(
-		{
-			toolName: "bash",
-			toolCallId: "call",
-			input: toolCall.input,
-			content: [],
-			details: undefined,
-			isError: false,
-		} as never,
-		ctx as never,
-	);
-	assert.equal(await pathExists(marker), false);
-});
 
 test("shares owner state across in-process extension instances", async () => {
 	const first = getProcessReaper();

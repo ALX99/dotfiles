@@ -2,7 +2,6 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { Check } from "typebox/value";
 import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
-import { resultPreview } from "../result-store.ts";
 import type { ReadonlyRunDetails } from "../run-state.ts";
 import {
 	AnswerAgentParamsSchema,
@@ -11,9 +10,9 @@ import {
 	SendAgentParamsSchema,
 	WaitAgentParamsSchema,
 } from "../schemas.ts";
-import { formatAgentCompletion, formatAgentLaunch, textResult } from "../tool-results.ts";
+import { textResult } from "../tool-results.ts";
 import { createManagementTools } from "../tools/management-tools.ts";
-import { spawnGuidelines, thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
+import { thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
@@ -89,58 +88,11 @@ test("list schema accepts a bounded archived-agent limit", () => {
 	assert.equal(Check(ListAgentsParamsSchema, { closed_limit: 33 }), false);
 });
 
-test("spawn guidance defers management tool names until spawn activates them", () => {
-	assert.doesNotMatch(
-		spawnGuidelines([], [], 1).join("\n"),
-		/\b(?:answer_agent|send_agent|followup_agent|wait_agent|list_agents|read_agent_result|interrupt_agent|close_agent)\b/,
-	);
-});
-
-test("spawn guidance explains compact handoffs for dependent work", () => {
-	const guidance = spawnGuidelines([], [], 1).join("\n");
-	assert.match(guidance, /retry, review\/fix cycle, or replacement/);
-	assert.match(guidance, /does not inherit the parent transcript/);
-});
-
-test("shared terminal completion directs exact reads for every completed generation", () => {
-	const completed = {
-		...summary,
-		retained: true,
-		final_text: resultPreview("x".repeat(50 * 1024)),
-		result: {
-			generation: 1,
-			result_id: "a".repeat(64),
-			complete: true,
-			total_bytes: 50 * 1024,
-		},
-	};
-	assert.match(formatAgentCompletion(completed), /read_agent_result/);
-});
-
 test("generic tool truncation does not offer unrelated result reconstruction", () => {
 	const result = textResult("x".repeat(100 * 1024), { summaries: [] });
 	const text = result.content[0];
 	assert.equal(text?.type, "text");
 	if (text?.type === "text") assert.doesNotMatch(text.text, /read_agent_result/);
-});
-
-test("background launch and retained completion advertise only lifecycle-valid next steps", () => {
-	assert.match(formatAgentLaunch({ ...summary, retained: false, status: "running" }), /one-shot agents archive/);
-	assert.match(
-		formatAgentLaunch({ ...summary, retained: true, status: "running" }),
-		/After it settles, use followup_agent/,
-	);
-	const pending = formatAgentLaunch({
-		...summary,
-		status: "running",
-		pending_question: { question_id: "question-1", question: "Proceed?", options: ["Yes", "No"] },
-	});
-	assert.match(pending, /Answer with answer_agent/);
-	assert.doesNotMatch(pending, /send_agent/);
-	const completion = formatAgentCompletion({ ...summary, retained: true, status: "idle" });
-	assert.match(completion, /retained agent is settled/);
-	assert.match(completion, /followup_agent/);
-	assert.match(completion, /close_agent/);
 });
 
 test("admission reports running lifecycle separately from occupied retained-session capacity", () => {

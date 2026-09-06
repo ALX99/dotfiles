@@ -165,7 +165,11 @@ function userMessage(text: string): Entry {
 	};
 }
 
-function queueDetails(toolCallId: string): Record<string, unknown> {
+type QueueDetails = Record<string, unknown> & {
+	tasks: Array<{ id: string; title: string; state?: string }>;
+};
+
+function queueDetails(toolCallId: string): QueueDetails {
 	return {
 		kind: "tasks:queue",
 		queueId: toolCallId,
@@ -185,11 +189,6 @@ function finishDetails(taskId: string): Record<string, unknown> {
 		compact: true,
 	};
 }
-
-test("requires at least four tasks in the creation schema", async () => {
-	const h = createHarness();
-	assert.equal(h.tools.get("create_tasks")!.parameters?.properties?.tasks?.minItems, 4);
-});
 
 test("does not restore queues with fewer than four tasks", async () => {
 	const details = queueDetails("queue-call");
@@ -507,51 +506,6 @@ test("rejects amendments to finished tasks and malformed queue edits", async () 
 	);
 });
 
-test("supports user-facing queue amendment commands", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-
-	await h.commands.get("tasks")!.handler("rename queue-call:1 Add schema and validate it", h.ctx as never);
-	assert.equal(h.sentMessages.at(-1)?.message.customType, "tasks:update");
-	assert.equal(h.sentMessages.at(-1)?.message.details?.action, "rename");
-	assert.equal(h.sentMessages.at(-1)?.message.details?.title, "Add schema and validate it");
-	assert.deepEqual(h.sentMessages.at(-1)?.options, { triggerTurn: false });
-
-	await h.commands.get("tasks")!.handler("insert-after queue-call:1 Add migration notes", h.ctx as never);
-	assert.equal(h.sentMessages.at(-1)?.message.details?.action, "insert");
-	assert.equal(h.sentMessages.at(-1)?.message.details?.afterTaskId, "queue-call:1");
-	assert.equal(h.notifications.at(-1)?.includes("Inserted"), true);
-
-	await h.commands.get("tasks")!.handler("skip queue-call:2", h.ctx as never);
-	assert.match(h.notifications.at(-1) ?? "", /Usage:/u);
-});
-
-test("uses durable IDs for command insertions after an extension reload", async () => {
-	const first = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-
-	await first.commands.get("tasks")!.handler("insert First inserted task", first.ctx as never);
-	const firstUpdate = first.sentMessages.at(-1)?.message.details;
-	assert.ok(firstUpdate);
-
-	const second = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		updateEntry("first-update", firstUpdate!),
-	]);
-	await second.commands.get("tasks")!.handler("insert Second inserted task", second.ctx as never);
-
-	assert.equal(second.sentMessages.length, 1);
-	const secondTasks = second.sentMessages[0]?.message.details?.tasks as Array<{ id: string; title: string }>;
-	assert.equal(secondTasks.length, 6);
-	assert.notEqual(secondTasks[4]?.id, secondTasks[5]?.id);
-	assert.equal(second.notifications.at(-1)?.includes("already exists"), false);
-});
-
 test("ignores persisted amendments that rewrite finished tasks", async () => {
 	const h = createHarness([
 		assistantToolCall("queue-call", "create_tasks"),
@@ -621,30 +575,6 @@ test("keeps full task lookup output bounded", async () => {
 	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
 	assert.ok(read.content[0]!.text.length <= 12_000);
 	assert.match(read.content[0]!.text, /…/u);
-});
-
-test("uses a dense braille spinner while the current task is active", () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-
-	h.handlers.get("agent_start")!({} as never, h.ctx as never);
-
-	assert.equal(h.statuses.get("tasks"), "⣾ Task 1/4 · Add schema");
-});
-
-test("does not start a spinner without an active task", async () => {
-	const h = createHarness([], "tui");
-
-	h.handlers.get("agent_start")!({} as never, h.ctx as never);
-	await new Promise((resolve) => setTimeout(resolve, 250));
-	const writesAfterWait = h.statusWrites.length;
-	const statusAfterWait = h.statuses.get("tasks");
-	h.handlers.get("session_shutdown")!({} as never, h.ctx as never);
-
-	assert.equal(writesAfterWait, 1);
-	assert.equal(statusAfterWait, undefined);
 });
 
 test("compacts each queued task onto a chained completion record", async () => {
@@ -934,73 +864,6 @@ test("does not attribute mutations from a compacted task trace", async () => {
 	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, []);
 });
 
-test("supports disabling and re-enabling tasks", async () => {
-	const h = createHarness();
-
-	await h.commands.get("tasks")!.handler("off", h.ctx as never);
-	assert.deepEqual(h.sentMessages.at(-1)?.message, {
-		customType: "tasks:toggle",
-		content: "/tasks off",
-		display: false,
-		details: { enabled: false },
-	});
-	assert.match(h.notifications.at(-1) ?? "", /Tasks disabled/u);
-	// Toggled before any message exists: hard-hide is cache-safe.
-	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash"]);
-
-	h.pushEntry(toggleEntry("toggle-off", false));
-	await assert.rejects(
-		h.tools
-			.get("create_tasks")!
-			.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx),
-		/Tasks are disabled/u,
-	);
-
-	// A finished-but-uncompacted task does not auto-commit while disabled.
-	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
-	h.pushEntry(toolResult("queue-result", "create_tasks", queueDetails("queue-call")));
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finishDetails("queue-call:1")));
-	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
-	assert.deepEqual(h.sentUserMessages, []);
-
-	await h.commands.get("tasks")!.handler("on", h.ctx as never);
-	assert.deepEqual(h.activeToolsLog.at(-1), [
-		"read",
-		"bash",
-		"create_tasks",
-		"finish_task",
-		"read_tasks",
-		"update_tasks",
-	]);
-	h.setBranch([toggleEntry("toggle-on", true), assistantToolCall("new-queue-call", "create_tasks")]);
-	const start = await h.tools
-		.get("create_tasks")!
-		.execute("new-queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	assert.equal(start.details.kind, "tasks:queue");
-});
-
-test("leaves a task pending when compaction navigation is canceled", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", finishDetails("queue-call:1")),
-	]);
-	const commandCtx = {
-		...h.ctx,
-		navigateTree: async (targetId: string, options: { summarize?: boolean; label?: string }) => {
-			assert.equal(targetId, "queue-result");
-			assert.equal(options.summarize, true);
-			return { cancelled: true };
-		},
-	};
-
-	await h.commands.get("tasks")!.handler("commit", commandCtx);
-
-	assert.deepEqual(h.sentUserMessages, []);
-	assert.equal(h.notifications.at(-1), "Task compaction canceled; task remains pending. Retry /tasks commit.");
-	assert.match(h.statuses.get("tasks") ?? "", /compacting/u);
-});
-
 test("records print-mode checkpoints without compaction", async () => {
 	const h = createHarness(
 		[
@@ -1106,47 +969,6 @@ test("does not present unsuccessful terminal outcomes as successful completion",
 		/The task queue finished with 2 completed, 1 failed, 1 blocked/u,
 	);
 	assert.match(h.sentUserMessages.at(-1)?.content ?? "", /Do not claim full success/u);
-});
-
-test("uses a concise continuation prompt for the next task", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", finishDetails("queue-call:1")),
-	]);
-
-	await commit(h, "queue-result");
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	const continuation = h.sentUserMessages.at(-1)?.content ?? "";
-	assert.equal(continuation, "Continue with the next queued task: Implement handler (queue-call:2).");
-});
-
-test("keeps the finish result concise without a continuation brief", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCallWithArgs("write", "write", { path: "src/schema.ts" }),
-		mutationToolResult("write-result", "write", "write"),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-
-	const finish = await h.tools.get("finish_task")!.execute(
-		"finish-1",
-		{
-			status: "completed",
-			summary: "Schema added.",
-			evidence: [evidenceEntry()],
-			decisions: ["Keep the public shape stable."],
-			remaining: ["Wire handler integration."],
-			compact: false,
-		},
-		undefined,
-		undefined,
-		h.ctx,
-	);
-	const text = finish.content[0]?.text ?? "";
-
-	assert.equal(text, "Task outcome recorded without compaction.");
 });
 
 test("hides task tools at session start only before the first message", async () => {

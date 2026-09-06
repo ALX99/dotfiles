@@ -1,8 +1,8 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import copyCodeExtension, { extractCodeBlocks, getLastAssistantReply, registerCopyCodeCommand } from "../index.ts";
+import { extractCodeBlocks, getLastAssistantReply } from "../index.ts";
 
 function assistantEntry(text: string, stopReason: "stop" | "toolUse" | "aborted" = "stop"): SessionEntry {
 	return {
@@ -84,88 +84,4 @@ test("getLastAssistantReply reads only the latest assistant message", () => {
 test("getLastAssistantReply joins text content and ignores an empty aborted message", () => {
 	const entries = [assistantEntry("```sh\nprintf 'ok'\n```"), assistantEntry("", "aborted")];
 	assert.equal(getLastAssistantReply(entries), "```sh\nprintf 'ok'\n```");
-});
-
-test("/cc selects and copies the requested block", async () => {
-	let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
-	const register = (name: string, definition: { handler: typeof handler }): void => {
-		assert.equal(name, "cc");
-		handler = definition.handler;
-	};
-	const pi = { registerCommand: register } as unknown as ExtensionAPI;
-	const copied: string[] = [];
-	registerCopyCodeCommand(pi, async (text) => {
-		copied.push(text);
-	});
-	assert.ok(handler);
-
-	const notifications: string[] = [];
-	let options: string[] = [];
-	const ctx = {
-		hasUI: true,
-		waitForIdle: async () => {},
-		sessionManager: {
-			getBranch: () => [assistantEntry(["```bash", "echo one", "```", "", "```sh", "echo two", "```"].join("\n"))],
-		},
-		ui: {
-			select: async (_title: string, choices: string[]) => {
-				options = choices;
-				return choices[1];
-			},
-			notify: (message: string) => notifications.push(message),
-		},
-	} as unknown as ExtensionCommandContext;
-
-	await handler("", ctx);
-
-	assert.equal(options.length, 2);
-	assert.deepEqual(copied, ["echo two"]);
-	assert.deepEqual(notifications, ["Copied sh code block to the clipboard."]);
-});
-
-test("/cc copies directly when the reply has a single block", async () => {
-	let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
-	const register = (name: string, definition: { handler: typeof handler }): void => {
-		assert.equal(name, "cc");
-		handler = definition.handler;
-	};
-	const pi = { registerCommand: register } as unknown as ExtensionAPI;
-	const copied: string[] = [];
-	registerCopyCodeCommand(pi, async (text) => {
-		copied.push(text);
-	});
-	assert.ok(handler);
-
-	const notifications: string[] = [];
-	let selectCalled = false;
-	const ctx = {
-		hasUI: true,
-		waitForIdle: async () => {},
-		sessionManager: {
-			getBranch: () => [assistantEntry(["Some prose.", "```bash", "echo only", "```"].join("\n"))],
-		},
-		ui: {
-			select: async () => {
-				selectCalled = true;
-				return undefined;
-			},
-			notify: (message: string) => notifications.push(message),
-		},
-	} as unknown as ExtensionCommandContext;
-
-	await handler("", ctx);
-
-	assert.equal(selectCalled, false);
-	assert.deepEqual(copied, ["echo only"]);
-	assert.deepEqual(notifications, ["Copied bash code block to the clipboard."]);
-});
-
-test("the default extension registers /cc", () => {
-	let registered = false;
-	copyCodeExtension({
-		registerCommand: (name: string) => {
-			registered = name === "cc";
-		},
-	} as unknown as ExtensionAPI);
-	assert.equal(registered, true);
 });

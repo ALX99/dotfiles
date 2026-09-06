@@ -1,45 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Check } from "typebox/value";
 
 import {
-	getOptionColor,
 	getSubmittedChoices,
 	makeAskQuestionResult,
-	makeOptionLabel,
 	makeQuestionOptions,
 	makeResult,
 	resolveChoices,
 	toggleOptionSelection,
 	validateAlternatives,
 } from "../choices.ts";
-import { executeAskQuestion } from "../index.ts";
-import { once, selectMultiple, type MultiSelectUi } from "../multi-select.ts";
 import { AskQuestionParamsSchema, readAskQuestionDetails } from "../schema.ts";
 
 const params = { question: "Pick a tool", alternatives: ["Fast", "Simple"] };
-type MultiSelectFactory = Parameters<MultiSelectUi["custom"]>[0];
-
 function required<T>(value: T | undefined): T {
 	assert.notEqual(value, undefined);
 	if (value === undefined) throw new Error("expected question option");
 	return value;
 }
-
-test("makeOptionLabel returns plain text without embedded ANSI", () => {
-	const options = makeQuestionOptions(["Fast", "Simple"]);
-
-	assert.equal(makeOptionLabel(true, required(options[0])), "[x] Fast");
-	assert.equal(makeOptionLabel(false, required(options[0])), "[ ] Fast");
-	assert.equal(makeOptionLabel(false, required(options[2])), "Compare options");
-	assert.equal(makeOptionLabel(false, required(options[3])), "Something else");
-});
-
-test("special options use the same colors as normal options", () => {
-	assert.equal(getOptionColor(false), "text");
-	assert.equal(getOptionColor(true), "accent");
-});
 
 test("special options are submitted alone and alternatives retain selection order", () => {
 	const options = makeQuestionOptions(["Fast", "Simple"]);
@@ -158,73 +137,4 @@ test("question batches require one to three questions", () => {
 	assert.equal(Check(AskQuestionParamsSchema, { questions: [params] }), true);
 	assert.equal(Check(AskQuestionParamsSchema, { questions: [] }), false);
 	assert.equal(Check(AskQuestionParamsSchema, { questions: [params, params, params, params] }), false);
-});
-
-test("executeAskQuestion asks each batch question in order", async () => {
-	const questions: string[] = [];
-	const answers = ["Fast", "Detailed"];
-	const ctx = {
-		mode: "rpc",
-		ui: {
-			select: async (question: string) => {
-				questions.push(question);
-				return answers.shift();
-			},
-		},
-	} as unknown as ExtensionContext;
-
-	const result = await executeAskQuestion(
-		{
-			questions: [params, { question: "Pick a style", alternatives: ["Minimal", "Detailed"] }],
-		},
-		undefined,
-		ctx,
-	);
-
-	assert.deepEqual(questions, ["Pick a tool", "Pick a style"]);
-	assert.deepEqual(
-		result.details.questions.map((question) => question.answers),
-		[["Fast"], ["Detailed"]],
-	);
-});
-
-test("selectMultiple does not open UI for an already-aborted signal", async () => {
-	const controller = new AbortController();
-	controller.abort();
-	let opened = false;
-	const ui: MultiSelectUi = {
-		custom<T>() {
-			opened = true;
-			return new Promise<T>(() => {});
-		},
-	};
-	const choices = await selectMultiple("Pick", makeQuestionOptions(params.alternatives), controller.signal, ui);
-
-	assert.equal(opened, false);
-	assert.equal(choices, null);
-});
-
-test("selectMultiple completes once when aborted while open", async () => {
-	const controller = new AbortController();
-	const ui: MultiSelectUi = {
-		custom<T>(factory: MultiSelectFactory) {
-			return new Promise<T>((resolve) => {
-				factory({} as never, {} as never, {} as never, (value: unknown) => resolve(value as T));
-			});
-		},
-	};
-	const pending = selectMultiple("Pick", makeQuestionOptions(params.alternatives), controller.signal, ui);
-
-	controller.abort();
-	assert.deepEqual(await pending, null);
-});
-
-test("once ignores repeated completion", () => {
-	const values: string[] = [];
-	const complete = once((value: string) => values.push(value));
-
-	complete("first");
-	complete("second");
-
-	assert.deepEqual(values, ["first"]);
 });

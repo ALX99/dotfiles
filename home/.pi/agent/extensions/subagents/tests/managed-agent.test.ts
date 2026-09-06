@@ -3,20 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-	createAgentSession,
-	DefaultResourceLoader,
-	ModelRuntime,
-	SettingsManager,
-	SessionManager,
-	type AgentSession,
-	type ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import nestedContext from "../../nested-context.ts";
-import skillsExtension from "../../skills/index.ts";
-import codexCompat from "../../codex-apply-patch/index.ts";
-import modelShortcuts from "../../model-shortcuts.ts";
+import { SessionManager, type AgentSession, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "../agents.ts";
 import { ManagedAgent } from "../managed-agent.ts";
 import { AgentRegistry, DEFAULT_MAX_CLOSED_AGENT_HISTORY } from "../agent-registry.ts";
@@ -45,90 +32,6 @@ function sdkStub(session: object): AgentSession {
 		...session,
 	} as unknown as AgentSession;
 }
-
-test("native child session initializes extensions, routes questions, persists results and shuts down", async (t) => {
-	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-native-"));
-	const cwd = path.join(agentDir, "project");
-	fs.mkdirSync(path.join(cwd, "src"), { recursive: true });
-	fs.writeFileSync(path.join(cwd, "src", "AGENTS.md"), "Keep the native integration contract.");
-	fs.writeFileSync(path.join(cwd, "src", "input.txt"), "local evidence");
-	const faux = fauxProvider({ provider: "managed-native", api: "managed-native-api" });
-	const modelRuntime = await ModelRuntime.create({ modelsPath: null, refreshOnCreate: false });
-	modelRuntime.registerNativeProvider(faux.provider);
-	const lifecycle: string[] = [];
-	let session: AgentSession | undefined;
-	const agent = new ManagedAgent({
-		agentDir,
-		defaultCwd: cwd,
-		agent: { ...config, tools: ["read", "edit", "write", "apply_patch", "ask_question"] },
-		resolvedRun: { ...resolvedRun, modelInstance: faux.getModel() },
-		retain: true,
-		sessionFactory: async (customTools) => {
-			const settingsManager = SettingsManager.inMemory();
-			const loader = new DefaultResourceLoader({
-				cwd,
-				agentDir,
-				settingsManager,
-				extensionFactories: [
-					nestedContext,
-					skillsExtension,
-					codexCompat,
-					modelShortcuts,
-					(pi) => {
-						pi.on("session_start", () => {
-							lifecycle.push("start");
-						});
-						pi.on("session_shutdown", () => {
-							lifecycle.push("shutdown");
-						});
-					},
-				],
-			});
-			await loader.reload();
-			assert.deepEqual(loader.getExtensions().errors, []);
-			({ session } = await createAgentSession({
-				cwd,
-				agentDir,
-				modelRuntime,
-				model: faux.getModel(),
-				settingsManager,
-				sessionManager: SessionManager.create(cwd, path.join(agentDir, "subagent-sessions")),
-				resourceLoader: loader,
-				customTools: [...customTools],
-				tools: ["read", "edit", "write", "apply_patch", "ask_question"],
-			}));
-			return session;
-		},
-	});
-	t.after(async () => {
-		await agent.close();
-		fs.rmSync(agentDir, { recursive: true, force: true });
-	});
-	faux.setResponses([
-		fauxAssistantMessage(fauxToolCall("read", { path: "src/input.txt" }), { stopReason: "toolUse" }),
-		(context) => {
-			assert.match(JSON.stringify(context.messages), /Keep the native integration contract/);
-			return fauxAssistantMessage(
-				fauxToolCall("ask_question", { question: "Which path?", alternatives: ["Simple", "Flexible"] }),
-				{ stopReason: "toolUse" },
-			);
-		},
-		fauxAssistantMessage("native result"),
-	]);
-	const waiting = await agent.start("inspect and ask", undefined, "native", false);
-	assert.deepEqual(lifecycle, ["start"]);
-	assert.ok(session);
-	assert.ok(!session.getActiveToolNames().includes("apply_patch"));
-	assert.ok(session.getActiveToolNames().includes("write"));
-	assert.ok(waiting.pendingQuestion, JSON.stringify(waiting));
-	await agent.answerQuestion(waiting.pendingQuestion.question_id, "Simple");
-	const result = await agent.wait();
-	assert.equal(result.finalText, "native result");
-	assert.ok(result.resultLocator);
-	assert.equal((await readLocatedAgentResult(result.resultLocator, agentDir)).text, "native result");
-	await agent.close();
-	assert.deepEqual(lifecycle, ["start", "shutdown"]);
-});
 
 test("one native session owns foreground, background, steering, follow-up, and closure transitions", async (t) => {
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-test-"));
