@@ -21,6 +21,7 @@ keymap:
 
     # Custom actions.
     action.archive: A
+    action.edit: E
     action.open: o
     action.shell: "!"
 
@@ -41,6 +42,13 @@ actions:
     refresh: true
     clear_selection: false
     show_output: on_error
+
+  edit:
+    command: nvim "$@"
+    interactive: true
+    confirm: never
+    refresh: false
+    clear_selection: false
 
   open:
     command: open "$@"
