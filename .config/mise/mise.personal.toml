@@ -12,6 +12,7 @@ rust = "stable"
 
 # AI stuff
 "aqua:vercel-labs/agent-browser" = "latest"
+"npm:@zvec/zvec-grep" = "latest"
 
 # Dev
 "aqua:casey/just" = "latest"
