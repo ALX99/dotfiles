@@ -1,101 +1,64 @@
 ---
 name: init
-description: Generate AGENTS.md — a contributor guide for this repository
+description: Create or refresh AGENTS.md as a concise, evidence-backed repository map that orients coding agents to the architecture, ownership boundaries, and best starting points.
+disable-model-invocation: true
 ---
 
-Generate a file named AGENTS.md that serves as a contributor guide for this repository.
+# Create a Repository Map
 
-Before writing, check whether AGENTS.md already exists in the current working directory. If it does, verify its contents against the repository, correct inaccurate or outdated information, and add any important information that is missing. Preserve existing accurate guidance and avoid unnecessary rewrites.
+Create or update the root `AGENTS.md`. Its primary audience is a coding agent arriving with no repository context. The file should let that agent quickly answer:
 
-Your goal is to produce a clear, concise, and well-structured document with descriptive headings and actionable explanations for each section. Follow the outline below, but adapt as needed — add sections if relevant, and omit those that do not apply to this project.
+1. What does this repository contain?
+2. What are the major subsystems, and which paths own them?
+3. How do those subsystems relate, and where are the important sources of truth?
+4. Where should work on each major kind of task begin?
+5. Which non-obvious constraints could make an otherwise reasonable change incorrect?
 
-## Process
+This is a high-level navigation and architecture map, not a complete contributor handbook.
 
-Gather targeted evidence, then filter aggressively. Don't just list what you see—cross-reference until non-obvious patterns emerge.
+## Investigate
 
-1. **Read executable sources first** — Makefiles, CI workflows, package scripts, lockfiles, lint/format/build configs. These run; prose can lie.
-2. **Map layout** — top-level dirs and what each owns. Enough to navigate, not a full tree.
-3. **Sample representative implementation and test files** — read both sides of important plugin systems, platform branches, and abstraction boundaries. Stop when commands, structure, conventions, and architectural constraints have stabilized.
-4. **Extract only what an agent would miss without help.** If it's obvious from a single file or filename, leave it out.
+Gather current repository evidence before writing:
 
-Every fact must be backed by a file path, command output, or git state. Speculation is worse than a gap — drop uncertain claims.
+1. Read an existing root `AGENTS.md` and discover scoped or nested instruction files. Read those relevant to the major subsystems and any areas inspected. Preserve applicable project-specific rules, even when they do not fit the map format. Verify architectural claims and remove stale detail. Keep subtree-specific guidance scoped rather than promoting it into root rules; relocate detail only when its discoverability and scope remain intact.
+2. Inspect the top-level layout, manifests, workspace definitions, entry points, and architecture documentation. Ignore generated, vendored, cache, and build-output directories.
+3. Identify the few major runtime or build-time subsystems. Trace representative paths far enough to understand how they connect rather than describing directories in isolation.
+4. Locate the important ownership boundaries and sources of truth: shared contracts, configuration, state, generated artifacts, platform-specific implementations, integrations, and test boundaries.
+5. Sample implementation and tests only where they clarify architecture or a non-obvious invariant. Stop once an unfamiliar agent can route likely tasks to the correct area.
 
-## Document Requirements
+Back every repository-specific claim with current files or configuration. Do not infer architecture from names alone, copy prose without verifying it, or preserve guidance merely because it already exists. If an architectural claim cannot be verified, omit it or identify the uncertainty rather than presenting an inference as fact.
 
-- **Title**: `# Repository Guidelines`
-- **Format**: Markdown headings (`#`, `##`, `###`)
-- **Length**: 200–400 words is optimal. Keep explanations short, direct, and specific to this repository.
-- **Tone**: Professional, instructional.
-- **Examples**: Include concrete examples where helpful (commands, directory paths, naming patterns, code snippets).
+## Write the Map
 
-## Recommended Sections
+Use headings that fit the repository. Prefer a small set such as:
 
-### Project Structure & Module Organization
+- **Repository Purpose** — briefly describe the product or role of the repository.
+- **Architecture and Ownership** — the major components and the paths that own them. A compact annotated tree is useful when it shows real boundaries; do not inventory every top-level directory.
+- **Key Flows and Sources of Truth** — how components connect, where state or contracts originate, and which files are derived.
+- **Where to Start** — route common categories of work to their primary entry points, modules, or documentation.
+- **Critical Constraints** — only cross-cutting, non-obvious rules that materially affect safe changes.
 
-Outline where source code, tests, and assets live. Enough to know where to look.
+Adapt or merge sections rather than filling a template mechanically. Use exact paths and stable architectural concepts. Prefer relationships and ownership over file-by-file descriptions.
 
-**Good**: A concise entry for each top-level dir with what it owns:
-```
-main.go              CLI entry point (cobra)
-internal/
-  agent/             Session manager, coordinator, tools, MCP client integration
-  config/            Config struct loading from crush.json with provider resolution
-  lsp/               LSP client manager with lazy init per file type
-```
-**Better**: Also note the dependency that matters:
-```
-charm.land/fantasy   LLM provider abstraction — handles protocol differences between Anthropic, OpenAI, Gemini
-```
+Include commands when they are essential to begin work or are canonical validation commands agents should not have to rediscover, even if they appear in manifests. Keep commands tied to the work they support. Do not add command catalogs, single-test examples, exhaustive style rules, dependency inventories, generic Git advice, or PR boilerplate. Link to an existing source of detail instead of duplicating it.
 
-### Key Patterns & Architecture Decisions
+Let the repository's complexity determine the length. Keep the map concise, and include only content that helps an agent locate work, understand a boundary, or avoid a repository-specific mistake.
 
-This is the highest-signal section. Capture the non-obvious architectural idioms that would take hours to rediscover.
+## Require Ongoing Maintenance
 
-- **Config is a Service** — accessed via `config.Service`, not global state.
-- **Tools are self-documenting** — each tool has a `.go` implementation and a `.md` description file in `internal/agent/tools/`.
-- **System prompts are Go templates** — `internal/agent/templates/*.md.tpl` with runtime data injected.
-- **Separation of concerns** — event system (PostHog telemetry) uses internal pub/sub for decoupling between agent, UI, and services.
+The generated `AGENTS.md` must include a short instruction with this meaning:
 
-Include concrete details: config file names, module paths, env vars that control behavior.
+> Keep this repository map current. When a change adds, removes, or relocates a major subsystem; changes an architectural boundary or source of truth; or introduces a critical repository-wide constraint, update `AGENTS.md` in the same commit. Do not record routine implementation details or file-level churn.
 
-### Build, Test, and Development Commands
+Integrate this instruction naturally under a final maintenance or change-guidance section. It is required even when updating an existing file.
 
-List key commands for building, testing, and running locally. Briefly explain what each does. Include non-obvious ones:
+## Final Check
 
-- Single-test command: `go test ./internal/llm/prompt -run TestGetContextFromPaths`
-- Golden file updates: `go test ./... -update` (regenerates `.golden` files)
-- Formatting fallback chain: try `gofumpt`, then `goimports`, then `gofmt`
-- Required command order if applicable (e.g., `lint → typecheck → test`)
+Before finishing, verify that:
 
-### Coding Style & Naming Conventions
-
-Specify indentation rules, language-specific preferences, naming patterns, and any formatting/linting tools used.
-
-**Good**: "Use gofumpt (stricter than gofmt), enabled in golangci-lint. Imports grouped as stdlib, external, internal. Log messages start with a capital letter."
-
-### Testing Guidelines
-
-Frameworks, coverage expectations, test naming conventions, how to run tests. Include practical code snippets for common patterns:
-
-```go
-// Example: using mock providers to avoid API calls in tests
-config.UseMockProviders = true
-defer func() {
-    config.UseMockProviders = originalUseMock
-    config.ResetProviders()
-}()
-```
-
-### Commit & Pull Request Guidelines
-
-Summarize commit message conventions from the project's Git history. Outline PR requirements (descriptions, linked issues, screenshots).
-
-### Common Gotchas
-
-Optional but valuable. Capture the non-obvious pitfalls that took reading multiple files to infer:
-
-- "CGO is disabled — builds with `CGO_ENABLED=0` and `GOEXPERIMENT=greenteagc`"
-- "Always account for padding/borders in width calculations in the TUI"
-- "Dialog messages are intercepted first in `Update` before other routing"
-
-(Optional) Add other sections if relevant: Security & Configuration Tips, Architecture Overview, or Agent-Specific Instructions.
+- a new agent can identify the correct starting area for the repository's major kinds of work;
+- the map explains relationships and ownership, not just directory names;
+- every path and architectural statement still matches the repository;
+- applicable existing rules remain available at the correct scope;
+- low-level details that will age quickly have been omitted; and
+- the maintenance instruction is present.
