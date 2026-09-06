@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME, APPLY_PATCH_LARK_GRAMMAR } from "./types.ts";
+import { APPLY_PATCH_OPENAI_LARK_GRAMMAR, APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME } from "./types.ts";
 
 const APPLY_PATCH_PARAMETERS = Type.Object(
 	{
@@ -232,12 +232,11 @@ export function createApplyPatchTool(
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,
 		parameters: APPLY_PATCH_PARAMETERS,
-		// Native grammar-tool constraint (Pi 0.82.0+): the single `patch`
-		// argument is grammar-constrained at sampling time on grammar-capable
-		// providers, replacing the patched pi-ai `custom` tool.
+		// Codex registers apply_patch as an OpenAI custom/freeform tool. Keep
+		// that transport while leaving complete syntax validation to Codex.
 		constrainedSampling: {
 			type: "grammar",
-			variants: { openai_lark: APPLY_PATCH_LARK_GRAMMAR },
+			variants: { openai_lark: APPLY_PATCH_OPENAI_LARK_GRAMMAR },
 		},
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -258,24 +257,26 @@ function isOpenAICodexModel(model: { provider?: string } | undefined): boolean {
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
 	pi.registerTool(createApplyPatchTool(options));
 
-	const suppressedBuiltinTools = new Set<string>();
+	const suppressedBuiltinTools: string[] = [];
 	const setCodexCompatToolsActive = (enabled: boolean): void => {
 		const active = pi.getActiveTools();
 		let next = active;
 		if (enabled) {
 			if (!next.includes(APPLY_PATCH_TOOL_NAME)) next = [...next, APPLY_PATCH_TOOL_NAME];
-			for (const name of ["edit", "write"]) {
-				if (next.includes(name)) {
-					next = next.filter((tool) => tool !== name);
-					suppressedBuiltinTools.add(name);
+			if (active.some((name) => name === "edit" || name === "write")) {
+				for (const name of active) {
+					if ((name === "edit" || name === "write") && !suppressedBuiltinTools.includes(name)) {
+						suppressedBuiltinTools.push(name);
+					}
 				}
+				next = next.filter((tool) => tool !== "edit" && tool !== "write");
 			}
 		} else {
 			if (next.includes(APPLY_PATCH_TOOL_NAME)) next = next.filter((tool) => tool !== APPLY_PATCH_TOOL_NAME);
 			for (const name of suppressedBuiltinTools) {
 				if (!next.includes(name)) next = [...next, name];
 			}
-			suppressedBuiltinTools.clear();
+			suppressedBuiltinTools.length = 0;
 		}
 		if (next !== active) pi.setActiveTools(next);
 	};

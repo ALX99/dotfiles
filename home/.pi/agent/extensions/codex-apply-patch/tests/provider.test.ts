@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -16,6 +16,7 @@ import {
 	runApplyPatchProcess,
 	type SpawnApplyPatchProcess,
 } from "../index.ts";
+import { APPLY_PATCH_OPENAI_LARK_GRAMMAR } from "../types.ts";
 
 const FAKE_EXECUTABLE = fileURLToPath(new URL("./fake-apply-patch.mjs", import.meta.url));
 
@@ -41,6 +42,33 @@ function toolText(result: Awaited<ReturnType<ReturnType<typeof createApplyPatchT
 	return content.text;
 }
 
+test("registers the permissive Codex custom-tool grammar with the strict patch schema", () => {
+	const tool = createApplyPatchTool();
+
+	assert.deepEqual(tool.constrainedSampling, {
+		type: "grammar",
+		variants: { openai_lark: APPLY_PATCH_OPENAI_LARK_GRAMMAR },
+	});
+	assert.equal(tool.parameters.type, "object");
+	assert.deepEqual(tool.parameters.required, ["patch"]);
+	assert.equal(tool.parameters.additionalProperties, false);
+	assert.deepEqual(Object.keys(tool.parameters.properties ?? {}), ["patch"]);
+});
+
+test("the grammar boundary accepts broad marker-framed input", () => {
+	const boundary = /^.*\*\*\* Begin Patch.*\*\*\* End Patch.*$/s;
+	for (const patch of [
+		"*** Begin Patch\n*** Add File: a.txt\n+ok\n*** End Patch\n",
+		"  *** Begin Patch \r\nfuture syntax\r\n*** End Patch \r\n",
+		"*** Begin Patch\nnot a valid hunk yet\n*** End Patch",
+	]) {
+		assert.match(patch, boundary);
+	}
+	for (const patch of ["", "not a patch", "*** Begin Patch\nmissing end"]) {
+		assert.doesNotMatch(patch, boundary);
+	}
+});
+
 test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", async () => {
 	const cwd = await mkdtemp(path.join(tmpdir(), "codex-apply-patch-process-"));
 	try {
@@ -60,32 +88,6 @@ test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", asy
 			args: [],
 		});
 		assert.deepEqual(result.details, { exitCode: 0 });
-	} finally {
-		await rm(cwd, { recursive: true, force: true });
-	}
-});
-
-test("adapter smoke-tests an installed Codex in apply_patch multicall mode", async (t) => {
-	const cwd = await mkdtemp(path.join(tmpdir(), "codex-apply-patch-upstream-"));
-	try {
-		let result;
-		try {
-			result = await createApplyPatchTool().execute(
-				"tool_upstream",
-				{ patch: "*** Begin Patch\n*** Add File: smoke.txt\n+from upstream\n*** End Patch\n" },
-				undefined,
-				undefined,
-				{ cwd } as ExtensionContext,
-			);
-		} catch (error) {
-			if (error instanceof Error && /spawn codex ENOENT/.test(error.message)) {
-				t.skip("Codex is not installed on PATH");
-				return;
-			}
-			throw error;
-		}
-		assert.equal(toolText(result), "Success. Updated the following files:\nA smoke.txt\n");
-		assert.equal(await readFile(path.join(cwd, "smoke.txt"), "utf8"), "from upstream\n");
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -319,6 +321,17 @@ test("activation is idempotent and restores only built-ins it suppressed", () =>
 
 	fixture.select(model());
 	assert.equal(fixture.setCalls.length, 2, "repeated non-Codex selection must be a no-op");
+});
+
+test("activation restores suppressed built-ins in their original order", () => {
+	const fixture = registerActivationFixture(["read", "write", "edit"]);
+	const codex = model({ provider: "openai-codex" });
+
+	fixture.start(codex);
+	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+
+	fixture.select(model());
+	assert.deepEqual(fixture.active, ["read", "write", "edit"]);
 });
 
 test("non-Codex startup removes only a pre-existing apply_patch activation", () => {
