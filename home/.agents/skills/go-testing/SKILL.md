@@ -26,14 +26,14 @@ Use alongside the **go-code** skill. Follow the repository's supported Go versio
 
 - Prefer the standard library unless the repository already uses an assertion package.
 - Call `t.Helper()` in test helpers so failures identify the caller.
-- A helper that cannot continue should call `t.Fatal` or `t.Fatalf`; return an error when the caller genuinely needs to inspect it.
+- A helper running in the test goroutine can use `t.Fatal` or `t.Fatalf` when it cannot continue. Do not call fatal methods from worker goroutines; report errors back to the test goroutine.
 - Use `t.Errorf` when the test can meaningfully continue and `t.Fatalf` when continuing would create noise or panic.
 - Keep assertions focused on behavior relevant to the test.
 
 ## Structure
 
-- Name test files after the implementation file (`user.go` → `user_test.go`).
-- Name tests `TestFunctionName` or `TestTypeName_MethodName`.
+- Use `_test.go` files, usually beside the implementation. Group by behavior when that is clearer than matching implementation files.
+- Use descriptive `Test...` names that identify the behavior or API under test; follow repository naming conventions.
 - Prefer direct tests for one or two cases. Use subtests or tables only when they improve clarity.
 - Use current testing APIs only when supported by the module's declared Go version.
 
@@ -58,12 +58,22 @@ func TestNormalizeID(t *testing.T) {
 }
 ```
 
+## Isolation and checks
+
+- Use `t.TempDir` for temporary files and `t.Cleanup` for fixture lifetimes shared with subtests.
+- Use `t.Setenv` for environment changes. Like `t.Chdir`, it cannot be used in parallel tests or tests with parallel ancestors because it changes process-wide state.
+- Prefer observable synchronization to wall-clock sleeps. Timeouts bound a failure; they are not proof that concurrent work completed.
+- Test error identity or type with `errors.Is` or `errors.As` when that is the contract. Assert exact text only when wording is part of the behavior being tested.
+- Choose package-internal tests for internal contracts and external `_test` packages when exercising the consumer-facing API is useful. Do not export internals just for tests.
+- Run focused tests while iterating and repository-required checks before finishing. Use race testing for relevant concurrency changes; a clean run is evidence, not proof of race freedom.
+
 ## Modern testing APIs
 
 ### Go 1.25+: `testing/synctest`
 
-Use `synctest.Test`, not the removed experimental `synctest.Run`, for
-deterministic tests of timers and concurrent code:
+Use `synctest.Test` when the code's timers and synchronization fit its bubble
+model. It is not a fake environment for external network or filesystem I/O.
+Use the stable API, not the removed experimental `synctest.Run`:
 
 ```go
 func TestCacheExpiry(t *testing.T) {

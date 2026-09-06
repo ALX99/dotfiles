@@ -1,189 +1,73 @@
-## Package Design
+# Package design
 
-Go package design principles covering naming, organization, internal packages, API surface, and common project layouts.
+Organize packages around cohesive capabilities and consumer needs, not file
+counts or a prescribed directory template.
 
-### Package Scope & Naming
+## Names and boundaries
 
-A package should have a single, clear purpose. The name reflects that purpose.
+- Use short, descriptive lowercase names without underscores or mixed capitals.
+- Choose singular or plural according to meaning; `bytes`, `strings`, and `errors` are valid examples.
+- Avoid vague packages such as `common`, `util`, or `helpers`. Name the capability instead.
+- Read exported names with their package qualifier. Avoid stuttering, but retain useful distinctions: `server.New` fits a single primary type; packages with multiple constructors may need `NewClient` and `NewServer`.
+- Split packages when responsibilities, consumers, or dependency boundaries genuinely differ. Neither many files nor a small package is inherently a design problem.
+- Keep closely related types together. Do not create layers that mainly forward calls or force consumers to coordinate tightly coupled packages.
+- Keep imports acyclic. Resolve cycles by reconsidering ownership and dependencies, not by moving arbitrary code into a shared bucket.
 
-**Naming rules:**
+## Visibility and layout
 
-- Lowercase, no underscores or mixedCaps
-- Short, clear, singular: `user`, `http`, `io`
-- Not overly broad (`common`, `util`, `helpers` are code smells)
+- Start with the simplest layout. A small library or single-command application can live at the module root.
+- Use `cmd/<name>/` when multiple commands or separation from a root library makes it useful.
+- Use `internal/` for code that must not be imported outside its allowed tree. Go enforces this: importers must be within the tree rooted at the parent of `internal`.
+- `pkg/` has no special visibility semantics and is not required for public libraries. Prefer meaningful packages at the module root unless the repository has an established reason for it.
+- Do not create empty architectural directories in anticipation of future growth.
 
-```go
-// ✓ Good
-package user
-package http
-package middleware
+For example, an application with two commands might use:
 
-// ✗ Bad
-package users          // plural
-package httpServer     // mixedCaps
-package common         // what does it do?
+```text
+myapp/
+├── cmd/
+│   ├── api/main.go
+│   └── worker/main.go
+├── internal/
+│   ├── server/
+│   └── store/
+└── go.mod
 ```
 
-**Signs it's time to split:**
+## Command entry points
 
-- Multiple unrelated types with separate responsibilities
-- File count exceeds 10-15 files
-- You struggle to name it without using "and"
-
-**Signs it's too granular:**
-
-- Packages with 1-2 small files
-- Heavy cross-package coupling
-- Types that always get used together live in separate packages
-
-### Main Package Organization
-
-The `main` package should be small, focused on initialization:
+Keep `main` focused on process setup and exit policy. Put work that needs
+deferred cleanup in a returning function: `os.Exit` does not run defers.
+Choose signal handling and cancellation exit status according to the command's
+contract rather than imposing a universal policy.
 
 ```go
-// Good - main.go
-package main
-
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
-	err := run(ctx)
-
-	if cause := context.Cause(ctx); cause != nil {
-		fmt.Fprintf(os.Stderr, "Interrupted: %s\n", cause)
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context) error {
-    cfg, err := config.Load()
-    if err != nil {
-        return fmt.Errorf("load config: %w", err)
-    }
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
-    srv := server.New(cfg)
-    if err := srv.Start(); err != nil {
-        return fmt.Errorf("start server: %w", err)
-    }
-    return nil
+	return serve(ctx)
 }
 ```
 
-### Multiple Binaries (cmd/)
+## Public APIs
 
-```
-myproject/
-├── cmd/
-│   ├── server/
-│   │   └── main.go
-│   ├── worker/
-│   │   └── main.go
-│   └── cli/
-│       └── main.go
-├── internal/
-└── pkg/
-```
+- Export only what consumers need. Constructors should establish required invariants; make zero values useful when that is natural, not mandatory.
+- Keep fields private when mutation would violate invariants or expose implementation details. Public fields are appropriate for plain data and configuration.
+- Define interfaces around consumer operations, not every method of an implementation.
+- Document ownership, mutation, concurrency safety, nil/zero behavior, and error semantics when callers need that information.
+- Treat observable behavior—including wrapped errors and serialization—as compatibility commitments. Avoid expanding the public surface for hypothetical reuse.
 
-Each `cmd/` subdirectory is a separate `package main`. Keep them thin—delegate to internal packages.
+## Documentation
 
-### Internal Packages
-
-Use `internal/` to hide implementation details from external consumers:
-
-```
-myproject/
-├── internal/
-│   ├── auth/       # Only importable within myproject
-│   └── cache/
-├── pkg/
-│   └── client/     # Public API, importable by anyone
-└── server.go
-```
-
-Code in `internal/` cannot be imported by packages outside the parent of `internal/`.
-
-### API Surface
-
-Export minimally. Unexported by default, export only when needed.
-
-```go
-// ✓ Minimal exports
-type Client struct {
-    baseURL string    // unexported - internal detail
-    http    *http.Client
-}
-
-func New(baseURL string) *Client { ... }  // exported constructor
-func (c *Client) Fetch(ctx context.Context, id string) (Item, error) { ... }
-
-// ✗ Over-exported
-type Client struct {
-    BaseURL string    // why would caller need to read this?
-    HTTP    *http.Client  // dangerous to expose
-}
-```
-
-### Package Documentation
-
-For non-trivial packages, add a `doc.go`:
-
-```go
-// Package auth provides authentication and authorization
-// for the application's HTTP handlers.
-//
-// It supports JWT tokens and API keys. Tokens are validated
-// against the configured identity provider.
-//
-// Basic usage:
-//
-//     middleware := auth.New(auth.Config{...})
-//     handler = middleware.Wrap(handler)
-package auth
-```
-
-### Common Project Layouts
-
-**Small project / library:**
-
-```
-mylib/
-├── mylib.go
-├── mylib_test.go
-└── internal/
-    └── helper/
-```
-
-**Application with one binary:**
-
-```
-myapp/
-├── main.go
-├── internal/
-│   ├── server/
-│   ├── store/
-│   └── domain/
-└── migrations/
-```
-
-**Large application:**
-
-```
-myapp/
-├── cmd/
-│   ├── api/
-│   └── worker/
-├── internal/
-│   ├── api/
-│   ├── worker/
-│   ├── domain/
-│   └── store/
-├── pkg/           # public libraries (use sparingly)
-└── migrations/
-```
-
-Avoid the `pkg/` directory unless you explicitly intend code to be imported by external projects. For most applications, `internal/` is sufficient.
+Use package comments to explain purpose and important usage constraints.
+Place them in `doc.go` when they warrant a separate file; it is not required
+for every package. Document exported identifiers with comments beginning with
+their names, and prefer executable examples for nontrivial usage.

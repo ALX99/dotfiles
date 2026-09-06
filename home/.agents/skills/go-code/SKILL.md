@@ -5,19 +5,22 @@ description: Use for every task that writes, edits, reviews, designs, or tests G
 
 # Go Code
 
-Follow the repository's supported Go version and local conventions. Prefer the standard library and clear, direct code.
+Write clear, direct Go with the smallest API and dependency set that satisfies
+the task. Follow repository contracts and supported versions; do not preserve
+outdated patterns merely because nearby code uses them.
 
 ## Version and sources
 
-- Read both the module's `go` directive and the active toolchain version (`go version` or `go env GOVERSION`).
-- Use stable modern features supported by the project's compatibility target.
-- Prefer current official Go idioms even when nearby code predates them, unless compatibility, consistency, or migration cost materially outweighs the improvement.
-- Verify version-sensitive APIs against installed documentation or official release notes rather than relying on training data.
-- Do not use draft, experimental, or prerelease APIs by default.
+- Read the relevant module's `go` and `toolchain` directives, workspace configuration when present, and active toolchain version (`go version`). A newer local toolchain does not raise the module's compatibility target.
+- Use stable features supported by that target. Do not upgrade the target or introduce experimental APIs without a task requirement.
+- Verify version-sensitive APIs against installed documentation or official release notes. Installed documentation describes the installed toolchain, not necessarily the target version.
+- Consult [modern Go](references/MODERN_GO.md) when choosing version-sensitive helpers or deliberately modernizing code.
 
-## Semantic navigation with `gopls`
+## Navigation with `gopls`
 
-Use `gopls` from the module root for semantic navigation before text search.
+Prefer `gopls` for definitions, references, implementations, and renames. Run it
+from the relevant module or workspace. Use text search for literal strings,
+configuration, and initial discovery, or when the workspace cannot load.
 Positions are `path/file.go:line:column` (1-based).
 
 ```sh
@@ -25,50 +28,40 @@ gopls definition ./internal/cache/cache.go:42:7
 gopls references ./internal/cache/cache.go:42:7
 gopls implementation ./internal/cache/cache.go:42:7
 gopls call_hierarchy ./internal/cache/cache.go:42:7
-gopls signature ./internal/cache/cache.go:42:7
 gopls workspace_symbol -matcher=fuzzy Cache
 gopls symbols ./internal/cache/cache.go
 gopls check ./internal/cache/cache.go
 ```
 
-Use `references -declaration` to exclude the declaration. `gopls` output
-locations can be used directly in follow-up commands.
+`references -declaration` includes the declaration. Output locations can be
+used directly in follow-up commands. Preview edits before applying them:
 
 ```sh
-gopls prepare_rename ./internal/cache/cache.go:42:7
 gopls rename -diff ./internal/cache/cache.go:42:7 NewName
-gopls format -diff ./internal/cache/cache.go
 gopls imports -diff ./internal/cache/cache.go
 gopls codeaction -kind=quickfix -exec -diff ./internal/cache/cache.go
 ```
 
-Use `-write` only when applying a change.
+Use `-write` only when applying changes. Check the installed command's help if
+flags or available actions differ.
 
 ## Contracts and validation
 
-- Follow conventional Go and API contracts even when they are not repeated in local documentation.
-- A `context.Context` parameter is non-nil by convention. Do not add a nil check.
-- Pointer parameters are the caller's responsibility unless nil is an intentional, meaningful input for that API.
-- Rely on types, constructor and parser invariants, prior control-flow narrowing, standard-library conventions, and framework guarantees inside trusted code.
-- Validate user input, decoded data, configuration, protocol input, unsafe or foreign values, and other real boundaries.
-- Do not turn programmer misuse into an ordinary returned-error path unless the API defines that behavior.
-- For `(T, error)` returns, return a usable `T` or a non-nil error according to the API; do not create ambiguous partial-success states.
-- Represent absence explicitly with `(T, bool)`, a documented sentinel error, or another established API convention.
-
-```go
-// The caller owns the non-nil precondition.
-func (s *Service) DisableUser(user *User) error {
-	user.Active = false
-	return s.db.SaveUser(user)
-}
-```
+- Rely on language and API contracts, constructor/parser invariants, and prior control-flow narrowing inside trusted code.
+- Validate external input at real boundaries: user input, decoded data, configuration, protocols, and foreign values.
+- A `context.Context` argument is non-nil by convention. Do not add a nil check.
+- Give nil pointer inputs behavior only when the API supports nil; do not invent returned-error paths for programmer misuse.
+- Follow each API's result/error contract. Partial results with an error are valid when defined by the API, as with `io.Reader`; callers must handle them accordingly.
+- Represent absence through an established convention such as `(T, bool)` or a documented sentinel error. Distinguish it from failure when callers need that distinction.
 
 ## Errors
 
-- Add context when propagating an error, preserve the cause with `%w`, and keep messages lowercase.
-- Describe the failed operation directly; avoid prefixes such as `failed to` or `error`.
-- Handle an error once. Return it or log it, not both, unless the repository has an explicit boundary policy.
-- Use `ErrName` for exported sentinel errors and `errName` for unexported ones.
+- Add context when it identifies a useful operation or input; avoid redundant wrapping at every layer.
+- Use `%w` when callers should be able to inspect the cause. Exposing an underlying error becomes part of the API contract.
+- Use `errors.Is` and `errors.As` (or version-supported `errors.AsType`) for wrapped errors, not string matching.
+- Keep error messages lowercase and without trailing punctuation unless a proper name or literal requires otherwise. Describe the operation directly rather than adding `failed to` or `error`.
+- Handle an error once: return it or log it, unless an explicit boundary policy requires both.
+- Name sentinel errors `ErrName` when exported and `errName` otherwise. Add sentinels or error types only when callers need to distinguish them.
 
 ```go
 return Config{}, fmt.Errorf("load config: %w", err)
@@ -76,127 +69,43 @@ return Config{}, fmt.Errorf("load config: %w", err)
 
 ## APIs and types
 
-- Keep APIs unexported unless callers require them.
-- Let the package name provide context: prefer `server.New()` over `server.NewServer()`.
-- Avoid `Get` prefixes for simple accessors.
-- Define interfaces in the consuming package. Accept interfaces and return concrete types unless the contract requires otherwise.
-- Do not add an interface only to make a test mockable.
-- Prefer value semantics. Use pointers when mutation, identity, lifecycle, or the type's established semantics require them.
-- Never use a pointer to an interface.
+- Keep identifiers unexported unless consumers require them. Let package names supply context, and avoid redundant names and `Get` prefixes on simple accessors.
+- Accept the type the contract needs. Define small interfaces in the consuming package when genuine substitutability is needed; do not introduce interfaces preemptively or solely to mirror a concrete type for mocking.
+- Usually return concrete types; return an interface when abstraction is part of the contract.
+- Prefer values when copying is appropriate. Use pointers for mutation, identity, shared ownership, or types whose established semantics require them. Avoid pointers to interfaces in ordinary APIs.
+- Do not copy synchronization-bearing values after first use. Choose receiver types consistently with mutation and copy semantics.
+- Make slice/map aliasing and mutation ownership clear. Copy when isolation is required, not automatically.
+- Use generics when they express a shared, type-safe algorithm or data structure more clearly than concrete code; avoid speculative frameworks.
 - Use descriptive names in wide scopes and short conventional names in narrow scopes.
 
-## Structure
+## Structure and resource ownership
 
-- Keep the happy path flat with early returns when handling actual error states.
-- Prefer explicit initialization over `init()`.
-- Use named struct fields and group fields by responsibility.
-- Use `defer` for cleanup and unlocking when ownership is clear.
-- Keep the public surface and dependency set minimal.
+- Keep the happy path flat with early returns. Avoid unnecessary `else` branches after a return.
+- Prefer explicit initialization over `init()` when ordering, dependencies, or failures matter.
+- Prefer keyed struct literals, especially across package boundaries or for structs with several fields.
+- Use `defer` for cleanup when its enclosing function matches the resource lifetime. Extract a function or clean up explicitly when a loop would otherwise retain resources.
+- Check close or flush errors when they can determine whether an operation succeeded, especially for writes. Preserve the primary failure if cleanup also fails.
+- Keep dependencies minimal, but use an established dependency when it materially reduces maintenance or failure risk.
 
-## Concurrency
+## Concurrency and context
 
-- Every goroutine needs clear ownership and a termination path.
-- Bound work when input can create an unbounded number of goroutines.
-- Propagate cancellation through the established context.
-- Establish synchronization and data ownership before adding parallelism.
+- Give every goroutine an owner and termination path. The owner must know when work has finished before releasing resources it uses.
+- Bound concurrent work when its volume comes from input.
+- Establish synchronization and data ownership before adding parallelism. Use mutexes or channels according to the problem, not a blanket preference.
+- Pass `context.Context` as the first parameter, conventionally named `ctx`, when the operation supports cancellation or request-scoped values. Do not use context values for optional parameters.
+- Propagate the caller's context rather than replacing it with `context.Background()`. Call cancellation functions when their scope ends.
+- Prefer passing context to operations rather than storing it in long-lived structs, unless an established API requires otherwise.
 
-## Modern Go
+## Verification
 
-Use these features only when the module's compatibility target supports them.
+- Format changed Go files with `gofmt` or the repository's formatter; organize imports using existing tooling.
+- Run focused tests for changed behavior, then the broader checks required by the repository. Use `go vet` for affected packages and race testing when concurrency changes make it relevant and the environment supports it.
+- Check relevant build tags and platform constraints when the change affects them.
+- Review the diff for unintended API, dependency, generated-file, or compatibility changes. Report checks that could not run.
+- Do not run repository-wide modernization or dependency updates as incidental cleanup.
 
-### Go 1.26+
+## Related guidance
 
-Prefer the generic, type-safe `errors.AsType` over a predeclared target for
-ordinary error-tree matching:
-
-```go
-if urlErr, ok := errors.AsType[*url.Error](err); ok {
-	return urlErr.URL
-}
-```
-
-Use `new(expr)` when a pointer to a computed value is needed:
-
-```go
-cfg := Config{Timeout: new(defaultTimeout())}
-```
-
-When deliberately modernizing a Go 1.26+ module, use `go fix ./...` as a
-reviewable migration tool rather than mechanically rewriting APIs by hand.
-Inspect and test its changes like any other code change.
-
-Do not use draft Go 1.27 APIs unless the project explicitly targets a
-compatible prerelease. Reverify preview guidance after the stable release.
-
-### Go 1.25+
-
-Use `sync.WaitGroup.Go` when its no-panic contract fits and no error propagation
-is required:
-
-```go
-var wg sync.WaitGroup
-for _, item := range items {
-	wg.Go(func() { process(item) })
-}
-wg.Wait()
-```
-
-Use `testing/synctest.Test` for deterministic concurrent tests; see the
-**go-testing** skill.
-
-### Go 1.24+
-
-Use `omitzero` when JSON zero-value semantics are intended, especially for
-types such as `time.Time` that define `IsZero`:
-
-```go
-StartTime time.Time `json:"start_time,omitzero"`
-```
-
-Use lazy string and byte iterators (`SplitSeq`, `SplitAfterSeq`, `FieldsSeq`,
-`FieldsFuncSeq`, and `Lines`) when all substrings need not be retained:
-
-```go
-for line := range strings.Lines(text) {
-	consume(line)
-}
-for part := range strings.SplitSeq(text, ",") {
-	consume(part)
-}
-```
-
-Use `t.Context` and `t.Chdir` in tests when supported by the module.
-
-### Go 1.23+
-
-Use `unique.Make` for frequently repeated comparable values when canonical
-handles provide a measured or clear benefit. Do not intern values speculatively:
-
-```go
-host := unique.Make(hostname)
-if host == previousHost {
-	// Same canonical value.
-}
-```
-
-### Stable standard-library helpers
-
-Use `cmp.Or` for concise zero-value fallback when its eager evaluation and
-left-to-right semantics are appropriate:
-
-```go
-dir := cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config"))
-```
-
-## Dependency choices
-
-- Prefer the standard library before adding a dependency.
-- Use external style guides to resolve gaps, not as co-equal authorities.
-
-## Testing
-
-Load the **go-testing** skill whenever writing or reviewing Go tests. Tests should encode requested or established contracts rather than invented invalid-input behavior.
-
-## Additional reference
-
-- [PKG_DESIGN.md](references/PKG_DESIGN.md) — package naming, layouts, and API surface design
+- Load the **go-testing** skill when writing or reviewing Go tests.
+- Read [package design](references/PKG_DESIGN.md) when creating packages or changing package boundaries and public APIs.
+- Use official Go documentation to resolve language and library questions; external style guides fill gaps rather than override project requirements.
