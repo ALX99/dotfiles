@@ -260,13 +260,19 @@ function registerActivationFixture(initialActive: string[]) {
 	};
 }
 
-test("activation remains scoped to openai-codex", () => {
+test("activation is scoped to GPT models on any provider", () => {
 	const fixture = registerActivationFixture(["read", "edit", "write"]);
 	assert.equal(fixture.registeredTool?.executionMode, "sequential");
 	assert.equal(fixture.providerRegistered, false);
 	fixture.start(model());
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
-	fixture.select(model({ provider: "openai-codex", id: "any-codex-model" }));
+	fixture.select(model({ provider: "other-provider", id: "gpt-5.6-terra" }));
+	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	fixture.select(model({ provider: "openai-codex", id: "gpt-5.6-terra" }));
+	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	fixture.select(model({ provider: "openai-codex", id: "claude-opus" }));
+	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
+	fixture.select(model({ provider: "other-provider", id: "GPT-4o" }));
 	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
 	fixture.select(model());
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
@@ -274,7 +280,7 @@ test("activation remains scoped to openai-codex", () => {
 
 test("activation is idempotent and restores only built-ins it suppressed", () => {
 	const fixture = registerActivationFixture(["read", "edit"]);
-	const codex = model({ provider: "openai-codex" });
+	const codex = model({ provider: "openai-codex", id: "gpt-5.6-terra" });
 
 	fixture.start(codex);
 	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
@@ -282,7 +288,7 @@ test("activation is idempotent and restores only built-ins it suppressed", () =>
 
 	fixture.start(codex);
 	fixture.select(codex);
-	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]], "repeated Codex selection must be a no-op");
+	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]], "repeated GPT selection must be a no-op");
 
 	fixture.select(model());
 	assert.deepEqual(fixture.active, ["read", "edit"], "write was never suppressed and must not be added");
@@ -292,12 +298,12 @@ test("activation is idempotent and restores only built-ins it suppressed", () =>
 	]);
 
 	fixture.select(model());
-	assert.equal(fixture.setCalls.length, 2, "repeated non-Codex selection must be a no-op");
+	assert.equal(fixture.setCalls.length, 2, "repeated non-GPT selection must be a no-op");
 });
 
 test("activation restores suppressed built-ins in their original order", () => {
 	const fixture = registerActivationFixture(["read", "write", "edit"]);
-	const codex = model({ provider: "openai-codex" });
+	const codex = model({ provider: "openai-codex", id: "gpt-5.6-terra" });
 
 	fixture.start(codex);
 	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
@@ -306,7 +312,7 @@ test("activation restores suppressed built-ins in their original order", () => {
 	assert.deepEqual(fixture.active, ["read", "write", "edit"]);
 });
 
-test("non-Codex startup removes only a pre-existing apply_patch activation", () => {
+test("non-GPT startup removes only a pre-existing apply_patch activation", () => {
 	const fixture = registerActivationFixture(["read", "apply_patch"]);
 	fixture.start(model());
 	assert.deepEqual(fixture.active, ["read"]);

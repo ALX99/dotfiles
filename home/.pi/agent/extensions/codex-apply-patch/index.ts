@@ -250,8 +250,8 @@ export function createApplyPatchTool(
 	};
 }
 
-function isOpenAICodexModel(model: { provider?: string } | undefined): boolean {
-	return model?.provider === "openai-codex";
+function isGptModel(model: { id?: string } | undefined): boolean {
+	return model?.id?.toLowerCase().includes("gpt") ?? false;
 }
 
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
@@ -282,9 +282,10 @@ export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOpt
 	};
 
 	// The native Pi patch supplies raw Responses custom-tool transport only
-	// for the built-in ChatGPT OAuth Codex provider.
-	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(isOpenAICodexModel(ctx.model)));
-	pi.on("model_select", (event) => setCodexCompatToolsActive(isOpenAICodexModel(event.model)));
+	// for the built-in ChatGPT OAuth Codex provider, so enable this tool for
+	// any GPT model regardless of provider.
+	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(isGptModel(ctx.model)));
+	pi.on("model_select", (event) => setCodexCompatToolsActive(isGptModel(event.model)));
 }
 
 export default function codexCompatExtension(pi: ExtensionAPI): void {
