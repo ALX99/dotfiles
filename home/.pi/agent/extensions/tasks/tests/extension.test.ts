@@ -226,6 +226,35 @@ test("reads the active queue and recorded outcomes", async () => {
 	assert.doesNotMatch(filtered.content[0]?.text ?? "", /Implement handler/u);
 });
 
+test("supports wildcard filters for an unfiltered queue lookup", async () => {
+	const h = createHarness([
+		assistantToolCall("queue-call", "create_tasks"),
+		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+	]);
+
+	const read = await h.tools
+		.get("read_tasks")!
+		.execute("read-all", { taskId: "*", path: "*" }, undefined, undefined, h.ctx);
+
+	assert.match(read.content[0]?.text ?? "", /Task queue active/u);
+	assert.match(read.content[0]?.text ?? "", /Add schema/u);
+	assert.match(read.content[0]?.text ?? "", /Current task: queue-call:1/u);
+});
+
+test("shows generated task IDs when creating a queue", async () => {
+	const h = createHarness([assistantToolCall("queue-call", "create_tasks")]);
+	const created = await h.tools
+		.get("create_tasks")!
+		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
+	const details = created.details as QueueDetails;
+	const text = created.content[0]?.text ?? "";
+
+	for (const task of details.tasks) {
+		assert.ok(text.includes(task.title));
+		assert.ok(text.includes(task.id));
+	}
+});
+
 test("keeps legacy checkpoints readable without optional fields", async () => {
 	const legacy = finishDetails("queue-call:1");
 	const h = createHarness([

@@ -23,6 +23,7 @@ const TASK_UPDATE_ACTIONS = ["insert", "rename", "skip", "cancel"] as const;
 const EVIDENCE_KINDS = ["file", "test", "commit", "finding"] as const;
 const TASK_SPINNER_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"] as const;
 const TASK_COMPACTION_MARKER = "⟳";
+const TASK_READ_ALL_FILTER = "*";
 
 type TaskStatus = (typeof TASK_STATUSES)[number];
 type TaskItemState = (typeof TASK_ITEM_STATES)[number];
@@ -162,14 +163,16 @@ const ReadTasksParams = Type.Object({
 		Type.String({
 			minLength: 1,
 			maxLength: 200,
-			description: "Optional task ID to inspect in detail",
+			description:
+				"Optional task ID to inspect in detail. Use * for an unfiltered lookup when the caller requires a value.",
 		}),
 	),
 	path: Type.Optional(
 		Type.String({
 			minLength: 1,
 			maxLength: 1000,
-			description: "Optional file path to find across observed task changes",
+			description:
+				"Optional file path to find across observed task changes. Use * for an unfiltered lookup when the caller requires a value.",
 		}),
 	),
 });
@@ -330,7 +333,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				content: [
 					{
 						type: "text",
-						text: `Queued ${tasks.length} tasks. Work them in order, and after each one call finish_task alone in its turn with an outcome summary and concrete evidence.`,
+						text: [
+							`Queued ${tasks.length} tasks.`,
+							...tasks.map((task, index) => `${index + 1}. ${task.title} (${task.id})`),
+							"Work them in order, and after each one call finish_task alone in its turn with an outcome summary and concrete evidence.",
+						].join("\n"),
 					},
 				],
 				details,
@@ -353,11 +360,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			ensureTasksEnabled(ctx);
 			const active = getActiveQueue(ctx);
-			const details = readTasks(active, params.taskId, params.path);
+			const taskId = normalizeReadFilter(params.taskId);
+			const path = normalizeReadFilter(params.path);
+			const details = readTasks(active, taskId, path);
 			return {
-				content: [
-					{ type: "text", text: formatTaskRead(details, params.taskId !== undefined || params.path !== undefined) },
-				],
+				content: [{ type: "text", text: formatTaskRead(details, taskId !== undefined || path !== undefined) }],
 				details,
 			};
 		},
@@ -718,6 +725,11 @@ function normalizeTaskUpdate(params: TaskUpdateInput): TaskUpdateInput {
 		...(params.afterTaskId === undefined ? {} : { afterTaskId: params.afterTaskId.trim() }),
 		...(params.reason === undefined ? {} : { reason: params.reason.trim() }),
 	};
+}
+
+function normalizeReadFilter(value: string | undefined): string | undefined {
+	const normalized = value?.trim();
+	return normalized === undefined || normalized === TASK_READ_ALL_FILTER ? undefined : normalized;
 }
 
 function amendQueue(active: ActiveQueue, params: TaskUpdateInput): TaskQueueDetails {
