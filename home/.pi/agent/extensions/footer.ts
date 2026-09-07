@@ -402,6 +402,9 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					leftParts.push(modelText);
 				}
 
+				const taskStatus = footerData.getExtensionStatuses().get("tasks");
+				if (taskStatus) leftParts.push(renderTaskStatus(taskStatus, theme));
+
 				const ctxUsage = ctx.getContextUsage();
 				const viewInput: FooterViewInput = {
 					width,
@@ -415,4 +418,11 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	});
 
 	return () => requestRender?.();
+}
+
+function renderTaskStatus(status: string, theme: FooterTheme): string {
+	const text = sanitizeTerminalText(status);
+	if (text.startsWith("✓")) return theme.fg("success", text);
+	if (text === "Tasks off") return theme.fg("muted", text);
+	return theme.fg("accent", text);
 }

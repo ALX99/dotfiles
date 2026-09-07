@@ -166,8 +166,11 @@ function userMessage(text: string): Entry {
 }
 
 type QueueDetails = Record<string, unknown> & {
+	queueId?: string;
 	tasks: Array<{ id: string; title: string; state?: string }>;
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function queueDetails(toolCallId: string): QueueDetails {
 	return {
@@ -430,7 +433,11 @@ test("amends pending tasks while preserving finished IDs and carrying the queue 
 		["Add schema", "Implement handler carefully", "Review handler docs", "Write tests", "Review integration"],
 	);
 	assert.equal(insertedTasks[0]?.id, "queue-call:1");
-	assert.match(insertedTasks[2]?.id ?? "", /^queue-call:insert:insert-1$/u);
+	assert.match(insertedTasks[2]?.id ?? "", UUID_PATTERN);
+	assert.ok(
+		!insertedTasks.some((task, index) => index !== 2 && task.id === insertedTasks[2]?.id),
+		"inserted task id is unique",
+	);
 	h.pushEntry(toolResult("insert-1-result", "update_tasks", inserted.details));
 
 	h.pushEntry(assistantToolCall("skip-1", "update_tasks"));
@@ -583,7 +590,15 @@ test("compacts each queued task onto a chained completion record", async () => {
 	const created = await h.tools
 		.get("create_tasks")!
 		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	assert.deepEqual(created.details, queueDetails("queue-call"));
+	const createdQueue = created.details as QueueDetails;
+	assert.equal(createdQueue.kind, "tasks:queue");
+	assert.match(createdQueue.queueId ?? "", UUID_PATTERN);
+	assert.deepEqual(
+		createdQueue.tasks.map((task) => task.title),
+		QUEUE_TITLES,
+	);
+	for (const task of createdQueue.tasks) assert.match(task.id, UUID_PATTERN);
+	assert.equal(new Set(createdQueue.tasks.map((task) => task.id)).size, createdQueue.tasks.length);
 	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
 
 	// First finish rewinds to the queue anchor.
@@ -612,9 +627,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation1.label, "task: Add schema");
 	assert.match(navigation1.summary, /## Queue progress\n1\/4 complete\. Continue with: Implement handler/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.match(
-		h.sentUserMessages.at(-1)?.content ?? "",
-		/^Continue with the next queued task: Implement handler \(queue-call:2\)\./u,
+	assert.ok(
+		h.sentUserMessages.at(-1)?.content?.includes(`Implement handler (${createdQueue.tasks[1]?.id}).`) ?? false,
+		"schedules the second generated task id",
 	);
 
 	// Second finish chains onto the first completion record instead of the anchor.
@@ -639,9 +654,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation2.label, "task: Implement handler");
 	assert.match(navigation2.summary, /2\/4 complete\. Continue with: Write tests/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.match(
-		h.sentUserMessages.at(-1)?.content ?? "",
-		/^Continue with the next queued task: Write tests \(queue-call:3\)\./u,
+	assert.ok(
+		h.sentUserMessages.at(-1)?.content?.includes(`Write tests (${createdQueue.tasks[2]?.id}).`) ?? false,
+		"schedules the third generated task id",
 	);
 
 	// Intermediate tasks keep the chain and schedule the next task.
@@ -668,9 +683,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation3.label, "task: Write tests");
 	assert.match(navigation3.summary, /3\/4 complete\. Continue with: Review integration/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.match(
-		h.sentUserMessages.at(-1)?.content ?? "",
-		/^Continue with the next queued task: Review integration \(queue-call:4\)\./u,
+	assert.ok(
+		h.sentUserMessages.at(-1)?.content?.includes(`Review integration (${createdQueue.tasks[3]?.id}).`) ?? false,
+		"schedules the fourth generated task id",
 	);
 
 	// The final task keeps the chain and schedules a user-facing final summary.

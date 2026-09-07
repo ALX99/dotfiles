@@ -6,6 +6,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { isAbsolute, relative } from "node:path";
+import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
 
 const TASK_QUEUE_DETAILS_TYPE = "tasks:queue";
@@ -313,13 +314,15 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				throw new Error("A task queue is already active. Finish its remaining tasks before creating another queue.");
 			}
 
-			const tasks: TaskQueueItem[] = params.tasks.map((task, index) => ({
-				id: `${toolCallId}:${index + 1}`,
+			const queueId = randomUUID();
+			const seen = new Set<string>([queueId]);
+			const tasks: TaskQueueItem[] = params.tasks.map((task) => ({
+				id: uniqueTaskId(seen),
 				title: task.title,
 			}));
 			const details: TaskQueueDetails = {
 				kind: TASK_QUEUE_DETAILS_TYPE,
-				queueId: toolCallId,
+				queueId,
 				tasks,
 			};
 			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(1, tasks.length, tasks[0]!.title, agentActive, spinnerIndex));
@@ -385,7 +388,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				throw new Error("A task outcome is waiting to compact. Let it finish before amending the queue.");
 			}
 			const update = normalizeTaskUpdate(params);
-			const queue = amendQueue(active, toolCallId, update);
+			const queue = amendQueue(active, update);
 			active.queue = queue;
 			const details = taskUpdateDetails(queue, update);
 			refreshStatus(ctx);
@@ -688,7 +691,7 @@ function applyCommandUpdate(
 
 	try {
 		const update = normalizeTaskUpdate(params);
-		const queue = amendQueue(active, "command", update);
+		const queue = amendQueue(active, update);
 		active.queue = queue;
 		const details = taskUpdateDetails(queue, update);
 		pi.sendMessage(
@@ -717,7 +720,7 @@ function normalizeTaskUpdate(params: TaskUpdateInput): TaskUpdateInput {
 	};
 }
 
-function amendQueue(active: ActiveQueue, updateId: string, params: TaskUpdateInput): TaskQueueDetails {
+function amendQueue(active: ActiveQueue, params: TaskUpdateInput): TaskQueueDetails {
 	if (active.queue.cancelled === true) throw new Error("The task queue is already canceled.");
 	if (currentItem(active) === undefined) throw new Error("No pending tasks remain in the queue.");
 
@@ -733,7 +736,7 @@ function amendQueue(active: ActiveQueue, updateId: string, params: TaskUpdateInp
 					? queue.tasks.length
 					: queue.tasks.findIndex((task) => task.id === params.afterTaskId) + 1;
 			if (insertionIndex === 0) throw new Error(`Unknown task ID: ${params.afterTaskId}.`);
-			const id = insertedTaskId(queue, updateId);
+			const id = insertedTaskId(queue);
 			queue.tasks.splice(insertionIndex, 0, { id, title });
 			return queue;
 		}
@@ -784,17 +787,15 @@ function cloneQueue(queue: TaskQueueDetails): TaskQueueDetails {
 	};
 }
 
-function insertedTaskId(queue: TaskQueueDetails, updateId: string): string {
-	const prefix = `${queue.queueId}:insert:`;
-	if (updateId !== "command") {
-		const candidate = `${prefix}${updateId}`;
-		if (!queue.tasks.some((task) => task.id === candidate)) return candidate;
-	}
+function insertedTaskId(queue: TaskQueueDetails): string {
+	return uniqueTaskId(new Set(queue.tasks.map((task) => task.id)));
+}
 
-	for (let index = 1; ; index += 1) {
-		const candidate = `${prefix}${index}`;
-		if (!queue.tasks.some((task) => task.id === candidate)) return candidate;
-	}
+function uniqueTaskId(seen: Set<string>): string {
+	let id = randomUUID();
+	while (seen.has(id)) id = randomUUID();
+	seen.add(id);
+	return id;
 }
 
 function taskUpdateDetails(queue: TaskQueueDetails, params: TaskUpdateInput): TaskUpdateDetails {
@@ -1340,7 +1341,7 @@ function isValidQueueTransition(active: ActiveQueue, next: TaskQueueDetails, upd
 	for (const [nextIndex, nextTask] of next.tasks.entries()) {
 		const existing = currentById.get(nextTask.id);
 		if (existing === undefined) {
-			if (!nextTask.id.startsWith(`${current.queueId}:insert:`) || nextTask.state !== undefined) return false;
+			if (nextTask.state !== undefined) return false;
 			added += 1;
 			addedTask = nextTask;
 			addedIndex = nextIndex;
