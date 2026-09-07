@@ -21,6 +21,18 @@ async function pathExists(filePath: string): Promise<boolean> {
 	);
 }
 
+async function retainJob(
+	reaper: ProcessReaper,
+	ownerId: string,
+	toolCallId: string,
+	pid: number,
+	command: string,
+): Promise<void> {
+	reaper.prepareCommand(ownerId, toolCallId, command);
+	await fs.writeFile(reaper.markerPath(ownerId, toolCallId), `${pid}\n`, "utf8");
+	await reaper.finishCommand(ownerId, toolCallId);
+}
+
 test("shares owner state across in-process extension instances", async () => {
 	const first = getProcessReaper();
 	const second = getProcessReaper();
@@ -32,6 +44,55 @@ test("shares owner state across in-process extension instances", async () => {
 	await second.finishCommand(ownerId, toolCallId);
 
 	assert.equal(await pathExists(marker), false);
+});
+
+test("retains background job metadata and lists jobs in PID order", async (t) => {
+	const reaper = new ProcessReaper({
+		rootDir: await temporaryRoot(t),
+		groupExists: () => true,
+	});
+	await retainJob(reaper, "session-b", "call-b", 9876, "sleep 30 &");
+	await retainJob(reaper, "session-a", "call-a", 4321, "echo first");
+
+	assert.deepEqual(reaper.listBackgroundJobs(), [
+		{
+			pid: 4321,
+			ownerId: "session-a",
+			toolCallId: "call-a",
+			command: "echo first",
+		},
+		{
+			pid: 9876,
+			ownerId: "session-b",
+			toolCallId: "call-b",
+			command: "sleep 30 &",
+		},
+	]);
+});
+
+test("pruneFinishedJobs notifies only when the retained set changes", async (t) => {
+	const live = new Set([4321]);
+	const reaper = new ProcessReaper({
+		rootDir: await temporaryRoot(t),
+		groupExists: (pid) => live.has(pid),
+		sleep: async () => {},
+	});
+	const counts: number[] = [];
+	const unsubscribe = reaper.onBackgroundGroupChange((count) => counts.push(count));
+	try {
+		await retainJob(reaper, "session", "call", 4321, "sleep 30 &");
+		assert.deepEqual(counts, [0, 1]);
+
+		await reaper.pruneFinishedJobs();
+		assert.deepEqual(counts, [0, 1]);
+
+		live.delete(4321);
+		await reaper.pruneFinishedJobs();
+		assert.deepEqual(counts, [0, 1, 0]);
+		assert.deepEqual(reaper.listBackgroundJobs(), []);
+	} finally {
+		unsubscribe();
+	}
 });
 
 test("publishes retained background-group count changes", async (t) => {

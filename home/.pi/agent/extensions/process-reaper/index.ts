@@ -8,16 +8,22 @@ import { isBashToolResult, isToolCallEventType, type ExtensionAPI } from "@earen
 
 const TERMINATION_GRACE_MS = 500;
 const TERMINATION_SETTLE_MS = 50;
+const BACKGROUND_SWEEP_INTERVAL_MS = 5_000;
 const GLOBAL_STATE_KEY = Symbol.for("dotfiles.pi.process-reaper.state-v1");
 
 type ProcessSignal = "SIGTERM" | "SIGKILL";
 
 interface OwnerProcesses {
-	readonly markers: Map<string, string>;
-	readonly groups: Set<number>;
+	readonly markers: Map<string, PendingProcess>;
+	readonly groups: Map<number, BackgroundJob>;
 }
 
 type BackgroundGroupCountListener = (backgroundGroups: number) => void;
+
+interface PendingProcess {
+	readonly marker: string;
+	readonly command: string;
+}
 
 interface ProcessReaperState {
 	readonly rootDir: string;
@@ -35,6 +41,13 @@ export interface ProcessReaperOptions {
 	readonly processExists?: (pid: number) => boolean;
 	readonly signalGroup?: (pid: number, signal: ProcessSignal) => void;
 	readonly sleep?: (milliseconds: number) => Promise<void>;
+}
+
+export interface BackgroundJob {
+	readonly pid: number;
+	readonly ownerId: string;
+	readonly toolCallId: string;
+	readonly command: string;
 }
 
 function hash(value: string): string {
@@ -135,7 +148,7 @@ export class ProcessReaper {
 		const marker = this.markerPath(ownerId, toolCallId);
 		fs.mkdirSync(path.dirname(marker), { recursive: true, mode: 0o700 });
 		fs.writeFileSync(marker, "", { encoding: "utf8", mode: 0o600 });
-		this.owner(ownerId).markers.set(toolCallId, marker);
+		this.owner(ownerId).markers.set(toolCallId, { marker, command });
 
 		const quotedMarker = quoteShellArgument(marker);
 		return [
@@ -149,14 +162,21 @@ export class ProcessReaper {
 
 	async finishCommand(ownerId: string, toolCallId: string): Promise<void> {
 		const owner = this.state.owners.get(ownerId);
-		const marker = owner?.markers.get(toolCallId);
-		if (owner === undefined || marker === undefined) return;
+		const pending = owner?.markers.get(toolCallId);
+		if (owner === undefined || pending === undefined) return;
 		const previousBackgroundGroups = this.backgroundGroupCount();
 
-		const pid = await readPid(marker);
+		const pid = await readPid(pending.marker);
 		owner.markers.delete(toolCallId);
-		if (pid !== undefined && this.groupExists(pid)) owner.groups.add(pid);
-		await fsp.rm(marker, { force: true });
+		if (pid !== undefined && this.groupExists(pid)) {
+			owner.groups.set(pid, {
+				pid,
+				ownerId,
+				toolCallId,
+				command: pending.command,
+			});
+		}
+		await fsp.rm(pending.marker, { force: true });
 		await this.removeOwnerIfEmpty(ownerId, owner);
 		this.notifyBackgroundGroupChange(previousBackgroundGroups);
 	}
@@ -168,9 +188,9 @@ export class ProcessReaper {
 
 		// A settled Bash shell has exited. A process now using its PID belongs
 		// to a later process group and must not be signalled.
-		const groups = new Set([...owner.groups].filter((pid) => !this.processExists(pid)));
+		const groups = new Set([...owner.groups.keys()].filter((pid) => !this.processExists(pid)));
 		for (const marker of owner.markers.values()) {
-			const pid = await readPid(marker);
+			const pid = await readPid(marker.marker);
 			if (pid !== undefined) groups.add(pid);
 		}
 
@@ -193,6 +213,18 @@ export class ProcessReaper {
 		this.notifyBackgroundGroupChange(previousBackgroundGroups);
 	}
 
+	/** Drop retained groups that have exited and notify when the count changes. */
+	async pruneFinishedJobs(): Promise<void> {
+		const previousBackgroundGroups = this.backgroundGroupCount();
+		for (const [ownerId, owner] of this.state.owners) {
+			for (const pid of owner.groups.keys()) {
+				if (!this.groupExists(pid)) owner.groups.delete(pid);
+			}
+			await this.removeOwnerIfEmpty(ownerId, owner);
+		}
+		this.notifyBackgroundGroupChange(previousBackgroundGroups);
+	}
+
 	/** Subscribe to background-group count changes. The current count is emitted immediately. */
 	onBackgroundGroupChange(listener: BackgroundGroupCountListener): () => void {
 		const listeners = this.state.listeners;
@@ -201,10 +233,17 @@ export class ProcessReaper {
 		return () => listeners.delete(listener);
 	}
 
+	/** Return a snapshot of all background jobs retained by this process. */
+	listBackgroundJobs(): BackgroundJob[] {
+		return [...this.state.owners.values()]
+			.flatMap((owner) => [...owner.groups.values()])
+			.toSorted((left, right) => left.pid - right.pid);
+	}
+
 	private owner(ownerId: string): OwnerProcesses {
 		let owner = this.state.owners.get(ownerId);
 		if (owner !== undefined) return owner;
-		owner = { markers: new Map(), groups: new Set() };
+		owner = { markers: new Map(), groups: new Map() };
 		this.state.owners.set(ownerId, owner);
 		return owner;
 	}
@@ -263,6 +302,22 @@ export function getProcessReaper(): ProcessReaper {
 }
 
 function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): void {
+	// Retained groups are only revisited on tool results and shutdown, so sweep
+	// on a timer to converge stored state with live truth (and the bg badge)
+	// when a job exits while the user is idle. Unref'd like other extension
+	// ticks; the reaper owns freshness, consumers just subscribe.
+	setInterval(() => {
+		void reaper.pruneFinishedJobs().catch(() => {});
+	}, BACKGROUND_SWEEP_INTERVAL_MS).unref?.();
+
+	pi.registerCommand("jobs", {
+		description: "List background jobs tracked by the process reaper",
+		handler: async (_args, ctx) => {
+			await reaper.pruneFinishedJobs();
+			ctx.ui.notify(formatBackgroundJobs(reaper.listBackgroundJobs()), "info");
+		},
+	});
+
 	pi.on("tool_call", (event, ctx) => {
 		if (!isToolCallEventType("bash", event)) return;
 		const ownerId = ctx.sessionManager.getSessionId();
@@ -277,6 +332,18 @@ function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): v
 	pi.on("session_shutdown", async (_event, ctx) => {
 		await reaper.terminateOwner(ctx.sessionManager.getSessionId());
 	});
+}
+
+export function formatBackgroundJobs(jobs: readonly BackgroundJob[]): string {
+	if (jobs.length === 0) return "No background jobs.";
+	return [
+		`Background jobs (${jobs.length}):`,
+		...jobs.map((job) => `  ${job.pid}  ${job.ownerId}  ${formatCommand(job.command)}`),
+	].join("\n");
+}
+
+function formatCommand(command: string): string {
+	return command.replaceAll(/\s+/gu, " ").trim();
 }
 
 export default registerProcessReaper;
