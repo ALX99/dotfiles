@@ -22,6 +22,7 @@ Deliver the requested result correctly with the least unnecessary complexity.
 - Keep necessary branches explicit, local, and testable. Do not hide domain decisions or error handling behind abstractions merely to reduce visible branching.
 - Isolate fallible effects behind narrow boundaries. Give failures that can occur during valid use explicit behavior; add retries, fallbacks, or recovery paths only when their semantics and maintenance cost are justified.
 - Prefer a suitable proven capability already in the platform or current stack. Add a mature, maintained, compatible dependency when it reduces maintenance and failure risk compared with bespoke code; implement directly when the problem is narrow and another dependency or abstraction would cost more than it removes.
+- Aim for low cognitive complexity metrics for methods, functions, etc.
 
 ## Engineering judgment
 

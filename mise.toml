@@ -3,6 +3,7 @@
 
 # On brew because they're source-built, dependency-coupled, or self-referential.
 [bootstrap.packages]
+"brew:bash" = {}
 "brew:bash-completion@2" = {}
 "brew:coreutils" = {}
 "brew:curl" = {}
