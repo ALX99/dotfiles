@@ -1,12 +1,13 @@
 /**
  * Footer Extension — Full custom footer replacement.
  *
- * Shows a responsive project/model trail on the left and a compact context
- * percentage on the right. When space is tight, location details yield to the
- * active model so the important state stays visible. The input border mirrors
- * context growth while idle and becomes an activity wave while the agent runs.
+ * Shows a responsive project/model trail on the left and compact generation
+ * speed and context usage on the right. When space is tight, location details
+ * yield to the active model so the important state stays visible. The input
+ * border mirrors context growth while idle and becomes an activity wave while
+ * the agent runs.
  *
- * The percentage is right-aligned with space padding.
+ * Right-side metrics are right-aligned with space padding.
  */
 
 import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -46,6 +47,7 @@ export const THINKING_COLOR = {
 export interface FooterViewInput {
 	readonly width: number;
 	readonly leftParts: readonly string[];
+	readonly rightParts?: readonly string[];
 	readonly contextPercentage?: string;
 }
 
@@ -83,6 +85,72 @@ function fitLeftParts(parts: readonly string[], width: number): string {
 	const retained = parts.filter((part) => part !== "");
 	while (retained.length > 1 && visibleWidth(joinParts(retained)) > width) retained.shift();
 	return truncateToWidth(joinParts(retained), width);
+}
+
+function formatTokensPerSecond(tokensPerSecond: number): string {
+	if (!Number.isFinite(tokensPerSecond) || tokensPerSecond < 0) return "--";
+	return tokensPerSecond < 100 ? tokensPerSecond.toFixed(1) : Math.round(tokensPerSecond).toString();
+}
+
+export function calculateTokensPerSecond(outputTokens: number, durationMs: number): number | undefined {
+	if (!Number.isFinite(outputTokens) || outputTokens <= 0 || !Number.isFinite(durationMs) || durationMs <= 0) {
+		return undefined;
+	}
+	return outputTokens / (durationMs / 1000);
+}
+
+export function renderTokensPerSecond(
+	tokensPerSecond: number | undefined,
+	averageTokensPerSecond: number | undefined,
+	theme: FooterTheme,
+): string {
+	const current = tokensPerSecond === undefined ? "--" : formatTokensPerSecond(tokensPerSecond);
+	const average = averageTokensPerSecond === undefined ? "" : ` avg:${formatTokensPerSecond(averageTokensPerSecond)}`;
+	return theme.fg("dim", `tps:${current}${average}`);
+}
+
+function createTokensPerSecondTracker(requestRender: () => void) {
+	let generationStartedAt: number | undefined;
+	let tokensPerSecond: number | undefined;
+	let totalOutputTokens = 0;
+	let totalGenerationMs = 0;
+
+	return {
+		current() {
+			return tokensPerSecond;
+		},
+		average() {
+			return calculateTokensPerSecond(totalOutputTokens, totalGenerationMs);
+		},
+		start: () => {
+			generationStartedAt = performance.now();
+			// Keep the prior measurement visible while the next response or tool calls run.
+			requestRender();
+		},
+		finish(outputTokens: number) {
+			const startedAt = generationStartedAt;
+			generationStartedAt = undefined;
+			if (startedAt === undefined) return;
+
+			const durationMs = performance.now() - startedAt;
+			const measured = calculateTokensPerSecond(outputTokens, durationMs);
+			if (measured === undefined) return;
+
+			tokensPerSecond = measured;
+			totalOutputTokens += outputTokens;
+			totalGenerationMs += durationMs;
+			requestRender();
+		},
+	};
+}
+
+function setupTokensPerSecond(pi: ExtensionAPI, requestRender: () => void) {
+	const tracker = createTokensPerSecondTracker(requestRender);
+	pi.on("turn_start", tracker.start);
+	pi.on("message_end", (event) => {
+		if (event.message.role === "assistant") tracker.finish(event.message.usage.output);
+	});
+	return tracker;
 }
 
 function clampPercent(percent: number): number {
@@ -171,7 +239,8 @@ function renderGradientFill(percent: number, width: number, filledCharacter: str
 /** Chooses footer content without reading session/UI state. */
 export function buildFooterViewModel(input: FooterViewInput): FooterViewModel {
 	const width = columnCount(input.width);
-	const right = input.contextPercentage ? truncateToWidth(input.contextPercentage, width) : "";
+	const rightParts = input.rightParts ?? (input.contextPercentage ? [input.contextPercentage] : []);
+	const right = truncateToWidth(joinParts(rightParts), width);
 
 	if (right === "") {
 		const left = fitLeftParts(input.leftParts, width);
@@ -358,6 +427,7 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	let requestRender: (() => void) | undefined;
 	const processReaper = getProcessReaper();
+	const tpsTracker = setupTokensPerSecond(pi, () => requestRender?.());
 
 	pi.on("turn_end", () => {
 		requestRender?.();
@@ -409,7 +479,10 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 				const viewInput: FooterViewInput = {
 					width,
 					leftParts,
-					...(ctxUsage ? { contextPercentage: renderContextPercentage(ctxUsage, theme) } : {}),
+					rightParts: [
+						renderTokensPerSecond(tpsTracker.current(), tpsTracker.average(), theme),
+						...(ctxUsage ? [renderContextPercentage(ctxUsage, theme)] : []),
+					],
 				};
 				const view = buildFooterViewModel(viewInput);
 				return [view.line];
