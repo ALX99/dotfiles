@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildFooterViewModel, calculateTokensPerSecond, renderTokensPerSecond } from "../footer.ts";
+import { buildStatusbarViewModel, calculateTokensPerSecond, renderTokensPerSecond } from "../statusbar.ts";
 
 const plainTheme = { fg: (_color: string, text: string) => text } as Parameters<typeof renderTokensPerSecond>[2];
 
@@ -28,8 +28,8 @@ test("renders an unavailable and a measured TPS value", () => {
 	assert.equal(renderTokensPerSecond(123.45, undefined, plainTheme), "tps:123");
 });
 
-test("supports multiple right-aligned footer parts", () => {
-	const view = buildFooterViewModel({
+test("supports multiple right-aligned statusbar parts", () => {
+	const view = buildStatusbarViewModel({
 		width: 40,
 		leftParts: ["~/dotfiles", "model"],
 		rightParts: ["tps:42.3", "50%"],

@@ -1,5 +1,5 @@
 /**
- * Footer Extension — Full custom footer replacement.
+ * Statusbar Extension — Full custom statusbar replacement.
  *
  * Shows a responsive project/model trail on the left and compact generation
  * speed and context usage on the right. When space is tight, location details
@@ -44,14 +44,14 @@ export const THINKING_COLOR = {
 	max: "thinkingXhigh",
 } as const satisfies Readonly<Record<ModelThinkingLevel, ThinkingColor>>;
 
-export interface FooterViewInput {
+export interface StatusbarViewInput {
 	readonly width: number;
 	readonly leftParts: readonly string[];
 	readonly rightParts?: readonly string[];
 	readonly contextPercentage?: string;
 }
 
-export interface FooterViewModel {
+export interface StatusbarViewModel {
 	readonly left: string;
 	readonly right: string;
 	readonly line: string;
@@ -62,7 +62,7 @@ export interface FooterViewModel {
 const PART_SEPARATOR = " · ";
 const CONTEXT_GRADIENT_STEPS = 24;
 
-type FooterTheme = ExtensionContext["ui"]["theme"];
+type StatusbarTheme = ExtensionContext["ui"]["theme"];
 type Rgb = readonly [red: number, green: number, blue: number];
 
 interface ContextUsage {
@@ -102,7 +102,7 @@ export function calculateTokensPerSecond(outputTokens: number, durationMs: numbe
 export function renderTokensPerSecond(
 	tokensPerSecond: number | undefined,
 	averageTokensPerSecond: number | undefined,
-	theme: FooterTheme,
+	theme: StatusbarTheme,
 ): string {
 	const current = tokensPerSecond === undefined ? "--" : formatTokensPerSecond(tokensPerSecond);
 	const average = averageTokensPerSecond === undefined ? "" : ` avg:${formatTokensPerSecond(averageTokensPerSecond)}`;
@@ -201,14 +201,14 @@ function rgbToAnsi256(color: Rgb): number {
 	return 16 + 36 * redIndex + 6 * greenIndex + blueIndex;
 }
 
-function colorizeRgb(text: string, color: Rgb, theme: FooterTheme): string {
+function colorizeRgb(text: string, color: Rgb, theme: StatusbarTheme): string {
 	const [red, green, blue] = color;
 	const ansi =
 		theme.getColorMode() === "truecolor" ? `\x1b[38;2;${red};${green};${blue}m` : `\x1b[38;5;${rgbToAnsi256(color)}m`;
 	return `${ansi}${text}\x1b[39m`;
 }
 
-function renderGradientFill(percent: number, width: number, filledCharacter: string, theme: FooterTheme): string {
+function renderGradientFill(percent: number, width: number, filledCharacter: string, theme: StatusbarTheme): string {
 	const columns = columnCount(width);
 	const filled = filledColumns(percent, columns);
 	let result = "";
@@ -234,10 +234,10 @@ function renderGradientFill(percent: number, width: number, filledCharacter: str
 	return result;
 }
 
-/* ─── footer layout ─── */
+/* ─── statusbar layout ─── */
 
-/** Chooses footer content without reading session/UI state. */
-export function buildFooterViewModel(input: FooterViewInput): FooterViewModel {
+/** Chooses statusbar content without reading session/UI state. */
+export function buildStatusbarViewModel(input: StatusbarViewInput): StatusbarViewModel {
 	const width = columnCount(input.width);
 	const rightParts = input.rightParts ?? (input.contextPercentage ? [input.contextPercentage] : []);
 	const right = truncateToWidth(joinParts(rightParts), width);
@@ -266,7 +266,7 @@ export function buildFooterViewModel(input: FooterViewInput): FooterViewModel {
 
 /* ─── context percentage ─── */
 
-export function renderContextPercentage(usage: ContextUsage, theme: FooterTheme): string {
+export function renderContextPercentage(usage: ContextUsage, theme: StatusbarTheme): string {
 	if (usage.tokens === null || usage.percent === null) {
 		return theme.fg("dim", "--%");
 	}
@@ -276,17 +276,17 @@ export function renderContextPercentage(usage: ContextUsage, theme: FooterTheme)
 }
 
 /** Shows the process groups that process-reaper currently retains for cleanup. */
-export function renderBackgroundProcessCount(backgroundGroups: number, theme: FooterTheme): string {
+export function renderBackgroundProcessCount(backgroundGroups: number, theme: StatusbarTheme): string {
 	if (backgroundGroups <= 0) return "";
 	return theme.fg("dim", `bg:${backgroundGroups}`);
 }
 
 /**
  * Draws a full-width editor border that fills from left to right as context
- * grows through a smooth green → yellow → orange → red ramp. The footer
+ * grows through a smooth green → yellow → orange → red ramp. The statusbar
  * remains the precise percentage readout.
  */
-export function renderContextBorder(percent: number | null | undefined, width: number, theme: FooterTheme): string {
+export function renderContextBorder(percent: number | null | undefined, width: number, theme: StatusbarTheme): string {
 	const borderWidth = columnCount(width);
 	if (percent === null || percent === undefined || !Number.isFinite(percent)) {
 		return theme.fg("borderMuted", "─".repeat(borderWidth));
@@ -320,7 +320,7 @@ const THINKING_WAVE_COLORS = [
 type ThinkingWaveColor = (typeof THINKING_WAVE_COLORS)[number];
 
 /** Renders one horizontal pass of the full-width thinking wave. */
-export function renderThinkingWaveBorder(width: number, position: number, theme: FooterTheme): string {
+export function renderThinkingWaveBorder(width: number, position: number, theme: StatusbarTheme): string {
 	const borderWidth = columnCount(width);
 	if (borderWidth === 0) return "";
 
@@ -335,7 +335,7 @@ export function renderThinkingWaveBorder(width: number, position: number, theme:
 	return result;
 }
 
-/* ─── footer ─── */
+/* ─── statusbar ─── */
 
 const requestRenderNoop = (): void => {};
 
@@ -343,7 +343,7 @@ export default function (pi: ExtensionAPI) {
 	let requestRender: (() => void) | undefined;
 
 	pi.on("session_start", (_event, ctx) => {
-		requestRender = setupFooter(ctx, pi);
+		requestRender = setupStatusbar(ctx, pi);
 		if (ctx.mode === "tui") setupInputBorder(ctx, pi);
 		requestRender();
 	});
@@ -424,7 +424,7 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 	});
 }
 
-function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
+function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	let requestRender: (() => void) | undefined;
 	const processReaper = getProcessReaper();
 	const tpsTracker = setupTokensPerSecond(pi, () => requestRender?.());
@@ -433,14 +433,14 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 		requestRender?.();
 	});
 
-	ctx.ui.setFooter((tui, theme, footerData) => {
-		const footerRequestRender = () => tui.requestRender();
-		requestRender = footerRequestRender;
+	ctx.ui.setFooter((tui, theme, statusbarData) => {
+		const statusbarRequestRender = () => tui.requestRender();
+		requestRender = statusbarRequestRender;
 		let backgroundGroups = 0;
-		const unsubBranch = footerData.onBranchChange(footerRequestRender);
+		const unsubBranch = statusbarData.onBranchChange(statusbarRequestRender);
 		const unsubProcessReaper = processReaper.onBackgroundGroupChange((count) => {
 			backgroundGroups = count;
-			footerRequestRender();
+			statusbarRequestRender();
 		});
 
 		return {
@@ -454,7 +454,7 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 				const leftParts: string[] = [];
 				leftParts.push(theme.fg("muted", sanitizeTerminalText(shortenCwd(ctx.cwd))));
 
-				const branchName = footerData.getGitBranch();
+				const branchName = statusbarData.getGitBranch();
 				if (branchName) {
 					leftParts.push(theme.fg("dim", "git:") + theme.fg("accent", sanitizeTerminalText(branchName)));
 				}
@@ -472,11 +472,11 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					leftParts.push(modelText);
 				}
 
-				const taskStatus = footerData.getExtensionStatuses().get("tasks");
+				const taskStatus = statusbarData.getExtensionStatuses().get("tasks");
 				if (taskStatus) leftParts.push(renderTaskStatus(taskStatus, theme));
 
 				const ctxUsage = ctx.getContextUsage();
-				const viewInput: FooterViewInput = {
+				const viewInput: StatusbarViewInput = {
 					width,
 					leftParts,
 					rightParts: [
@@ -484,7 +484,7 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 						...(ctxUsage ? [renderContextPercentage(ctxUsage, theme)] : []),
 					],
 				};
-				const view = buildFooterViewModel(viewInput);
+				const view = buildStatusbarViewModel(viewInput);
 				return [view.line];
 			},
 		};
@@ -493,7 +493,7 @@ function setupFooter(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	return () => requestRender?.();
 }
 
-function renderTaskStatus(status: string, theme: FooterTheme): string {
+function renderTaskStatus(status: string, theme: StatusbarTheme): string {
 	const text = sanitizeTerminalText(status);
 	if (text.startsWith("✓")) return theme.fg("success", text);
 	if (text === "Tasks off") return theme.fg("muted", text);
