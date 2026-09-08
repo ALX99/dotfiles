@@ -2,9 +2,9 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { toError } from "./_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
-	{ shortcut: "alt+1", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max" },
-	{ shortcut: "alt+2", provider: "openai-codex", model: "gpt-5.6-terra", thinkingLevel: "high" },
-	{ shortcut: "alt+3", provider: "openai-codex", model: "gpt-5.6-sol", thinkingLevel: "medium" },
+	{ command: "luna", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "xhigh" },
+	{ command: "terra", provider: "openai-codex", model: "gpt-5.6-terra", thinkingLevel: "medium" },
+	{ command: "sol", provider: "openai-codex", model: "gpt-5.6-sol", thinkingLevel: "medium" },
 ] as const;
 
 export default function modelShortcuts(pi: ExtensionAPI) {
@@ -41,9 +41,9 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 	pi.on("agent_settled", () => applyPending());
 
 	for (const shortcut of MODEL_SHORTCUTS) {
-		pi.registerShortcut(shortcut.shortcut, {
+		pi.registerCommand(shortcut.command, {
 			description: `Switch to ${shortcut.model}`,
-			handler: async (ctx) => {
+			handler: async (_args, ctx) => {
 				pending = { shortcut, ctx, epoch };
 				if (!ctx.isIdle() || applying) {
 					if (ctx.hasUI) {
