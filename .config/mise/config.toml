@@ -42,6 +42,7 @@ zig = "latest"
 
 [settings]
 minimum_release_age = "24h"
+auto_update = true
 
 # --- aube policy (mise's native npm installer) -------------------------------
 # Aube reads these as env vars (its only non-.npmrc surface; .npmrc is shared

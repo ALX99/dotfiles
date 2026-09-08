@@ -1,5 +1,5 @@
 # Loaded with MISE_ENV=linux; converged by `mise bootstrap`. Imperative
-# leftovers and AUR-only packages live in .mise/tasks/linux-system.
+# leftovers live in .mise/tasks/linux-system.
 
 [bootstrap.packages]
 "pacman:7zip" = {}
@@ -112,6 +112,14 @@
 "pacman:zathura-pdf-poppler" = {}
 "pacman:zip" = {}
 "pacman:zram-generator" = {}
+
+# AUR packages, installed via yay (preferred) or paru.
+"aur:brave-bin" = {}
+"aur:czkawka-gui-bin" = {}
+"aur:fcitx5-mozc-ut" = {}
+"aur:pi" = {}
+"aur:ventoy-bin" = {}
+"aur:visual-studio-code-bin" = {}
 
 [bootstrap.directories]
 "/etc/systemd/sleep.conf.d" = { mode = "0755" }

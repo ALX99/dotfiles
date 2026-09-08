@@ -26,8 +26,8 @@
 "~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout" = { source = "misc/keymaps/Colemak-DH-ANSI.keylayout", mode = "0644" }
 
 [tools]
-"aqua:cue-lang/cue" = "latest" # karabiner:* tasks
-"aqua:jqlang/jq" = "latest"
+"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # karabiner:* tasks
+"aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 
 # Automation lives in .mise/tasks/: flat entry points (install, linux-system),
 # <area>/<action> subsystem tasks (pi:check, karabiner:gen).
