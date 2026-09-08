@@ -12,7 +12,7 @@ import {
 } from "../schemas.ts";
 import { textResult } from "../tool-results.ts";
 import { createManagementTools } from "../tools/management-tools.ts";
-import { thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
+import { spawnGuidelines, thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
 import { executeWaitAgent } from "../tools/wait-agent.ts";
@@ -74,6 +74,24 @@ test("thinking overrides are safe across every configured model fallback", () =>
 		},
 	};
 	assert.deepEqual(thinkingLevelsForProfiles(config, ["fast"]), ["high"]);
+});
+
+test("spawn guidance reserves fast for bounded mechanical work", () => {
+	const guidelines = spawnGuidelines(
+		[
+			{ name: "worker", description: "Implementation" },
+			{ name: "general", description: "Analysis" },
+		],
+		[
+			{ name: "fast", description: "Mechanical work" },
+			{ name: "balanced", description: "Judgment work" },
+		],
+	);
+	assert.ok(
+		guidelines.some((guideline) => guideline.includes("Do not select it for debugging or root-cause analysis")),
+	);
+	assert.ok(guidelines.some((guideline) => guideline.includes("well-scoped implementation")));
+	assert.ok(guidelines.some((guideline) => guideline.includes("Balanced is the default for work requiring judgment")));
 });
 
 test("wait schema rejects the removed caller-selected timeout", () => {

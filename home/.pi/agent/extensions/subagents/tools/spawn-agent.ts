@@ -249,6 +249,7 @@ export function spawnGuidelines(
 	return [
 		...(roleMap === undefined ? [] : [roleMap]),
 		...(profileMap === undefined ? [] : [profileMap]),
+		"Select fast only for bounded mechanical work or well-scoped implementation with a known path and success criterion. Do not select it for debugging or root-cause analysis, code review, architecture or design, ambiguous investigation, security or correctness decisions, or final synthesis. Balanced is the default for work requiring judgment, not merely implementation. For worker and general, select fast only when the assignment clearly satisfies the fast criteria.",
 		...(rootLimit === undefined
 			? []
 			: [

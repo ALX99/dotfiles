@@ -3,19 +3,23 @@
 		"maxConcurrentRootAgents": 10
 	},
 	"capabilityRanking": [
+		"opencode/muse-spark-1.3-contributor-free",
 		"openai-codex/gpt-5.6-luna",
-		"opencode/x-preview-f-free",
 		"openai-codex/gpt-5.6-terra",
-		"openai-codex/gpt-5.6-sol"
+		"openai-codex/gpt-5.6-sol",
+		"openai-codex/gpt-5.6-astra"
 	],
 	"profiles": {
 		"fast": {
-			"description": "Fast, economical work: mechanical edits, lookups, and bulk simple changes; not for debugging or design",
-			"modelPriority": [{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" }]
+			"description": "Fast, economical work only: bounded mechanical edits, well-scoped implementation, lookups, and bulk simple changes with known success criteria; never use for debugging, code review, architecture/design, ambiguous investigation, or final correctness judgments",
+			"modelPriority": [
+				{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" },
+				{ "id": "opencode/muse-spark-1.3-contributor-free", "defaultThinking": "xhigh", "maxThinking": "xhigh" }
+			]
 		},
 		"balanced": {
-			"description": "Routine implementation and analysis with moderate cost",
-			"modelPriority": [{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "max", "maxThinking": "max" }]
+			"description": "Default for work requiring judgment, not only implementation: debugging, code review, architecture/design, ambiguous investigation, and final correctness judgments",
+			"modelPriority": [{ "id": "openai-codex/gpt-5.6-terra", "defaultThinking": "medium", "maxThinking": "max" }]
 		}
 	},
 	"agentPolicies": {
@@ -24,12 +28,12 @@
 			"allowedProfiles": ["fast"]
 		},
 		"worker": {
-			"defaultProfile": "fast",
-			"allowedProfiles": ["fast"]
+			"defaultProfile": "balanced",
+			"allowedProfiles": ["fast", "balanced"]
 		},
 		"general": {
-			"defaultProfile": "fast",
-			"allowedProfiles": ["fast"]
+			"defaultProfile": "balanced",
+			"allowedProfiles": ["fast", "balanced"]
 		}
 	}
 }
