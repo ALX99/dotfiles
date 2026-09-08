@@ -2,7 +2,7 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { extractCodeBlocks, getLastAssistantReply } from "../index.ts";
+import { extractCodeBlocks, getLastAssistantReply } from "../copy-code.ts";
 
 function assistantEntry(text: string, stopReason: "stop" | "toolUse" | "aborted" = "stop"): SessionEntry {
 	return {

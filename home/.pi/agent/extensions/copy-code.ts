@@ -5,7 +5,7 @@ import {
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
-import { clipTerminalText, sanitizeTerminalText } from "../_shared/terminal-text.ts";
+import { clipTerminalText, sanitizeTerminalText } from "./_shared/terminal-text.ts";
 
 export interface CodeBlock {
 	readonly language: string;
