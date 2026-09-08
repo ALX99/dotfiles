@@ -33,9 +33,9 @@ _lazy_completion() {
     complete -F _lazy_${cmd} ${cmd} ${aliases}"
 }
 _lazy_completion kubectl "k" "kubectl completion bash"
-# mise's generated completion defines _mise instead of the __start_mise
-# convention.
-_lazy_completion mise "" "mise completion bash" _mise
+# mise's generated completion (usage-argv) defines _usage_complete_mise
+# instead of the __start_mise convention.
+_lazy_completion mise "" "mise completion bash" _usage_complete_mise
 _lazy_completion mr "" "mise completion bash" _mr
 _lazy_completion helm "" "helm completion bash"
 _lazy_completion k6 "" "k6 completion bash"
@@ -60,7 +60,11 @@ _mr() {
   COMP_POINT=$((off + 8 + point))
   COMP_WORDS=(mise run "${COMP_WORDS[@]:1}")
   COMP_CWORD=$((COMP_CWORD + 1))
-  _mise
+  if declare -F _usage_complete_mise >/dev/null; then
+    _usage_complete_mise
+  else
+    _mise
+  fi
 }
 
 # Load the full bash-completion framework on the first command that needs it.
