@@ -1,14 +1,16 @@
-import type { AskQuestionDetails, AskQuestionResponseDetails, QuestionInput } from "./schema.ts";
+import type { AskQuestionDetails, AskQuestionResponseDetails, QuestionAlternative, QuestionInput } from "./schema.ts";
 
 export const COMPARE_OPTION = "Compare options";
 export const OTHER_OPTION = "Something else";
+export const COMMENT_OPTION = "Add comment";
 export const NO_ANSWER_MSG = "Responder declined to answer, await further instructions.";
 
-export type QuestionOptionKind = "alternative" | "compare" | "other";
+export type QuestionOptionKind = "alternative" | "compare" | "other" | "comment";
 
 export interface QuestionOption {
 	readonly kind: QuestionOptionKind;
 	readonly label: string;
+	readonly description?: string;
 }
 
 export type AskQuestionAction = "compare";
@@ -23,38 +25,45 @@ export interface QuestionResult {
 	details: AskQuestionResponseDetails;
 }
 
-export function normalizeAlternatives(alternatives: readonly string[]): string[] {
-	const labels = alternatives.map((alternative) => alternative.trim());
-	if (labels.some((label) => label.length === 0)) {
+export function normalizeAlternatives(alternatives: readonly QuestionAlternative[]): QuestionAlternative[] {
+	const normalized = alternatives.map((alternative) => ({
+		label: alternative.label.trim(),
+		...(alternative.description === undefined ? {} : { description: alternative.description.trim() }),
+	}));
+	if (normalized.some((alternative) => alternative.label.length === 0)) {
 		throw new Error("ask_question alternatives must not be empty");
 	}
+	if (normalized.some((alternative) => alternative.label.length > 100)) {
+		throw new Error("ask_question alternative labels must be at most 100 characters");
+	}
+	if (normalized.some((alternative) => alternative.description !== undefined && alternative.description.length > 500)) {
+		throw new Error("ask_question alternative descriptions must be at most 500 characters");
+	}
 
-	const reserved = new Set([COMPARE_OPTION, OTHER_OPTION]);
-	if (labels.some((label) => reserved.has(label))) {
+	const reserved = new Set([COMPARE_OPTION, OTHER_OPTION, COMMENT_OPTION]);
+	if (normalized.some((alternative) => reserved.has(alternative.label))) {
 		throw new Error("ask_question alternatives must not use reserved option labels");
 	}
 
+	const labels = normalized.map((alternative) => alternative.label);
 	if (new Set(labels).size !== labels.length) {
 		throw new Error("ask_question alternatives must be distinct");
 	}
 
-	return labels;
+	return normalized;
 }
 
-export function validateAlternatives(alternatives: readonly string[]): void {
+export function validateAlternatives(alternatives: readonly QuestionAlternative[]): void {
 	normalizeAlternatives(alternatives);
 }
 
-export function makeQuestionOptions(alternatives: readonly string[]): QuestionOption[] {
+export function makeQuestionOptions(alternatives: readonly QuestionAlternative[]): QuestionOption[] {
 	return [
-		...normalizeAlternatives(alternatives).map((label) => ({ kind: "alternative" as const, label })),
+		...normalizeAlternatives(alternatives).map((alternative) => ({ kind: "alternative" as const, ...alternative })),
 		{ kind: "compare", label: COMPARE_OPTION },
 		{ kind: "other", label: OTHER_OPTION },
+		{ kind: "comment", label: COMMENT_OPTION },
 	];
-}
-
-export function findQuestionOption(options: readonly QuestionOption[], label: string): QuestionOption | undefined {
-	return options.find((option) => option.label === label);
 }
 
 export function trimCustomAnswer(answer: string | null | undefined): string | undefined {
@@ -66,36 +75,63 @@ export function resolveChoices(
 	params: QuestionInput,
 	choices: readonly QuestionOption[] | null,
 	customAnswer: string | null | undefined,
+	commentAnswer?: string | null,
 ): QuestionResult {
 	if (choices === null || choices.length === 0) {
 		return makeResult(params, NO_ANSWER_MSG, null, false);
 	}
 
-	if (choices.some((choice) => choice.kind === "compare")) {
-		return makeResult(
-			params,
-			"The responder requested a comparison of the alternatives. Explain the key pros, cons, and trade-offs for each alternative, then call ask_question again with the same question and alternatives.",
-			null,
-			false,
-			"compare",
-		);
+	const alternatives = choices.filter((choice) => choice.kind === "alternative").map((choice) => choice.label);
+	if (choices.some((choice) => choice.kind === "compare")) return makeComparisonResult(params, alternatives);
+	if (choices.some((choice) => choice.kind === "comment") || commentAnswer !== undefined) {
+		return makeCommentResult(params, alternatives, commentAnswer);
 	}
 
-	const answers = choices.filter((choice) => choice.kind === "alternative").map((choice) => choice.label);
 	const hasCustomAnswer = choices.some((choice) => choice.kind === "other");
 	const custom = hasCustomAnswer ? trimCustomAnswer(customAnswer) : undefined;
 	if (hasCustomAnswer && custom === undefined) {
 		return makeResult(params, NO_ANSWER_MSG, null, false);
 	}
-	if (custom !== undefined) answers.push(custom);
+	if (custom !== undefined) alternatives.push(custom);
 
-	if (answers.length === 0) {
+	if (alternatives.length === 0) {
 		return makeResult(params, NO_ANSWER_MSG, null, false);
 	}
 
 	const prefix =
-		custom !== undefined && answers.length === 1 ? "Responder answered (custom): " : "Responder selected: ";
-	return makeResult(params, `${prefix}${answers.join(", ")}`, answers, custom !== undefined);
+		custom !== undefined && alternatives.length === 1 ? "Responder answered (custom): " : "Responder selected: ";
+	return makeResult(params, `${prefix}${alternatives.join(", ")}`, alternatives, custom !== undefined);
+}
+
+function makeComparisonResult(params: QuestionInput, alternatives: readonly string[]): QuestionResult {
+	const comparisonAlternatives =
+		alternatives.length > 0 ? [...alternatives] : normalizeAlternatives(params.alternatives).map(({ label }) => label);
+	const result = makeResult(
+		params,
+		`The responder requested a comparison of: ${comparisonAlternatives.join(", ")}. Compare only these target options, explain their key pros, cons, and trade-offs, and do not treat the comparison as approval. Then call ask_question again with the same question and alternatives.`,
+		null,
+		false,
+		"compare",
+	);
+	result.details.comparisonAlternatives = comparisonAlternatives;
+	return result;
+}
+
+function makeCommentResult(
+	params: QuestionInput,
+	alternatives: readonly string[],
+	commentAnswer: string | null | undefined,
+): QuestionResult {
+	if (alternatives.length === 0) return makeResult(params, NO_ANSWER_MSG, null, false);
+	const comment = trimCustomAnswer(commentAnswer);
+	const result = makeResult(
+		params,
+		`Responder selected: ${alternatives.join(", ")}${comment === undefined ? "" : `\nResponder comment (qualifies these selections): ${comment}`}`,
+		alternatives,
+		false,
+	);
+	if (comment !== undefined) result.details.comment = comment;
+	return result;
 }
 
 export function makeResult(
@@ -106,15 +142,18 @@ export function makeResult(
 	action: AskQuestionAction | null = null,
 ): QuestionResult {
 	const answers = answer === null ? [] : typeof answer === "string" ? [answer] : [...answer];
+	const optionDetails = normalizeAlternatives(params.alternatives);
 	return {
 		content: [{ type: "text", text }],
 		details: {
 			question: params.question,
-			alternatives: normalizeAlternatives(params.alternatives),
+			alternatives: optionDetails.map(({ label }) => label),
+			optionDetails,
 			answer: answers[0] ?? null,
 			answers,
 			wasCustom,
 			action,
+			status: action === "compare" ? "compare" : answer === null ? "cancelled" : "answered",
 		},
 	};
 }
@@ -162,7 +201,17 @@ export function getSubmittedChoices(
 	options: readonly QuestionOption[],
 ): QuestionOption[] {
 	const currentOption = options[currentIndex];
-	if (currentOption !== undefined && currentOption.kind !== "alternative") return [currentOption];
+	if (currentOption === undefined) return [];
+	if (currentOption.kind === "other") return [currentOption];
+	if (currentOption.kind === "compare" || currentOption.kind === "comment") {
+		return [
+			...selectedIndices
+				.toSorted((left, right) => left - right)
+				.map((index) => options[index])
+				.filter((option): option is QuestionOption => option?.kind === "alternative"),
+			currentOption,
+		];
+	}
 
 	const submittedIndices = selectedIndices.length === 0 ? [currentIndex] : selectedIndices;
 	return [...submittedIndices]
