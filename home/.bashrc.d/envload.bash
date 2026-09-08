@@ -180,7 +180,7 @@ __dotenv_load() {
       __dotenv_active_had_values+=(0)
       __dotenv_active_exported+=(0)
     fi
-  done < "$__dotenv__file"
+  done <"$__dotenv__file"
 
   __dotenv_active_file=$__dotenv__file
   __dotenv_active_signature=$__dotenv__signature

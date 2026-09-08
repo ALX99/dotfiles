@@ -7,5 +7,5 @@ cue fmt --check --files misc/karabiner/karabiner.cue
 cue vet misc/karabiner/karabiner.cue
 generated=$(mktemp)
 trap 'rm -f "$generated"' EXIT
-cue export misc/karabiner/karabiner.cue --expression config --out json | jq . > "$generated"
+cue export misc/karabiner/karabiner.cue --expression config --out json | jq . >"$generated"
 diff -u .config/karabiner/karabiner.json "$generated"

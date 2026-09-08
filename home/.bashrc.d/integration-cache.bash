@@ -21,7 +21,7 @@ __cached_integration() {
       mkdir -p "$cache_dir" || exit
       temporary=$(mktemp "$cache_dir/$name.XXXXXX") || exit
       trap 'rm -f "$temporary"' EXIT
-      "$@" > "$temporary" &&
+      "$@" >"$temporary" &&
         [[ -s $temporary ]] &&
         bash -n "$temporary" &&
         mv "$temporary" "$script"

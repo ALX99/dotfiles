@@ -74,7 +74,7 @@ __prompt_find_git_dir() {
       __prompt_git_dir=$candidate
       return
     elif [[ -f $candidate ]]; then
-      IFS= read -r git_file < "$candidate" || return
+      IFS= read -r git_file <"$candidate" || return
       git_file=${git_file%$'\r'}
       if [[ $git_file == gitdir:* ]]; then
         target=${git_file#gitdir:}
@@ -107,7 +107,7 @@ __prompt_git_info() {
   __prompt_git_segment=
   __prompt_find_git_dir
   [[ -n $__prompt_git_dir ]] || return
-  IFS= read -r head < "$__prompt_git_dir/HEAD" || return
+  IFS= read -r head <"$__prompt_git_dir/HEAD" || return
   head=${head%$'\r'}
 
   if [[ $head == 'ref: refs/heads/'* ]]; then

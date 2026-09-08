@@ -8,6 +8,6 @@ cd "$(git rev-parse --show-toplevel)"
 
 generated=$(mktemp)
 trap 'rm -f "$generated"' EXIT
-cue export misc/karabiner/karabiner.cue --expression config --out json | jq . > "$generated"
+cue export misc/karabiner/karabiner.cue --expression config --out json | jq . >"$generated"
 mv "$generated" .config/karabiner/karabiner.json
 trap - EXIT

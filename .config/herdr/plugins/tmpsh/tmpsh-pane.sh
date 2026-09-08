@@ -3,11 +3,11 @@
 # temp-directory semantics stay defined in one place, with a PATH fallback.
 
 if [ -x "$HOME/.local/bin/tmpsh" ]; then
-	exec "$HOME/.local/bin/tmpsh"
+  exec "$HOME/.local/bin/tmpsh"
 fi
 
 if command -v tmpsh >/dev/null 2>&1; then
-	exec tmpsh
+  exec tmpsh
 fi
 
 echo "dotfiles.tmpsh: tmpsh not found at ~/.local/bin/tmpsh or on PATH" >&2

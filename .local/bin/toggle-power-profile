@@ -19,9 +19,9 @@ current="$(powerprofilesctl get)"
 
 case "$current" in
 "$performance") target="$balanced" ;;
-"$balanced")    target="power-saver" ;;
-"power-saver")  target="$performance" ;;
-*)              target="$performance" ;;
+"$balanced") target="power-saver" ;;
+"power-saver") target="$performance" ;;
+*) target="$performance" ;;
 esac
 
 # power-profiles-daemon controls Intel EPP and can fail if the cpufreq

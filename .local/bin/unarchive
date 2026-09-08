@@ -13,13 +13,13 @@ fi
 
 name=$(basename "$1")
 case "$name" in
-  *.tar.bz2)  name="${name%.tar.bz2}" ;;
-  *.tar.gz)   name="${name%.tar.gz}" ;;
-  *.tar.xz)   name="${name%.tar.xz}" ;;
-  *.tar.zst)  name="${name%.tar.zst}" ;;
-  *.tar.zstd) name="${name%.tar.zstd}" ;;
-  *.tar)      name="${name%.tar}" ;;
-  *)          name="${name%.*}" ;;
+*.tar.bz2) name="${name%.tar.bz2}" ;;
+*.tar.gz) name="${name%.tar.gz}" ;;
+*.tar.xz) name="${name%.tar.xz}" ;;
+*.tar.zst) name="${name%.tar.zst}" ;;
+*.tar.zstd) name="${name%.tar.zstd}" ;;
+*.tar) name="${name%.tar}" ;;
+*) name="${name%.*}" ;;
 esac
 
 extract_tar() {
@@ -48,7 +48,7 @@ extract_tar() {
       '
   )
 
-  if (( top_level_count > 1 )); then
+  if ((top_level_count > 1)); then
     if [[ $tar_command == gtar ]]; then
       "$tar_command" xf "$1" --one-top-level="$name"
     else
@@ -61,25 +61,25 @@ extract_tar() {
 }
 
 case "$1" in
-  *.tar|*.tar.bz2|*.tar.gz|*.tbz2|*.tgz|*.tar.xz|*.tar.zst|*.tar.zstd)
-    extract_tar "$1"
-    ;;
-  *.zip)
-    mkdir -p "$name" && unzip "$1" -d "$name"
-    ;;
-  *.7z)
-    mkdir -p "$name" && 7z x "$1" -o"$name"
-    ;;
-  *.rar)
-    mkdir -p "$name" && unrar x "$1" "$name/"
-    ;;
-  *.bz2) bunzip2 "$1" ;;
-  *.gz)  gunzip "$1" ;;
-  *.Z)   uncompress "$1" ;;
-  *.xz)  unxz --threads 0 "$1" ;;
-  *.deb) ar x "$1" ;;
-  *)
-    echo "'$1' cannot be extracted" >&2
-    exit 1
-    ;;
+*.tar | *.tar.bz2 | *.tar.gz | *.tbz2 | *.tgz | *.tar.xz | *.tar.zst | *.tar.zstd)
+  extract_tar "$1"
+  ;;
+*.zip)
+  mkdir -p "$name" && unzip "$1" -d "$name"
+  ;;
+*.7z)
+  mkdir -p "$name" && 7z x "$1" -o"$name"
+  ;;
+*.rar)
+  mkdir -p "$name" && unrar x "$1" "$name/"
+  ;;
+*.bz2) bunzip2 "$1" ;;
+*.gz) gunzip "$1" ;;
+*.Z) uncompress "$1" ;;
+*.xz) unxz --threads 0 "$1" ;;
+*.deb) ar x "$1" ;;
+*)
+  echo "'$1' cannot be extracted" >&2
+  exit 1
+  ;;
 esac

@@ -53,7 +53,7 @@ _mr() {
   # Replace the whole "mr" word with "mise run" in the line state instead.
   local cmd=${COMP_WORDS[0]} off rest point
   [[ $COMP_LINE =~ ^[[:blank:]]* ]] && off=${#BASH_REMATCH}
-  rest=${COMP_LINE:off + ${#cmd}}
+  rest=${COMP_LINE:off+${#cmd}}
   point=$((COMP_POINT - off - ${#cmd}))
   ((point < 0)) && point=0
   COMP_LINE="${COMP_LINE:0:off}mise run${rest}"

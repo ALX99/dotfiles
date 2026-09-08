@@ -11,30 +11,30 @@
 set -eu
 
 if [ -x "${HERDR_BIN_PATH:-}" ]; then
-	bin=$HERDR_BIN_PATH
+  bin=$HERDR_BIN_PATH
 elif command -v herdr >/dev/null 2>&1; then
-	bin=herdr
+  bin=herdr
 else
-	bin=$HOME/.local/share/mise/shims/herdr
+  bin=$HOME/.local/share/mise/shims/herdr
 fi
 
 fail() {
-	"$bin" notification show "Tmpsh failed" "$1" || true
-	echo "dotfiles.tmpsh: $1" >&2
-	exit 1
+  "$bin" notification show "Tmpsh failed" "$1" || true
+  echo "dotfiles.tmpsh: $1" >&2
+  exit 1
 }
 
 staged=$("$bin" plugin pane open \
-	--plugin dotfiles.tmpsh --entrypoint tmpsh --no-focus) ||
-	fail "could not open tmpsh pane"
+  --plugin dotfiles.tmpsh --entrypoint tmpsh --no-focus) ||
+  fail "could not open tmpsh pane"
 
 # The open response contains exactly one pane_id: the staged pane's.
 pane_id=$(printf '%s' "$staged" | sed -n 's/.*"pane_id":"\([^"]*\)".*/\1/p')
 [ -n "$pane_id" ] || fail "open response had no pane_id"
 
 moved=$("$bin" pane move "$pane_id" \
-	--new-workspace --label tmpsh --focus) ||
-	fail "could not move tmpsh pane to a new workspace"
+  --new-workspace --label tmpsh --focus) ||
+  fail "could not move tmpsh pane to a new workspace"
 case $moved in
 *'"changed":true'*) ;;
 *) fail "herdr refused to relocate the tmpsh pane" ;;

@@ -17,7 +17,7 @@ while (("$#")); do
       exit 1
     fi
     cLevel=$2
-    if (( cLevel < 0 || cLevel > 19 )); then
+    if ((cLevel < 0 || cLevel > 19)); then
       echo "Error: compression level out of range, must be 0-19, got '$cLevel'" >&2
       exit 1
     fi

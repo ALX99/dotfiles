@@ -35,20 +35,25 @@ emit_picker_rows() {
   local i k path b unsanitized s collision=0 base_count
   local seen_index seen_path
   for i in "${!paths[@]}"; do
-    path="${paths[$i]}"; b="${bases[$i]}"
+    path="${paths[$i]}"
+    b="${bases[$i]}"
     base_count=0
     for k in "${bases[@]}"; do
       [[ $k == "$b" ]] && base_count=$((base_count + 1))
     done
-    if (( base_count > 1 )); then
-      unsanitized="${path%/*}_${b}"; unsanitized="${unsanitized##*/}"
+    if ((base_count > 1)); then
+      unsanitized="${path%/*}_${b}"
+      unsanitized="${unsanitized##*/}"
     else
       unsanitized="$b"
     fi
     s="${unsanitized//[^[:alnum:]_-]/_}"
     while [[ $s == _* ]]; do s="${s#_}"; done
     while [[ $s == *_ ]]; do s="${s%_}"; done
-    [[ -z $s ]] && { echo "Cannot derive a tmux session name for project: $path" >&2; return 1; }
+    [[ -z $s ]] && {
+      echo "Cannot derive a tmux session name for project: $path" >&2
+      return 1
+    }
 
     seen_index=-1
     for k in "${!seen_names[@]}"; do
@@ -57,13 +62,13 @@ emit_picker_rows() {
         break
       fi
     done
-    if (( seen_index >= 0 )); then
+    if ((seen_index >= 0)); then
       seen_path="${seen_paths[$seen_index]}"
     else
       seen_path=
     fi
     if [[ -n $seen_path && $seen_path != "$path" ]]; then
-      (( collision )) || echo "Project paths derive the same tmux session name after sanitization:" >&2
+      ((collision)) || echo "Project paths derive the same tmux session name after sanitization:" >&2
       echo "  $s: $seen_path and $path" >&2
       collision=1
       continue
@@ -75,11 +80,11 @@ emit_picker_rows() {
     for k in "${existing_names[@]-}"; do
       [[ $k == "$s" ]] && existing_name=1
     done
-    (( existing_name )) ||
+    ((existing_name)) ||
       printf "project\t\033[38;5;114m[project]\033[0m %s\t%s\t%s\n" "$unsanitized" "$s" "$path"
   done
 
-  if (( collision )); then
+  if ((collision)); then
     echo "Rename one project or choose a collision policy." >&2
     return 1
   fi
@@ -100,10 +105,18 @@ kill_session_family() {
 }
 
 case "${1:-}" in
-  --list) emit_picker_rows; exit 0 ;;
-  --kill)
-    [[ $# -ne 2 ]] && { printf 'Usage: %s --kill <session-name>\n' "$0" >&2; exit 2; }
-    kill_session_family "$2"; exit 0 ;;
+--list)
+  emit_picker_rows
+  exit 0
+  ;;
+--kill)
+  [[ $# -ne 2 ]] && {
+    printf 'Usage: %s --kill <session-name>\n' "$0" >&2
+    exit 2
+  }
+  kill_session_family "$2"
+  exit 0
+  ;;
 esac
 
 PICKER=(fzf)
@@ -127,16 +140,19 @@ IFS=$'\t' read -r selected_type _ session_name selected_dir <<<"$selected_entry"
 goto() { [[ -z ${TMUX:-} ]] && tmux attach-session -t "=$1" || tmux switch-client -t "=$1"; }
 
 case "$selected_type" in
-  session) goto "$session_name" ;;
-  project)
-    if tmux has-session -t "=$session_name" 2>/dev/null; then
-      goto "$session_name"
-    elif [[ -z ${TMUX:-} ]]; then
-      tmux new-session -s "$session_name" -c "$selected_dir"
-    else
-      tmux new-session -ds "$session_name" -c "$selected_dir"
-      tmux switch-client -t "=$session_name"
-    fi
-    ;;
-  *) printf 'Unknown picker entry type: %s\n' "$selected_type" >&2; exit 1 ;;
+session) goto "$session_name" ;;
+project)
+  if tmux has-session -t "=$session_name" 2>/dev/null; then
+    goto "$session_name"
+  elif [[ -z ${TMUX:-} ]]; then
+    tmux new-session -s "$session_name" -c "$selected_dir"
+  else
+    tmux new-session -ds "$session_name" -c "$selected_dir"
+    tmux switch-client -t "=$session_name"
+  fi
+  ;;
+*)
+  printf 'Unknown picker entry type: %s\n' "$selected_type" >&2
+  exit 1
+  ;;
 esac
