@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Fetch upstream Git refs so Herdr can render its native Git status."""
+"""Fetch upstream refs and safely pull open checkouts.
+
+Fetches every open repository so Herdr can render its native Git status,
+then fast-forwards or rebases each open checkout onto its tracking branch.
+A checkout only moves when the update applies cleanly; dirty worktrees,
+conflicting rebases, and in-progress operations are left alone and
+reported as skipped.
+"""
 
 from __future__ import annotations
 
@@ -25,6 +32,7 @@ from herdrlib import (  # noqa: E402
 )
 
 FETCH_TIMEOUT_SECONDS = 20
+PULL_TIMEOUT_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -105,43 +113,187 @@ def fetch_repo(repo: Path, remote: str) -> None:
         raise PluginError(message)
 
 
+def has_tracked_changes(repo: Path) -> bool:
+    """Return True when staged, unstaged, or unmerged changes exist."""
+    result = git_run(
+        repo, ["status", "--porcelain", "--untracked-files=no"], timeout=5
+    )
+    if result.returncode != 0:
+        return True
+    return bool(result.stdout.strip())
+
+
+def operation_in_progress(repo: Path) -> str | None:
+    """Name an in-progress merge-like operation, if the checkout has one."""
+    for ref in ("MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
+        check = git_run(
+            repo, ["rev-parse", "--verify", "--quiet", ref], timeout=5
+        )
+        if check.returncode == 0:
+            name = ref.replace("_HEAD", "").lower().replace("_", " ")
+            return f"{name} in progress"
+    for state in ("rebase-merge", "rebase-apply"):
+        resolved = git_run(
+            repo, ["rev-parse", "--git-path", state], timeout=5
+        )
+        if resolved.returncode != 0:
+            continue
+        if (repo / resolved.stdout.strip()).exists():
+            return "rebase in progress"
+    return None
+
+
+def ahead_behind(repo: Path) -> tuple[int, int] | None:
+    """Return (ahead, behind) commit counts against the tracking branch."""
+    text = git_text(repo, ["rev-list", "--left-right", "--count", "HEAD...@{u}"])
+    if not text:
+        return None
+    counts = text.split()
+    if len(counts) != 2:
+        return None
+    try:
+        return int(counts[0]), int(counts[1])
+    except ValueError:
+        return None
+
+
+def shorten_error(message: str, limit: int = 160) -> str:
+    """Compress multi-line Git stderr down to one readable line."""
+    for line in message.splitlines():
+        line = line.strip()
+        if line.startswith("error: "):
+            line = line[len("error: "):].strip()
+        if line:
+            return line if len(line) <= limit else line[: limit - 1] + "…"
+    return "update failed"
+
+
+def abort_rebase(repo: Path) -> None:
+    git_run(repo, ["rebase", "--abort"], timeout=10)
+
+
+def pull_checkout(repo: Path) -> tuple[str, str | None]:
+    """Advance one checkout onto its tracking branch when it is safe.
+
+    Returns a (status, reason) pair; only hard failures raise PluginError.
+    Anything needing a human (dirty tree, conflicting rebase, unfinished
+    operation) comes back as skipped so the caller leaves it untouched.
+    """
+    if not git_text(repo, ["branch", "--show-current"]):
+        return "skipped", "detached HEAD"
+    if (
+        git_text(repo, ["rev-parse", "--verify", "--symbolic-full-name", "@{u}"])
+        is None
+    ):
+        return "ignored", None
+    busy = operation_in_progress(repo)
+    if busy is not None:
+        return "skipped", busy
+    if has_tracked_changes(repo):
+        return "skipped", "uncommitted changes"
+    if git_text(repo, ["rev-parse", "--verify", "HEAD"]) is None:
+        return "ignored", None
+
+    counts = ahead_behind(repo)
+    if counts is None:
+        raise PluginError("could not compare with upstream")
+    ahead, behind = counts
+    if behind == 0:
+        return "current", None
+
+    if ahead == 0:
+        fast_forward = git_run(
+            repo,
+            ["merge", "--ff-only", "--quiet", "@{u}"],
+            timeout=PULL_TIMEOUT_SECONDS,
+        )
+        if fast_forward.returncode != 0:
+            message = fast_forward.stderr.strip() or fast_forward.stdout.strip()
+            raise PluginError(
+                shorten_error(message) if message else "fast-forward failed"
+            )
+        return "pulled", None
+
+    rebased = git_run(
+        repo,
+        ["rebase", "--autostash", "@{u}"],
+        timeout=PULL_TIMEOUT_SECONDS,
+    )
+    if rebased.returncode == 0:
+        return "pulled", None
+    abort_rebase(repo)
+    message = rebased.stderr.strip() or rebased.stdout.strip()
+    detail = shorten_error(message) if message else "automatic rebase failed"
+    return "skipped", f"needs manual rebase ({detail})"
+
+
 def refresh(workspaces: Sequence[Workspace], *, notify_user: bool) -> int:
     failures: list[str] = []
+    skipped: list[str] = []
     updated = 0
-    seen_targets: set[tuple[Path, str]] = set()
+    pulled = 0
+    current = 0
+    # Fetch state per shared repository: target -> failure message or None.
+    # Pulls run per checkout (each worktree tracks its own branch), while
+    # fetches are deduplicated per shared repository.
+    fetched: dict[tuple[Path, str], str | None] = {}
+    seen_checkouts: set[Path] = set()
 
     for workspace in workspaces:
         if workspace.error:
             failures.append(f"{workspace.label}: {workspace.error}")
             continue
-
         repo = workspace.repo
         if repo is None:
             continue
+        try:
+            key = repo.resolve()
+        except OSError:
+            continue
+        if key in seen_checkouts:
+            continue
+        seen_checkouts.add(key)
 
         try:
             remote = upstream_remote(repo)
-            if remote is None:
-                continue
-
-            target = (repository_identity(repo), remote)
-            if target in seen_targets:
-                continue
-            seen_targets.add(target)
-            fetch_repo(repo, remote)
+            if remote is not None:
+                target = (repository_identity(repo), remote)
+                if target not in fetched:
+                    try:
+                        fetch_repo(repo, remote)
+                    except (PluginError, OSError) as error:
+                        fetched[target] = str(error)
+                        failures.append(f"{workspace.label}: {error}")
+                    else:
+                        fetched[target] = None
+                        updated += 1
+                if fetched[target] is not None:
+                    continue
+            status, reason = pull_checkout(repo)
         except (PluginError, OSError) as error:
             failures.append(f"{workspace.label}: {error}")
-        else:
-            updated += 1
+            continue
+        if status == "pulled":
+            pulled += 1
+        elif status == "current":
+            current += 1
+        elif status == "skipped":
+            skipped.append(f"{workspace.label}: {reason}")
 
     if notify_user:
-        body = f"Refreshed {updated} repositories"
+        body = (
+            f"Refreshed {updated} repositories, "
+            f"pulled {pulled} ({current} up to date)"
+        )
+        if skipped:
+            body += f"; {len(skipped)} skipped"
         if failures:
             body += f"; {len(failures)} failed"
         notify("Git status refreshed", body)
-    if failures:
-        print("\n".join(failures), file=sys.stderr)
-        return 1
+    details = failures + [f"skipped {entry}" for entry in skipped]
+    if details:
+        print("\n".join(details), file=sys.stderr)
+        return 1 if failures else 0
     return 0
 
 
@@ -160,9 +312,9 @@ def main(argv: Sequence[str]) -> int:
 
     if notify_user:
         progress = (
-            "Fetching open repositories..."
+            "Fetching and pulling open repositories..."
             if action == "refresh-all"
-            else "Fetching the focused repository..."
+            else "Fetching and pulling the focused repository..."
         )
         notify("Updating Git status", progress)
 

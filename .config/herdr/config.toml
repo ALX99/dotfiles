@@ -139,7 +139,7 @@ height = "80%"
 key = "prefix+u"
 type = "plugin_action"
 command = "dotfiles.git-main-status.refresh"
-description = "refresh native Git status"
+description = "fetch and safely pull open worktrees"
 
 [[keys.command]]
 key = "prefix+p"
