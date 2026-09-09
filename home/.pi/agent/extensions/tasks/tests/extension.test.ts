@@ -92,6 +92,9 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		pushEntry(entry: Entry) {
 			branch.push(entry);
 		},
+		setActiveTools(names: string[]) {
+			activeTools = [...names];
+		},
 	};
 }
 
@@ -242,7 +245,9 @@ test("supports wildcard filters for an unfiltered queue lookup", async () => {
 });
 
 test("shows generated task IDs when creating a queue", async () => {
-	const h = createHarness([assistantToolCall("queue-call", "create_tasks")]);
+	const h = createHarness();
+	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
+	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
 	const created = await h.tools
 		.get("create_tasks")!
 		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
@@ -253,6 +258,26 @@ test("shows generated task IDs when creating a queue", async () => {
 		assert.ok(text.includes(task.title));
 		assert.ok(text.includes(task.id));
 	}
+});
+
+test("loads task management tools after creating a queue", async () => {
+	const h = createHarness();
+	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
+	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks"]);
+
+	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
+	await h.tools
+		.get("create_tasks")!
+		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
+
+	assert.deepEqual(h.activeToolsLog.at(-1), [
+		"read",
+		"bash",
+		"create_tasks",
+		"finish_task",
+		"read_tasks",
+		"update_tasks",
+	]);
 });
 
 test("keeps legacy checkpoints readable without optional fields", async () => {
@@ -1015,7 +1040,7 @@ test("does not present unsuccessful terminal outcomes as successful completion",
 	assert.match(h.sentUserMessages.at(-1)?.content ?? "", /Do not claim full success/u);
 });
 
-test("hides task tools at session start only before the first message", async () => {
+test("loads only the task queue loader before the first message", async () => {
 	const h = createHarness();
 
 	// Disabled with an empty conversation: hard-hide before any cache exists.
@@ -1023,13 +1048,42 @@ test("hides task tools at session start only before the first message", async ()
 	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
 	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash"]);
 
-	// Enabled sessions need no visibility write at startup.
+	// Enabled sessions retain only the queue loader until a queue is created.
 	h.setBranch([]);
 	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
-	assert.equal(h.activeToolsLog.length, 1);
+	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks"]);
 
 	// Disabled mid-conversation: leave the cached prefix untouched.
 	h.setBranch([userMessage("hello"), toggleEntry("toggle-off-2", false)]);
 	h.handlers.get("session_start")!({ reason: "resume" } as never, h.ctx as never);
-	assert.equal(h.activeToolsLog.length, 1);
+	assert.equal(h.activeToolsLog.length, 2);
+});
+
+test("does not rewrite the cached tools when tasks are re-enabled mid-conversation", async () => {
+	const h = createHarness([userMessage("hello")]);
+
+	await h.commands.get("tasks")!.handler("off", h.ctx as never);
+	h.pushEntry(toggleEntry("toggle-off", false));
+	await h.commands.get("tasks")!.handler("on", h.ctx as never);
+
+	assert.deepEqual(h.activeToolsLog, []);
+});
+
+test("restores deferred tools for an active queue after a session switch", async () => {
+	const h = createHarness([
+		assistantToolCall("queue-call", "create_tasks"),
+		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+	]);
+	h.setActiveTools(["read", "bash", "create_tasks"]);
+
+	h.handlers.get("session_start")!({ reason: "resume" } as never, h.ctx as never);
+
+	assert.deepEqual(h.activeToolsLog.at(-1), [
+		"read",
+		"bash",
+		"create_tasks",
+		"finish_task",
+		"read_tasks",
+		"update_tasks",
+	]);
 });

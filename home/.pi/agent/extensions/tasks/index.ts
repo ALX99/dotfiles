@@ -17,6 +17,8 @@ const TASK_UPDATE_DETAILS_TYPE = "tasks:update";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
 const TASK_TOOL_NAMES = ["create_tasks", "finish_task", "read_tasks", "update_tasks"] as const;
+const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
+const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
 const TASK_STATUSES = ["completed", "failed", "blocked"] as const;
 const TASK_ITEM_STATES = ["pending", "skipped"] as const;
 const TASK_UPDATE_ACTIONS = ["insert", "rename", "skip", "cancel"] as const;
@@ -327,6 +329,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				queueId,
 				tasks,
 			};
+			activateTaskTools(pi);
 			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(1, tasks.length, tasks[0]!.title, agentActive, spinnerIndex));
 			return {
 				content: [
@@ -553,9 +556,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", (_event, ctx) => {
-		// Hard-hiding rewrites the system prompt's guidelines, so only do it before
-		// the first model request; afterwards fall back to rejecting task tool calls.
-		if (!conversationStarted(ctx) && !tasksEnabled(ctx)) applyToolVisibility(pi, false);
+		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
 		agentActive = false;
 		stopSpinner();
@@ -1157,9 +1158,7 @@ function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boo
 		enabled ? "Tasks enabled." : "Tasks disabled. Task tools now reject calls and automatic compaction is suspended.",
 		"info",
 	);
-	// Hiding is cache-safe only before the first model request. Re-enabling must
-	// restore the tools even when the conversation has already started.
-	if (enabled || !conversationStarted(ctx)) applyToolVisibility(pi, enabled);
+	syncTaskToolVisibility(pi, ctx, enabled);
 	refresh?.();
 	if (!enabled) ctx.ui.setStatus(TASK_STATUS_KEY, "Tasks off");
 }
@@ -1175,13 +1174,33 @@ function scheduleContinuation(pi: ExtensionAPI, text: string): void {
 	}, 0);
 }
 
-function applyToolVisibility(pi: ExtensionAPI, enabled: boolean): void {
-	const active = new Set(pi.getActiveTools());
-	for (const name of TASK_TOOL_NAMES) {
-		if (enabled) active.add(name);
-		else active.delete(name);
+function syncTaskToolVisibility(pi: ExtensionAPI, ctx: BranchContext, enabled = tasksEnabled(ctx)): void {
+	if (!conversationStarted(ctx)) {
+		// Hard-hiding rewrites the system prompt's guidelines, so only do it before
+		// the first model request; afterwards fall back to rejecting task tool calls.
+		applyToolVisibility(pi, enabled);
+		return;
 	}
-	pi.setActiveTools([...active]);
+	// Session switches can leave only the loader active while the branch already
+	// contains a queue. Restore management tools additively, without invalidating
+	// the cached prefix or exposing tools for a closed queue.
+	const active = getActiveQueue(ctx);
+	if (enabled && active !== undefined && !queueIsClosed(active)) activateTaskTools(pi);
+}
+
+function applyToolVisibility(pi: ExtensionAPI, enabled: boolean): void {
+	const desired = enabled ? TASK_BOOTSTRAP_TOOL_NAMES : [];
+	const active = pi.getActiveTools();
+	const next = [...new Set([...active.filter((name) => !TASK_TOOL_SET.has(name)), ...desired])];
+	if (active.length === next.length && active.every((name, index) => name === next[index])) return;
+	pi.setActiveTools(next);
+}
+
+/** Add task tools after the queue loader succeeds so Pi can defer their definitions. */
+function activateTaskTools(pi: ExtensionAPI): void {
+	const active = pi.getActiveTools();
+	const added = TASK_TOOL_NAMES.filter((name) => !active.includes(name));
+	if (added.length > 0) pi.setActiveTools([...active, ...added]);
 }
 
 function tasksEnabled(ctx: BranchContext): boolean {
