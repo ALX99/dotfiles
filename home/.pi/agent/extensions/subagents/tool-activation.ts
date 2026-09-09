@@ -1,23 +1,21 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { AgentSummary } from "./agent-types.ts";
+import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import { isTruncatedResultPreview } from "./result-store.ts";
 
 export const SUBAGENT_TOOL_NAMES = [
 	"spawn_agent",
-	"answer_agent",
-	"send_agent",
 	"followup_agent",
-	"wait_agent",
-	"list_agents",
+	"steer_agent",
+	"answer_agent",
+	"wait_agents",
 	"read_agent_result",
-	"interrupt_agent",
+	"agents_status",
 	"close_agent",
 ] as const;
 
 const SPAWN_AGENT = "spawn_agent";
-const RUNNING_AGENT_TOOLS = ["wait_agent", "list_agents", "interrupt_agent", "close_agent", "send_agent"];
-const WAITING_INPUT_TOOLS = ["answer_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"];
-const RETAINED_SETTLED_TOOLS = ["followup_agent", "list_agents", "close_agent"];
+const ACTIVE_AGENT_TOOLS = ["wait_agents", "steer_agent", "answer_agent", "close_agent", "agents_status"];
+const RETAINED_SETTLED_TOOLS = ["followup_agent", "close_agent", "agents_status"];
 const READ_RESULT_TOOL = ["read_agent_result"];
 const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES);
 type ToolActivationAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
@@ -26,7 +24,7 @@ type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
 export interface SubagentToolActivator {
 	activate(names: readonly string[]): readonly string[];
 	/** Expose only controls valid for the supplied lifecycle snapshot. */
-	activateForState(summary: AgentSummary, background: boolean): readonly string[];
+	activateForState(summary: AgentSummary): readonly string[];
 }
 
 /** Own whether subagent tools may be exposed and gate every deferred activation. */
@@ -57,8 +55,8 @@ export class SubagentToolController implements SubagentToolActivator {
 		return this.enabledState ? activateSubagentTools(this.pi, names) : [];
 	}
 
-	activateForState(summary: AgentSummary, background: boolean): readonly string[] {
-		return this.enabledState ? activateForSubagentState(this.pi, summary, background) : [];
+	activateForState(summary: AgentSummary): readonly string[] {
+		return this.enabledState ? activateForSubagentState(this.pi, summary) : [];
 	}
 }
 
@@ -91,15 +89,9 @@ export function activateSubagentTools(pi: ToolActivationAPI, names: readonly str
 }
 
 /** Activate controls made useful by a completed spawn or follow-up. */
-/** Lifecycle state is authoritative; the legacy background argument preserves existing callers. */
-export function activateForSubagentState(
-	pi: ToolActivationAPI,
-	summary: AgentSummary,
-	_background: boolean,
-): readonly string[] {
+export function activateForSubagentState(pi: ToolActivationAPI, summary: AgentSummary): readonly string[] {
 	const names: string[] = [];
-	if (summary.pending_question) names.push(...WAITING_INPUT_TOOLS);
-	else if (summary.status === "starting" || summary.status === "running") names.push(...RUNNING_AGENT_TOOLS);
+	if (summary.pending_question || isAgentActive(summary.status)) names.push(...ACTIVE_AGENT_TOOLS);
 	else if (summary.retained && summary.status !== "closed") names.push(...RETAINED_SETTLED_TOOLS);
 	if (requiresExactResultRead(summary)) names.push(...READ_RESULT_TOOL);
 	return activateSubagentTools(pi, names);

@@ -29,6 +29,22 @@ export function isAgentActive(status: AgentStatus): boolean {
 	return status === "starting" || status === "running";
 }
 
+/** Reject a request naming a generation that is no longer current. */
+export function assertCurrentGeneration(summary: AgentSummary, generation: number): void {
+	if (summary.generation !== generation) {
+		throw new Error(
+			`Agent '${summary.task_name}' is at generation ${summary.generation} (status: ${summary.status}); target generation ${generation} is stale and was not affected.`,
+		);
+	}
+}
+
+/** Reject a request naming a generation that does not exist yet. */
+export function futureGenerationError(summary: AgentSummary, generation: number): Error {
+	return new Error(
+		`Agent '${summary.task_name}' is at generation ${summary.generation}; target generation ${generation} does not exist yet.`,
+	);
+}
+
 export interface AgentQuestion {
 	readonly question_id: string;
 	readonly question: string;
@@ -47,6 +63,8 @@ export interface AgentSummary {
 	readonly generation: number;
 	readonly retained: boolean;
 	readonly status: AgentStatus;
+	/** Terminal execution outcome preserved when status becomes closed. */
+	readonly outcome?: "succeeded" | "failed" | "aborted";
 	readonly started_at: number;
 	readonly ended_at?: number;
 	readonly duration_ms?: number;

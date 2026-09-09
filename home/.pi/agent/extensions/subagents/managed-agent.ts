@@ -28,12 +28,10 @@ import {
 import type { ResolvedRun } from "./profiles.ts";
 import {
 	assistantText,
-	paginateStoredResult,
 	resultPreview,
 	resultReference,
 	storedResult,
 	type GenerationResultLocator,
-	type ResultPage,
 } from "./result-store.ts";
 import {
 	foldSessionEvent,
@@ -150,13 +148,8 @@ export class ManagedAgent {
 		return this.submit({ kind: "start", message, handoff, taskName, background, signal });
 	}
 
-	async followUp(
-		message: string,
-		taskName: string,
-		background: boolean,
-		signal?: AbortSignal,
-	): Promise<ReadonlyRunDetails> {
-		return this.submit({ kind: "follow_up", message, taskName, background, signal });
+	async followUp(message: string, background: boolean, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
+		return this.submit({ kind: "follow_up", message, background, signal });
 	}
 
 	async steer(message: string): Promise<void> {
@@ -175,7 +168,9 @@ export class ManagedAgent {
 			case "open_and_launch":
 				return this.openAndLaunch(route.input);
 			case "launch":
-				return this.launch(route.input.message, route.input.taskName, route.input.background, route.input.signal);
+				// Follow-up generations inherit the immutable task address claimed at
+				// spawn; no caller may rename a live agent.
+				return this.launch(route.input.message, this.followUpTaskName(), route.input.background, route.input.signal);
 			case "steer":
 				return this.steerActiveTurn(route.input);
 			case "answer":
@@ -237,6 +232,12 @@ export class ManagedAgent {
 			hasSession: this.session !== undefined,
 			pendingQuestionId: this.current?.question?.question.question_id,
 		};
+	}
+
+	private followUpTaskName(): string {
+		const taskName = this.current?.run.taskName;
+		if (!taskName) throw new Error(`Agent ${this.id} lost its task address.`);
+		return taskName;
 	}
 
 	async wait(signal?: AbortSignal): Promise<ReadonlyRunDetails> {
@@ -365,27 +366,9 @@ export class ManagedAgent {
 		);
 	}
 
+	/** True while the given generation is the live unsettled generation. */
 	hasPendingResult(generation: number): boolean {
 		return this.current?.number === generation && !this.current.settled;
-	}
-
-	readLiveResultPreview(
-		options: {
-			readonly generation?: number;
-			readonly cursor?: string;
-			readonly offset?: number;
-			readonly maxBytes?: number;
-		} = {},
-	): ResultPage {
-		const current = this.current;
-		if (!current || current.settled || (options.generation !== undefined && options.generation !== current.number)) {
-			throw new Error(`Agent ${this.id} has no live result preview.`);
-		}
-		return paginateStoredResult(
-			this.id,
-			storedResult(current.number, current.run.resultId, resultPreview(current.run.liveAssistantPreview), false),
-			options,
-		);
 	}
 
 	async getMessages(): Promise<unknown[]> {

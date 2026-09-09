@@ -192,7 +192,7 @@ test("simultaneous idle background completions are delivered in one debounced fo
 	assert.match(String((messages[0] as { content: string }).content), /<subagent_results>[\s\S]*agent-1[\s\S]*agent-2/);
 });
 
-test("consuming completions removes only the matching settled generation", async (t) => {
+test("queued background delivery is repeatable observation, never consumed by waiting", async (t) => {
 	const runtime = new SubagentRuntime(
 		[],
 		{
@@ -220,14 +220,12 @@ test("consuming completions removes only the matching settled generation", async
 	} as never;
 
 	runtime.handleBackgroundComplete(pi, summary(1));
-	runtime.consumeSettledCompletions([summary(2)]);
 	runtime.flushCompletions(pi, true);
-	assert.equal(messages.length, 1, "a newer generation must not consume an older completion");
+	assert.equal(messages.length, 1, "first completion is delivered");
 
 	runtime.handleBackgroundComplete(pi, summary(3));
-	runtime.consumeSettledCompletions([summary(3)]);
 	runtime.flushCompletions(pi, true);
-	assert.equal(messages.length, 1, "the matching generation must be consumed");
+	assert.equal(messages.length, 2, "later completions are delivered again, not consumed by observers");
 });
 
 test("background questions steer the parent immediately", async (t) => {
@@ -273,11 +271,11 @@ test("background questions steer the parent immediately", async (t) => {
 	assert.deepEqual(messages[0]?.options, { deliverAs: "steer", triggerTurn: true });
 	assert.deepEqual(activeTools, [
 		"spawn_agent",
+		"wait_agents",
+		"steer_agent",
 		"answer_agent",
-		"wait_agent",
-		"list_agents",
-		"interrupt_agent",
 		"close_agent",
+		"agents_status",
 	]);
 });
 
@@ -300,7 +298,7 @@ test("usage claims restore from persisted wait results across session reload", a
 					type: "message",
 					message: {
 						role: "toolResult",
-						toolName: "wait_agent",
+						toolName: "wait_agents",
 						details: {
 							accountedGenerations: [{ agentId: "agent-1", generation: 1 }],
 						},

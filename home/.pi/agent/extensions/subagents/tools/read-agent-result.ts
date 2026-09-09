@@ -1,47 +1,11 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
 import type { AgentRegistry } from "../agent-registry.ts";
-import {
-	RESULT_READ_DEFAULT_BYTES,
-	RESULT_READ_MAX_BYTES,
-	RESULT_READ_MIN_BYTES,
-	type ResultPage,
-} from "../result-store.ts";
+import { RESULT_READ_DEFAULT_BYTES, type ResultPage } from "../result-store.ts";
 import { textResult } from "../tool-results.ts";
 import { renderManagementCall } from "../render.ts";
-import { trimRequired } from "../schemas.ts";
+import { ReadAgentResultParamsSchema, type ReadAgentResultParams } from "../schemas.ts";
 
-export const ReadAgentResultParamsSchema = Type.Object(
-	{
-		agent_id: Type.String({ minLength: 1, pattern: "\\S" }),
-		generation: Type.Optional(Type.Integer({ minimum: 1 })),
-		cursor: Type.Optional(
-			Type.String({
-				minLength: 1,
-				maxLength: 128,
-				description: "Opaque next_cursor returned by a previous read_agent_result call.",
-			}),
-		),
-		offset: Type.Optional(
-			Type.Integer({
-				minimum: 0,
-				description: "UTF-16 string offset. Prefer next_cursor for sequential reconstruction.",
-			}),
-		),
-		max_bytes: Type.Optional(
-			Type.Integer({
-				minimum: RESULT_READ_MIN_BYTES,
-				maximum: RESULT_READ_MAX_BYTES,
-				description: `Per-call UTF-8 transport chunk bound. Default ${RESULT_READ_DEFAULT_BYTES}; this never truncates the stored result.`,
-			}),
-		),
-	},
-	{ additionalProperties: false },
-);
-
-type ReadAgentResultParams = Static<typeof ReadAgentResultParamsSchema>;
-
-export type ReadAgentResultDependencies = Pick<AgentRegistry, "readResult" | "list">;
+export type ReadAgentResultDependencies = Pick<AgentRegistry, "readResultByAddress" | "list">;
 
 export function createReadAgentResultTool(
 	dependencies: ReadAgentResultDependencies,
@@ -50,22 +14,21 @@ export function createReadAgentResultTool(
 		name: "read_agent_result",
 		label: "Read Agent Result",
 		description:
-			"Read a subagent generation by agent_id with opaque-cursor or offset pagination. Settled generations are persisted and exact. The active generation of a running agent returns only its bounded preview (complete:false), so wait_agent before reconstructing its terminal result. No filesystem path is accepted.",
+			"Read exact persisted result text for one target generation. Address by task_name or agent_id; generation defaults to latest. Paginate with either an opaque cursor or an offset, never both. Still-running generations fail explicitly instead of returning previews; use wait_agents first. Does not wait, execute, or inspect live progress; available for any stored generation even when the preview fits.",
 		parameters: ReadAgentResultParamsSchema,
 		async execute(_id, params: ReadAgentResultParams) {
-			const agentId = trimRequired(params.agent_id, "agent_id");
-			const page = await dependencies.readResult(agentId, {
+			const page = await dependencies.readResultByAddress(params.target, {
 				...(params.generation === undefined ? {} : { generation: params.generation }),
-				...(params.cursor === undefined ? {} : { cursor: params.cursor }),
-				...(params.offset === undefined ? {} : { offset: params.offset }),
-				...(params.max_bytes === undefined ? {} : { maxBytes: params.max_bytes }),
+				...("cursor" in params ? { cursor: params.cursor } : {}),
+				...("offset" in params ? { offset: params.offset } : {}),
+				maxBytes: params.max_bytes ?? RESULT_READ_DEFAULT_BYTES,
 			});
 			return textResult(JSON.stringify(page), page);
 		},
 		renderCall(args, theme, context) {
 			return renderManagementCall(
 				"read_agent_result",
-				args.agent_id,
+				args.target,
 				undefined,
 				context.expanded,
 				dependencies.list(),

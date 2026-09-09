@@ -51,7 +51,7 @@ export class SpawnAdmissionController {
 		const capacity = this.capacity();
 		if (capacity.root.occupied >= capacity.root.limit) {
 			throw new Error(
-				`Root-agent concurrency cap (${capacity.root.limit}) reached: ${capacity.root.occupied} admission slots are occupied (${capacity.root.live} currently running). Wait for one-shot agents to settle, follow up a retained settled agent, or close a retained agent.`,
+				`Root-agent concurrency cap (${capacity.root.limit}) reached: ${capacity.root.occupied} admission slots are occupied (${capacity.root.live} currently running). Wait for one-shot agents to settle, use followup_agent on a retained settled agent, or close_agent to release a retained agent.`,
 			);
 		}
 	}

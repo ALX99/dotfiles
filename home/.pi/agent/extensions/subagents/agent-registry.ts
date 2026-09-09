@@ -1,5 +1,6 @@
 import { getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { CleanupAggregateError, type AgentSummary, type AgentView } from "./agent-types.ts";
+import { clipTextAtWord } from "../_shared/terminal-text.ts";
+import { assertCurrentGeneration, CleanupAggregateError, type AgentSummary, type AgentView } from "./agent-types.ts";
 import { ManagedAgent, reserveManagedAgentIds } from "./managed-agent.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
 import {
@@ -16,6 +17,16 @@ export { SUBAGENT_SETTLEMENT_CUSTOM_TYPE };
 export type RegistryEntry =
 	| { readonly kind: "live"; readonly agent: ManagedAgent }
 	| { readonly kind: "archived"; readonly view: AgentView };
+
+export interface ResolvedAgentTarget {
+	readonly agent_id: string;
+	readonly summary: AgentSummary;
+	readonly generation: number;
+}
+
+export interface LiveAgentTarget extends ResolvedAgentTarget {
+	readonly agent: ManagedAgent;
+}
 
 export class AgentRegistry {
 	private readonly entries = new Map<string, RegistryEntry>();
@@ -62,6 +73,105 @@ export class AgentRegistry {
 		return entry.kind === "live" ? entry.agent.wait(signal) : entry.view.details;
 	}
 
+	/**
+	 * Resolve a human address to its stable agent.
+	 * An exact agent_id wins, otherwise a task_name unique across live and
+	 * archived agents. Names are claimed at spawn and never change, so either
+	 * form stays valid.
+	 */
+	resolveTarget(target: string): { agent_id: string; summary: AgentSummary } {
+		const address = target.trim();
+		if (!address) throw new Error("target must not be blank.");
+		if (this.entries.has(address)) return { agent_id: address, summary: this.summary(address) };
+		const named = [...this.entries.keys()].filter((id) => this.summary(id).task_name === address);
+		if (named.length > 1)
+			throw new Error(`Agent address '${address}' matches ${named.length} agents; use agent_id instead.`);
+		const match = named[0];
+		if (match === undefined) throw new Error(`Unknown agent '${address}'.${this.knownAddressesHint()}`);
+		return { agent_id: match, summary: this.summary(match) };
+	}
+
+	/** Resolve a target to its effective generation; omitted means latest. */
+	resolveGeneration(target: string, generation?: number): ResolvedAgentTarget {
+		const resolved = this.resolveTarget(target);
+		return { ...resolved, generation: generation ?? resolved.summary.generation };
+	}
+
+	/**
+	 * Resolve a target to its live session. An explicit generation must be
+	 * current; a missing one defaults to the latest.
+	 */
+	liveTarget(target: string, generation?: number): LiveAgentTarget {
+		const resolved = this.resolveGeneration(target, generation);
+		if (generation !== undefined) assertCurrentGeneration(resolved.summary, generation);
+		return { ...resolved, agent: this.getLive(resolved.agent_id) };
+	}
+
+	/**
+	 * Read persisted result text by human address. An explicit generation may
+	 * name an evicted or restored agent_id unknown to the live registry; a
+	 * missing generation defaults to the latest known one.
+	 */
+	async readResultByAddress(
+		target: string,
+		options: {
+			readonly generation?: number;
+			readonly cursor?: string;
+			readonly offset?: number;
+			readonly maxBytes?: number;
+		} = {},
+	): Promise<ResultPage> {
+		const address = target.trim();
+		if (!address) throw new Error("target must not be blank.");
+		try {
+			if (options.generation === undefined) {
+				const resolved = this.resolveGeneration(address);
+				return this.readResult(resolved.agent_id, { ...options, generation: resolved.generation });
+			}
+			const resolved = this.resolveTarget(address);
+			return this.readResult(resolved.agent_id, options);
+		} catch {
+			// Unknown among known agents: it may still be an evicted or restored
+			// agent_id with persisted results, which ResultCatalog serves and
+			// defaults to its latest generation.
+			return this.readResult(address, options);
+		}
+	}
+
+	/**
+	 * Claim the immutable human address for a new agent: a provided task_name
+	 * must be free, otherwise one is derived from the message and uniquified.
+	 */
+	claimTaskName(proposed: string | undefined, message: string): string {
+		const trimmed = proposed?.trim();
+		if (trimmed) {
+			const holder = this.addressHolder(trimmed);
+			if (holder !== undefined)
+				throw new Error(
+					`task_name '${trimmed}' is already used by agent '${holder}'. Pick another task_name or omit it to derive one.`,
+				);
+			return trimmed;
+		}
+		const base = clipTextAtWord(message, 60) || "task";
+		let candidate = base;
+		for (let suffix = 2; this.addressHolder(candidate) !== undefined; suffix += 1) {
+			candidate = `${base}-${suffix}`;
+		}
+		return candidate;
+	}
+
+	private addressHolder(address: string): string | undefined {
+		if (this.entries.has(address)) return address;
+		return [...this.entries.keys()].find((id) => this.summary(id).task_name === address);
+	}
+
+	private knownAddressesHint(): string {
+		const names = [...this.entries.keys()].map((id) => this.summary(id).task_name);
+		if (names.length === 0) return " No agents are known in this session.";
+		const shown = names.slice(0, 8).join(", ");
+		return ` Known agents: ${shown}${names.length > 8 ? ", …" : ""}.`;
+	}
+
 	async readTranscript(id: string): Promise<unknown[]> {
 		const entry = this.requireEntry(id);
 		if (entry.kind === "live") return entry.agent.getMessages();
@@ -84,7 +194,9 @@ export class AgentRegistry {
 		const view = entry.kind === "live" ? entry.agent.view() : entry.view;
 		const generation = options.generation ?? view.summary.generation;
 		if (entry.kind === "live" && entry.agent.hasPendingResult(generation)) {
-			return entry.agent.readLiveResultPreview(options);
+			throw new Error(
+				`Agent '${id}' generation ${generation} is still running; use wait_agents to wait for settlement before reading its exact result.`,
+			);
 		}
 		return this.resultCatalog.readResult(id, { ...options, generation });
 	}
@@ -168,7 +280,7 @@ export class AgentRegistry {
 		this.agentUnsubscribers.delete(agent.id);
 		const liveView = agent.view();
 		const view: AgentView = {
-			summary: { ...liveView.summary, status: "closed" },
+			summary: { ...liveView.summary, status: "closed", outcome: terminalOutcome(liveView) },
 			details: { ...liveView.details, status: "closed" },
 		};
 		// Map insertion order is the archive order; no second eviction queue.
@@ -184,4 +296,11 @@ export class AgentRegistry {
 	private emit(): void {
 		for (const listener of this.listeners) listener();
 	}
+}
+
+/** The terminal execution outcome preserved when an agent is archived as closed. */
+function terminalOutcome(view: AgentView): "succeeded" | "failed" | "aborted" {
+	if (view.details.aborted) return "aborted";
+	if (view.details.error ?? view.summary.error) return "failed";
+	return "succeeded";
 }

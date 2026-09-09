@@ -8,6 +8,7 @@ import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-a
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import { isAgentActive, type AgentSummary } from "./agent-types.ts";
 import type { ReadonlyRunDetails } from "./run-state.ts";
+import type { AgentTarget } from "./schemas.ts";
 import { clipTerminalText, sanitizeTerminalBlock, sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import { contextUsagePercentage, formatContextUsage, formatTokens } from "./ui/format.ts";
 export type { WaitDetails } from "./tool-results.ts";
@@ -79,7 +80,9 @@ export function renderManagementCall(
 	runMode?: "async" | "blocking",
 ): Container {
 	const c = new Container();
-	const summary = agentId ? summaries.find((candidate) => candidate.agent_id === agentId) : undefined;
+	const summary = agentId
+		? summaries.find((candidate) => candidate.agent_id === agentId || candidate.task_name === agentId)
+		: undefined;
 	const target = summary
 		? ` · ${sanitizeTerminalText(summary.task_name || summary.agent)} · ${sanitizeTerminalText(summary.agent_id)}`
 		: agentId
@@ -107,7 +110,7 @@ export function renderAgentSummaries(
 	theme: Theme,
 ): Container {
 	const c = new Container();
-	const showCount = summaries.length !== 1 || toolName === "list_agents";
+	const showCount = summaries.length !== 1 || toolName === "agents_status";
 	const count = showCount ? ` · ${summaries.length} agent${summaries.length === 1 ? "" : "s"}` : "";
 	const state = summaryState(summaries);
 	c.addChild(
@@ -130,31 +133,36 @@ export function renderAgentSummaries(
 // ── wait tool ─────────────────────────────────────────────────────────
 
 export function renderWaitCall(
-	agentIds: readonly string[],
+	targets: readonly AgentTarget[],
 	summaries: readonly AgentSummary[],
 	theme: Theme,
 ): Container {
 	const c = new Container();
-	const summaryById = new Map(summaries.map((summary) => [summary.agent_id, summary]));
-	const rows = agentIds.map((id) => ({ id, summary: summaryById.get(id) }));
+	const summaryByAddress = new Map<string, AgentSummary>();
+	for (const summary of summaries) {
+		if (!summaryByAddress.has(summary.agent_id)) summaryByAddress.set(summary.agent_id, summary);
+		if (!summaryByAddress.has(summary.task_name)) summaryByAddress.set(summary.task_name, summary);
+	}
+	const rows = targets.map((target) => ({ target, summary: summaryByAddress.get(target.target.trim()) }));
 	const count = rows.filter((row) => !row.summary || isAgentActive(row.summary.status)).length;
 	const total = rows.length;
 	const scope = count === total ? `${count}` : `${count}/${total}`;
 	c.addChild(
 		new Text(
-			`${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· waiting for ${scope} agent${total === 1 ? "" : "s"} to settle`)}`,
+			`${theme.fg("toolTitle", theme.bold("wait_agents"))} ${theme.fg("muted", `· waiting for ${scope} generation${total === 1 ? "" : "s"} to settle`)}`,
 			0,
 			0,
 		),
 	);
-	for (const { id, summary } of rows) {
-		const label = sanitizeTerminalText(summary?.task_name || summary?.agent || id);
+	for (const { target, summary } of rows) {
+		const label = sanitizeTerminalText(summary?.task_name || summary?.agent || target.target);
 		const settled = summary !== undefined && !isAgentActive(summary.status);
 		const icon = settled ? agentStatusIcon(summary, theme) : theme.fg("warning", "⟳");
 		const status = settled ? ` · ${summary.status}` : "";
+		const generation = target.generation === undefined ? "latest" : `#${target.generation}`;
 		c.addChild(
 			new Text(
-				`  ${icon} ${theme.fg(settled ? "dim" : "text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(id)}${status}`)}`,
+				`  ${icon} ${theme.fg(settled ? "dim" : "text", label)} ${theme.fg("dim", `· ${sanitizeTerminalText(target.target)}${generation}${status}`)}`,
 				0,
 				0,
 			),
@@ -182,7 +190,7 @@ export function renderWaitResult(details: WaitDetails, expanded: boolean, theme:
 		: `${settled}/${details.summaries.length} settled · ${details.summaries.length - settled} still active`;
 	c.addChild(
 		new Text(
-			`${icon} ${theme.fg("toolTitle", theme.bold("wait_agent"))} ${theme.fg("muted", `· ${suffix}${interruptionSummary} · ${formatDuration(details.elapsedMs)}`)}`,
+			`${icon} ${theme.fg("toolTitle", theme.bold("wait_agents"))} ${theme.fg("muted", `· ${suffix}${interruptionSummary} · ${formatDuration(details.elapsedMs)}`)}`,
 			0,
 			0,
 		),

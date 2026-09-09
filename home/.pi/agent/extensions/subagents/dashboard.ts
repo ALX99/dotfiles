@@ -60,7 +60,7 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 				}
 				case "Follow up": {
 					const message = await ctx.ui.input("Follow up", "New task for this subagent");
-					if (message?.trim()) await registry.getLive(id).followUp(message.trim(), message.trim().slice(0, 60), true);
+					if (message?.trim()) await registry.getLive(id).followUp(message.trim(), true);
 					break;
 				}
 				case "Interrupt":

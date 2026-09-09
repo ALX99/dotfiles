@@ -3,7 +3,6 @@ import * as path from "node:path";
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Container } from "@earendil-works/pi-tui";
-import { clipTextAtWord } from "../../_shared/terminal-text.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import { isAgentActive, type AgentQuestion, type AgentSummary } from "../agent-types.ts";
@@ -16,15 +15,8 @@ import {
 	preserveRequired,
 	type SpawnAgentSchemaOptions,
 	trimOptional,
-	trimRequired,
 } from "../schemas.ts";
-import {
-	completedRunResult,
-	formatAgentCompletion,
-	formatAgentLaunch,
-	formatPendingQuestion,
-	toolError,
-} from "../tool-results.ts";
+import { finishRunResult, toolError } from "../tool-results.ts";
 import { renderCallHeader } from "../render.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import type { SubagentToolActivator } from "../tool-activation.ts";
@@ -37,7 +29,7 @@ export interface SpawnAgentDependencies {
 	readonly profiles: ProfilesConfig;
 	readonly agentDir: string;
 	readonly admission: Pick<SpawnAdmissionController, "admit">;
-	readonly registry: Pick<AgentRegistry, "add">;
+	readonly registry: Pick<AgentRegistry, "add" | "claimTaskName">;
 	readonly ticks: Map<string, NodeJS.Timeout>;
 	readonly onBackgroundComplete: (summary: AgentSummary) => void;
 	readonly onQuestion: (summary: AgentSummary, question: AgentQuestion) => void;
@@ -81,7 +73,9 @@ export function createSpawnAgentTool(
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const message = preserveRequired(params.message, "message");
-			const requestedAgent = trimRequired(params.agent, "agent");
+			const defaultAgent = dependencies.agents[0];
+			if (!defaultAgent) throw new Error("No subagent roles are configured.");
+			const requestedAgent = trimOptional(params.agent) ?? defaultAgent.name;
 			const agentConfig = resolveAgent(dependencies.agents, requestedAgent).match(
 				(value) => value,
 				(error) => {
@@ -108,6 +102,7 @@ export function createSpawnAgentTool(
 				profile: resolvedRun.profile,
 			});
 			const background = params.background === true;
+			const taskName = dependencies.registry.claimTaskName(trimOptional(params.task_name), message);
 			let managed: ManagedAgent | undefined;
 			let unsubscribe: (() => void) | undefined;
 			const cleanupUpdate = () => {
@@ -148,26 +143,25 @@ export function createSpawnAgentTool(
 				const details = await managed.start(
 					message,
 					preserveOptional(params.handoff),
-					trimOptional(params.task_name) ?? clipTextAtWord(message, 60),
+					taskName,
 					background,
 					background ? undefined : signal,
 				);
 				if (!background) cleanupUpdate();
-				const summary = managed.summary();
-				toolActivation.activateForState(summary, background);
-				return completedRunResult(
-					background
-						? formatAgentLaunch(summary)
-						: (formatPendingQuestion(summary) ?? formatAgentCompletion(summary, true)),
+				return finishRunResult({
+					toolActivation,
+					claimUsage: dependencies.claimUsage,
+					summary: managed.summary(),
 					details,
-					background ? undefined : dependencies.claimUsage(summary),
-				);
+					background,
+					includeRetention: true,
+				});
 			} catch (error) {
 				cleanupUpdate();
 				if (managed) {
 					const summary = managed.summary();
 					if (isAgentActive(summary.status)) {
-						toolActivation.activateForState(summary, true);
+						toolActivation.activateForState(summary);
 					}
 				}
 				throw toolError(managed ? `Agent ${managed.id} failed` : "Agent startup failed", error);
@@ -255,7 +249,9 @@ export function spawnGuidelines(
 			: [
 					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
-		"Use foreground spawn_agent for one blocking task. For parallel background work, launch one wave and use its management controls as one barrier; it waits for settlement or input, so poll for progress. Do not build repeated automatic turns or a task scheduler.",
+		"Use foreground spawn_agent for one blocking task. For parallel background work, launch one wave and use wait_agents as one barrier on explicit targets; generations default to latest, so poll for progress with names, not bookkeeping. Do not build repeated automatic turns or a task scheduler.",
+		"Address children by task_name (unique per session, stable across generations); agent_id works as an alias. Talk to children with flat verbs: followup_agent starts another task on a retained settled child, steer_agent guides a running generation at its next message boundary (generation required), answer_agent resolves a specific pending question (generation required). Never silently convert steering into followup or treat a generic message as a question answer.",
+		"Inspect status and capacity with agents_status; release a child with close_agent (aborts a running generation and disposes in one step; persisted results remain readable). Use read_agent_result with target for exact cursor-paged output; generation defaults to latest.",
 		"Use subagents for independent work benefiting from parallelism, specialization, or isolation; handle simple, coupled, or single-file work directly. Once delegated, do not duplicate its assigned scope: do only non-overlapping work or wait. The current agent owns synthesis and proportionate final verification.",
 		"For dependent, retry, review/fix, or replacement work, hand off only the factual delta: decisions, findings, exact paths/symbols, constraints, and validation. Children do not inherit the transcript. Keep message self-contained; do not repeat it or paste the transcript in handoff. Omit handoff for independent work.",
 		"For worker assignments, specify ownership, known concurrent edits, and required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",

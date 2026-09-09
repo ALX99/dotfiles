@@ -45,7 +45,7 @@ function toolApi(initial: readonly string[]) {
 }
 
 test("session initialization retains non-subagent tools and leaves only spawn_agent active", () => {
-	const api = toolApi(["read", "bash", "other_extension", "wait_agent", "answer_agent"]);
+	const api = toolApi(["read", "bash", "other_extension", "wait_agents", "steer_agent"]);
 	resetSubagentTools(api as never);
 	assert.deepEqual(api.active(), ["read", "bash", "other_extension", "spawn_agent"]);
 	assert.equal(
@@ -55,14 +55,14 @@ test("session initialization retains non-subagent tools and leaves only spawn_ag
 });
 
 test("subagent tool controller defaults on and gates activation while disabled", () => {
-	const api = toolApi(["read", "spawn_agent", "wait_agent", "other_extension"]);
+	const api = toolApi(["read", "spawn_agent", "wait_agents", "other_extension"]);
 	const controller = new SubagentToolController(api);
 	assert.equal(controller.enabled, true);
 
 	assert.equal(controller.toggle(), false);
 	assert.deepEqual(api.active(), ["read", "other_extension"]);
 	assert.deepEqual(controller.activate(["read_agent_result"]), []);
-	assert.deepEqual(controller.activateForState(summary({ status: "running" }), true), []);
+	assert.deepEqual(controller.activateForState(summary({ status: "running" })), []);
 	assert.deepEqual(api.active(), ["read", "other_extension"]);
 
 	assert.equal(controller.toggle(), true);
@@ -72,7 +72,7 @@ test("subagent tool controller defaults on and gates activation while disabled",
 });
 
 test("deactivation is scoped to subagent tools and avoids an unchanged rewrite", () => {
-	const api = toolApi(["read", "wait_agent", "other_extension"]);
+	const api = toolApi(["read", "wait_agents", "other_extension"]);
 	deactivateSubagentTools(api);
 	assert.deepEqual(api.active(), ["read", "other_extension"]);
 	deactivateSubagentTools(api);
@@ -86,50 +86,50 @@ test("deferred tool diagnostics detect host allowlist filtering", () => {
 	assert.deepEqual(missingSubagentTools(complete as never), []);
 	assert.deepEqual(
 		missingSubagentTools({ getAllTools: () => [{ name: "spawn_agent" }, { name: "read_agent_result" }] } as never),
-		["answer_agent", "send_agent", "followup_agent", "wait_agent", "list_agents", "interrupt_agent", "close_agent"],
+		["followup_agent", "steer_agent", "answer_agent", "wait_agents", "agents_status", "close_agent"],
 	);
 });
 
 test("activation is additive, ignores non-subagent names, and does not rewrite an unchanged active set", () => {
 	const api = toolApi(["read", "spawn_agent", "other_extension"]);
-	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agent", "read_agent_result"]), [
-		"wait_agent",
+	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agents", "read_agent_result"]), [
+		"wait_agents",
 		"read_agent_result",
 	]);
-	assert.deepEqual(api.active(), ["read", "spawn_agent", "other_extension", "wait_agent", "read_agent_result"]);
-	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agent"]), []);
+	assert.deepEqual(api.active(), ["read", "spawn_agent", "other_extension", "wait_agents", "read_agent_result"]);
+	assert.deepEqual(activateSubagentTools(api as never, ["read", "wait_agents"]), []);
 	assert.equal(api.writes.length, 1);
 });
 
 test("spawn state activates only controls valid for each lifecycle state", () => {
 	const simple = toolApi(["read", "spawn_agent"]);
-	assert.deepEqual(activateForSubagentState(simple as never, summary(), false), []);
+	assert.deepEqual(activateForSubagentState(simple as never, summary()), []);
 	assert.deepEqual(simple.active(), ["read", "spawn_agent"]);
 
 	const running = toolApi(["spawn_agent"]);
-	activateForSubagentState(running as never, summary({ status: "running" }), false);
+	activateForSubagentState(running as never, summary({ status: "running" }));
 	assert.deepEqual(running.active(), [
 		"spawn_agent",
-		"wait_agent",
-		"list_agents",
-		"interrupt_agent",
+		"wait_agents",
+		"steer_agent",
+		"answer_agent",
 		"close_agent",
-		"send_agent",
+		"agents_status",
 	]);
 
 	const retained = toolApi(["spawn_agent"]);
-	activateForSubagentState(retained as never, summary({ retained: true }), false);
-	assert.deepEqual(retained.active(), ["spawn_agent", "followup_agent", "list_agents", "close_agent"]);
+	activateForSubagentState(retained as never, summary({ retained: true }));
+	assert.deepEqual(retained.active(), ["spawn_agent", "followup_agent", "close_agent", "agents_status"]);
 
 	const retainedRunning = toolApi(["spawn_agent"]);
-	activateForSubagentState(retainedRunning as never, summary({ retained: true, status: "running" }), false);
+	activateForSubagentState(retainedRunning as never, summary({ retained: true, status: "running" }));
 	assert.deepEqual(retainedRunning.active(), [
 		"spawn_agent",
-		"wait_agent",
-		"list_agents",
-		"interrupt_agent",
+		"wait_agents",
+		"steer_agent",
+		"answer_agent",
 		"close_agent",
-		"send_agent",
+		"agents_status",
 	]);
 });
 
@@ -138,15 +138,14 @@ test("routed questions omit invalid steering and oversized results activate exac
 	activateForSubagentState(
 		question as never,
 		summary({ pending_question: { question_id: "q-1", question: "Choose", options: ["A", "B"] } }),
-		false,
 	);
 	assert.deepEqual(question.active(), [
 		"spawn_agent",
+		"wait_agents",
+		"steer_agent",
 		"answer_agent",
-		"wait_agent",
-		"list_agents",
-		"interrupt_agent",
 		"close_agent",
+		"agents_status",
 	]);
 
 	const oversizedText = "x".repeat(50 * 1024);
@@ -161,7 +160,7 @@ test("routed questions omit invalid steering and oversized results activate exac
 	});
 	assert.equal(requiresExactResultRead(oversized), true);
 	const result = toolApi(["spawn_agent"]);
-	activateForSubagentState(result as never, oversized, false);
+	activateForSubagentState(result as never, oversized);
 	assert.deepEqual(result.active(), ["spawn_agent", "read_agent_result"]);
 });
 
@@ -178,7 +177,6 @@ test("complete small results do not activate exact reading", () => {
 				total_bytes: 13,
 			},
 		}),
-		false,
 	);
 	assert.equal(
 		requiresExactResultRead(

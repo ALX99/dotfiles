@@ -1,22 +1,16 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { clipTextAtWord } from "../../_shared/terminal-text.ts";
+import type { LiveAgentTarget } from "../agent-registry.ts";
 import type { AgentSummary } from "../agent-types.ts";
-import type { ManagedAgent } from "../managed-agent.ts";
 import { renderManagementCall } from "../render.ts";
 import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
-import { FollowupAgentParamsSchema, preserveRequired, trimOptional, trimRequired } from "../schemas.ts";
-import {
-	completedRunResult,
-	formatAgentCompletion,
-	formatAgentLaunch,
-	formatPendingQuestion,
-} from "../tool-results.ts";
+import { FollowupAgentParamsSchema, preserveRequired, type FollowupAgentParams } from "../schemas.ts";
+import { finishRunResult } from "../tool-results.ts";
 import { renderRunToolResult } from "../ui/result-renderers.ts";
 import type { SubagentToolActivator } from "../tool-activation.ts";
 
 interface FollowupAgentDependencies {
 	readonly registry: {
-		readonly getLive: (id: string) => ManagedAgent;
+		readonly liveTarget: (target: string) => LiveAgentTarget;
 		readonly list: () => AgentSummary[];
 	};
 	readonly ticks: Map<string, NodeJS.Timeout>;
@@ -29,15 +23,14 @@ export function createFollowupAgentTool(
 ): ToolDefinition<typeof FollowupAgentParamsSchema, ReadonlyRunDetails> {
 	return defineTool<typeof FollowupAgentParamsSchema, ReadonlyRunDetails>({
 		name: "followup_agent",
-		label: "Follow Up Agent",
+		label: "Followup Agent",
 		description:
-			"Give a retained live subagent another task using its retained context. One-shot or archived agents cannot be followed up. Foreground by default.",
+			"Start another task on a retained settled child. Address it by task_name or agent_id. The address never changes across generations.",
 		parameters: FollowupAgentParamsSchema,
-		async execute(_id, params, signal, onUpdate) {
-			const agentId = trimRequired(params.agent_id, "agent_id");
+		async execute(_id, params: FollowupAgentParams, signal, onUpdate) {
 			const message = preserveRequired(params.message, "message");
-			const agent = dependencies.registry.getLive(agentId);
 			const background = params.background === true;
+			const agent = dependencies.registry.liveTarget(params.target).agent;
 			const unsubscribe = onUpdate
 				? agent.subscribe((details) => {
 						onUpdate({ content: [{ type: "text", text: "(running…)" }], details });
@@ -45,26 +38,22 @@ export function createFollowupAgentTool(
 				: undefined;
 			let details: ReadonlyRunDetails;
 			try {
-				details = await agent.followUp(
-					message,
-					trimOptional(params.task_name) ?? clipTextAtWord(message, 60),
-					background,
-					background ? undefined : signal,
-				);
+				details = await agent.followUp(message, background, background ? undefined : signal);
 			} finally {
 				unsubscribe?.();
 			}
-			const summary = agent.summary();
-			toolActivation.activateForState(summary, background);
-			const text = background
-				? formatAgentLaunch(summary)
-				: (formatPendingQuestion(summary) ?? formatAgentCompletion(summary));
-			return completedRunResult(text, details, background ? undefined : dependencies.claimUsage(summary));
+			return finishRunResult({
+				toolActivation,
+				claimUsage: dependencies.claimUsage,
+				summary: agent.summary(),
+				details,
+				background,
+			});
 		},
 		renderCall(args, theme, context) {
 			return renderManagementCall(
 				"followup_agent",
-				args.agent_id,
+				args.target,
 				args.message,
 				context.expanded,
 				dependencies.registry.list(),

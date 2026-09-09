@@ -281,11 +281,18 @@ function isSubagentToolName(value: unknown): boolean {
 	return (
 		value === "spawn_agent" ||
 		value === "followup_agent" ||
+		value === "steer_agent" ||
+		value === "answer_agent" ||
+		value === "wait_agents" ||
+		value === "read_agent_result" ||
+		value === "agents_status" ||
+		value === "close_agent" ||
+		// Retired names remain readable so persisted branches restore results.
+		value === "agent_input" ||
+		value === "agent_control" ||
 		value === "wait_agent" ||
 		value === "list_agents" ||
-		value === "close_agent" ||
 		value === "interrupt_agent" ||
-		value === "answer_agent" ||
 		value === "send_agent"
 	);
 }

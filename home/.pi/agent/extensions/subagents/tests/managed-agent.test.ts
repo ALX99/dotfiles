@@ -103,16 +103,17 @@ test("one native session owns foreground, background, steering, follow-up, and c
 	assert.equal(first.usage.output, 2);
 	assert.deepEqual(first.contextUsage, { tokens: 3, contextWindow: 1_000, percent: 0.3 });
 
-	const background = await agent.followUp("continue", "continue", true);
+	const background = await agent.followUp("continue", true);
 	assert.equal(background.status, "launched");
 	const continued = await agent.wait();
+	assert.equal(continued.taskName, "inspect");
 	assert.equal(continued.toolCount, 1);
 	assert.deepEqual(continued.recentTools, [{ name: "read", argsPreview: "src/index.ts" }]);
 	assert.equal(continued.lastMessage, "done: continue");
 	assert.ok(continued.lastActivityTime >= continued.startTime);
 	assert.deepEqual(completed, ["scout-1:2"]);
 
-	await agent.followUp("third", "third", true);
+	await agent.followUp("third", true);
 	await agent.steer("focus");
 	await agent.wait();
 	assert.deepEqual(steers, ["focus"]);
@@ -421,6 +422,47 @@ test("a rejected prompt retains any persisted terminal result for durable readin
 	);
 });
 
+test("reading a running generation fails explicitly instead of returning a preview", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-read-running-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const manager = SessionManager.create(agentDir, path.join(agentDir, "subagent-sessions"));
+	const fake = {
+		sessionId: manager.getSessionId(),
+		sessionFile: manager.getSessionFile(),
+		sessionManager: manager,
+		getContextUsage() {
+			return { tokens: null, contextWindow: 1_000, percent: null };
+		},
+		subscribe() {
+			return () => {};
+		},
+		async prompt() {
+			await new Promise<void>(() => {});
+		},
+		async steer() {},
+		async abort() {
+			appendAssistant(manager, new Set(), "interrupted", "aborted");
+		},
+		dispose() {},
+	};
+	const registry = new AgentRegistry(agentDir);
+	t.after(() => registry.closeAll());
+	const agent = new ManagedAgent({
+		id: "scout-read-running",
+		agentDir,
+		defaultCwd: agentDir,
+		agent: config,
+		resolvedRun,
+		retain: true,
+		sessionFactory: async () => sdkStub(fake),
+	});
+	await registry.add(agent);
+	await agent.start("inspect", undefined, "inspect", true);
+	await assert.rejects(registry.readResultByAddress("inspect", { generation: 1 }), /still running.*wait_agents/);
+	await registry.close(agent.id);
+	assert.equal(registry.summary(agent.id).status, "closed");
+});
+
 test("closing an active child archives a settled aborted generation with its exact native result", async (t) => {
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-close-active-test-"));
 	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
@@ -462,6 +504,9 @@ test("closing an active child archives a settled aborted generation with its exa
 		sessionFactory: async () => sdkStub(fake),
 	});
 
+	const registry = new AgentRegistry(agentDir);
+	await registry.add(agent);
+
 	await agent.start("inspect", undefined, "inspect", true);
 	await agent.close();
 	const details = await agent.wait();
@@ -471,6 +516,45 @@ test("closing an active child archives a settled aborted generation with its exa
 	assert.equal(details.result?.complete, false);
 	assert.ok(details.resultLocator);
 	assert.equal((await readLocatedAgentResult(details.resultLocator!, agentDir)).text, "interrupted after exact output");
+	assert.equal(registry.summary("worker-close-active").outcome, "aborted");
+});
+
+test("agent addresses resolve by id or unique task name", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-address-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const registry = new AgentRegistry(agentDir);
+	const stub = (id: string, task_name: string) =>
+		({
+			id,
+			subscribe: () => () => {},
+			summary: () => ({ agent_id: id, task_name }),
+		}) as never;
+	await registry.add(stub("scout-1", "inspect login"));
+	await registry.add(stub("worker-2", "migrate db"));
+	assert.equal(registry.resolveTarget("scout-1").agent_id, "scout-1");
+	assert.equal(registry.resolveTarget("migrate db").agent_id, "worker-2");
+	assert.equal(registry.resolveTarget(" worker-2 ").agent_id, "worker-2");
+	assert.throws(() => registry.resolveTarget("nobody"), /Unknown agent 'nobody'.*Known agents/);
+	assert.throws(() => registry.resolveTarget("  "), /must not be blank/);
+});
+
+test("spawn claims a unique immutable task name", async (t) => {
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-claim-test-"));
+	t.after(() => fs.rmSync(agentDir, { recursive: true, force: true }));
+	const registry = new AgentRegistry(agentDir);
+	const stub = (id: string, task_name: string) =>
+		({
+			id,
+			subscribe: () => () => {},
+			summary: () => ({ agent_id: id, task_name }),
+		}) as never;
+	await registry.add(stub("scout-1", "inspect login"));
+	assert.equal(registry.claimTaskName("migrate db", "migrate db"), "migrate db");
+	assert.throws(() => registry.claimTaskName("inspect login", "other"), /already used by agent 'scout-1'/);
+	assert.throws(() => registry.claimTaskName("scout-1", "other"), /already used/);
+	assert.equal(registry.claimTaskName(undefined, "migrate the database schema"), "migrate the database schema");
+	await registry.add(stub("worker-2", "migrate the database schema"));
+	assert.equal(registry.claimTaskName(undefined, "migrate the database schema"), "migrate the database schema-2");
 });
 
 test("a prompt without a terminal assistant message cannot be reported as successful", async (t) => {
@@ -552,10 +636,10 @@ test("interruption reserves the generation until abort settles and rejects overl
 	const waiting = agent.wait();
 	const interrupting = agent.interrupt();
 	assert.equal(agent.occupiesCapacity(), true);
-	await assert.rejects(agent.followUp("overlap", "overlap", true), /still running/);
+	await assert.rejects(agent.followUp("overlap", true), /still running/);
 	abortGate.resolve();
 	await cleanupStarted.promise;
-	await assert.rejects(agent.followUp("during cleanup", "during cleanup", true), /still running/);
+	await assert.rejects(agent.followUp("during cleanup", true), /still running/);
 	cleanupGate.resolve();
 	await interrupting;
 	assert.equal((await waiting).status, "aborted");
@@ -646,8 +730,12 @@ test("archive eviction follows closure order while exact results outlive dashboa
 	for (const agent of agents.toReversed()) await registry.close(agent.id);
 	assert.equal(registry.list().length, DEFAULT_MAX_CLOSED_AGENT_HISTORY);
 	assert.throws(() => registry.summary(agents.at(-1)!.id), /Unknown agent_id/);
-	assert.equal((await registry.readResult(agents.at(-1)!.id)).text, `result ${DEFAULT_MAX_CLOSED_AGENT_HISTORY}`);
+	assert.equal(
+		(await registry.readResultByAddress(agents.at(-1)!.id)).text,
+		`result ${DEFAULT_MAX_CLOSED_AGENT_HISTORY}`,
+	);
 	assert.equal(registry.summary(agents[0]!.id).status, "closed");
+	assert.equal(registry.summary(agents[0]!.id).outcome, "succeeded");
 });
 
 function appendAssistant(

@@ -15,7 +15,6 @@ export interface StartTurnInput {
 export interface FollowUpTurnInput {
 	readonly kind: "follow_up";
 	readonly message: string;
-	readonly taskName: string;
 	readonly background: boolean;
 	readonly signal: AbortSignal | undefined;
 }
@@ -102,10 +101,10 @@ export function routeAgentTurnInput(state: AgentTurnRoutingState, input: AgentTu
 function reject(state: AgentTurnRoutingState, code: AgentTurnRejection, questionId?: string): AgentTurnRoutingError {
 	const messages: Record<AgentTurnRejection, string> = {
 		already_started: "Subagent already started.",
-		not_started: `Agent ${state.agentId} has not started; use spawn_agent before a follow-up.`,
+		not_started: `Agent ${state.agentId} has not started; use spawn_agent before follow-up input.`,
 		one_shot: `Agent ${state.agentId} is one-shot. Spawn with retain:true before using followup_agent.`,
 		closed: `Agent ${state.agentId} is closed.`,
-		turn_active: `Agent ${state.agentId} is still running; use send_agent or wait_agent before a follow-up.`,
+		turn_active: `Agent ${state.agentId} is still running; use steer_agent with its current generation or wait_agents before follow-up input.`,
 		not_running: `Agent ${state.agentId} is not running.`,
 		question_pending: state.pendingQuestionId
 			? `Agent ${state.agentId} is waiting for '${state.pendingQuestionId}'; use answer_agent.`

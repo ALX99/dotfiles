@@ -93,8 +93,16 @@ test("result catalog restores locators from both foreground tool details and bac
 				type: "message",
 				message: {
 					role: "toolResult",
-					toolName: "wait_agent",
+					toolName: "wait_agents",
 					details: { summaries: [{ agent_id: "wait-1", result_locator: locator }] },
+				},
+			},
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "agent_input",
+					details: { agentId: "input-1", generation: 1, resultLocator: locator },
 				},
 			},
 			{
@@ -111,6 +119,6 @@ test("result catalog restores locators from both foreground tool details and bac
 				},
 			},
 		] as never),
-		3,
+		4,
 	);
 });

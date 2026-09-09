@@ -4,16 +4,19 @@ import type { ExtensionAPI, ScopedModel } from "@earendil-works/pi-coding-agent"
 import { createSubagentRuntime } from "./bootstrap.ts";
 import { buildCapabilityHint } from "./capability-hint.ts";
 import { showAgentDashboard } from "./dashboard.ts";
-import { isAgentActive, type AgentSummary } from "./agent-types.ts";
+import type { AgentSummary } from "./agent-types.ts";
+import { createAgentsStatusTool } from "./tools/agents-status.ts";
+import { createAnswerAgentTool } from "./tools/answer-agent.ts";
+import { createCloseAgentTool } from "./tools/close-agent.ts";
 import { createFollowupAgentTool } from "./tools/followup-agent.ts";
-import { createManagementTools } from "./tools/management-tools.ts";
 import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
 import { createSpawnAgentTool } from "./tools/spawn-agent.ts";
-import { createWaitAgentTool } from "./tools/wait-agent.ts";
+import { createSteerAgentTool } from "./tools/steer-agent.ts";
+import { createWaitAgentsTool } from "./tools/wait-agents.ts";
 import { missingSubagentTools, SubagentToolController } from "./tool-activation.ts";
 
 export { isCompletionSuperseded } from "./bootstrap.ts";
-export { createSpawnAgentSchema, WaitAgentParamsSchema } from "./schemas.ts";
+export { createSpawnAgentSchema, WaitAgentsParamsSchema } from "./schemas.ts";
 
 type CommandAPI = Pick<ExtensionAPI, "registerCommand">;
 
@@ -27,7 +30,6 @@ interface SubagentCommandRuntime {
 export default function registerSubagents(pi: ExtensionAPI): void {
 	const toolActivation = new SubagentToolController(pi);
 	const runtime = createSubagentRuntime(toolActivation);
-	const managementTools = createManagementTools({ registry: runtime.registry, admission: runtime.admission });
 
 	pi.on("session_start", (_event, ctx) => {
 		runtime.startSession(ctx);
@@ -73,8 +75,6 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),
 	);
-	pi.registerTool(managementTools.answer_agent);
-	pi.registerTool(managementTools.send_agent);
 	pi.registerTool(
 		createFollowupAgentTool(toolActivation, {
 			registry: runtime.registry,
@@ -83,16 +83,33 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		}),
 	);
 	pi.registerTool(
-		createWaitAgentTool(toolActivation, {
+		createSteerAgentTool({
 			registry: runtime.registry,
-			consumeSettledCompletions: (summaries) => runtime.consumeSettledCompletions(summaries),
+		}),
+	);
+	pi.registerTool(
+		createAnswerAgentTool({
+			registry: runtime.registry,
+		}),
+	);
+	pi.registerTool(
+		createWaitAgentsTool(toolActivation, {
+			registry: runtime.registry,
 			claimUsage: (summary) => runtime.claimUsage(summary),
 		}),
 	);
-	pi.registerTool(managementTools.list_agents);
 	pi.registerTool(createReadAgentResultTool(runtime.registry));
-	pi.registerTool(managementTools.interrupt_agent);
-	pi.registerTool(managementTools.close_agent);
+	pi.registerTool(
+		createCloseAgentTool({
+			registry: runtime.registry,
+		}),
+	);
+	pi.registerTool(
+		createAgentsStatusTool({
+			registry: runtime.registry,
+			admission: runtime.admission,
+		}),
+	);
 }
 
 export function registerSubagentsCommand(
@@ -119,7 +136,6 @@ function restoreUsefulTools(tools: SubagentToolController, runtime: SubagentComm
 	const summaries = runtime.registry.list();
 	if (runtime.registry.hasStoredResults()) tools.activate(["read_agent_result"]);
 	for (const summary of summaries) {
-		const background = isAgentActive(summary.status);
-		tools.activateForState(summary, background);
+		tools.activateForState(summary);
 	}
 }
