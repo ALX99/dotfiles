@@ -152,8 +152,7 @@ const CreateTasksParams = Type.Object({
 		{
 			minItems: 4,
 			maxItems: 10,
-			description:
-				"Four or more substantial, related phases of relatively complex work; do not pad a simple request with generic read, implement, review, or double-check steps",
+			description: "At least four substantial related phases; do not pad simple work with generic steps",
 		},
 	),
 });
@@ -298,11 +297,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "create_tasks",
 		label: "Create Tasks",
 		description:
-			"Create a queue of four or more substantial, related tasks in one call. Use this sparingly and only for relatively complex work that genuinely requires at least four clear, separable phases, each likely to need meaningful investigation or implementation time and its own checkpoint. Do not pad a simple request with generic read, implement, review, test, or double-check steps. For quick, small, or straightforward work, work directly without a queue. When in doubt, do not use this tool. Finish each task with finish_task. In print mode, one task is checkpointed per invocation.",
+			"Create a queue only for genuinely complex work with at least four substantial, separable phases needing their own checkpoints. Never pad simple work with generic steps; work directly when in doubt. Finish each task with finish_task. Print mode checkpoints one task per invocation.",
 		promptSnippet: "Create a queue only for genuinely complex work with four or more substantial phases",
 		promptGuidelines: [
-			"Treat create_tasks as a high-bar, infrequent tool rather than a default planning step. Use it only when the request is relatively complex and naturally decomposes into at least four substantial, independently useful phases; each phase should require meaningful investigation, implementation, or decision-making and benefit from a separate checkpoint.",
-			"Do not create a queue merely to reach four items or to separate routine reading, coding, testing, review, or final verification. Generic steps such as 'read things', 'implement things', 'review things', and 'double-check' do not qualify. Small, straightforward, or short edits should be completed directly, even if they involve several actions. When in doubt, do not use create_tasks.",
+			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints.",
+			"Never pad to four items or split routine reading, coding, testing, review, or verification. Complete small or straightforward edits directly; when in doubt, do not use create_tasks.",
 		],
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
@@ -374,7 +373,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "update_tasks",
 		label: "Update Tasks",
 		description:
-			"Amend the active queue without reopening finished tasks. Insert a pending task, rename or skip a pending task, or cancel the remaining queue. Use only for small, concrete changes; call alone in its assistant turn.",
+			"Make small queue amendments: insert a task, rename or skip pending tasks, or cancel remaining work. Do not reopen finished tasks. Call alone in its assistant turn.",
 		promptSnippet: "Amend pending task titles, ordering, or cancellation",
 		promptGuidelines: [
 			"Use update_tasks only for a small queue amendment discovered during work. Finished tasks and their IDs are preserved.",
@@ -410,11 +409,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "finish_task",
 		label: "Finish Task",
 		description:
-			"Record the current queued task's outcome, critical context, and concrete evidence. Changed files are observed automatically from successful edit, write, and apply_patch calls since the previous task checkpoint; this is not attribution for arbitrary shell or external changes. Call alone in its assistant turn. By default, its working trace is compacted and the next queued task continues from the compacted record. In print mode, the checkpoint is recorded without compaction and the next invocation resumes with the next task.",
+			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its assistant turn. By default, compact the trace and continue from the record; print mode records without compaction and resumes the next task next invocation.",
 		promptSnippet: "Finish the current queued task with a summary and evidence",
 		promptGuidelines: [
-			"Use finish_task after completing each queued task, alone in its assistant turn. Include concrete evidence and every decision, blocker, or remaining item later tasks need. Keep compact enabled unless the task trace must remain in active context. If finish_task reports a mid-task session compaction, retry with compact false. In print mode, finish_task records the checkpoint without compaction; stop after the task and let the next invocation resume the queue.",
-			"All statuses are terminal checkpoints: completed, failed, and blocked each advance to the next task. Put unresolved work or external dependencies in remaining.",
+			"After each task, call finish_task alone with concrete evidence and needed decisions, blockers, and remaining work. Keep compact enabled unless context must remain. If mid-task compaction is reported, retry with compact false. Print mode records without compaction; stop and let the next invocation resume.",
+			"All statuses are terminal checkpoints: completed, failed, and blocked advance the queue. Put unresolved work or dependencies in remaining.",
 		],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",

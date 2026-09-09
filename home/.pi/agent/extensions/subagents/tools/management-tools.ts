@@ -44,7 +44,7 @@ export function createManagementTools({
 			name: "answer_agent",
 			label: "Answer Agent",
 			description:
-				"Answer a pending multiple-choice question from a direct child. Use the reported question_id and provide either a listed option or a custom answer; it is unavailable once that question is resolved.",
+				"Answer a direct child's pending question with its question_id and a listed or custom answer; unavailable after resolution.",
 			parameters: AnswerAgentParamsSchema,
 			registry,
 			resultTitle: "answer_agent · answer delivered",
@@ -65,8 +65,7 @@ export function createManagementTools({
 		send_agent: defineManagementTool({
 			name: "send_agent",
 			label: "Send Agent",
-			description:
-				"Steer a running subagent at its next message boundary. A child waiting for an answer must receive answer_agent instead.",
+			description: "Steer a running child at its next message boundary; use answer_agent for pending questions.",
 			parameters: SendAgentParamsSchema,
 			registry,
 			resultTitle: "send_agent · steering accepted",
@@ -84,7 +83,7 @@ export function createManagementTools({
 			name: "list_agents",
 			label: "List Agents",
 			description:
-				"List subagents owned by this session and their current status. Capacity distinguishes running children from admission slots occupied by retained idle sessions. Includes the 10 most-recent archived agents by default; set closed_limit to request more or none.",
+				"List this session's children and status. Capacity includes retained idle sessions; defaults to 10 recent closed agents (closed_limit changes this).",
 			parameters: ListAgentsParamsSchema,
 			registry,
 			resultTitle: "list_agents",
@@ -103,8 +102,7 @@ export function createManagementTools({
 		interrupt_agent: defineManagementTool({
 			name: "interrupt_agent",
 			label: "Interrupt Agent",
-			description:
-				"Abort a running subagent or cancel its pending question. Only agents spawned with retain:true remain eligible for follow-up work.",
+			description: "Abort a child or cancel its pending question. Only retain:true agents permit follow-up.",
 			parameters: AgentIdParamsSchema,
 			registry,
 			resultTitle: "interrupt_agent",
@@ -120,7 +118,7 @@ export function createManagementTools({
 			name: "close_agent",
 			label: "Close Agent",
 			description:
-				"Dispose a retained subagent session. The call is idempotent for archived agents; persisted result/session references remain readable.",
+				"Dispose a retained child. Archived calls are idempotent; persisted result/session references remain readable.",
 			parameters: AgentIdParamsSchema,
 			registry,
 			resultTitle: "close_agent",

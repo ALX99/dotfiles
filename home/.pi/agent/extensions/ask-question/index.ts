@@ -33,15 +33,14 @@ export default function askQuestionExtension(pi: ExtensionAPI): void {
 			name: "ask_question",
 			label: "Ask Question",
 			description:
-				"Ask one to three multiple-choice questions in sequence, each with 2-5 alternatives containing a short label and optional description. Put recommended alternatives first and explain the recommendation briefly in their descriptions. TUI users can select multiple alternatives; other interfaces accept one selection. Users can add a comment to their selections or provide a custom answer. Compare options compares checked alternatives, or all alternatives when none are checked. Compare options, Something else, and Add comment are added automatically; never include them as alternatives.",
-			promptSnippet:
-				"Ask one to three consequential questions with described alternatives, optional answer comments, or comparisons",
+				"Ask 1-3 sequential multiple-choice questions, each with 2-5 short labeled alternatives and optional descriptions. Put recommendations first with brief reasons in descriptions. TUI supports multiple selections; other interfaces one. Users may comment or give custom answers. Compare options compares selected alternatives, or all if none. Compare options, Something else, and Add comment are automatic; never supply them.",
+			promptSnippet: "Ask up to three consequential questions with alternatives, comments, or comparison",
 			promptGuidelines: [
-				"Use ask_question only when the answer materially changes implementation, scope, or an authorization decision. Resolve routine details from repository evidence.",
-				"With ask_question, group up to three independent questions; ask dependent questions only after their prerequisites are answered.",
-				"For ask_question, use neutral, distinct, short alternative labels and optional descriptions for trade-offs. Put recommended alternatives first and briefly explain why in their descriptions.",
-				"Do not include ask_question's automatic Compare options, Something else, or Add comment actions as alternatives.",
-				"Treat ask_question answer comments as qualifications on the selected answers. Never treat cancellation, unanswered questions, or comparison requests as approval.",
+				"Use ask_question only when the answer materially changes implementation, scope, or an authorization decision; resolve routine details from evidence.",
+				"Group up to three independent questions; ask dependent ones after prerequisites.",
+				"Use neutral, distinct short labels and optional trade-off descriptions. Put recommended alternatives first; briefly explain why.",
+				"Never include automatic Compare options, Something else, or Add comment as alternatives.",
+				"Treat comments as qualifications. Never treat cancellation, unanswered questions, or comparison requests as approval.",
 			],
 			parameters: AskQuestionParamsSchema,
 			prepareArguments: prepareAskQuestionArguments,

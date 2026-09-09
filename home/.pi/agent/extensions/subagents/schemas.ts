@@ -37,13 +37,13 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			message: Type.String({
 				...nonBlank,
 				description:
-					"Self-contained assignment with objective, scope, constraints, expected output, and validation. For workers, include explicit file, module, or responsibility ownership.",
+					"Self-contained objective, scope, constraints, output, and validation; workers include file/module/responsibility ownership.",
 			}),
 			handoff: Type.Optional(
 				Type.String({
 					...nonBlank,
 					description:
-						"Compact factual context for dependent, retry, review, or replacement work: decisions, findings, exact paths or symbols, constraints, and validation results. The child has its own context; do not repeat the assignment or paste the parent transcript.",
+						"Factual delta for dependent/retry/review/replacement work: decisions, findings, paths/symbols, constraints, validation. Do not repeat the assignment or paste the parent transcript.",
 				}),
 			),
 			task_name: Type.Optional(
@@ -64,7 +64,7 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			thinking: Type.Optional(
 				StringEnum(options.thinkingLevels, {
 					description:
-						"Optional thinking request. The selected model candidate enforces its configured default-to-cap range; omitted requests use that default.",
+						"Thinking request within the selected candidate's configured default-to-cap range; omit for its default.",
 				}),
 			),
 			cwd: Type.Optional(
@@ -80,7 +80,7 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			retain: Type.Optional(
 				Type.Boolean({
 					description:
-						"Keep the child session alive after settlement for followup_agent. Default false; one-shot agents auto-close.",
+						"Keep session after settlement for followup_agent; default false, so one-shot agents auto-close.",
 				}),
 			),
 		},
@@ -124,8 +124,7 @@ export const WaitAgentParamsSchema = Type.Object(
 		agent_ids: Type.Array(agentId, {
 			minItems: 1,
 			maxItems: MAX_WAIT_AGENTS,
-			description:
-				"Agent IDs to wait for as one barrier until each settles or requests input. Duplicates are ignored after trimming.",
+			description: "Agent IDs for one barrier until each settles or requests input; trimmed duplicates are ignored.",
 		}),
 	},
 	{ additionalProperties: false },

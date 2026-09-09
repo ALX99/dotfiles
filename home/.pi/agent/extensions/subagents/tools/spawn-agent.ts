@@ -71,8 +71,8 @@ export function createSpawnAgentTool(
 		name: "spawn_agent",
 		label: "Spawn Agent",
 		description:
-			"Spawn an isolated one-shot subagent by default. Set retain:true only when later follow-up work needs the same live context.",
-		promptSnippet: "Spawn an isolated leaf subagent with its own context, model, and tools",
+			"Spawn an isolated one-shot subagent by default; retain:true only for later work needing its live context.",
+		promptSnippet: "Spawn an isolated leaf subagent",
 		promptGuidelines: spawnGuidelines(
 			allowedAgents,
 			allowedProfiles,
@@ -249,16 +249,16 @@ export function spawnGuidelines(
 	return [
 		...(roleMap === undefined ? [] : [roleMap]),
 		...(profileMap === undefined ? [] : [profileMap]),
-		"Select fast only for bounded mechanical work or well-scoped implementation with a known path and success criterion. Do not select it for debugging or root-cause analysis, code review, architecture or design, ambiguous investigation, security or correctness decisions, or final synthesis. Balanced is the default for work requiring judgment, not merely implementation. For worker and general, select fast only when the assignment clearly satisfies the fast criteria.",
+		"Select fast only for bounded mechanical or well-scoped implementation with a known path and criterion. Do not select it for debugging or root-cause analysis, review, design, ambiguous investigation, security/correctness decisions, or final synthesis. Balanced is the default for work requiring judgment; worker/general use fast only when these criteria clearly fit.",
 		...(rootLimit === undefined
 			? []
 			: [
 					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
-		"For one blocking delegated task, prefer foreground spawn_agent. For background parallel work, launch one concurrent wave, then use the management controls made available by that launch as one barrier with that wave's IDs; the barrier blocks until each child settles or asks for input, so poll agent status when you only need progress. Do not build repeated automatic turns or a task scheduler.",
-		"Use subagents for independent work that benefits from parallelism, specialized expertise, or isolated context. Handle simple, tightly coupled, or single-file work directly. Once work is delegated, do not duplicate its assigned scope: while the subagent runs, address only non-overlapping needs or wait for its result. The current agent owns synthesis and proportionate, risk-based final verification.",
-		"When a new child task depends on prior work—especially a retry, review/fix cycle, or replacement for an earlier child—put the compact factual delta in handoff: decisions, findings, exact paths or symbols, constraints, and validation failures or results. The child has its own context and does not inherit the parent transcript. Keep the assignment self-contained in message, do not repeat it in handoff, and never paste the parent transcript; omit handoff for independent work.",
-		"For worker assignments, specify owned files, modules, or responsibility, note known concurrent edits, and name required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
-		"Use scouts only for bounded, narrow read-only discovery; do not assign scouts implementation, broad exploration, or final review verdicts.",
+		"Use foreground spawn_agent for one blocking task. For parallel background work, launch one wave and use its management controls as one barrier; it waits for settlement or input, so poll for progress. Do not build repeated automatic turns or a task scheduler.",
+		"Use subagents for independent work benefiting from parallelism, specialization, or isolation; handle simple, coupled, or single-file work directly. Once delegated, do not duplicate its assigned scope: do only non-overlapping work or wait. The current agent owns synthesis and proportionate final verification.",
+		"For dependent, retry, review/fix, or replacement work, hand off only the factual delta: decisions, findings, exact paths/symbols, constraints, and validation. Children do not inherit the transcript. Keep message self-contained; do not repeat it or paste the transcript in handoff. Omit handoff for independent work.",
+		"For worker assignments, specify ownership, known concurrent edits, and required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
+		"Use scouts only for bounded read-only discovery, never implementation, broad exploration, or final review verdicts.",
 	];
 }
