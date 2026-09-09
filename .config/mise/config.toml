@@ -11,6 +11,7 @@ zig = "latest"
 
 # Harnesses
 "aqua:openai/codex" = "latest"
+"npm:@earendil-works/pi-coding-agent" = "latest"
 
 # AI stuff
 "npm:skills" = "latest"
@@ -42,6 +43,7 @@ zig = "latest"
 
 [settings]
 minimum_release_age = "24h"
+minimum_release_age_excludes = ["npm:@earendil-works/pi-coding-agent"] # pi releases are time-sensitive; skip the 24h holdback
 auto_update = true
 
 # --- aube policy (mise's native npm installer) -------------------------------
