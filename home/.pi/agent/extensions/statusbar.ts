@@ -1,11 +1,11 @@
 /**
  * Statusbar Extension — Full custom statusbar replacement.
  *
- * Shows a responsive project/model trail on the left and compact generation
- * speed and context usage on the right. When space is tight, location details
- * yield to the active model so the important state stays visible. The input
- * border mirrors context growth while idle and becomes an activity wave while
- * the agent runs.
+ * Shows the active model and working directory on the left and compact
+ * generation speed and context usage on the right. When space is tight,
+ * the directory yields to the model so the important state stays visible.
+ * The input border mirrors context growth while idle and becomes an activity
+ * wave while the agent runs.
  *
  * Right-side metrics are right-aligned with space padding.
  */
@@ -17,7 +17,6 @@ import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import { sanitizeTerminalText } from "./_shared/terminal-text.ts";
 import { registerAgentActivity } from "./_shared/agent-activity.ts";
-import { getProcessReaper } from "./process-reaper/index.ts";
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -275,12 +274,6 @@ export function renderContextPercentage(usage: ContextUsage, theme: StatusbarThe
 	return colorizeRgb(`${Math.round(usage.percent)}%`, contextGradientColor(normalizedPercent), theme);
 }
 
-/** Shows the process groups that process-reaper currently retains for cleanup. */
-export function renderBackgroundProcessCount(backgroundGroups: number, theme: StatusbarTheme): string {
-	if (backgroundGroups <= 0) return "";
-	return theme.fg("dim", `bg:${backgroundGroups}`);
-}
-
 /**
  * Draws a full-width editor border that fills from left to right as context
  * grows through a smooth green → yellow → orange → red ramp. The statusbar
@@ -426,41 +419,23 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 
 function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	let requestRender: (() => void) | undefined;
-	const processReaper = getProcessReaper();
 	const tpsTracker = setupTokensPerSecond(pi, () => requestRender?.());
 
 	pi.on("turn_end", () => {
 		requestRender?.();
 	});
 
-	ctx.ui.setFooter((tui, theme, statusbarData) => {
+	ctx.ui.setFooter((tui, theme) => {
 		const statusbarRequestRender = () => tui.requestRender();
 		requestRender = statusbarRequestRender;
-		let backgroundGroups = 0;
-		const unsubBranch = statusbarData.onBranchChange(statusbarRequestRender);
-		const unsubProcessReaper = processReaper.onBackgroundGroupChange((count) => {
-			backgroundGroups = count;
-			statusbarRequestRender();
-		});
 
 		return {
-			dispose: () => {
-				unsubBranch();
-				unsubProcessReaper();
-			},
+			dispose: () => {},
 			invalidate() {},
 			render(width: number): string[] {
-				/* left: cwd, branch, model/thinking */
+				/* left: cwd, model/thinking */
 				const leftParts: string[] = [];
 				leftParts.push(theme.fg("muted", sanitizeTerminalText(shortenCwd(ctx.cwd))));
-
-				const branchName = statusbarData.getGitBranch();
-				if (branchName) {
-					leftParts.push(theme.fg("dim", "git:") + theme.fg("accent", sanitizeTerminalText(branchName)));
-				}
-
-				const processCount = renderBackgroundProcessCount(backgroundGroups, theme);
-				if (processCount) leftParts.push(processCount);
 
 				const model = ctx.model;
 				if (model) {
@@ -471,9 +446,6 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					}
 					leftParts.push(modelText);
 				}
-
-				const taskStatus = statusbarData.getExtensionStatuses().get("tasks");
-				if (taskStatus) leftParts.push(renderTaskStatus(taskStatus, theme));
 
 				const ctxUsage = ctx.getContextUsage();
 				const viewInput: StatusbarViewInput = {
@@ -491,11 +463,4 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	});
 
 	return () => requestRender?.();
-}
-
-function renderTaskStatus(status: string, theme: StatusbarTheme): string {
-	const text = sanitizeTerminalText(status);
-	if (text.startsWith("✓")) return theme.fg("success", text);
-	if (text === "Tasks off") return theme.fg("muted", text);
-	return theme.fg("accent", text);
 }

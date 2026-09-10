@@ -128,14 +128,15 @@ test("steer and answer require a generation while other verbs default to latest"
 	assert.equal(Check(CloseAgentParamsSchema, { target: "a-1", message: "go" }), false);
 });
 
-test("read defaults to the latest generation and keeps cursor and offset mutually exclusive", () => {
+test("read defaults to the latest generation and keeps an object root providers accept", () => {
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1" }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1 }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1, offset: 0 }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1, cursor: "v1.a.0" }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 0 }), false);
 	assert.equal(
-		Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1, cursor: "v1.a.0", offset: 0 }),
-		false,
+		ReadAgentResultParamsSchema.type,
+		"object",
+		"function-calling APIs require a 'type: object' tool schema root; exclusivity lives in paginateStoredResult",
 	);
 });

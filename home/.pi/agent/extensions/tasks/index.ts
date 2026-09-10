@@ -299,11 +299,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "create_tasks",
 		label: "Create Tasks",
 		description:
-			"Create a queue only for genuinely complex work with at least four substantial, separable phases needing their own checkpoints. Never pad simple work with generic steps; work directly when in doubt. Finish each task with finish_task. Print mode checkpoints one task per invocation.",
-		promptSnippet: "Create a queue only for genuinely complex work with four or more substantial phases",
+			"Create the session's task queue, then work it in order with finish_task after each task. Call alone in its turn; print mode records one task per invocation.",
+		promptSnippet: "Create a task queue for genuinely complex multi-phase work",
 		promptGuidelines: [
-			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints.",
-			"Never pad to four items or split routine reading, coding, testing, review, or verification. Complete small or straightforward edits directly; when in doubt, do not use create_tasks.",
+			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints. Never pad to four items or split routine reading, coding, testing, review, or verification; complete small or straightforward edits directly.",
 		],
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
@@ -376,11 +375,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "update_tasks",
 		label: "Update Tasks",
 		description:
-			"Make small queue amendments: insert a task, rename or skip pending tasks, or cancel remaining work. Do not reopen finished tasks. Call alone in its assistant turn.",
+			"Make small queue amendments: insert a task, rename or skip pending tasks, or cancel remaining work. Do not reopen finished tasks. Call alone in its turn.",
 		promptSnippet: "Amend pending task titles, ordering, or cancellation",
 		promptGuidelines: [
 			"Use update_tasks only for a small queue amendment discovered during work. Finished tasks and their IDs are preserved.",
-			"For insert, provide a title and optionally afterTaskId; omit afterTaskId to append. For rename and skip, provide taskId. Skip and cancel require a reason.",
 			"Do not use update_tasks to retry or rewrite a finished task. Record follow-up work as a new pending task instead.",
 		],
 		parameters: UpdateTasksParams,
@@ -412,11 +410,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "finish_task",
 		label: "Finish Task",
 		description:
-			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its assistant turn. By default, compact the trace and continue from the record; print mode records without compaction and resumes the next task next invocation.",
+			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its turn. Compacts the trace and continues from the record by default; print mode records without compaction and resumes next invocation.",
 		promptSnippet: "Finish the current queued task with a summary and evidence",
 		promptGuidelines: [
-			"After each task, call finish_task alone with concrete evidence and needed decisions, blockers, and remaining work. Keep compact enabled unless context must remain. If mid-task compaction is reported, retry with compact false. Print mode records without compaction; stop and let the next invocation resume.",
-			"All statuses are terminal checkpoints: completed, failed, and blocked advance the queue. Put unresolved work or dependencies in remaining.",
+			"After each task, call finish_task alone with concrete evidence and the decisions, blockers, and remaining work a later task needs. Keep compact enabled unless the context must remain; if mid-task compaction is reported, retry with compact false.",
 		],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",

@@ -187,57 +187,39 @@ export const AgentsStatusParamsSchema = Type.Object(
 );
 export type AgentsStatusParams = Static<typeof AgentsStatusParamsSchema>;
 
-export const ReadAgentResultParamsSchema = Type.Union([
-	Type.Object(
-		{
-			target,
-			generation: Type.Optional(
-				Type.Integer({
-					minimum: 1,
-					description: "One-based generation; defaults to the latest generation.",
-				}),
-			),
-			offset: Type.Optional(
-				Type.Integer({
-					minimum: 0,
-					description: "UTF-16 string offset. Prefer next_cursor for sequential reconstruction.",
-				}),
-			),
-			max_bytes: Type.Optional(
-				Type.Integer({
-					minimum: 4,
-					maximum: 6144,
-					description: "Per-call UTF-8 transport chunk bound. Default 6144; this never truncates the stored result.",
-				}),
-			),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			target,
-			generation: Type.Optional(
-				Type.Integer({
-					minimum: 1,
-					description: "One-based generation; defaults to the latest generation.",
-				}),
-			),
-			cursor: Type.String({
+export const ReadAgentResultParamsSchema = Type.Object(
+	{
+		target,
+		generation: Type.Optional(
+			Type.Integer({
+				minimum: 1,
+				description: "One-based generation; defaults to the latest generation.",
+			}),
+		),
+		cursor: Type.Optional(
+			Type.String({
 				minLength: 1,
 				maxLength: 128,
-				description: "Opaque next_cursor returned by a previous read_agent_result call.",
+				description: "Opaque next_cursor returned by a previous read_agent_result call. Unset when paging by offset.",
 			}),
-			max_bytes: Type.Optional(
-				Type.Integer({
-					minimum: 4,
-					maximum: 6144,
-					description: "Per-call UTF-8 transport chunk bound. Default 6144; this never truncates the stored result.",
-				}),
-			),
-		},
-		{ additionalProperties: false },
-	),
-]);
+		),
+		offset: Type.Optional(
+			Type.Integer({
+				minimum: 0,
+				description:
+					"UTF-16 string offset. Prefer next_cursor for sequential reconstruction. Unset when paging by cursor.",
+			}),
+		),
+		max_bytes: Type.Optional(
+			Type.Integer({
+				minimum: 4,
+				maximum: 6144,
+				description: "Per-call UTF-8 transport chunk bound. Default 6144; this never truncates the stored result.",
+			}),
+		),
+	},
+	{ additionalProperties: false },
+);
 
 export type ReadAgentResultParams = Static<typeof ReadAgentResultParamsSchema>;
 

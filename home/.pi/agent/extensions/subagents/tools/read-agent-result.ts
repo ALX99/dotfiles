@@ -19,8 +19,8 @@ export function createReadAgentResultTool(
 		async execute(_id, params: ReadAgentResultParams) {
 			const page = await dependencies.readResultByAddress(params.target, {
 				...(params.generation === undefined ? {} : { generation: params.generation }),
-				...("cursor" in params ? { cursor: params.cursor } : {}),
-				...("offset" in params ? { offset: params.offset } : {}),
+				...(params.cursor === undefined ? {} : { cursor: params.cursor }),
+				...(params.offset === undefined ? {} : { offset: params.offset }),
 				maxBytes: params.max_bytes ?? RESULT_READ_DEFAULT_BYTES,
 			});
 			return textResult(JSON.stringify(page), page);

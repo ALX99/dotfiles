@@ -1,6 +1,6 @@
 /** Persistent in-process Pi SDK subagents with stable, session-runtime IDs. */
 
-import type { ExtensionAPI, ScopedModel } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ScopedModel } from "@earendil-works/pi-coding-agent";
 import { createSubagentRuntime } from "./bootstrap.ts";
 import { buildCapabilityHint } from "./capability-hint.ts";
 import { showAgentDashboard } from "./dashboard.ts";
@@ -31,7 +31,59 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	const toolActivation = new SubagentToolController(pi);
 	const runtime = createSubagentRuntime(toolActivation);
 
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("agent_settled", () => runtime.flushCompletions(pi));
+
+	/** Re-registering replaces the definition and rebuilds the prompt from the new guidelines. */
+	const registerSpawnAgent = (capabilityHint?: string): void => {
+		pi.registerTool(
+			createSpawnAgentTool(toolActivation, {
+				agents: runtime.agents,
+				profiles: runtime.profiles,
+				agentDir: runtime.agentDir,
+				admission: runtime.admission,
+				registry: runtime.registry,
+				ticks: runtime.ticks,
+				onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
+				onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
+				claimUsage: (summary) => runtime.claimUsage(summary),
+				...(capabilityHint === undefined ? {} : { capabilityHint }),
+			}),
+		);
+	};
+
+	/**
+	 * The hint names the models the advertised profiles resolve to, which the parent cannot otherwise
+	 * see: spawn_agent's guidelines only ever name profiles. It travels as a guideline rather than an
+	 * appended prompt block so that it composes with prompt-owning extensions instead of being
+	 * overwritten by whichever one runs last, and so a disabled spawn_agent drops it automatically.
+	 */
+	const applyCapabilityHint = (
+		ctx: ExtensionContext,
+		model: { readonly provider: string; readonly id: string } | undefined,
+	): void => {
+		const hint =
+			model === undefined
+				? undefined
+				: buildCapabilityHint({
+						config: runtime.profiles,
+						agents: runtime.agents,
+						availableModels:
+							ctx.scopedModels ?? ctx.modelRegistry.getAvailable().map((entry): ScopedModel => ({ model: entry })),
+						currentModel: model,
+					});
+		registerSpawnAgent(hint);
+	};
+
+	// Registered without a hint first so the tool exists before the session reports its model.
+	registerSpawnAgent();
+	/**
+	 * The hint names the models the advertised profiles resolve to, which the parent cannot otherwise
+	 * see: spawn_agent's guidelines only ever name profiles. It is delivered as a guideline rather than
+	 * appended to the prompt so that it composes with prompt-owning extensions instead of being
+	 * overwritten by whichever one runs last, and so a disabled spawn_agent drops it automatically.
+	 */
+	pi.on("session_start", (event, ctx) => {
+		applyCapabilityHint(ctx, ctx.model);
 		runtime.startSession(ctx);
 		toolActivation.reset();
 		if (runtime.restoredResultCount > 0) toolActivation.activate(["read_agent_result"]);
@@ -43,18 +95,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			);
 		}
 	});
-	pi.on("agent_settled", () => runtime.flushCompletions(pi));
-	pi.on("before_agent_start", (event, ctx) => {
-		if (!toolActivation.enabled || !ctx.model) return undefined;
-		if (!event.systemPromptOptions?.selectedTools?.includes("spawn_agent")) return undefined;
-		const hint = buildCapabilityHint({
-			config: runtime.profiles,
-			agents: runtime.agents,
-			availableModels: ctx.scopedModels ?? ctx.modelRegistry.getAvailable().map((model): ScopedModel => ({ model })),
-			currentModel: ctx.model,
-		});
-		return hint ? { systemPrompt: `${event.systemPrompt}\n\n${hint}` } : undefined;
-	});
+	pi.on("model_select", (event, ctx) => applyCapabilityHint(ctx, event.model));
 	pi.on("session_shutdown", () => runtime.shutdown());
 	registerSubagentsCommand(pi, toolActivation, runtime);
 	pi.registerCommand("agents", {
@@ -62,19 +103,6 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => showAgentDashboard(ctx, runtime.registry),
 	});
 
-	pi.registerTool(
-		createSpawnAgentTool(toolActivation, {
-			agents: runtime.agents,
-			profiles: runtime.profiles,
-			agentDir: runtime.agentDir,
-			admission: runtime.admission,
-			registry: runtime.registry,
-			ticks: runtime.ticks,
-			onBackgroundComplete: (summary) => runtime.handleBackgroundComplete(pi, summary),
-			onQuestion: (summary, question) => runtime.handleQuestion(pi, summary, question),
-			claimUsage: (summary) => runtime.claimUsage(summary),
-		}),
-	);
 	pi.registerTool(
 		createFollowupAgentTool(toolActivation, {
 			registry: runtime.registry,

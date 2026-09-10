@@ -31,6 +31,7 @@ test("a compact native entry locator restores and pages an exact result", async 
 	catalog.record("agent-1", locator);
 	let textRead = "";
 	let cursor: string | undefined;
+	let firstCursor: string | undefined;
 	do {
 		const page = await catalog.readResult("agent-1", {
 			maxBytes: 1_024,
@@ -39,8 +40,14 @@ test("a compact native entry locator restores and pages an exact result", async 
 		assert.ok(Buffer.byteLength(page.text) <= 1_024);
 		textRead += page.text;
 		cursor = page.next_cursor;
+		firstCursor ??= cursor;
 	} while (cursor);
 	assert.equal(textRead, text);
+	assert.ok(firstCursor);
+	await assert.rejects(
+		catalog.readResult("agent-1", { cursor: firstCursor, offset: 0, maxBytes: 1_024 }),
+		/Provide either cursor or offset, not both/,
+	);
 });
 
 test("a locator cannot treat a missing native result entry as an empty result", async (t) => {

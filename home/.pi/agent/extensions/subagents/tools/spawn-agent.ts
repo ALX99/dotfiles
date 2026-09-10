@@ -34,6 +34,12 @@ export interface SpawnAgentDependencies {
 	readonly onBackgroundComplete: (summary: AgentSummary) => void;
 	readonly onQuestion: (summary: AgentSummary, question: AgentQuestion) => void;
 	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
+	/**
+	 * Which models the advertised profiles resolve to for the parent's current model. Travels as a
+	 * guideline so it survives any extension that replaces the system prompt, and disappears with the
+	 * tool if the host or a mode disables this one.
+	 */
+	readonly capabilityHint?: string;
 }
 
 export function createSpawnAgentTool(
@@ -54,7 +60,7 @@ export function createSpawnAgentTool(
 			? [
 					{
 						name,
-						description: `${profile.description}. The effective model and permitted thinking range are resolved from the currently enabled scoped models.`,
+						description: profile.description,
 					},
 				]
 			: [];
@@ -69,6 +75,7 @@ export function createSpawnAgentTool(
 			allowedAgents,
 			allowedProfiles,
 			dependencies.profiles.rootPolicy.maxConcurrentRootAgents,
+			dependencies.capabilityHint,
 		),
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
@@ -226,33 +233,37 @@ export function spawnGuidelines(
 	agents: readonly Pick<AgentConfig, "name" | "description">[] = [],
 	profiles: readonly { readonly name: string; readonly description: string }[] = [],
 	rootLimit?: number,
+	capabilityHint?: string,
 ): string[] {
+	// The renderer prefixes only a guideline's first line, so role and profile
+	// entries are indented to stay nested under the sentence that introduces them.
 	const roleMap =
 		agents.length > 0
 			? `Choose the narrowest matching role:\n${agents
-					.map((agent) => `- ${agent.name}: ${agent.description}`)
+					.map((agent) => `  - ${agent.name}: ${agent.description}`)
 					.join("\n")}`
 			: undefined;
 	const profileMap =
 		profiles.length > 0
-			? `Choose the least expensive execution profile that can complete the work:\n${profiles
-					.map((profile) => `- ${profile.name}: ${profile.description}`)
+			? `Choose the least expensive execution profile that can complete the work. Each profile's model and permitted thinking range resolve from your enabled scoped models:\n${profiles
+					.map((profile) => `  - ${profile.name}: ${profile.description}`)
 					.join("\n")}`
 			: undefined;
 
 	return [
 		...(roleMap === undefined ? [] : [roleMap]),
 		...(profileMap === undefined ? [] : [profileMap]),
+		...(capabilityHint === undefined ? [] : [capabilityHint]),
 		"Select fast only for bounded mechanical or well-scoped implementation with a known path and criterion. Do not select it for debugging or root-cause analysis, review, design, ambiguous investigation, security/correctness decisions, or final synthesis. Balanced is the default for work requiring judgment; worker/general use fast only when these criteria clearly fit.",
 		...(rootLimit === undefined
 			? []
 			: [
 					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
 				]),
-		"Use foreground spawn_agent for one blocking task. For parallel background work, launch one wave and use wait_agents as one barrier on explicit targets; generations default to latest, so poll for progress with names, not bookkeeping. Do not build repeated automatic turns or a task scheduler.",
+		"Use subagents for independent work benefiting from parallelism, specialization, or isolation; handle simple, coupled, or single-file work directly. Once delegated, do not duplicate its assigned scope: do only non-overlapping work or wait. The current agent owns synthesis and proportionate final verification.",
+		"Use foreground spawn_agent for one blocking task, or background:true for a parallel wave; use wait_agents as one barrier on explicit targets. Generations default to latest, so poll for progress with names, not bookkeeping. Do not build repeated automatic turns or a task scheduler.",
 		"Address children by task_name (unique per session, stable across generations); agent_id works as an alias. Talk to children with flat verbs: followup_agent starts another task on a retained settled child, steer_agent guides a running generation at its next message boundary (generation required), answer_agent resolves a specific pending question (generation required). Never silently convert steering into followup or treat a generic message as a question answer.",
 		"Inspect status and capacity with agents_status; release a child with close_agent (aborts a running generation and disposes in one step; persisted results remain readable). Use read_agent_result with target for exact cursor-paged output; generation defaults to latest.",
-		"Use subagents for independent work benefiting from parallelism, specialization, or isolation; handle simple, coupled, or single-file work directly. Once delegated, do not duplicate its assigned scope: do only non-overlapping work or wait. The current agent owns synthesis and proportionate final verification.",
 		"For dependent, retry, review/fix, or replacement work, hand off only the factual delta: decisions, findings, exact paths/symbols, constraints, and validation. Children do not inherit the transcript. Keep message self-contained; do not repeat it or paste the transcript in handoff. Omit handoff for independent work.",
 		"For worker assignments, specify ownership, known concurrent edits, and required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
 		"Use scouts only for bounded read-only discovery, never implementation, broad exploration, or final review verdicts.",
