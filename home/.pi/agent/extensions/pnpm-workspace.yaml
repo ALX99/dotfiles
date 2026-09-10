@@ -5,9 +5,10 @@ strictPeerDependencies: true
 # dependency build script until it is reviewed.
 allowBuilds:
   "@google/genai": false
+  esbuild: false
   protobufjs: false
 
 # Exclude all Pi packages from pnpm's minimum-release-age gate so non-interactive
 # installs don't prompt on fresh Pi releases (version-independent).
 minimumReleaseAgeExclude:
-  - "@earendil-works/pi-*"
+  - "@earendil-works/*"
