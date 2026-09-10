@@ -2,7 +2,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { APPLY_PATCH_OPENAI_LARK_GRAMMAR, APPLY_PATCH_TOOL_DESCRIPTION, APPLY_PATCH_TOOL_NAME } from "./types.ts";
+import {
+	APPLY_PATCH_OPENAI_LARK_GRAMMAR,
+	APPLY_PATCH_TOOL_DESCRIPTION,
+	APPLY_PATCH_TOOL_GUIDELINES,
+	APPLY_PATCH_TOOL_NAME,
+	APPLY_PATCH_TOOL_SNIPPET,
+} from "./types.ts";
 
 const APPLY_PATCH_PARAMETERS = Type.Object(
 	{
@@ -80,6 +86,18 @@ class BoundedOutput {
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * A rejected patch is the engine's own diagnostic plus the exit status, matching what Codex
+ * prints when the same patch runs outside its pre-verified handler. Process-level failures keep
+ * the labeled capture below because those streams are Pi's only view of what went wrong.
+ */
+function patchFailure(output: Pick<CapturedProcess, "stdout" | "stderr" | "code" | "signal">): Error {
+	const status =
+		output.code === null ? `terminated by signal ${output.signal ?? "unknown"}` : `exited with status ${output.code}`;
+	const diagnostic = [output.stderr.trim(), output.stdout.trim()].filter((text) => text.length > 0).join("\n");
+	return new Error(diagnostic.length > 0 ? `${diagnostic}\napply_patch ${status}` : `apply_patch ${status}`);
 }
 
 function processFailure(headline: string, output: Pick<CapturedProcess, "stdout" | "stderr">, cause?: unknown): Error {
@@ -216,11 +234,7 @@ export async function runApplyPatchProcess(
 	if (stderrError !== undefined) {
 		throw processFailure(`Could not read apply_patch stderr: ${stderrError.message}`, result, stderrError);
 	}
-	if (result.code !== 0) {
-		const status =
-			result.code === null ? `terminated by signal ${result.signal ?? "unknown"}` : `exited with status ${result.code}`;
-		throw processFailure(`apply_patch ${status}`, result);
-	}
+	if (result.code !== 0) throw patchFailure(result);
 	return result;
 }
 
@@ -231,6 +245,8 @@ export function createApplyPatchTool(
 		name: APPLY_PATCH_TOOL_NAME,
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,
+		promptSnippet: APPLY_PATCH_TOOL_SNIPPET,
+		promptGuidelines: APPLY_PATCH_TOOL_GUIDELINES,
 		parameters: APPLY_PATCH_PARAMETERS,
 		// Codex registers apply_patch as an OpenAI custom/freeform tool. Keep
 		// that transport while leaving complete syntax validation to Codex.
@@ -250,8 +266,16 @@ export function createApplyPatchTool(
 	};
 }
 
-function isGptModel(model: { id?: string } | undefined): boolean {
-	return model?.id?.toLowerCase().includes("gpt") ?? false;
+/**
+ * Codex registers `apply_patch` from model metadata (`apply_patch_tool_type == "freeform"`),
+ * never from the model name. The Pi equivalent is the compat flag that makes the provider emit
+ * OpenAI custom tools with a Lark grammar; without it the tool would reach the model as an
+ * ordinary JSON function tool, which Codex has no equivalent of.
+ */
+export function supportsApplyPatchTransport(model: { compat?: unknown } | undefined): boolean {
+	const compat = model?.compat;
+	if (typeof compat !== "object" || compat === null) return false;
+	return (compat as { supportsOpenAIGrammarTools?: unknown }).supportsOpenAIGrammarTools === true;
 }
 
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
@@ -281,11 +305,8 @@ export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOpt
 		if (next !== active) pi.setActiveTools(next);
 	};
 
-	// The native Pi patch supplies raw Responses custom-tool transport only
-	// for the built-in ChatGPT OAuth Codex provider, so enable this tool for
-	// any GPT model regardless of provider.
-	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(isGptModel(ctx.model)));
-	pi.on("model_select", (event) => setCodexCompatToolsActive(isGptModel(event.model)));
+	pi.on("session_start", (_event, ctx) => setCodexCompatToolsActive(supportsApplyPatchTransport(ctx.model)));
+	pi.on("model_select", (event) => setCodexCompatToolsActive(supportsApplyPatchTransport(event.model)));
 }
 
 export default function codexCompatExtension(pi: ExtensionAPI): void {
