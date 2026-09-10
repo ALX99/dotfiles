@@ -79,7 +79,6 @@
 "pacman:swaybg" = {}
 "pacman:systemd-resolvconf" = {}
 "pacman:tailwindcss-language-server" = {}
-"pacman:tmux" = {}
 "pacman:tree" = {}
 "pacman:ttf-0xproto-nerd" = {}
 "pacman:ttf-cascadia-code" = {}
