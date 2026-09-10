@@ -1,165 +1,200 @@
-#!/usr/bin/env bash
-# Run a command with Codex's native sandbox and a generated permissions profile.
-set -euo pipefail
+#!/usr/bin/env bun
+// Run a command with srt's static policy plus workspace and host-specific rules.
+// vim: set ft=javascript:
 
-usage() {
-  cat <<'EOF'
-Usage: sbx [options] -- command [arguments...]
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
+import { existsSync, globSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-Run a command under `codex sandbox`. The command may read the filesystem, but
-may write only to the current workspace, the enclosing repository's .git
-directory, /tmp, ~/.pi, ~/.config, XDG state and
-cache directories, pnpm data, Android, Java, Kotlin, and Gradle state, Codex's
-temporary directories, and any additional directories named with --write.
+const home = homedir();
+const configPath = path.join(
+  process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"),
+  "sbx",
+  "settings.json",
+);
+
+function usage() {
+  process.stdout.write(`Usage: sbx [options] [--] command [arguments...]
+
+Run a command under the Anthropic Sandbox Runtime. The default policy allows
+unrestricted reads and network access, but limits writes to the policy's roots,
+the workspace, its Git metadata, /tmp, and the host temp directory.
 
 Options:
-  -w, --write DIR  Add a writable directory (repeatable)
-      --print      Print the generated Codex permissions profile and exit
-  -h, --help       Show this help
+  -w, --write DIR   Also allow writing to DIR (repeatable; symlinks resolved)
+  -h, --help        Show this help
 
-Examples:
-  sbx -- pi
-  sbx -w ../shared -- claude
-  sbx -- npm test
+Bun removes a leading -- before the script sees it, so the separator is
+optional and the first argument that is not an option starts the command. Use
+-- -- for a command whose name begins with a dash.
 
-Codex uses macOS sandbox-exec/Seatbelt behind this command on Apple platforms.
-EOF
+Policy: ${configPath.replace(home, "~")} (srt's native format).
+Its trustd.agent Mach lookup enables Go TLS verification; this wrapper adds
+ipc-sysv-sem for pi's LMDB databases. Paths are resolved (/tmp is /private/tmp).
+
+srt also denies writes under the launch directory to .git/hooks, .vscode/,
+.idea/, .mcp.json, .claude/commands/, .claude/agents/, and shell startup files
+such as .bashrc and .profile, even when they already exist; edit them outside
+sbx, since no write root can reopen them.
+`);
 }
 
-die() {
-  printf 'sbx: %s\n' "$*" >&2
-  exit 1
+function parseArgs(command) {
+  const writeRoots = [];
+  while (command.length > 0) {
+    const [arg] = command;
+    if (arg === "--") {
+      command.shift();
+      break;
+    }
+    if (!arg.startsWith("-")) break;
+    command.shift();
+    switch (arg) {
+      case "-w":
+      case "--write":
+        if (command.length === 0) throw new Error(`${arg} requires a directory`);
+        writeRoots.push(resolvePath(command.shift()));
+        break;
+      case "-h":
+      case "--help":
+        usage();
+        process.exit(0);
+      default:
+        throw new Error(`unknown option: ${arg}`);
+    }
+  }
+  if (command.length === 0) throw new Error("no command specified");
+  return { command, writeRoots };
 }
 
-resolve_dir() {
-  local path=$1 resolved
-
-  [[ -d $path ]] || die "directory does not exist: $path"
-  resolved=$(cd -P -- "$path" && pwd)
-  if [[ $resolved == *'"'* || $resolved =~ [[:cntrl:]] ]]; then
-    die "Codex cannot use a writable path containing quotes or control characters: $resolved"
-  fi
-  printf '%s\n' "$resolved"
+// Seatbelt matches symlink targets, not the paths used to reach them.
+function resolvePath(dir) {
+  try {
+    return realpathSync(dir);
+  } catch {
+    throw new Error(`directory does not exist: ${dir}`);
+  }
 }
 
-append_unique_root() {
-  local root=$1 existing
-
-  for existing in "${writable_roots[@]}"; do
-    [[ $root != "$existing" ]] || return 0
-  done
-  writable_roots+=("$root")
+function commandOutput(command, args) {
+  return execFileSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
-append_existing_root() {
-  local root=$1
-
-  [[ ! -d $root ]] || append_unique_root "$(resolve_dir "$root")"
+function gitDirs() {
+  try {
+    // A worktree needs both its own metadata and the shared repository.
+    return commandOutput("git", [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-dir",
+      "--git-common-dir",
+    ])
+      .split("\n")
+      .filter((dir) => existsSync(dir))
+      .map(resolvePath);
+  } catch {
+    return []; // Outside a repository, the workspace is enough.
+  }
 }
 
-toml_quote() {
-  local value=$1
+function readPolicy(writeRoots) {
+  let policy;
+  try {
+    policy = JSON.parse(readFileSync(configPath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") throw new Error(`no policy at ${configPath}`);
+    throw new Error(`policy is not valid JSON (${configPath}): ${error.message}`);
+  }
+  if (!Array.isArray(policy?.filesystem?.allowWrite)) {
+    throw new Error(`policy has no filesystem.allowWrite list: ${configPath}`);
+  }
 
-  # resolve_dir rejects quotes and control characters, so backslash is the
-  # only character that needs escaping inside the TOML string.
-  value=${value//\\/\\\\}
-  printf '"%s"' "$value"
+  // Native APIs still use the host temp directory after srt rewrites $TMPDIR.
+  policy.filesystem.allowWrite = [
+    ...new Set([
+      ...policy.filesystem.allowWrite,
+      resolvePath(process.cwd()),
+      ...gitDirs(),
+      ...["/tmp", tmpdir()].filter((dir) => existsSync(dir)).map(resolvePath),
+      ...writeRoots,
+    ]),
+  ];
+  return policy;
 }
 
-print_profile=false
-writable_roots=()
-state=${XDG_STATE_HOME:-$HOME/.local/state}
-cache=${XDG_CACHE_HOME:-$HOME/.cache}
-pnpm_home=${PNPM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/pnpm}
-append_unique_root "$(resolve_dir /tmp)"
-append_unique_root "$(resolve_dir "$HOME/.pi")"
-append_unique_root "$(resolve_dir "$HOME/.config")"
-# The enclosing repository's metadata may sit above the working directory
-# (running from a subdirectory) or point elsewhere (linked worktrees), so
-# resolve it instead of assuming "$PWD/.git".
-if git_dir=$(git -C "$PWD" rev-parse --absolute-git-dir 2>/dev/null); then
-  append_existing_root "$git_dir"
-fi
-if git_common_dir=$(git -C "$PWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
-  append_existing_root "$git_common_dir"
-fi
-append_existing_root "$state"
-append_existing_root "$cache"
-append_existing_root "$pnpm_home"
-append_existing_root "$HOME/.cache"
-append_existing_root "$HOME/Library/Caches"
-append_existing_root "$HOME/.gradle"
-append_existing_root "${ANDROID_USER_HOME:-$HOME/.android}"
-append_existing_root "${ANDROID_AVD_HOME:-}"
-append_existing_root "$HOME/Library/Application Support/kotlin"
-append_existing_root "${JAVA_HOME:-}"
-if [[ -x /usr/libexec/java_home ]]; then
-  append_existing_root "$(/usr/libexec/java_home 2>/dev/null || true)"
-fi
-for java_home in \
-  /opt/homebrew/opt/openjdk*/libexec/*.jdk/Contents/Home \
-  /usr/local/opt/openjdk*/libexec/*.jdk/Contents/Home; do
-  append_existing_root "$java_home"
-done
+function configureEnvironment(command) {
+  const env = process.env;
+  // Herdr sees this wrapper, not the agent it launches.
+  if (path.basename(command[0]) === "pi") env.HERDR_AGENT = "pi";
 
-while (($#)); do
-  case $1 in
-  -w | --write)
-    (($# >= 2)) || die "$1 requires a directory"
-    resolved_root=$(resolve_dir "$2") || exit
-    append_unique_root "$resolved_root"
-    shift 2
-    ;;
-  --print)
-    print_profile=true
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    die "unknown option: $1"
-    ;;
-  *)
-    die "expected -- before the command"
-    ;;
-  esac
-done
+  // Headless + single-process avoids Chromium's LaunchServices and Mach
+  // rendezvous requirements. Prefer the most recently installed shell.
+  if (!env.AGENT_BROWSER_EXECUTABLE_PATH) {
+    const shells = globSync(
+      path.join(
+        home,
+        "Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell",
+      ),
+    ).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    if (shells.length > 0) env.AGENT_BROWSER_EXECUTABLE_PATH = shells[0];
+  }
+  env.AGENT_BROWSER_SOCKET_DIR ??= path.join(
+    env.XDG_STATE_HOME ?? path.join(home, ".local/state"),
+    "agent-browser",
+  );
+  env.AGENT_BROWSER_ARGS = [env.AGENT_BROWSER_ARGS, "--single-process"].filter(Boolean).join(",");
+}
 
-command -v codex >/dev/null || die "codex is required"
-if ! "$print_profile" && (($# == 0)); then
-  die "no command specified"
-fi
+async function main() {
+  const { command, writeRoots } = parseArgs(process.argv.slice(2));
+  const policy = readPolicy(writeRoots);
+  configureEnvironment(command);
 
-# Codex is the visible foreground process when it wraps an agent, so preserve
-# the actual agent identity for Herdr's process detection.
-if (($# > 0)) && [[ ${1##*/} == pi ]]; then
-  export HERDR_AGENT=pi
-fi
+  // The library permits unrestricted networking; the CLI requires an allowlist.
+  let installDir;
+  try {
+    installDir = commandOutput("mise", ["where", "npm:@anthropic-ai/sandbox-runtime"]);
+  } catch {
+    throw new Error("srt is required: mise use -g npm:@anthropic-ai/sandbox-runtime");
+  }
+  const pkg = pathToFileURL(path.join(installDir, "node_modules/@anthropic-ai/sandbox-runtime/"));
+  const { SandboxManager } = await import(new URL("dist/index.js", pkg).href);
+  // Use srt's quoting so arguments survive the shell layer it adds.
+  const { quote } = await import(new URL("dist/utils/shell-quote.js", pkg).href);
 
-# Extend Codex's built-in workspace profile instead of maintaining a Seatbelt
-# policy here. Codex supplies the workspace and temporary write roots, protects
-# sensitive workspace metadata, and selects the platform sandbox implementation.
-# writable_roots is seeded with /tmp, ~/.pi, and ~/.config before option
-# parsing, so workspace_roots is always emitted.
-profile='{ extends = ":workspace", workspace_roots = {'
-for path in "${writable_roots[@]}"; do
-  profile+=" $(toml_quote "$path") = true,"
-done
-profile+=' }, network = { enabled = true } }'
+  await SandboxManager.initialize(policy);
+  const wrapped = await SandboxManager.wrapWithSandbox(quote(command));
 
-if "$print_profile"; then
-  printf 'permissions.sbx = %s\n' "$profile"
-  exit 0
-fi
+  // LMDB needs semctl, which srt omits. Deliberately allow the host-wide
+  // System V semaphore namespace, but fail closed if the profile format changes.
+  const head = "sandbox-exec -p '(version 1)\n";
+  if (!wrapped.includes(head)) {
+    throw new Error(
+      "srt no longer emits the Seatbelt profile this wrapper patches; refusing to run without the ipc-sysv-sem rule",
+    );
+  }
 
-XDG_STATE_HOME="$state" XDG_CACHE_HOME="$cache" exec codex sandbox \
-  -C "$PWD" \
-  -c "permissions.sbx=$profile" \
-  -P sbx \
-  -- "$@"
+  // Keep the runtime alive for any proxies required by the policy.
+  const child = spawn("/bin/bash", ["-c", wrapped.replace(head, `${head}(allow ipc-sysv-sem)\n`)], {
+    stdio: "inherit",
+  });
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.on(signal, () => child.kill(signal));
+  }
+  const [code, signal] = await once(child, "exit");
+  if (!signal) process.exit(code ?? 1);
+  // Let the caller observe signal death without our handlers absorbing it.
+  process.removeAllListeners(signal);
+  process.kill(process.pid, signal);
+}
+
+main().catch((error) => {
+  console.error(`sbx: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});

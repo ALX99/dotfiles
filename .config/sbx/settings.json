@@ -1,0 +1,27 @@
+{
+  "filesystem": {
+    "allowWrite": [
+      "/private/tmp",
+      "~/.pi",
+      "~/.config",
+      "~/.agent-browser",
+      "~/.local/state",
+      "~/.local/share",
+      "~/.cache",
+      "~/Library/Caches",
+      "~/.gradle",
+      "~/.android",
+      "~/Library/Application Support/kotlin",
+      "/Library/Java/JavaVirtualMachines/*/Contents/Home",
+      "/opt/homebrew/opt/openjdk*/libexec/*.jdk/Contents/Home",
+      "/usr/local/opt/openjdk*/libexec/*.jdk/Contents/Home"
+    ],
+    "allowGitConfig": true
+  },
+  "network": {
+    "allowAllUnixSockets": true,
+    "allowLocalBinding": true,
+    "allowMachLookup": ["com.apple.trustd.agent"]
+  },
+  "allowPty": true
+}
