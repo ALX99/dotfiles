@@ -38,8 +38,11 @@ zig = "latest"
 "aqua:BurntSushi/ripgrep" = "latest"
 "aqua:tree-sitter/tree-sitter" = "latest"
 "aqua:neovim/neovim" = "latest"
+# tmux ships official static builds; Linux keeps its pacman package (mise.linux.toml).
+"aqua:tmux/tmux-builds" = { version = "latest", os = ["macos"] }
 "aqua:mikefarah/yq" = "latest"
 "aqua:jdx/usage" = "latest" # mise's generated shell completions shell out to it
+"npm:@anthropic-ai/sandbox-runtime" = "latest"
 
 [settings]
 minimum_release_age = "24h"

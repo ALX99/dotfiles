@@ -15,7 +15,6 @@
 "brew:grep" = {}
 "brew:htop" = {}
 "brew:stow" = {}
-"brew:tmux" = {}
 "brew:tree" = {}
 
 [bootstrap.directories]
