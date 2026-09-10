@@ -112,15 +112,36 @@ export function rewriteSkillPrompt(
 
 function restoreState(state: RuntimeState, ctx: ExtensionContext): void {
 	state.skills = [];
-	state.selection.clear();
+	state.selection = readSelection(ctx) ?? new Map();
+}
 
+/** The branch's most recently recorded selection, or undefined when it records none. */
+function readSelection(ctx: ExtensionContext): Map<string, boolean> | undefined {
+	let selection: Map<string, boolean> | undefined;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type !== "custom" || entry.customType !== SKILLS_STATE_ENTRY) continue;
 		const persisted = parsePersistedState(entry.data);
 		if (persisted === undefined) continue;
 		const enabledNames = new Set(persisted.enabledNames);
-		state.selection = new Map(persisted.knownNames.map((name) => [name, enabledNames.has(name)]));
+		selection = new Map(persisted.knownNames.map((name) => [name, enabledNames.has(name)]));
 	}
+	return selection;
+}
+
+/**
+ * The model-visible skill names this branch exposes. Read from the same durable entries `/skills`
+ * writes, so a prompt renderer can honor the selection without sharing state with this extension.
+ * Resolved against the supplied inventory, so a skill added after the selection was recorded keeps
+ * its default of enabled.
+ */
+export function enabledModelSkillNames(ctx: ExtensionContext, skills: readonly Skill[]): ReadonlySet<string> {
+	const selection = readSelection(ctx);
+	return new Set(
+		skills
+			.filter(isModelInvocable)
+			.filter((skill) => selection?.get(skill.name) ?? true)
+			.map((skill) => skill.name),
+	);
 }
 
 /** Reconcile restored and live selections through the same inventory boundary. */
