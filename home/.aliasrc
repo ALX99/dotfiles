@@ -31,7 +31,11 @@ alias \
 # =============================================================================
 # Better defaults
 # =============================================================================
+# GNU coreutils, findutils, gawk, sed, tar, grep, and diffutils come first in
+# PATH on macOS (see .profile), so these aliases only add flags.
 alias \
+  ls="ls -hN --color=auto --group-directories-first" \
+  ll="ls -hNlA --color=auto" \
   grep="grep --color=auto" \
   diff="diff --color=auto" \
   ip="ip -color=auto" \
@@ -99,21 +103,6 @@ alias \
   pf.='rg --files --hidden | fzf --preview "bat --color=always --style=numbers --line-range :200 {}"' \
   ef="nvim -c \"lua vim.schedule(function() require('fff').find_files({ query = '!**/.* ' }) end)\"" \
   ef.="nvim -c \"lua vim.schedule(function() require('fff').find_files() end)\""
-
-# =============================================================================
-# Platform-specific aliases
-# =============================================================================
-if [[ $OSTYPE == darwin* ]]; then
-  alias \
-    ls="gls -hN --color=auto --group-directories-first" \
-    ll="gls -hNlA --color=auto" \
-    find="gfind" \
-    sed="gsed"
-else
-  alias \
-    ls="ls -hN --color=auto --group-directories-first" \
-    ll="ls -hNlA --color=auto"
-fi
 
 # =============================================================================
 # Functions

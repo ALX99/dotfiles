@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Extract archive into a directory named after the archive, unless the
 # archive already contains a single top-level entry (in which case it
-# extracts in place). GNU tar handles the multi-root case with
-# --one-top-level; BSD tar needs the destination selected explicitly.
+# extracts in place). Relies on GNU tar (see home/.profile) for
+# --one-top-level.
 
 set -euo pipefail
 
@@ -23,17 +23,12 @@ case "$name" in
 esac
 
 extract_tar() {
-  local tar_command=tar
-  if command -v gtar >/dev/null 2>&1; then
-    tar_command=gtar
-  fi
-
   # Count distinct top-level entries so that archives with one root are
   # extracted in place and multi-root archives are kept together under the
   # archive name.
   local top_level_count
   top_level_count=$(
-    "$tar_command" tf "$1" |
+    tar tf "$1" |
       awk '
         {
           entry = $0
@@ -49,14 +44,9 @@ extract_tar() {
   )
 
   if ((top_level_count > 1)); then
-    if [[ $tar_command == gtar ]]; then
-      "$tar_command" xf "$1" --one-top-level="$name"
-    else
-      mkdir -p "$name"
-      "$tar_command" xf "$1" -C "$name"
-    fi
+    tar xf "$1" --one-top-level="$name"
   else
-    "$tar_command" xf "$1"
+    tar xf "$1"
   fi
 }
 

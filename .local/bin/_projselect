@@ -4,10 +4,7 @@ set -euo pipefail
 
 PROJ_DIR="${PROJ_DIR:-$HOME/projects}"
 
-find_cmd='find'
-[ "$(uname -s)" = "Darwin" ] && command -v gfind >/dev/null 2>&1 && find_cmd=gfind
-
-selection="$("$find_cmd" "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d \
+selection="$(find "$PROJ_DIR" -mindepth 1 -maxdepth 1 -type d \
   -exec basename {} \; |
   fzf --preview-window='up,60%' \
     --preview "git -C \"$PROJ_DIR/{}\" log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit")"

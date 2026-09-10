@@ -34,7 +34,19 @@ EDITOR="nvim"
 # Platform-specific
 # =============================================================================
 if [ "$__kernel_name" = "Darwin" ]; then
-  PATH="/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
+  # GNU tools are the default for every process, not only interactive shells:
+  # aliases never reach non-interactive bash (scripts, editors, coding agents),
+  # while PATH does. Homebrew ships each GNU package's unprefixed tools in
+  # libexec/gnubin, so these directories outrank /usr/bin and the BSD cat,
+  # sed, find, tar, and grep. Uninstalled packages are skipped.
+  __gnu_bins=
+  for __gnu_pkg in coreutils findutils gawk gnu-sed gnu-tar grep; do
+    __gnu_dir="/opt/homebrew/opt/$__gnu_pkg/libexec/gnubin"
+    [ -d "$__gnu_dir" ] && __gnu_bins="$__gnu_bins:$__gnu_dir"
+  done
+  PATH="${__gnu_bins#:}:/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
+  unset __gnu_bins __gnu_dir __gnu_pkg
+
   USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
   XDG_CACHE_HOME="$HOME/Library/Caches"
@@ -109,3 +121,7 @@ fi
 
 # shellcheck source=/dev/null
 [ -n "$BASH_VERSION" ] && [ -f ~/.bashrc ] && . ~/.bashrc
+
+# >>> Codex installer >>>
+export PATH="/Users/dozy/.local/bin:$PATH"
+# <<< Codex installer <<<
