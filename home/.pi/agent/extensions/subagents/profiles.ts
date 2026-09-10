@@ -66,13 +66,16 @@ export const RootPolicySchema = z.strictObject({
 	maxConcurrentRootAgents: z.number().int().min(1),
 });
 
-export const ProfilesSchema = z.strictObject({
-	rootPolicy: RootPolicySchema,
-	profiles: z.record(configKey("profile name"), ProfileSchema),
-	agentPolicies: z.record(configKey("agent name"), AgentPolicySchema),
-	/** Optional weakest-to-strongest ordering used only for capability-hint wording. Unlisted models degrade to neutral advice. */
-	capabilityRanking: z.array(ModelIdSchema).optional(),
-});
+/** Compiled: `z.compile()` validates valid input on a generated fast path; errors still come from the standard parser. */
+export const ProfilesSchema = z.compile(
+	z.strictObject({
+		rootPolicy: RootPolicySchema,
+		profiles: z.record(configKey("profile name"), ProfileSchema),
+		agentPolicies: z.record(configKey("agent name"), AgentPolicySchema),
+		/** Optional weakest-to-strongest ordering used only for capability-hint wording. Unlisted models degrade to neutral advice. */
+		capabilityRanking: z.array(ModelIdSchema).optional(),
+	}),
+);
 
 export type ProfilesConfig = z.infer<typeof ProfilesSchema>;
 

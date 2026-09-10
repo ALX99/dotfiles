@@ -17,14 +17,17 @@ export interface AgentConfig {
 
 const nonBlank = (label: string) => z.string().trim().min(1, `${label} must not be blank`);
 
-export const AgentFrontmatterSchema = z.strictObject({
-	name: nonBlank("name").refine(
-		(name) => !/[\s\p{C}]/u.test(name),
-		"name must not contain whitespace or control characters",
-	),
-	description: nonBlank("description"),
-	tools: z.array(nonBlank("tool")).min(1, "tools must contain at least one tool"),
-});
+/** Compiled: `z.compile()` validates valid input on a generated fast path; errors still come from the standard parser. */
+export const AgentFrontmatterSchema = z.compile(
+	z.strictObject({
+		name: nonBlank("name").refine(
+			(name) => !/[\s\p{C}]/u.test(name),
+			"name must not contain whitespace or control characters",
+		),
+		description: nonBlank("description"),
+		tools: z.array(nonBlank("tool")).min(1, "tools must contain at least one tool"),
+	}),
+);
 
 export type DiscoverError =
 	| { kind: "read_dir"; dir: string; cause: NodeJS.ErrnoException }
