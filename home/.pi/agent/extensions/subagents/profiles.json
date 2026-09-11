@@ -3,8 +3,9 @@
 		"maxConcurrentRootAgents": 10
 	},
 	"capabilityRanking": [
-		"opencode/muse-spark-1.3-contributor-free",
 		"openai-codex/gpt-5.6-luna",
+		"opencode/muse-spark-1.3-contributor-free",
+		"commandcode/deepseek/deepseek-v4.1-flash",
 		"openai-codex/gpt-5.6-terra",
 		"openai-codex/gpt-5.6-sol",
 		"openai-codex/gpt-5.6-astra"
@@ -13,8 +14,9 @@
 		"fast": {
 			"description": "Fast, economical bounded mechanical work, well-scoped implementation, lookups, or bulk simple changes with known success criteria",
 			"modelPriority": [
-				{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" },
-				{ "id": "opencode/muse-spark-1.3-contributor-free", "defaultThinking": "xhigh", "maxThinking": "xhigh" }
+				{ "id": "commandcode/deepseek/deepseek-v4.1-flash", "defaultThinking": "high", "maxThinking": "max" },
+				{ "id": "opencode/muse-spark-1.3-contributor-free", "defaultThinking": "xhigh", "maxThinking": "xhigh" },
+				{ "id": "openai-codex/gpt-5.6-luna", "defaultThinking": "xhigh", "maxThinking": "max" }
 			]
 		},
 		"balanced": {
