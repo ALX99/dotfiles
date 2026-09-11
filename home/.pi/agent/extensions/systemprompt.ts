@@ -35,6 +35,8 @@ const SKILL_INSTRUCTIONS =
 const READ_PATH_GUIDELINE =
 	"read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.";
 
+const CONVENTIONAL_COMMITS_GUIDELINE = "Use Conventional Commits when committing.";
+
 /**
  * Pi's built-in bash snippet names the search tools the model would otherwise reach for in a shell.
  * This host installs ripgrep and fd, so the catalog names those instead. Keys win over the snippet
@@ -103,6 +105,8 @@ function namesTool(guideline: string, tool: string): boolean {
 function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<string, string>): string {
 	const guidelines = new Set((options.promptGuidelines ?? []).map((guideline) => guideline.trim()));
 	if ((options.selectedTools ?? []).includes("read")) guidelines.add(READ_PATH_GUIDELINE);
+	// Commits go through bash, so the rule is dead weight without it.
+	if ((options.selectedTools ?? []).includes("bash")) guidelines.add(CONVENTIONAL_COMMITS_GUIDELINE);
 	const lines = [...guidelines]
 		.filter((guideline) => guideline.length > 0 && !SUPPRESSED_GUIDELINES.has(guideline))
 		.map((guideline) => `- ${attributeGuideline(guideline, owners)}`);

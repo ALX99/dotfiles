@@ -177,6 +177,7 @@ test("guidelines render in order, skipping blanks and duplicates", () => {
 		"- Only tools rule",
 		"- Second rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+		"- Use Conventional Commits when committing.",
 	]);
 });
 
@@ -235,18 +236,19 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- Only tools rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+		"- Use Conventional Commits when committing.",
 	]);
 });
 
-test("dropping the PI_* guideline alone leaves the section empty", () => {
+test("dropping the PI_* guideline alone leaves only the renderer's own rules", () => {
 	const prompt = build({
 		promptGuidelines: ["You can inspect PI_* environment variables for current model and session details."],
 	});
 
-	assert.equal(
-		section(prompt, "Guidelines:"),
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-	);
+		"- Use Conventional Commits when committing.",
+	]);
 });
 
 test("the two fixed lines Pi always adds are not re-emitted", () => {
@@ -262,6 +264,7 @@ test("a contributor may still supply either fixed line itself", () => {
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- Be concise in your responses",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+		"- Use Conventional Commits when committing.",
 	]);
 });
 
@@ -298,6 +301,11 @@ test("the read guideline documents home-relative paths", () => {
 		/^- read: Paths beginning with `~\/` are supported; use them instead of guessing an absolute home directory\.$/m,
 	);
 	assert.doesNotMatch(build({ selectedTools: ["bash"] }), /Paths beginning with `~\//);
+});
+
+test("the commit guideline appears only when bash can make a commit", () => {
+	assert.match(build(), /^- Use Conventional Commits when committing\.$/m);
+	assert.doesNotMatch(build({ selectedTools: ["read"] }), /Conventional Commits/);
 });
 
 test("multi-line skill descriptions collapse to a single bullet", () => {
@@ -452,6 +460,7 @@ test("the prompt attributes ambiguous guidelines to their owning tool", async ()
 		"- spawn_agent: Live-agent capacity is 10 root children total.",
 		"- Use edit for precise changes",
 		"- Use bash for file operations",
+		"- Use Conventional Commits when committing.",
 	]);
 });
 
