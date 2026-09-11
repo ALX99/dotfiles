@@ -44,6 +44,7 @@ node_modules/
 .cursor/
 .superpowers/
 .worktrees/
+AGENTS.override.md
 
 # OS artifacts
 Desktop.ini
