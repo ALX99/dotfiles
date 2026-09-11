@@ -136,12 +136,6 @@ width = "90%"
 height = "80%"
 
 [[keys.command]]
-key = "prefix+u"
-type = "plugin_action"
-command = "dotfiles.git-main-status.refresh"
-description = "fetch and safely pull open worktrees"
-
-[[keys.command]]
 key = "prefix+p"
 type = "plugin_action"
 command = "dotfiles.git-pr-status.refresh"

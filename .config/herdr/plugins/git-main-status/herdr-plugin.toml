@@ -8,20 +8,8 @@ platforms = ["macos", "linux"]
 [[startup]]
 command = ["python3", "refresh.py", "refresh-all"]
 
-[[actions]]
-id = "refresh"
-title = "Fetch and pull open repositories"
-contexts = ["workspace"]
-command = ["python3", "refresh.py", "refresh-all", "--notify"]
-
-[[events]]
-on = "workspace.created"
-command = ["python3", "refresh.py", "refresh-workspace"]
-
+# Interactive creation and worktree opens focus the new workspace, so one
+# hook covers all of them; extra hooks would race each other on one repo.
 [[events]]
 on = "workspace.focused"
-command = ["python3", "refresh.py", "refresh-workspace"]
-
-[[events]]
-on = "worktree.opened"
 command = ["python3", "refresh.py", "refresh-workspace"]

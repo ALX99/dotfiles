@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Fetch upstream refs and safely pull open checkouts.
 
-Fetches every open repository so Herdr can render its native Git status,
-then fast-forwards or rebases each open checkout onto its tracking branch.
-A checkout only moves when the update applies cleanly; dirty worktrees,
-conflicting rebases, and in-progress operations are left alone and
-reported as skipped.
+The plugin refreshes the focused workspace whenever focus changes, and every
+open workspace once at startup. A repository is fetched once, then its
+checkout advances onto the tracking branch: fast-forward when possible,
+otherwise a rebase of the local commits. A checkout only moves when the
+update applies cleanly; dirty worktrees, conflicting rebases, and
+in-progress operations are left alone and reported as skipped.
 """
 
 from __future__ import annotations
@@ -25,7 +26,6 @@ from herdrlib import (  # noqa: E402
     git_repo,
     git_text,
     herdr_json,
-    notify,
     workspace_get,
     workspace_id_from_context,
     workspace_list,
@@ -172,34 +172,35 @@ def abort_rebase(repo: Path) -> None:
     git_run(repo, ["rebase", "--abort"], timeout=10)
 
 
-def pull_checkout(repo: Path) -> tuple[str, str | None]:
+def pull_checkout(repo: Path) -> str | None:
     """Advance one checkout onto its tracking branch when it is safe.
 
-    Returns a (status, reason) pair; only hard failures raise PluginError.
-    Anything needing a human (dirty tree, conflicting rebase, unfinished
-    operation) comes back as skipped so the caller leaves it untouched.
+    Returns None when the checkout was updated or there is nothing to do
+    (already current, no upstream, no commits yet). Returns a short reason
+    when it was left untouched and a human should look. Only hard failures
+    raise PluginError.
     """
     if not git_text(repo, ["branch", "--show-current"]):
-        return "skipped", "detached HEAD"
+        return "detached HEAD"
     if (
         git_text(repo, ["rev-parse", "--verify", "--symbolic-full-name", "@{u}"])
         is None
     ):
-        return "ignored", None
+        return None
     busy = operation_in_progress(repo)
     if busy is not None:
-        return "skipped", busy
+        return busy
     if has_tracked_changes(repo):
-        return "skipped", "uncommitted changes"
+        return "uncommitted changes"
     if git_text(repo, ["rev-parse", "--verify", "HEAD"]) is None:
-        return "ignored", None
+        return None
 
     counts = ahead_behind(repo)
     if counts is None:
         raise PluginError("could not compare with upstream")
     ahead, behind = counts
     if behind == 0:
-        return "current", None
+        return None
 
     if ahead == 0:
         fast_forward = git_run(
@@ -212,7 +213,7 @@ def pull_checkout(repo: Path) -> tuple[str, str | None]:
             raise PluginError(
                 shorten_error(message) if message else "fast-forward failed"
             )
-        return "pulled", None
+        return None
 
     rebased = git_run(
         repo,
@@ -220,19 +221,16 @@ def pull_checkout(repo: Path) -> tuple[str, str | None]:
         timeout=PULL_TIMEOUT_SECONDS,
     )
     if rebased.returncode == 0:
-        return "pulled", None
+        return None
     abort_rebase(repo)
     message = rebased.stderr.strip() or rebased.stdout.strip()
     detail = shorten_error(message) if message else "automatic rebase failed"
-    return "skipped", f"needs manual rebase ({detail})"
+    return f"needs manual rebase ({detail})"
 
 
-def refresh(workspaces: Sequence[Workspace], *, notify_user: bool) -> int:
+def refresh(workspaces: Sequence[Workspace]) -> int:
     failures: list[str] = []
     skipped: list[str] = []
-    updated = 0
-    pulled = 0
-    current = 0
     # Fetch state per shared repository: target -> failure message or None.
     # Pulls run per checkout (each worktree tracks its own branch), while
     # fetches are deduplicated per shared repository.
@@ -266,30 +264,15 @@ def refresh(workspaces: Sequence[Workspace], *, notify_user: bool) -> int:
                         failures.append(f"{workspace.label}: {error}")
                     else:
                         fetched[target] = None
-                        updated += 1
                 if fetched[target] is not None:
                     continue
-            status, reason = pull_checkout(repo)
+            reason = pull_checkout(repo)
         except (PluginError, OSError) as error:
             failures.append(f"{workspace.label}: {error}")
             continue
-        if status == "pulled":
-            pulled += 1
-        elif status == "current":
-            current += 1
-        elif status == "skipped":
+        if reason is not None:
             skipped.append(f"{workspace.label}: {reason}")
 
-    if notify_user:
-        body = (
-            f"Refreshed {updated} repositories, "
-            f"pulled {pulled} ({current} up to date)"
-        )
-        if skipped:
-            body += f"; {len(skipped)} skipped"
-        if failures:
-            body += f"; {len(failures)} failed"
-        notify("Git status refreshed", body)
     details = failures + [f"skipped {entry}" for entry in skipped]
     if details:
         print("\n".join(details), file=sys.stderr)
@@ -297,40 +280,25 @@ def refresh(workspaces: Sequence[Workspace], *, notify_user: bool) -> int:
     return 0
 
 
-USAGE = "usage: refresh.py refresh-all [--notify] | refresh-workspace"
+USAGE = "usage: refresh.py refresh-all | refresh-workspace"
 
 
 def main(argv: Sequence[str]) -> int:
     if not argv or argv[0] in {"-h", "--help"}:
         print(USAGE)
         return 0
+    if len(argv) != 1:
+        raise PluginError(f"unexpected arguments: {' '.join(argv[1:])}")
 
     action = argv[0]
-    notify_user = "--notify" in argv[1:]
-    if action not in {"refresh-all", "refresh-workspace"}:
-        raise PluginError(f"unknown action: {action}")
-
-    if notify_user:
-        progress = (
-            "Fetching and pulling open repositories..."
-            if action == "refresh-all"
-            else "Fetching and pulling the focused repository..."
-        )
-        notify("Updating Git status", progress)
-
-    try:
-        if action == "refresh-workspace":
-            workspace_id = workspace_id_from_context()
-            if not workspace_id:
-                raise PluginError("workspace event did not include a workspace id")
-            workspaces = [workspace_record(workspace_get(workspace_id))]
-        else:
-            workspaces = all_workspaces()
-        return refresh(workspaces, notify_user=notify_user)
-    except (PluginError, OSError) as error:
-        if notify_user:
-            notify("Git status refresh failed", str(error))
-        raise
+    if action == "refresh-workspace":
+        workspace_id = workspace_id_from_context()
+        if not workspace_id:
+            raise PluginError("workspace event did not include a workspace id")
+        return refresh([workspace_record(workspace_get(workspace_id))])
+    if action == "refresh-all":
+        return refresh(all_workspaces())
+    raise PluginError(f"unknown action: {action}")
 
 
 if __name__ == "__main__":

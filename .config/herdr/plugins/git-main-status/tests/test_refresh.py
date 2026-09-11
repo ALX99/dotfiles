@@ -21,8 +21,6 @@ STUB_HERDR = """#!/usr/bin/env python3
 import json, sys
 from pathlib import Path
 here = Path(__file__).parent
-with (here / "herdr.log").open("a") as fh:
-    fh.write(json.dumps(sys.argv[1:]) + "\\n")
 if sys.argv[1:3] == ["workspace", "list"]:
     payload = json.loads((here / "workspace-list.json").read_text())
     print(json.dumps({"result": payload}))
@@ -125,6 +123,83 @@ class RepositoryIdentityTest(unittest.TestCase):
         )
 
 
+class PullCheckoutTest(unittest.TestCase):
+    """A checkout moves only when the update applies cleanly."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.fixture = RepoFixture(self.tmp)
+        self.work = self.fixture.work
+        self.upstream = self.tmp / "upstream"
+        subprocess.run(
+            ("git", "clone", str(self.fixture.origin), str(self.upstream)),
+            check=True,
+            capture_output=True,
+        )
+
+    def advance_origin(self, content: str = "remote\n") -> None:
+        (self.upstream / "file.txt").write_text(content)
+        git("commit", "-am", "remote change", cwd=self.upstream)
+        git("push", cwd=self.upstream)
+        # refresh() fetches before comparing, so mirror that here.
+        git("fetch", "--quiet", "origin", cwd=self.work)
+
+    def head(self) -> str:
+        result = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.work,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
+        )
+        return result.stdout.strip()
+
+    def test_fast_forwards_a_clean_checkout(self) -> None:
+        self.advance_origin()
+
+        self.assertIsNone(refresh.pull_checkout(self.work))
+        self.assertEqual((self.work / "file.txt").read_text(), "remote\n")
+
+    def test_rebases_local_commits_onto_upstream(self) -> None:
+        (self.work / "local.txt").write_text("local\n")
+        git("add", ".", cwd=self.work)
+        git("commit", "-m", "local", cwd=self.work)
+        self.advance_origin()
+
+        self.assertIsNone(refresh.pull_checkout(self.work))
+        self.assertIsNone(refresh.operation_in_progress(self.work))
+        self.assertEqual((self.work / "file.txt").read_text(), "remote\n")
+        self.assertEqual((self.work / "local.txt").read_text(), "local\n")
+
+    def test_leaves_a_dirty_checkout_untouched(self) -> None:
+        self.advance_origin()
+        (self.work / "file.txt").write_text("dirty\n")
+        before = self.head()
+
+        self.assertEqual(refresh.pull_checkout(self.work), "uncommitted changes")
+        self.assertEqual(self.head(), before)
+        self.assertEqual((self.work / "file.txt").read_text(), "dirty\n")
+
+    def test_rolls_back_a_conflicting_rebase(self) -> None:
+        self.advance_origin("remote\n")
+        (self.work / "file.txt").write_text("local\n")
+        git("commit", "-am", "local", cwd=self.work)
+        before = self.head()
+
+        reason = refresh.pull_checkout(self.work)
+
+        self.assertIn("needs manual rebase", reason)
+        self.assertEqual(self.head(), before)
+        self.assertEqual((self.work / "file.txt").read_text(), "local\n")
+        self.assertIsNone(refresh.operation_in_progress(self.work))
+
+    def test_ignores_checkout_without_upstream(self) -> None:
+        git("config", "--unset", "branch.main.remote", cwd=self.work)
+        git("config", "--unset", "branch.main.merge", cwd=self.work)
+
+        self.assertIsNone(refresh.pull_checkout(self.work))
+
+
 class RefreshAllTest(unittest.TestCase):
     """End-to-end refresh-all runs against a stubbed herdr binary."""
 
@@ -165,14 +240,7 @@ class RefreshAllTest(unittest.TestCase):
             timeout=120,
         )
 
-    def notifications(self) -> list:
-        log = self.bin_dir / "herdr.log"
-        if not log.exists():
-            return []
-        calls = [json.loads(line) for line in log.read_text().splitlines()]
-        return [call for call in calls if call[:2] == ["notification", "show"]]
-
-    def test_fetches_each_repository_once_and_notifies(self) -> None:
+    def test_fetches_each_repository_once(self) -> None:
         # A linked worktree shares repository identity with its main checkout,
         # so both workspaces must collapse into a single fetch.
         worktree = self.tmp / "wt"
@@ -185,13 +253,11 @@ class RefreshAllTest(unittest.TestCase):
                 self.fixture.workspace("w3", "plain", self.bin_dir),
             ]
         )
-        result = self.run_refresh("refresh-all", "--notify")
+        result = self.run_refresh("refresh-all")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         fetches = [call for call in self.git_calls() if call.split()[0:2] == ["fetch", "--quiet"]]
         self.assertEqual(len(fetches), 1)
-        bodies = [call[-1] for call in self.notifications()]
-        self.assertTrue(any("Refreshed 1 repositories" in body for body in bodies))
 
     def test_reports_failures_and_exits_nonzero(self) -> None:
         broken = self.tmp / "broken"
@@ -203,12 +269,10 @@ class RefreshAllTest(unittest.TestCase):
         git("remote", "set-url", "origin", str(self.tmp / "missing.git"), cwd=broken)
         self.write_workspaces([self.fixture.workspace("w1", "broken", broken)])
 
-        result = self.run_refresh("refresh-all", "--notify")
+        result = self.run_refresh("refresh-all")
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("broken", result.stderr)
-        bodies = [call[-1] for call in self.notifications()]
-        self.assertTrue(any("1 failed" in body for body in bodies))
 
     def test_refresh_workspace_uses_context_workspace(self) -> None:
         (self.bin_dir / "workspace-get.json").write_text(
@@ -226,10 +290,40 @@ class RefreshAllTest(unittest.TestCase):
         fetches = [call for call in self.git_calls() if call.split()[0:2] == ["fetch", "--quiet"]]
         self.assertEqual(len(fetches), 1)
 
+    def test_refresh_workspace_fast_forwards_the_focused_checkout(self) -> None:
+        upstream = self.tmp / "upstream"
+        subprocess.run(
+            ("git", "clone", str(self.fixture.origin), str(upstream)),
+            check=True,
+            capture_output=True,
+        )
+        (upstream / "file.txt").write_text("remote\n")
+        git("commit", "-am", "remote change", cwd=upstream)
+        git("push", cwd=upstream)
+
+        (self.bin_dir / "workspace-get.json").write_text(
+            json.dumps(
+                {
+                    "workspace": self.fixture.workspace(
+                        "w9", "focused", self.fixture.work
+                    )
+                }
+            )
+        )
+        result = self.run_refresh("refresh-workspace", workspace_id="w9")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.fixture.work / "file.txt").read_text(), "remote\n")
+
     def test_unknown_action_fails(self) -> None:
         result = self.run_refresh("bogus")
         self.assertEqual(result.returncode, 1)
         self.assertIn("unknown action", result.stderr)
+
+    def test_extra_arguments_fail(self) -> None:
+        result = self.run_refresh("refresh-all", "--notify")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unexpected arguments", result.stderr)
 
 
 if __name__ == "__main__":
