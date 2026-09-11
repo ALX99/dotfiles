@@ -1,6 +1,7 @@
 ---
 name: end-state-refactor
 description: Turn an accepted prototype or existing implementation into the simplest maintainable end state while preserving intended external behavior. Use for a final architecture pass when current internals may be replaced.
+disable-model-invocation: true
 ---
 
 # End-State Refactor
