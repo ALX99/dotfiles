@@ -11,7 +11,9 @@ rust = "stable"
 "github:vercel-labs/fx" = "latest"
 
 # AI stuff
-"aqua:vercel-labs/agent-browser" = "latest"
+# npm backend: `skills get` reads the package's version-matched skill-data/ tree,
+# which the aqua release asset (bare binary) does not ship.
+"npm:agent-browser" = "latest"
 
 # Dev
 "aqua:casey/just" = "latest"
@@ -19,4 +21,5 @@ rust = "stable"
 # CLIs
 "aqua:sharkdp/hyperfine" = "latest"
 "aqua:koalaman/shellcheck" = "latest"
+"npm:@kitlangton/terminal-control-darwin-arm64" = "latest"
 "cargo:tokei" = "latest"
