@@ -11,6 +11,8 @@
       "~/Library/Caches",
       "~/.gradle",
       "~/.android",
+      "~/.npm",
+      "~/go",
       "~/Library/Application Support/kotlin",
       "/Library/Java/JavaVirtualMachines/*/Contents/Home",
       "/opt/homebrew/opt/openjdk*/libexec/*.jdk/Contents/Home",
