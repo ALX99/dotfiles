@@ -71,6 +71,13 @@ swap_pane_right = "prefix+shift+right"
 edit_scrollback = "prefix+shift+h"
 last_pane = "alt+tab"
 
+# Resize mode's built-in keys are hardcoded to hjkl, so bind direct resize
+# chords to the same Colemak-DH row as focus_pane_* instead.
+resize_pane_left = "alt+shift+m"
+resize_pane_down = "alt+shift+n"
+resize_pane_up = "alt+shift+e"
+resize_pane_right = "alt+shift+i"
+
 # Herdr copy mode already provides tmux-style scrolling and selection.
 copy_mode = "prefix+["
 
