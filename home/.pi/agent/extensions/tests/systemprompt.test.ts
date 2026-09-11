@@ -174,11 +174,19 @@ test("guidelines render in order, skipping blanks and duplicates", () => {
 	const prompt = build({ promptGuidelines: ["Only tools rule", "  ", "Only tools rule", "Second rule"] });
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Only tools rule",
 		"- Second rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
 	]);
+});
+
+test("the ADHD guideline leads the list without any tool selection", () => {
+	assert.deepEqual(
+		section(build({ selectedTools: [], toolSnippets: {}, promptGuidelines: [] }), "Guidelines:")?.split("\n"),
+		["- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it."],
+	);
 });
 
 test("guideline owners come from the declaration order of the active tools", () => {
@@ -234,6 +242,7 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 	});
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Only tools rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
@@ -246,6 +255,7 @@ test("dropping the PI_* guideline alone leaves only the renderer's own rules", (
 	});
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
 	]);
@@ -262,6 +272,7 @@ test("a contributor may still supply either fixed line itself", () => {
 	const prompt = build({ promptGuidelines: ["Be concise in your responses"] });
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Be concise in your responses",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
@@ -435,13 +446,13 @@ test("the extension uses live active tools rather than the event's possibly stal
 	assert.equal(section(prompt ?? "", "Available tools:"), "- bash: Execute bash commands (ls, rg, fd, etc.)");
 });
 
-test("the prompt attributes ambiguous guidelines to their owning tool", async () => {
+test("the prompt renders the live tools' guidelines, attributed to their owner", async () => {
 	const run = createHarness({
 		activeTools: ["bash", "spawn_agent"],
 		tools: [
 			{ name: "bash", promptGuidelines: ["Use bash for file operations"] },
 			{ name: "spawn_agent", promptGuidelines: ["Live-agent capacity is 10 root children total."] },
-			// Registered but inactive, so its guideline must stay unattributed.
+			// Registered but inactive, so its guideline cannot reach the prompt at all.
 			{ name: "edit", promptGuidelines: ["Use edit for precise changes"] },
 		],
 	});
@@ -457,9 +468,35 @@ test("the prompt attributes ambiguous guidelines to their owning tool", async ()
 	);
 
 	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
-		"- spawn_agent: Live-agent capacity is 10 root children total.",
-		"- Use edit for precise changes",
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Use bash for file operations",
+		"- spawn_agent: Live-agent capacity is 10 root children total.",
+		"- Use Conventional Commits when committing.",
+	]);
+});
+
+test("a tool disabled during this event drops its guidelines with it", async () => {
+	// Minimal mode narrows the selection in this same event, after Pi captured the options, so the
+	// options still carry both the tool and the guidelines that belong to it.
+	const hint = "Live subagent models: fast → provider/cheap; you are running provider/strong.";
+	const run = createHarness({
+		activeTools: ["bash", "read", "edit"],
+		tools: [
+			{ name: "bash", promptGuidelines: ["Use bash for file operations"] },
+			{ name: "spawn_agent", promptGuidelines: ["Live-agent capacity is 10 root children total.", hint] },
+		],
+	});
+	const prompt = await run(
+		options({
+			selectedTools: ["bash", "read", "edit", "spawn_agent"],
+			promptGuidelines: ["Live-agent capacity is 10 root children total.", hint, "Use bash for file operations"],
+		}),
+	);
+
+	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
+		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
+		"- Use bash for file operations",
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
 	]);
 });

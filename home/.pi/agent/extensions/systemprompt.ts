@@ -72,6 +72,8 @@ export interface GuidelineToolSource {
 /**
  * Maps every guideline to the active tool that declared it. Pi flattens the per-tool guidelines into
  * one list, so a rule that never names its tool is otherwise indistinguishable from a global rule.
+ * The insertion order also reproduces the list Pi builds for the same selection, so the map is the
+ * live guideline list as well as the attribution source.
  */
 export function guidelineOwners(pi: GuidelineToolSource): ReadonlyMap<string, string> {
 	const definitions = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
@@ -103,7 +105,11 @@ function namesTool(guideline: string, tool: string): boolean {
 
 /** Pi already stripped blanks and duplicates before handing the per-tool guidelines over. */
 function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<string, string>): string {
-	const guidelines = new Set((options.promptGuidelines ?? []).map((guideline) => guideline.trim()));
+	// The user's standing communication preference, so it leads the list whatever tools are active.
+	const guidelines = new Set([
+		"The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
+		...(options.promptGuidelines ?? []).map((guideline) => guideline.trim()),
+	]);
 	if ((options.selectedTools ?? []).includes("read")) guidelines.add(READ_PATH_GUIDELINE);
 	// Commits go through bash, so the rule is dead weight without it.
 	if ((options.selectedTools ?? []).includes("bash")) guidelines.add(CONVENTIONAL_COMMITS_GUIDELINE);
@@ -256,18 +262,21 @@ export class SystemPromptViewer {
 
 /**
  * The prompt the next turn will send, derived from live session state rather than the last turn.
- * Pi rebuilds its prompt options only when tools change, so the live selection is substituted
- * here, and `/skills` records its selection in session entries rather than in those options, so it
- * is read separately.
+ * Pi rebuilds its prompt options only when tools change, and it hands every handler the options it
+ * captured before the chain ran, so a mode that narrows the selection during this event leaves them
+ * naming tools the model cannot call. The selection and its guidelines are therefore read from the
+ * live registry here. The rest of the options stay as given: the host exposes normalized tool
+ * snippets only through them. `/skills` records its selection in session entries rather than in
+ * those options, so it is read separately.
  */
 function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSystemPromptOptions): string {
-	const live = { ...options, selectedTools: pi.getActiveTools() };
-	return buildSystemPrompt(
-		live,
-		hostInformation(),
-		enabledModelSkillNames(ctx, live.skills ?? []),
-		guidelineOwners(pi),
-	);
+	const owners = guidelineOwners(pi);
+	const live: BuildSystemPromptOptions = {
+		...options,
+		selectedTools: pi.getActiveTools(),
+		promptGuidelines: [...owners.keys()],
+	};
+	return buildSystemPrompt(live, hostInformation(), enabledModelSkillNames(ctx, live.skills ?? []), owners);
 }
 
 /** Accepts a relative path, an absolute path, or a `~`-rooted path. */
