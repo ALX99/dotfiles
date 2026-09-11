@@ -129,15 +129,24 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 	});
 
 	/**
-	 * The mode's selection is an invariant of every turn: other extensions change the live selection
-	 * at session start and model switches, and the start of a turn is where the model sees it.
-	 * Reading the live selection also follows the editing tool, so a model that swaps `apply_patch`
-	 * in for builtin `edit` keeps it.
+	 * The mode's selection is an invariant of the live session, not just of a turn: other extensions
+	 * add their deferred loader tools while the session starts, and each addition lands after the last
+	 * restriction. Re-asserting keeps every view of the selection — status line, `/minimal status`,
+	 * and the prompt `/systemprompt` renders — equal to the mode's choice.
 	 */
-	pi.on("before_agent_start", (_event, ctx) => {
+	function reassert(ctx: ExtensionContext): void {
 		if (state.enabled) restrictTools();
 		updateUi(ctx);
-	});
+	}
+
+	pi.on("before_agent_start", (_event, ctx) => reassert(ctx));
+
+	/**
+	 * Pi emits this after every `session_start` handler has run — startup, `/new`, `/resume`,
+	 * `/fork`, and `/reload` — so it is the first moment the tools other extensions contribute at
+	 * session start are all known.
+	 */
+	pi.on("resources_discover", (_event, ctx) => reassert(ctx));
 
 	pi.on("session_start", (_event, ctx) => applyBranchState(ctx));
 	pi.on("session_tree", (_event, ctx) => applyBranchState(ctx));

@@ -78,6 +78,11 @@ function createHarness(options: { initialBranch?: Entry[]; available?: string[];
 			assert.ok(handler, "before_agent_start is handled");
 			return handler({ type: "before_agent_start" }, ctx);
 		},
+		async runResourcesDiscover() {
+			const handler = handlers.get("resources_discover");
+			assert.ok(handler, "resources_discover is handled");
+			return handler({ type: "resources_discover" }, ctx);
+		},
 		async runSessionEvent(name: "session_start" | "session_tree") {
 			const handler = handlers.get(name);
 			assert.ok(handler, `${name} is handled`);
@@ -185,6 +190,21 @@ test("a turn re-asserts the restriction after the host re-initializes tools", as
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
 	assert.equal(result, undefined, "the hook leaves the system prompt alone");
+});
+
+test("the startup re-assert reclaims the selection from tools the host adds afterwards", async () => {
+	// session_start handlers run in extension load order, so the subagent, task, and finder
+	// extensions add their deferred loader tools after this one has already restricted.
+	const harness = createHarness();
+
+	await harness.runSessionEvent("session_start");
+	harness.setActiveTools(DEFAULT_TOOLS);
+	const result = await harness.runResourcesDiscover();
+
+	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
+	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit");
+	assert.equal(result, undefined, "the hook contributes no resources");
+	assert.equal(harness.entries.length, 1, "re-asserting must not re-record branch state");
 });
 
 test("a fresh session starts in minimal mode and the baseline still restores", async () => {
