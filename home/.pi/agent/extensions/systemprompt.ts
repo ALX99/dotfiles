@@ -32,6 +32,9 @@ const ROLE_LINE =
 const SKILL_INSTRUCTIONS =
 	"Use the list below to identify relevant skills. Read a skill's `SKILL.md` only when its instructions are needed for the current task. Multiple skills may apply. Resolve paths referenced by a skill relative to the directory containing its `SKILL.md`.";
 
+const READ_PATH_GUIDELINE =
+	"read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.";
+
 /**
  * Pi's built-in bash snippet names the search tools the model would otherwise reach for in a shell.
  * This host installs ripgrep and fd, so the catalog names those instead. Keys win over the snippet
@@ -99,6 +102,7 @@ function namesTool(guideline: string, tool: string): boolean {
 /** Pi already stripped blanks and duplicates before handing the per-tool guidelines over. */
 function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<string, string>): string {
 	const guidelines = new Set((options.promptGuidelines ?? []).map((guideline) => guideline.trim()));
+	if ((options.selectedTools ?? []).includes("read")) guidelines.add(READ_PATH_GUIDELINE);
 	const lines = [...guidelines]
 		.filter((guideline) => guideline.length > 0 && !SUPPRESSED_GUIDELINES.has(guideline))
 		.map((guideline) => `- ${attributeGuideline(guideline, owners)}`);

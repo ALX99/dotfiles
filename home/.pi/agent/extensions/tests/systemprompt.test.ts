@@ -173,7 +173,11 @@ test("an empty tool set renders as none rather than a dangling heading", () => {
 test("guidelines render in order, skipping blanks and duplicates", () => {
 	const prompt = build({ promptGuidelines: ["Only tools rule", "  ", "Only tools rule", "Second rule"] });
 
-	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), ["- Only tools rule", "- Second rule"]);
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- Only tools rule",
+		"- Second rule",
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+	]);
 });
 
 test("guideline owners come from the declaration order of the active tools", () => {
@@ -228,7 +232,10 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 		],
 	});
 
-	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), ["- Only tools rule"]);
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- Only tools rule",
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+	]);
 });
 
 test("dropping the PI_* guideline alone leaves the section empty", () => {
@@ -236,7 +243,10 @@ test("dropping the PI_* guideline alone leaves the section empty", () => {
 		promptGuidelines: ["You can inspect PI_* environment variables for current model and session details."],
 	});
 
-	assert.equal(section(prompt, "Guidelines:"), "(none)");
+	assert.equal(
+		section(prompt, "Guidelines:"),
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+	);
 });
 
 test("the two fixed lines Pi always adds are not re-emitted", () => {
@@ -249,7 +259,10 @@ test("the two fixed lines Pi always adds are not re-emitted", () => {
 test("a contributor may still supply either fixed line itself", () => {
 	const prompt = build({ promptGuidelines: ["Be concise in your responses"] });
 
-	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), ["- Be concise in your responses"]);
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
+		"- Be concise in your responses",
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+	]);
 });
 
 test("project context carries every file in one wrapper", () => {
@@ -277,6 +290,14 @@ test("skills render as one line per skill with the read instruction", () => {
 	assert.match(prompt, /Use the list below to identify relevant skills\./);
 	assert.match(prompt, /^\* `commit` — commit description\. → `\/skills\/commit\/SKILL\.md`$/m);
 	assert.match(prompt, /^\* `go-code` — go-code description\. → `\/skills\/go-code\/SKILL\.md`$/m);
+});
+
+test("the read guideline documents home-relative paths", () => {
+	assert.match(
+		build(),
+		/^- read: Paths beginning with `~\/` are supported; use them instead of guessing an absolute home directory\.$/m,
+	);
+	assert.doesNotMatch(build({ selectedTools: ["bash"] }), /Paths beginning with `~\//);
 });
 
 test("multi-line skill descriptions collapse to a single bullet", () => {
