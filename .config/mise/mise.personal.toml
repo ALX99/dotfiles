@@ -7,7 +7,6 @@
 rust = "stable"
 
 # Harnesses
-"github:can1357/oh-my-pi" = "latest"
 "github:vercel-labs/fx" = "latest"
 
 # AI stuff
