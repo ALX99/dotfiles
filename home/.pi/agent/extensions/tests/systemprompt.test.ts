@@ -10,6 +10,7 @@ import systemPromptExtension, {
 	SystemPromptViewer,
 	attributeGuideline,
 	buildSystemPrompt,
+	cwdPath,
 	guidelineOwners,
 	hostInformation,
 	tildePath,
@@ -130,6 +131,20 @@ test("tildePath shortens only paths under home", () => {
 	assert.equal(tildePath("/home/dozy/dotfiles/AGENTS.md", "/home/dozy"), "~/dotfiles/AGENTS.md");
 	assert.equal(tildePath("/home/dozynski/file", "/home/dozy"), "/home/dozynski/file");
 	assert.equal(tildePath("/workspace/project", "/home/dozy"), "/workspace/project");
+});
+
+test("cwdPath shortens paths under the working directory and leaves the rest to tildePath", () => {
+	assert.equal(cwdPath("/workspace/project", "/workspace/project", "/home/dozy"), ".");
+	assert.equal(
+		cwdPath("/workspace/project/.agents/skills/go/SKILL.md", "/workspace/project", "/home/dozy"),
+		".agents/skills/go/SKILL.md",
+	);
+	// A sibling directory that merely shares the prefix is not under the working directory.
+	assert.equal(
+		cwdPath("/workspace/project-other/AGENTS.md", "/workspace/project", "/home/dozy"),
+		"/workspace/project-other/AGENTS.md",
+	);
+	assert.equal(cwdPath("/home/dozy/file", "/workspace/project", "/home/dozy"), "~/file");
 });
 
 test("paths under home render as ~ in every section the renderer owns", () => {
@@ -304,6 +319,22 @@ test("skills render as one line per skill with the read instruction", () => {
 	assert.match(prompt, /Use the list below to identify relevant skills\./);
 	assert.match(prompt, /^\* `commit` — commit description\. → `\/skills\/commit\/SKILL\.md`$/m);
 	assert.match(prompt, /^\* `go-code` — go-code description\. → `\/skills\/go-code\/SKILL\.md`$/m);
+});
+
+test("skills under the working directory render relative to it", () => {
+	const home = homedir();
+	const cwd = join(home, "projects/reeve");
+	const prompt = build({
+		cwd,
+		skills: [
+			skill({ name: "reeve", filePath: join(cwd, ".agents/skills/reeve/SKILL.md") }),
+			skill({ name: "commit", filePath: join(home, ".pi/agent/skills/commit/SKILL.md") }),
+		],
+	});
+
+	assert.match(prompt, /→ `\.agents\/skills\/reeve\/SKILL\.md`/);
+	assert.match(prompt, /→ `~\/\.pi\/agent\/skills\/commit\/SKILL\.md`/);
+	assert.ok(!prompt.includes(home), "no absolute home path survives in the prompt");
 });
 
 test("the read guideline documents home-relative paths", () => {

@@ -26,6 +26,15 @@ export function tildePath(path: string, home: string = os.homedir()): string {
 	return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }
 
+/**
+ * A path under the working directory reads shortest relative to it, and the tools resolve it there
+ * without help. Anything else keeps the home-relative form.
+ */
+export function cwdPath(path: string, cwd: string, home: string = os.homedir()): string {
+	if (path === cwd) return ".";
+	return path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : tildePath(path, home);
+}
+
 const ROLE_LINE =
 	"You are an expert coding assistant that interacts with a computer. Use the tools available to you to achieve the goal efficiently.";
 
@@ -141,7 +150,7 @@ function skillBlock(options: BuildSystemPromptOptions, enabledNames?: ReadonlySe
 		.filter((skill) => !skill.disableModelInvocation && (enabledNames === undefined || enabledNames.has(skill.name)))
 		.map(
 			(skill) =>
-				`* \`${skill.name}\` — ${skill.description.replace(/\s+/g, " ").trim()} → \`${tildePath(skill.filePath)}\``,
+				`* \`${skill.name}\` — ${skill.description.replace(/\s+/g, " ").trim()} → \`${cwdPath(skill.filePath, options.cwd)}\``,
 		);
 	return entries.length === 0 ? "" : `Skills:\n\n${SKILL_INSTRUCTIONS}\n\n${entries.join("\n")}`;
 }
