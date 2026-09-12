@@ -1,5 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { TASK_TOOL_NAMES } from "../tasks/index.ts";
+
 /** Tools minimal mode always exposes: the shell and direct file reads. */
 export const MINIMAL_CORE_TOOL_NAMES = ["bash", "read"] as const;
 
@@ -18,12 +20,15 @@ type ToolSelectionAPI = Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">;
 type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
 
 /**
- * The mode's selection for a session: the core tools plus the editing tool it already has. Pi ignores
- * names the session does not allow, so the fallback editor is harmless when nothing provides one.
+ * The mode's selection for a session: the core tools, the editing tool it already has, and the task
+ * tools the tasks extension currently exposes. That extension reveals its loader at session start
+ * and the management tools only once a queue exists, so carrying over what it has activated keeps an
+ * active queue workable without exposing tools for work the session has not started. Pi ignores names
+ * the session does not allow, so the fallback editor is harmless when nothing provides one.
  */
 export function minimalToolNames(active: readonly string[]): string[] {
 	const editor = MINIMAL_EDITOR_TOOL_NAMES.find((name) => active.includes(name)) ?? FALLBACK_EDITOR_TOOL_NAME;
-	return [...MINIMAL_CORE_TOOL_NAMES, editor];
+	return [...MINIMAL_CORE_TOOL_NAMES, editor, ...TASK_TOOL_NAMES.filter((name) => active.includes(name))];
 }
 
 /**

@@ -16,7 +16,8 @@ const TASK_READ_DETAILS_TYPE = "tasks:read";
 const TASK_UPDATE_DETAILS_TYPE = "tasks:update";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
-const TASK_TOOL_NAMES = ["create_tasks", "finish_task", "read_tasks", "update_tasks"] as const;
+/** Shared with minimal mode so its tool restriction can keep an active queue workable. */
+export const TASK_TOOL_NAMES = ["create_tasks", "finish_task", "read_tasks", "update_tasks"] as const;
 const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
 const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
 const TASK_STATUSES = ["completed", "failed", "blocked"] as const;
