@@ -112,7 +112,7 @@ interface TaskReadDetails {
 
 interface Evidence {
 	kind: (typeof EVIDENCE_KINDS)[number];
-	description: string;
+	description?: string;
 	path?: string;
 	command?: string;
 	result?: string;
@@ -218,11 +218,13 @@ const EvidenceParams = Type.Object({
 		description:
 			"file for a relevant path, test for a verification command, commit for a Git commit, finding for an investigation result",
 	}),
-	description: Type.String({
-		minLength: 1,
-		maxLength: 1000,
-		description: "What this evidence establishes",
-	}),
+	description: Type.Optional(
+		Type.String({
+			minLength: 1,
+			maxLength: 1000,
+			description: "What this evidence establishes",
+		}),
+	),
 	path: Type.Optional(Type.String({ minLength: 1, maxLength: 1000 })),
 	command: Type.Optional(Type.String({ minLength: 1, maxLength: 2000 })),
 	result: Type.Optional(Type.String({ minLength: 1, maxLength: 2000 })),
@@ -1101,7 +1103,7 @@ function formatTaskRead(details: TaskReadDetails, filtered: boolean): string {
 			lines.push(
 				`   Evidence: ${task.evidence
 					.slice(0, 5)
-					.map((evidence) => `${evidence.kind}: ${truncate(evidence.description, 300)}`)
+					.map((evidence) => `${evidence.kind}: ${truncate(evidenceSummary(evidence), 300)}`)
 					.join(" | ")}`,
 			);
 			if (task.evidence.length > 5) lines.push(`   Evidence: ... ${task.evidence.length - 5} more`);
@@ -1695,11 +1697,16 @@ function isEvidence(value: unknown): value is Evidence {
 	if (!isRecord(value)) return false;
 	const kind = EVIDENCE_KINDS.find((candidate) => candidate === value.kind);
 	if (kind === undefined) return false;
-	if (typeof value.description !== "string") return false;
+	if (value.description !== undefined && typeof value.description !== "string") return false;
 	if (["path", "command", "result", "hash"].some((key) => value[key] !== undefined && typeof value[key] !== "string")) {
 		return false;
 	}
 	return true;
+}
+
+/** One-line reading of an evidence entry when its list has to stay short. */
+function evidenceSummary(evidence: Evidence): string {
+	return evidence.description ?? evidence.path ?? evidence.command ?? evidence.hash ?? evidence.result ?? "";
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -1710,8 +1717,11 @@ function formatCompletion(task: TaskCompletionDetails): string {
 	const lines = [`## Task: ${task.title}`, `Status: ${task.status}`, "", "## Summary", task.summary, "", "## Evidence"];
 	for (const evidence of task.evidence) {
 		const reference = evidence.path ?? evidence.command ?? evidence.hash;
-		lines.push(`- **${evidence.kind}**${reference === undefined ? "" : ` \`${reference}\``}: ${evidence.description}`);
-		if (evidence.result !== undefined) lines.push(`  Result: ${evidence.result}`);
+		const detail = evidence.description ?? evidence.result;
+		lines.push(
+			`- **${evidence.kind}**${reference === undefined ? "" : ` \`${reference}\``}${detail === undefined ? "" : `: ${detail}`}`,
+		);
+		if (evidence.result !== undefined && evidence.result !== detail) lines.push(`  Result: ${evidence.result}`);
 	}
 	if (task.decisions.length > 0) {
 		lines.push("", "## Decisions", ...task.decisions.map((decision) => `- ${decision}`));

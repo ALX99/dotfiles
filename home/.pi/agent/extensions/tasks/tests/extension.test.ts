@@ -1,11 +1,13 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
+import { Check } from "typebox/value";
 
 import tasksExtension from "../index.ts";
 
 interface RegisteredTool {
-	parameters?: { properties?: Record<string, { minItems?: number }> };
+	parameters?: TSchema;
 	execute(
 		toolCallId: string,
 		params: Record<string, unknown>,
@@ -195,6 +197,62 @@ function finishDetails(taskId: string): Record<string, unknown> {
 		compact: true,
 	};
 }
+
+test("accepts reference-only evidence entries and renders their reference", async () => {
+	const evidence = [
+		{ kind: "test", command: "pnpm test", result: "2 passed" },
+		{ kind: "file", path: "src/handler.ts" },
+	];
+	const h = createHarness([
+		assistantToolCall("queue-call", "create_tasks"),
+		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+		assistantToolCall("finish-1", "finish_task"),
+	]);
+	const finishTool = h.tools.get("finish_task")!;
+	assert.ok(
+		Check(finishTool.parameters!, { status: "completed", summary: "Recorded.", evidence }),
+		"the schema accepts evidence entries that carry a reference instead of a description",
+	);
+
+	const finish = await finishTool.execute(
+		"finish-1",
+		{ status: "completed", summary: "Recorded.", evidence, compact: false },
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
+
+	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
+	assert.match(read.content[0]?.text ?? "", /Evidence: test: pnpm test \| file: src\/handler\.ts/u);
+});
+
+test("renders reference-only evidence in the completion summary", async () => {
+	const h = createHarness([
+		assistantToolCall("queue-call", "create_tasks"),
+		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+		assistantToolCall("finish-1", "finish_task"),
+	]);
+	const finish = await h.tools.get("finish_task")!.execute(
+		"finish-1",
+		{
+			status: "completed",
+			summary: "Verified.",
+			evidence: [{ kind: "test", command: "pnpm test", result: "2 passed" }],
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
+
+	const prepared = h.handlers.get("session_before_tree")!(
+		{ preparation: { targetId: "queue-result" } } as never,
+		h.ctx as never,
+	) as { summary: { summary: string } };
+	assert.match(prepared.summary.summary, /- \*\*test\*\* `pnpm test`: 2 passed/u);
+	assert.doesNotMatch(prepared.summary.summary, /Result:/u);
+});
 
 test("does not restore queues with fewer than four tasks", async () => {
 	const details = queueDetails("queue-call");
