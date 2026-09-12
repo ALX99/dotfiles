@@ -4,4 +4,14 @@
 #MISE sources=["pnpm-lock.yaml", "package.json"]
 #MISE outputs=["node_modules"]
 #MISE aliases=["install-pi"]
-exec pnpm install --frozen-lockfile
+set -euo pipefail
+
+pnpm install --frozen-lockfile
+
+# Pi loads extensions through jiti resolving from ~/.pi/agent/extensions, whose
+# manifest and lockfile are symlinks into this directory. That tree therefore
+# needs its own install of the same dependency set, or extension imports fail.
+runtime_dir="$HOME/.pi/agent/extensions"
+if [[ -d $runtime_dir ]]; then
+  pnpm --dir "$runtime_dir" install --frozen-lockfile
+fi
