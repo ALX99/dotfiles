@@ -5,7 +5,9 @@ import { once } from "node:events";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { Effect } from "effect";
 import { test, type TestContext } from "node:test";
+import { runPromise } from "../../_shared/effect-runtime.ts";
 import { getProcessReaper, ProcessReaper } from "../index.ts";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
@@ -28,9 +30,9 @@ async function retainJob(
 	pid: number,
 	command: string,
 ): Promise<void> {
-	reaper.prepareCommand(ownerId, toolCallId, command);
+	await runPromise(reaper.prepareCommand(ownerId, toolCallId, command));
 	await fs.writeFile(reaper.markerPath(ownerId, toolCallId), `${pid}\n`, "utf8");
-	await reaper.finishCommand(ownerId, toolCallId);
+	await runPromise(reaper.finishCommand(ownerId, toolCallId));
 }
 
 test("shares owner state across in-process extension instances", async () => {
@@ -38,10 +40,10 @@ test("shares owner state across in-process extension instances", async () => {
 	const second = getProcessReaper();
 	const ownerId = `session-${randomUUID()}`;
 	const toolCallId = "call";
-	first.prepareCommand(ownerId, toolCallId, "true");
+	await runPromise(first.prepareCommand(ownerId, toolCallId, "true"));
 	const marker = first.markerPath(ownerId, toolCallId);
 
-	await second.finishCommand(ownerId, toolCallId);
+	await runPromise(second.finishCommand(ownerId, toolCallId));
 
 	assert.equal(await pathExists(marker), false);
 });
@@ -70,60 +72,20 @@ test("retains background job metadata and lists jobs in PID order", async (t) =>
 	]);
 });
 
-test("pruneFinishedJobs notifies only when the retained set changes", async (t) => {
+test("pruneFinishedJobs drops retained groups that have exited", async (t) => {
 	const live = new Set([4321]);
 	const reaper = new ProcessReaper({
 		rootDir: await temporaryRoot(t),
 		groupExists: (pid) => live.has(pid),
-		sleep: async () => {},
 	});
-	const counts: number[] = [];
-	const unsubscribe = reaper.onBackgroundGroupChange((count) => counts.push(count));
-	try {
-		await retainJob(reaper, "session", "call", 4321, "sleep 30 &");
-		assert.deepEqual(counts, [0, 1]);
+	await retainJob(reaper, "session", "call", 4321, "sleep 30 &");
 
-		await reaper.pruneFinishedJobs();
-		assert.deepEqual(counts, [0, 1]);
+	await runPromise(reaper.pruneFinishedJobs());
+	assert.equal(reaper.listBackgroundJobs().length, 1);
 
-		live.delete(4321);
-		await reaper.pruneFinishedJobs();
-		assert.deepEqual(counts, [0, 1, 0]);
-		assert.deepEqual(reaper.listBackgroundJobs(), []);
-	} finally {
-		unsubscribe();
-	}
-});
-
-test("publishes retained background-group count changes", async (t) => {
-	const live = new Set([4321]);
-	const reaper = new ProcessReaper({
-		rootDir: await temporaryRoot(t),
-		groupExists: (pid) => live.has(pid),
-		processExists: () => false,
-		signalGroup: (_pid, signal) => {
-			if (signal === "SIGKILL") live.clear();
-		},
-		sleep: async () => {},
-	});
-	const counts: number[] = [];
-	const unsubscribe = reaper.onBackgroundGroupChange((count) => counts.push(count));
-
-	assert.equal(counts.at(-1), 0);
-	const initialCountEvents = counts.length;
-	reaper.prepareCommand("session", "call", "sleep 30 &");
-	assert.equal(counts.length, initialCountEvents);
-	await fs.writeFile(reaper.markerPath("session", "call"), "4321\n", "utf8");
-	await reaper.finishCommand("session", "call");
-	assert.equal(counts.at(-1), 1);
-
-	await reaper.terminateOwner("session");
-	assert.equal(counts.at(-1), 0);
-	const countEvents = counts.length;
-	unsubscribe();
-	reaper.prepareCommand("session", "after-unsubscribe", "true");
-	assert.equal(counts.length, countEvents);
-	await reaper.terminateOwner("session");
+	live.delete(4321);
+	await runPromise(reaper.pruneFinishedJobs());
+	assert.deepEqual(reaper.listBackgroundJobs(), []);
 });
 
 test("terminates only the requested owner's process groups", async (t) => {
@@ -137,26 +99,26 @@ test("terminates only the requested owner's process groups", async (t) => {
 			signals.push([pid, signal]);
 			if (signal === "SIGKILL") live.delete(pid);
 		},
-		sleep: async () => {},
+		sleep: () => Effect.void,
 	});
 
 	for (const [ownerId, toolCallId, pid] of [
 		["session-a", "call-a", 4321],
 		["session-b", "call-b", 9876],
 	] as const) {
-		reaper.prepareCommand(ownerId, toolCallId, "true");
+		await runPromise(reaper.prepareCommand(ownerId, toolCallId, "true"));
 		await fs.writeFile(reaper.markerPath(ownerId, toolCallId), `${pid}\n`, "utf8");
-		await reaper.finishCommand(ownerId, toolCallId);
+		await runPromise(reaper.finishCommand(ownerId, toolCallId));
 	}
 
-	await reaper.terminateOwner("session-a");
+	await runPromise(reaper.terminateOwner("session-a"));
 	assert.deepEqual(signals, [
 		[4321, "SIGTERM"],
 		[4321, "SIGKILL"],
 	]);
 	assert.equal(live.has(9876), true);
 
-	await reaper.terminateOwner("session-b");
+	await runPromise(reaper.terminateOwner("session-b"));
 });
 
 test("terminates a running Bash group before its tool result", async (t) => {
@@ -170,12 +132,12 @@ test("terminates a running Bash group before its tool result", async (t) => {
 			signals.push([pid, signal]);
 			if (signal === "SIGKILL") live.delete(pid);
 		},
-		sleep: async () => {},
+		sleep: () => Effect.void,
 	});
-	reaper.prepareCommand("session", "call", "sleep 30");
+	await runPromise(reaper.prepareCommand("session", "call", "sleep 30"));
 	await fs.writeFile(reaper.markerPath("session", "call"), "4321\n", "utf8");
 
-	await reaper.terminateOwner("session");
+	await runPromise(reaper.terminateOwner("session"));
 
 	assert.deepEqual(signals, [
 		[4321, "SIGTERM"],
@@ -195,18 +157,18 @@ test("signals all groups concurrently and reports survivors", async (t) => {
 			signals.push([pid, signal]);
 			if (pid === 4321 && signal === "SIGKILL") live.delete(pid);
 		},
-		sleep: async () => {},
+		sleep: () => Effect.void,
 	});
 	for (const [toolCallId, pid] of [
 		["call-a", 4321],
 		["call-b", 9876],
 	] as const) {
-		reaper.prepareCommand("session", toolCallId, "true");
+		await runPromise(reaper.prepareCommand("session", toolCallId, "true"));
 		await fs.writeFile(reaper.markerPath("session", toolCallId), `${pid}\n`, "utf8");
-		await reaper.finishCommand("session", toolCallId);
+		await runPromise(reaper.finishCommand("session", toolCallId));
 	}
 
-	await assert.rejects(reaper.terminateOwner("session"), /9876/u);
+	await assert.rejects(runPromise(reaper.terminateOwner("session")), /9876/u);
 	assert.deepEqual(signals, [
 		[4321, "SIGTERM"],
 		[9876, "SIGTERM"],
@@ -222,13 +184,13 @@ test("does not signal a settled group whose leader PID was reused", async (t) =>
 		groupExists: () => true,
 		processExists: () => true,
 		signalGroup: (pid) => signals.push(pid),
-		sleep: async () => {},
+		sleep: () => Effect.void,
 	});
-	reaper.prepareCommand("session", "call", "true");
+	await runPromise(reaper.prepareCommand("session", "call", "true"));
 	await fs.writeFile(reaper.markerPath("session", "call"), "4321\n", "utf8");
-	await reaper.finishCommand("session", "call");
+	await runPromise(reaper.finishCommand("session", "call"));
 
-	await reaper.terminateOwner("session");
+	await runPromise(reaper.terminateOwner("session"));
 
 	assert.deepEqual(signals, []);
 });
@@ -238,7 +200,8 @@ test("kills a background descendant after its Bash shell exits", async (t) => {
 	const reaper = new ProcessReaper({ rootDir: await temporaryRoot(t) });
 	const ownerId = "integration-session";
 	const toolCallId = "integration-call";
-	const child = spawn("/bin/bash", ["-c", reaper.prepareCommand(ownerId, toolCallId, "sleep 30 &")], {
+	const command = await runPromise(reaper.prepareCommand(ownerId, toolCallId, "sleep 30 &"));
+	const child = spawn("/bin/bash", ["-c", command], {
 		detached: true,
 		stdio: "ignore",
 	});
@@ -250,8 +213,8 @@ test("kills a background descendant after its Bash shell exits", async (t) => {
 	});
 
 	await once(child, "exit");
-	await reaper.finishCommand(ownerId, toolCallId);
-	await reaper.terminateOwner(ownerId);
+	await runPromise(reaper.finishCommand(ownerId, toolCallId));
+	await runPromise(reaper.terminateOwner(ownerId));
 
 	assert.throws(() => process.kill(-child.pid!, 0), /ESRCH/u);
 });

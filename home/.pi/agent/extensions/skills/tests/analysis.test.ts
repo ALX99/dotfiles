@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
+import { runPromise } from "../../_shared/effect-runtime.ts";
 import { countDiagnostics, formatNativeSkillBlock, inspectSkills, summarizeSkillTokens } from "../analysis.ts";
 
 test("inspectSkills reports Pi metadata compatibility and token estimates", async () => {
@@ -29,7 +30,7 @@ test("inspectSkills reports Pi metadata compatibility and token estimates", asyn
 
 		const loaded = loadSkillsFromDir({ dir: root, source: "test" });
 		assert.equal(loaded.skills.length, 3);
-		const analyses = await inspectSkills(loaded.skills, ["read", "bash"]);
+		const analyses = await runPromise(inspectSkills(loaded.skills, ["read", "bash"]));
 		const good = analyses.find(({ skill }) => skill.name === "good");
 		const manual = analyses.find(({ skill }) => skill.name === "manual");
 		const bad = analyses.find(({ skill }) => skill.name === "bad--name");
@@ -70,7 +71,7 @@ test("inspectSkills reports unreadable skill files without throwing", async () =
 		const skill = loaded.skills[0];
 		assert.ok(skill);
 		await rm(filePath);
-		const [analysis] = await inspectSkills([skill], []);
+		const [analysis] = await runPromise(inspectSkills([skill], []));
 		assert.ok(analysis);
 		assert.ok(
 			analysis.diagnostics.some(({ severity, message }) => severity === "error" && message.includes("Could not read")),

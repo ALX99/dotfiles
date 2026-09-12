@@ -1,5 +1,6 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { ResolvedAgentTarget } from "../agent-registry.ts";
+import { runPromise } from "../../_shared/effect-runtime.ts";
+import type { AgentRegistry, ResolvedAgentTarget } from "../agent-registry.ts";
 import { assertCurrentGeneration, type AgentSummary } from "../agent-types.ts";
 import { renderManagementCall } from "../render.ts";
 import { CloseAgentParamsSchema, type CloseAgentParams } from "../schemas.ts";
@@ -11,7 +12,7 @@ interface CloseAgentDependencies {
 		readonly resolveGeneration: (target: string, generation?: number) => ResolvedAgentTarget;
 		readonly summary: (id: string) => AgentSummary;
 		readonly list: () => AgentSummary[];
-		readonly close: (id: string) => Promise<void>;
+		readonly close: AgentRegistry["close"];
 	};
 }
 
@@ -27,7 +28,7 @@ export function createCloseAgentTool(
 		async execute(_id, params: CloseAgentParams) {
 			const resolved = dependencies.registry.resolveGeneration(params.target, params.generation);
 			if (params.generation !== undefined) assertCurrentGeneration(resolved.summary, params.generation);
-			await dependencies.registry.close(resolved.agent_id);
+			await runPromise(dependencies.registry.close(resolved.agent_id));
 			const closed = dependencies.registry.summary(resolved.agent_id);
 			return jsonResult(closed, agentSummaryDetails([closed]));
 		},

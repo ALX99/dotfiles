@@ -1,11 +1,13 @@
 import * as os from "node:os";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { getMarkdownTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { BuildSystemPromptOptions, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, Markdown, matchesKey, type TUI } from "@earendil-works/pi-tui";
+import { Effect } from "effect";
 
+import { runPromise } from "./_shared/effect-runtime.ts";
+import { writeFileString } from "./_shared/fs.ts";
 import { enabledModelSkillNames } from "./skills/index.ts";
 
 /** Host fields matching mini-swe-agent's `platform.uname()` template variables. */
@@ -192,8 +194,11 @@ export default function systemPromptExtension(pi: ExtensionAPI): void {
 			const label = `${prompt.length} chars`;
 			const target = resolveTarget(args.trim());
 			if (target !== undefined) {
-				await mkdir(dirname(target), { recursive: true });
-				await writeFile(target, prompt, "utf8");
+				await runPromise(
+					Effect.gen(function* () {
+						yield* writeFileString(target, prompt, { recursive: true });
+					}),
+				);
 				ctx.ui.notify(`Wrote ${label} to ${target}`, "info");
 			} else if (!ctx.hasUI || ctx.mode !== "tui") {
 				// Without the TUI there is no viewer, so report the size and point at the file option.

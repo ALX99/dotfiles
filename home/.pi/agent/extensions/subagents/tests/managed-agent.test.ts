@@ -2,7 +2,9 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { Effect } from "effect";
 import { test } from "node:test";
+import { runPromise } from "../../_shared/effect-runtime.ts";
 import { SessionManager, type AgentSession, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "../agents.ts";
 import { ManagedAgent } from "../managed-agent.ts";
@@ -158,8 +160,9 @@ test("interrupt cleans processes owned by an idle retained agent", async (t) => 
 		resolvedRun,
 		retain: true,
 		processReaper: {
-			terminateOwner: async (ownerId) => {
+			terminateOwner: (ownerId) => {
 				reaped.push(ownerId);
+				return Effect.void;
 			},
 		},
 		sessionFactory: async () => sdkStub(fake),
@@ -265,6 +268,9 @@ test("a foreground question returns control and resumes after its answer", async
 	const settled = await agent.wait();
 	assert.equal(settled.finalText, "answer:Simple");
 	assert.deepEqual(completions, ["answer:Simple"]);
+	// A one-shot child closes itself once it settles. Awaiting that close keeps the
+	// assertion independent of how the settlement wake-up races the close.
+	await agent.close();
 	assert.equal(agent.phase, "closed");
 });
 
@@ -417,7 +423,7 @@ test("a rejected prompt retains any persisted terminal result for durable readin
 	assert.equal(summary.result?.complete, true);
 	assert.ok(summary.result_locator);
 	assert.equal(
-		(await readLocatedAgentResult(summary.result_locator!, agentDir)).text,
+		(await runPromise(readLocatedAgentResult(summary.result_locator!, agentDir))).text,
 		"persisted before prompt rejection",
 	);
 });
@@ -446,7 +452,7 @@ test("reading a running generation fails explicitly instead of returning a previ
 		dispose() {},
 	};
 	const registry = new AgentRegistry(agentDir);
-	t.after(() => registry.closeAll());
+	t.after(() => runPromise(registry.closeAll()));
 	const agent = new ManagedAgent({
 		id: "scout-read-running",
 		agentDir,
@@ -456,10 +462,13 @@ test("reading a running generation fails explicitly instead of returning a previ
 		retain: true,
 		sessionFactory: async () => sdkStub(fake),
 	});
-	await registry.add(agent);
+	await runPromise(registry.add(agent));
 	await agent.start("inspect", undefined, "inspect", true);
-	await assert.rejects(registry.readResultByAddress("inspect", { generation: 1 }), /still running.*wait_agents/);
-	await registry.close(agent.id);
+	await assert.rejects(
+		runPromise(registry.readResultByAddress("inspect", { generation: 1 })),
+		/still running.*wait_agents/,
+	);
+	await runPromise(registry.close(agent.id));
 	assert.equal(registry.summary(agent.id).status, "closed");
 });
 
@@ -505,7 +514,7 @@ test("closing an active child archives a settled aborted generation with its exa
 	});
 
 	const registry = new AgentRegistry(agentDir);
-	await registry.add(agent);
+	await runPromise(registry.add(agent));
 
 	await agent.start("inspect", undefined, "inspect", true);
 	await agent.close();
@@ -515,7 +524,10 @@ test("closing an active child archives a settled aborted generation with its exa
 	assert.equal(details.aborted, true);
 	assert.equal(details.result?.complete, false);
 	assert.ok(details.resultLocator);
-	assert.equal((await readLocatedAgentResult(details.resultLocator!, agentDir)).text, "interrupted after exact output");
+	assert.equal(
+		(await runPromise(readLocatedAgentResult(details.resultLocator!, agentDir))).text,
+		"interrupted after exact output",
+	);
 	assert.equal(registry.summary("worker-close-active").outcome, "aborted");
 });
 
@@ -529,8 +541,8 @@ test("agent addresses resolve by id or unique task name", async (t) => {
 			subscribe: () => () => {},
 			summary: () => ({ agent_id: id, task_name }),
 		}) as never;
-	await registry.add(stub("scout-1", "inspect login"));
-	await registry.add(stub("worker-2", "migrate db"));
+	await runPromise(registry.add(stub("scout-1", "inspect login")));
+	await runPromise(registry.add(stub("worker-2", "migrate db")));
 	assert.equal(registry.resolveTarget("scout-1").agent_id, "scout-1");
 	assert.equal(registry.resolveTarget("migrate db").agent_id, "worker-2");
 	assert.equal(registry.resolveTarget(" worker-2 ").agent_id, "worker-2");
@@ -548,12 +560,12 @@ test("spawn claims a unique immutable task name", async (t) => {
 			subscribe: () => () => {},
 			summary: () => ({ agent_id: id, task_name }),
 		}) as never;
-	await registry.add(stub("scout-1", "inspect login"));
+	await runPromise(registry.add(stub("scout-1", "inspect login")));
 	assert.equal(registry.claimTaskName("migrate db", "migrate db"), "migrate db");
 	assert.throws(() => registry.claimTaskName("inspect login", "other"), /already used by agent 'scout-1'/);
 	assert.throws(() => registry.claimTaskName("scout-1", "other"), /already used/);
 	assert.equal(registry.claimTaskName(undefined, "migrate the database schema"), "migrate the database schema");
-	await registry.add(stub("worker-2", "migrate the database schema"));
+	await runPromise(registry.add(stub("worker-2", "migrate the database schema")));
 	assert.equal(registry.claimTaskName(undefined, "migrate the database schema"), "migrate the database schema-2");
 });
 
@@ -624,9 +636,11 @@ test("interruption reserves the generation until abort settles and rejects overl
 		resolvedRun,
 		retain: true,
 		processReaper: {
-			async terminateOwner() {
-				cleanupStarted.resolve();
-				await cleanupGate.promise;
+			terminateOwner() {
+				return Effect.promise(async () => {
+					cleanupStarted.resolve();
+					await cleanupGate.promise;
+				});
 			},
 		},
 		sessionFactory: async () => sdkStub(fake),
@@ -661,9 +675,10 @@ test("failed cleanup still disposes the session and can be retried", async (t) =
 		resolvedRun,
 		retain: true,
 		processReaper: {
-			async terminateOwner(owner) {
+			terminateOwner(owner) {
 				assert.equal(owner, manager.getSessionId());
-				if (++attempts === 1) throw new Error("process cleanup failed");
+				if (++attempts === 1) return Effect.fail(new Error("process cleanup failed"));
+				return Effect.void;
 			},
 		},
 		sessionFactory: async () =>
@@ -680,15 +695,15 @@ test("failed cleanup still disposes the session and can be retried", async (t) =
 				},
 			}),
 	});
-	await registry.add(agent);
+	await runPromise(registry.add(agent));
 	assert.equal(registry.capacity().length, 1);
 	await agent.start("work", undefined, "work", false);
-	await assert.rejects(registry.closeAll(), /cleanup failed/);
+	await assert.rejects(runPromise(registry.closeAll()), /cleanup failed/);
 	assert.equal(disposed, 1);
 	assert.equal(agent.phase, "closing");
 	assert.equal(registry.getLive(agent.id), agent);
 	assert.equal(registry.capacity().length, 1);
-	await registry.closeAll();
+	await runPromise(registry.closeAll());
 	assert.equal(attempts, 2);
 	assert.equal(disposed, 1);
 	assert.equal(agent.phase, "closed");
@@ -699,7 +714,7 @@ test("archive eviction follows closure order while exact results outlive dashboa
 	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-agent-archive-"));
 	const registry = new AgentRegistry(agentDir);
 	t.after(async () => {
-		await registry.closeAll();
+		await runPromise(registry.closeAll());
 		fs.rmSync(agentDir, { recursive: true, force: true });
 	});
 	const agents: ManagedAgent[] = [];
@@ -723,15 +738,15 @@ test("archive eviction follows closure order while exact results outlive dashboa
 					dispose() {},
 				}),
 		});
-		await registry.add(agent);
+		await runPromise(registry.add(agent));
 		await agent.start("work", undefined, "work", false);
 		agents.push(agent);
 	}
-	for (const agent of agents.toReversed()) await registry.close(agent.id);
+	for (const agent of agents.toReversed()) await runPromise(registry.close(agent.id));
 	assert.equal(registry.list().length, DEFAULT_MAX_CLOSED_AGENT_HISTORY);
 	assert.throws(() => registry.summary(agents.at(-1)!.id), /Unknown agent_id/);
 	assert.equal(
-		(await registry.readResultByAddress(agents.at(-1)!.id)).text,
+		(await runPromise(registry.readResultByAddress(agents.at(-1)!.id))).text,
 		`result ${DEFAULT_MAX_CLOSED_AGENT_HISTORY}`,
 	);
 	assert.equal(registry.summary(agents[0]!.id).status, "closed");
@@ -791,8 +806,9 @@ test("a silent generation is aborted internally and reported as failed, not abor
 		retain: true,
 		stallTimeoutMs: 20,
 		processReaper: {
-			terminateOwner: async (ownerId) => {
+			terminateOwner: (ownerId) => {
 				reaped.push(ownerId);
+				return Effect.void;
 			},
 		},
 		sessionFactory: async () => sdkStub(fake),

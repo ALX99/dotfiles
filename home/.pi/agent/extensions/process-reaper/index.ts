@@ -1,10 +1,25 @@
 import { createHash, randomBytes } from "node:crypto";
-import * as fs from "node:fs";
-import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { isBashToolResult, isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Effect, Schedule, Schema } from "effect";
+import { runFork, runPromise } from "../_shared/effect-runtime.ts";
+import type { FsError } from "../_shared/errors.ts";
+import {
+	makeDirectory,
+	readFileStringIfExists,
+	removeDirectoryIfEmpty,
+	removeFile,
+	removeTree,
+	writeFileString,
+} from "../_shared/fs.ts";
+
+/** A retained process group that could not be terminated. */
+export class ProcessReaperError extends Schema.TaggedError<ProcessReaperError>()("ProcessReaperError", {
+	message: Schema.String,
+	pids: Schema.Array(Schema.Int),
+}) {}
 
 const TERMINATION_GRACE_MS = 500;
 const TERMINATION_SETTLE_MS = 50;
@@ -18,8 +33,6 @@ interface OwnerProcesses {
 	readonly groups: Map<number, BackgroundJob>;
 }
 
-type BackgroundGroupCountListener = (backgroundGroups: number) => void;
-
 interface PendingProcess {
 	readonly marker: string;
 	readonly command: string;
@@ -28,7 +41,6 @@ interface PendingProcess {
 interface ProcessReaperState {
 	readonly rootDir: string;
 	readonly owners: Map<string, OwnerProcesses>;
-	readonly listeners: Set<BackgroundGroupCountListener>;
 }
 
 interface ProcessReaperGlobal {
@@ -40,7 +52,8 @@ export interface ProcessReaperOptions {
 	readonly groupExists?: (pid: number) => boolean;
 	readonly processExists?: (pid: number) => boolean;
 	readonly signalGroup?: (pid: number, signal: ProcessSignal) => void;
-	readonly sleep?: (milliseconds: number) => Promise<void>;
+	/** Sleep seam for tests; production sleeps on the Effect clock. */
+	readonly sleep?: (milliseconds: number) => Effect.Effect<void>;
 }
 
 export interface BackgroundJob {
@@ -100,8 +113,8 @@ function defaultSignalGroup(pid: number, signal: ProcessSignal): void {
 	process.kill(-pid, signal);
 }
 
-function defaultSleep(milliseconds: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function defaultSleep(milliseconds: number): Effect.Effect<void> {
+	return Effect.sleep(milliseconds);
 }
 
 function parsePid(contents: string): number | undefined {
@@ -109,13 +122,11 @@ function parsePid(contents: string): number | undefined {
 	return Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid ? pid : undefined;
 }
 
-async function readPid(marker: string): Promise<number | undefined> {
-	try {
-		return parsePid(await fsp.readFile(marker, "utf8"));
-	} catch (error) {
-		if (errnoCode(error) === "ENOENT") return undefined;
-		throw error;
-	}
+function readPid(marker: string): Effect.Effect<number | undefined, FsError> {
+	return Effect.gen(function* () {
+		const contents = yield* readFileStringIfExists(marker);
+		return contents === undefined ? undefined : parsePid(contents);
+	});
 }
 
 /**
@@ -130,7 +141,7 @@ export class ProcessReaper {
 	private readonly groupExists: (pid: number) => boolean;
 	private readonly processExists: (pid: number) => boolean;
 	private readonly signalGroup: (pid: number, signal: ProcessSignal) => void;
-	private readonly sleep: (milliseconds: number) => Promise<void>;
+	private readonly sleep: (milliseconds: number) => Effect.Effect<void>;
 
 	constructor(options: ProcessReaperOptions = {}, state?: ProcessReaperState) {
 		this.state = state ?? createState(options.rootDir ?? defaultRootDir());
@@ -144,93 +155,97 @@ export class ProcessReaper {
 		return path.join(this.state.rootDir, hash(ownerId), `${hash(toolCallId)}.pid`);
 	}
 
-	prepareCommand(ownerId: string, toolCallId: string, command: string): string {
-		const marker = this.markerPath(ownerId, toolCallId);
-		fs.mkdirSync(path.dirname(marker), { recursive: true, mode: 0o700 });
-		fs.writeFileSync(marker, "", { encoding: "utf8", mode: 0o600 });
-		this.owner(ownerId).markers.set(toolCallId, { marker, command });
+	/**
+	 * Register a Bash call for cleanup and wrap its command so the shell records
+	 * its own PID in the marker file before running anything else.
+	 */
+	prepareCommand(ownerId: string, toolCallId: string, command: string): Effect.Effect<string, FsError> {
+		return Effect.gen({ self: this }, function* () {
+			const marker = this.markerPath(ownerId, toolCallId);
+			yield* makeDirectory(path.dirname(marker), 0o700);
+			yield* writeFileString(marker, "", { mode: 0o600 });
+			this.owner(ownerId).markers.set(toolCallId, { marker, command });
 
-		const quotedMarker = quoteShellArgument(marker);
-		return [
-			`if ! printf '%s\\n' "$$" > ${quotedMarker}; then`,
-			"  printf '%s\\n' 'Pi could not register this process for cleanup.' >&2",
-			"  exit 125",
-			"fi",
-			command,
-		].join("\n");
+			const quotedMarker = quoteShellArgument(marker);
+			return [
+				`if ! printf '%s\\n' "$$" > ${quotedMarker}; then`,
+				"  printf '%s\\n' 'Pi could not register this process for cleanup.' >&2",
+				"  exit 125",
+				"fi",
+				command,
+			].join("\n");
+		});
 	}
 
-	async finishCommand(ownerId: string, toolCallId: string): Promise<void> {
-		const owner = this.state.owners.get(ownerId);
-		const pending = owner?.markers.get(toolCallId);
-		if (owner === undefined || pending === undefined) return;
-		const previousBackgroundGroups = this.backgroundGroupCount();
+	finishCommand(ownerId: string, toolCallId: string): Effect.Effect<void, FsError> {
+		return Effect.gen({ self: this }, function* () {
+			const owner = this.state.owners.get(ownerId);
+			const pending = owner?.markers.get(toolCallId);
+			if (owner === undefined || pending === undefined) return undefined;
 
-		const pid = await readPid(pending.marker);
-		owner.markers.delete(toolCallId);
-		if (pid !== undefined && this.groupExists(pid)) {
-			owner.groups.set(pid, {
-				pid,
-				ownerId,
-				toolCallId,
-				command: pending.command,
-			});
-		}
-		await fsp.rm(pending.marker, { force: true });
-		await this.removeOwnerIfEmpty(ownerId, owner);
-		this.notifyBackgroundGroupChange(previousBackgroundGroups);
-	}
-
-	async terminateOwner(ownerId: string): Promise<void> {
-		const owner = this.state.owners.get(ownerId);
-		if (owner === undefined) return;
-		const previousBackgroundGroups = this.backgroundGroupCount();
-
-		// A settled Bash shell has exited. A process now using its PID belongs
-		// to a later process group and must not be signalled.
-		const groups = new Set([...owner.groups.keys()].filter((pid) => !this.processExists(pid)));
-		for (const marker of owner.markers.values()) {
-			const pid = await readPid(marker.marker);
-			if (pid !== undefined) groups.add(pid);
-		}
-
-		const liveGroups = [...groups].filter((pid) => this.groupExists(pid));
-		for (const pid of liveGroups) this.trySignal(pid, "SIGTERM");
-		if (liveGroups.length > 0) await this.sleep(TERMINATION_GRACE_MS);
-
-		const survivors = liveGroups.filter((pid) => this.groupExists(pid));
-		for (const pid of survivors) this.trySignal(pid, "SIGKILL");
-		if (survivors.length > 0) await this.sleep(TERMINATION_SETTLE_MS);
-
-		const remaining = survivors.filter((pid) => this.groupExists(pid));
-		if (remaining.length > 0) {
-			throw new Error(`Could not terminate process groups: ${remaining.join(", ")}`);
-		}
-
-		this.state.owners.delete(ownerId);
-		await fsp.rm(path.join(this.state.rootDir, hash(ownerId)), { recursive: true, force: true });
-		await this.removeRootIfEmpty();
-		this.notifyBackgroundGroupChange(previousBackgroundGroups);
-	}
-
-	/** Drop retained groups that have exited and notify when the count changes. */
-	async pruneFinishedJobs(): Promise<void> {
-		const previousBackgroundGroups = this.backgroundGroupCount();
-		for (const [ownerId, owner] of this.state.owners) {
-			for (const pid of owner.groups.keys()) {
-				if (!this.groupExists(pid)) owner.groups.delete(pid);
+			const pid = yield* readPid(pending.marker);
+			owner.markers.delete(toolCallId);
+			if (pid !== undefined && this.groupExists(pid)) {
+				owner.groups.set(pid, {
+					pid,
+					ownerId,
+					toolCallId,
+					command: pending.command,
+				});
 			}
-			await this.removeOwnerIfEmpty(ownerId, owner);
-		}
-		this.notifyBackgroundGroupChange(previousBackgroundGroups);
+			yield* removeFile(pending.marker);
+			yield* this.removeOwnerIfEmpty(ownerId, owner);
+			return undefined;
+		});
 	}
 
-	/** Subscribe to background-group count changes. The current count is emitted immediately. */
-	onBackgroundGroupChange(listener: BackgroundGroupCountListener): () => void {
-		const listeners = this.state.listeners;
-		listeners.add(listener);
-		listener(this.backgroundGroupCount());
-		return () => listeners.delete(listener);
+	terminateOwner(ownerId: string): Effect.Effect<void, FsError | ProcessReaperError> {
+		return Effect.gen({ self: this }, function* () {
+			const owner = this.state.owners.get(ownerId);
+			if (owner === undefined) return undefined;
+
+			// A settled Bash shell has exited. A process now using its PID belongs
+			// to a later process group and must not be signalled.
+			const groups = new Set([...owner.groups.keys()].filter((pid) => !this.processExists(pid)));
+			for (const marker of owner.markers.values()) {
+				const pid = yield* readPid(marker.marker);
+				if (pid !== undefined) groups.add(pid);
+			}
+
+			const liveGroups = [...groups].filter((pid) => this.groupExists(pid));
+			for (const pid of liveGroups) this.trySignal(pid, "SIGTERM");
+			if (liveGroups.length > 0) yield* this.sleep(TERMINATION_GRACE_MS);
+
+			const survivors = liveGroups.filter((pid) => this.groupExists(pid));
+			for (const pid of survivors) this.trySignal(pid, "SIGKILL");
+			if (survivors.length > 0) yield* this.sleep(TERMINATION_SETTLE_MS);
+
+			const remaining = survivors.filter((pid) => this.groupExists(pid));
+			if (remaining.length > 0) {
+				return yield* new ProcessReaperError({
+					message: `Could not terminate process groups: ${remaining.join(", ")}`,
+					pids: remaining,
+				});
+			}
+
+			this.state.owners.delete(ownerId);
+			yield* removeTree(path.join(this.state.rootDir, hash(ownerId)));
+			yield* this.removeRootIfEmpty();
+			return undefined;
+		});
+	}
+
+	/** Drop retained groups that have exited. */
+	pruneFinishedJobs(): Effect.Effect<void, FsError> {
+		return Effect.gen({ self: this }, function* () {
+			for (const [ownerId, owner] of this.state.owners) {
+				for (const pid of owner.groups.keys()) {
+					if (!this.groupExists(pid)) owner.groups.delete(pid);
+				}
+				yield* this.removeOwnerIfEmpty(ownerId, owner);
+			}
+			return undefined;
+		});
 	}
 
 	/** Return a snapshot of all background jobs retained by this process. */
@@ -256,42 +271,26 @@ export class ProcessReaper {
 		}
 	}
 
-	private async removeOwnerIfEmpty(ownerId: string, owner: OwnerProcesses): Promise<void> {
-		if (owner.markers.size > 0 || owner.groups.size > 0) return;
-		if (this.state.owners.get(ownerId) === owner) this.state.owners.delete(ownerId);
-		try {
-			await fsp.rmdir(path.join(this.state.rootDir, hash(ownerId)));
-		} catch (error) {
-			const code = errnoCode(error);
-			if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
-		}
-		await this.removeRootIfEmpty();
+	private removeOwnerIfEmpty(ownerId: string, owner: OwnerProcesses): Effect.Effect<void, FsError> {
+		return Effect.gen({ self: this }, function* () {
+			if (owner.markers.size > 0 || owner.groups.size > 0) return undefined;
+			if (this.state.owners.get(ownerId) === owner) this.state.owners.delete(ownerId);
+			yield* removeDirectoryIfEmpty(path.join(this.state.rootDir, hash(ownerId)));
+			yield* this.removeRootIfEmpty();
+			return undefined;
+		});
 	}
 
-	private async removeRootIfEmpty(): Promise<void> {
-		try {
-			await fsp.rmdir(this.state.rootDir);
-		} catch (error) {
-			const code = errnoCode(error);
-			if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
-		}
-	}
-
-	private backgroundGroupCount(): number {
-		let count = 0;
-		for (const owner of this.state.owners.values()) count += owner.groups.size;
-		return count;
-	}
-
-	private notifyBackgroundGroupChange(previousBackgroundGroups: number): void {
-		const backgroundGroups = this.backgroundGroupCount();
-		if (backgroundGroups === previousBackgroundGroups) return;
-		for (const listener of this.state.listeners) listener(backgroundGroups);
+	private removeRootIfEmpty(): Effect.Effect<void, FsError> {
+		return Effect.gen({ self: this }, function* () {
+			yield* removeDirectoryIfEmpty(this.state.rootDir);
+			return undefined;
+		});
 	}
 }
 
 function createState(rootDir: string): ProcessReaperState {
-	return { rootDir, owners: new Map(), listeners: new Set() };
+	return { rootDir, owners: new Map() };
 }
 
 export function getProcessReaper(): ProcessReaper {
@@ -302,35 +301,40 @@ export function getProcessReaper(): ProcessReaper {
 }
 
 function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): void {
-	// Retained groups are only revisited on tool results and shutdown, so sweep
-	// on a timer to converge stored state with live truth (and the bg badge)
-	// when a job exits while the user is idle. Unref'd like other extension
-	// ticks; the reaper owns freshness, consumers just subscribe.
-	setInterval(() => {
-		void reaper.pruneFinishedJobs().catch(() => {});
-	}, BACKGROUND_SWEEP_INTERVAL_MS).unref?.();
+	// Retained groups are only revisited on tool results, the /jobs command, and
+	// shutdown, so sweep on a schedule to converge stored state with live truth
+	// when a job exits while the user is idle.
+	runFork(
+		reaper
+			.pruneFinishedJobs()
+			// A failed sweep must not stop later sweeps from converging state.
+			.pipe(
+				Effect.catchTag("FsError", () => Effect.void),
+				Effect.repeat(Schedule.spaced(BACKGROUND_SWEEP_INTERVAL_MS)),
+			),
+	);
 
 	pi.registerCommand("jobs", {
 		description: "List background jobs tracked by the process reaper",
 		handler: async (_args, ctx) => {
-			await reaper.pruneFinishedJobs();
+			await runPromise(reaper.pruneFinishedJobs());
 			ctx.ui.notify(formatBackgroundJobs(reaper.listBackgroundJobs()), "info");
 		},
 	});
 
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (!isToolCallEventType("bash", event)) return;
 		const ownerId = ctx.sessionManager.getSessionId();
-		event.input.command = reaper.prepareCommand(ownerId, event.toolCallId, event.input.command);
+		event.input.command = await runPromise(reaper.prepareCommand(ownerId, event.toolCallId, event.input.command));
 	});
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (!isBashToolResult(event)) return;
-		await reaper.finishCommand(ctx.sessionManager.getSessionId(), event.toolCallId);
+		await runPromise(reaper.finishCommand(ctx.sessionManager.getSessionId(), event.toolCallId));
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
-		await reaper.terminateOwner(ctx.sessionManager.getSessionId());
+		await runPromise(reaper.terminateOwner(ctx.sessionManager.getSessionId()));
 	});
 }
 

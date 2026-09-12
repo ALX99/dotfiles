@@ -13,6 +13,12 @@ import nestedContext, {
 	patchTargetPaths,
 	toolCallTargetPaths,
 } from "../nested-context.ts";
+import { runPromise } from "../_shared/effect-runtime.ts";
+
+/** Collecting context reads the filesystem, so cases await the extension runtime. */
+function collect(filePath: string, cwd: string, loaded: Set<string>) {
+	return runPromise(collectNestedContextFiles(filePath, cwd, loaded));
+}
 
 function makeRepo(): string {
 	return mkdtempSync(join(tmpdir(), "nested-context-"));
@@ -72,7 +78,7 @@ function loadExtension(): ExtensionHarness {
 	return harness;
 }
 
-test("collects context files from directories strictly below cwd, shallowest first", () => {
+test("collects context files from directories strictly below cwd, shallowest first", async () => {
 	const root = makeRepo();
 	writeTree(root, {
 		"A/AGENTS.md": "rules for A",
@@ -81,7 +87,7 @@ test("collects context files from directories strictly below cwd, shallowest fir
 	});
 
 	const loaded = new Set<string>();
-	const found = collectNestedContextFiles(join(root, "A/B/file.txt"), root, loaded);
+	const found = await collect(join(root, "A/B/file.txt"), root, loaded);
 
 	assert.deepEqual(
 		found.map((file) => [file.path, file.content]),
@@ -92,36 +98,30 @@ test("collects context files from directories strictly below cwd, shallowest fir
 	);
 });
 
-test("prefers the override file within a directory and falls back to CLAUDE.md", () => {
+test("prefers the override file within a directory and falls back to CLAUDE.md", async () => {
 	const overrideRoot = makeRepo();
 	writeTree(overrideRoot, {
 		"sub/AGENTS.override.md": "override",
 		"sub/AGENTS.md": "base",
 	});
-	assert.deepEqual(
-		collectNestedContextFiles(join(overrideRoot, "sub/x.ts"), overrideRoot, new Set())[0]?.content,
-		"override",
-	);
+	assert.deepEqual((await collect(join(overrideRoot, "sub/x.ts"), overrideRoot, new Set()))[0]?.content, "override");
 
 	const claudeRoot = makeRepo();
 	writeTree(claudeRoot, { "sub/CLAUDE.md": "claude rules" });
-	assert.deepEqual(
-		collectNestedContextFiles(join(claudeRoot, "sub/x.ts"), claudeRoot, new Set())[0]?.content,
-		"claude rules",
-	);
+	assert.deepEqual((await collect(join(claudeRoot, "sub/x.ts"), claudeRoot, new Set()))[0]?.content, "claude rules");
 });
 
-test("skips already-loaded paths and files outside or at cwd", () => {
+test("skips already-loaded paths and files outside or at cwd", async () => {
 	const root = makeRepo();
 	writeTree(root, { "A/AGENTS.md": "rules", "file.txt": "" });
 
 	const loaded = new Set<string>();
-	assert.equal(collectNestedContextFiles(join(root, "A/file.txt"), root, loaded).length, 1);
-	assert.deepEqual(collectNestedContextFiles(join(root, "A/file.txt"), root, loaded), []);
+	assert.equal((await collect(join(root, "A/file.txt"), root, loaded)).length, 1);
+	assert.deepEqual(await collect(join(root, "A/file.txt"), root, loaded), []);
 
-	assert.deepEqual(collectNestedContextFiles(join(root, "file.txt"), root, new Set()), []);
+	assert.deepEqual(await collect(join(root, "file.txt"), root, new Set()), []);
 	const outside = makeRepo();
-	assert.deepEqual(collectNestedContextFiles(join(outside, "x.ts"), root, new Set()), []);
+	assert.deepEqual(await collect(join(outside, "x.ts"), root, new Set()), []);
 });
 
 test("extracts target paths from read/edit/write inputs resolved against cwd", () => {
@@ -237,10 +237,10 @@ test("tree navigation restores only the destination branch's injected context", 
 	assert.equal(harness.sent.length, 2);
 });
 
-test("nested context works when the session cwd is the filesystem root", () => {
+test("nested context works when the session cwd is the filesystem root", async () => {
 	const root = makeRepo();
 	writeTree(root, { "A/AGENTS.md": "rules" });
-	const files = collectNestedContextFiles(join(root, "A/file.ts"), "/", new Set());
+	const files = await collect(join(root, "A/file.ts"), "/", new Set());
 	assert.ok(files.some((file) => file.path === join(root, "A/AGENTS.md")));
 });
 

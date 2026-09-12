@@ -4,6 +4,7 @@ import type { ExtensionAPI, ExtensionContext, ScopedModel } from "@earendil-work
 import { createSubagentRuntime } from "./bootstrap.ts";
 import { buildCapabilityHint } from "./capability-hint.ts";
 import { showAgentDashboard } from "./dashboard.ts";
+import { runPromise } from "../_shared/effect-runtime.ts";
 import type { AgentSummary } from "./agent-types.ts";
 import { createAgentsStatusTool } from "./tools/agents-status.ts";
 import { createAnswerAgentTool } from "./tools/answer-agent.ts";
@@ -27,9 +28,11 @@ interface SubagentCommandRuntime {
 	};
 }
 
-export default function registerSubagents(pi: ExtensionAPI): void {
+export default async function registerSubagents(pi: ExtensionAPI): Promise<void> {
 	const toolActivation = new SubagentToolController(pi);
-	const runtime = createSubagentRuntime(toolActivation);
+	// Role and profile files are read once at load; a rejected configuration
+	// rejects this promise and the host reports the accumulated reasons.
+	const runtime = await runPromise(createSubagentRuntime(toolActivation));
 
 	pi.on("agent_settled", () => runtime.flushCompletions(pi));
 

@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Predicate } from "effect";
+import { runPromise } from "../_shared/effect-runtime.ts";
 import { toError } from "../_shared/errors.ts";
-import { isRecord } from "../_shared/json.ts";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import type { AgentRegistry } from "./agent-registry.ts";
 import { isAgentActive, type AgentSummary } from "./agent-types.ts";
@@ -74,7 +75,7 @@ async function showAgent(ctx: ExtensionCommandContext, registry: AgentRegistry, 
 							`Close ${sanitizeTerminalText(summary.task_name || id)}. Its retained context will be lost.`,
 						)
 					)
-						await registry.close(id);
+						await runPromise(registry.close(id));
 					return false;
 				case "Take over session":
 					return takeOver(ctx, summary.session_file);
@@ -92,10 +93,12 @@ async function inspectOutput(ctx: ExtensionCommandContext, registry: AgentRegist
 		let cursor: string | undefined;
 		text = "";
 		do {
-			const page = await registry.readResult(id, {
-				generation: summary.generation,
-				...(cursor ? { cursor } : {}),
-			});
+			const page = await runPromise(
+				registry.readResult(id, {
+					generation: summary.generation,
+					...(cursor ? { cursor } : {}),
+				}),
+			);
 			text += page.text;
 			cursor = page.next_cursor;
 		} while (cursor);
@@ -104,17 +107,19 @@ async function inspectOutput(ctx: ExtensionCommandContext, registry: AgentRegist
 }
 
 async function inspectTranscript(ctx: ExtensionCommandContext, registry: AgentRegistry, id: string): Promise<void> {
-	const messages = await registry.readTranscript(id);
+	const messages = await runPromise(registry.readTranscript(id));
 	const text = messages.map(transcriptLine).join("\n\n");
 	await displayText(ctx, `${id} transcript`, text || "(no transcript)");
 }
 
 function transcriptLine(message: unknown): string {
-	if (!isRecord(message)) return "message:";
+	if (!Predicate.isObject(message)) return "message:";
 	const role = typeof message.role === "string" ? message.role : "message";
 	const content = Array.isArray(message.content) ? message.content : [];
 	const body = content
-		.flatMap((part) => (isRecord(part) && part.type === "text" && typeof part.text === "string" ? [part.text] : []))
+		.flatMap((part) =>
+			Predicate.isObject(part) && part.type === "text" && typeof part.text === "string" ? [part.text] : [],
+		)
 		.join("\n");
 	return `${role}: ${body}`;
 }
@@ -130,7 +135,7 @@ async function displayText(ctx: ExtensionCommandContext, title: string, text: st
 
 async function takeOver(ctx: ExtensionCommandContext, sessionFile: string | undefined): Promise<boolean> {
 	if (!sessionFile) throw new Error("This subagent has no session file.");
-	const file = await validateChildSessionPath(sessionFile);
+	const file = await runPromise(validateChildSessionPath(sessionFile));
 	if (
 		await ctx.ui.confirm(
 			"Take over subagent session?",

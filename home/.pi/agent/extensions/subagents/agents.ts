@@ -1,11 +1,11 @@
 /** Subagent identity and capability discovery. */
 
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
-import { err, ok, type Result } from "neverthrow";
-import { z } from "zod";
+import { Effect, Result, Schema } from "effect";
 import { toError } from "../_shared/errors.ts";
+import { readDirectory, readFileString } from "../_shared/fs.ts";
+import { formatSchemaFailure } from "../_shared/schema-issues.ts";
 
 export interface AgentConfig {
 	name: string;
@@ -15,67 +15,99 @@ export interface AgentConfig {
 	filePath: string;
 }
 
-const nonBlank = (label: string) => z.string().trim().min(1, `${label} must not be blank`);
+/** Frontmatter values are trimmed, then must not be blank. */
+const nonBlank = (label: string) => Schema.Trim.check(Schema.isMinLength(1, { message: `${label} must not be blank` }));
 
-/** Compiled: `z.compile()` validates valid input on a generated fast path; errors still come from the standard parser. */
-export const AgentFrontmatterSchema = z.compile(
-	z.strictObject({
-		name: nonBlank("name").refine(
-			(name) => !/[\s\p{C}]/u.test(name),
-			"name must not contain whitespace or control characters",
+/** Unknown keys are rejected, so a renamed or unsupported field cannot be ignored silently. */
+const AgentFrontmatterSchema = Schema.Struct({
+	name: nonBlank("name").check(
+		Schema.makeFilter((name: string) =>
+			/[\s\p{C}]/u.test(name) ? "name must not contain whitespace or control characters" : undefined,
 		),
-		description: nonBlank("description"),
-		tools: z.array(nonBlank("tool")).min(1, "tools must contain at least one tool"),
-	}),
-);
+	),
+	description: nonBlank("description"),
+	tools: Schema.Array(nonBlank("tool")).check(
+		Schema.isMinLength(1, { message: "tools must contain at least one tool" }),
+	),
+});
 
-export type DiscoverError =
-	| { kind: "read_dir"; dir: string; cause: NodeJS.ErrnoException }
-	| { kind: "empty"; dir: string }
-	| { kind: "configuration"; dir: string; errors: string[]; agents: AgentConfig[] };
+const decodeFrontmatter = Schema.decodeUnknownResult(AgentFrontmatterSchema, {
+	onExcessProperty: "error",
+	errors: "all",
+});
+
+/** The agents directory itself could not be read. */
+export class AgentsDirectoryError extends Schema.TaggedError<AgentsDirectoryError>()("AgentsDirectoryError", {
+	dir: Schema.String,
+	cause: Schema.Defect(),
+}) {}
+
+/** The directory is readable but holds no agent roles. */
+export class NoAgentsError extends Schema.TaggedError<NoAgentsError>()("NoAgentsError", {
+	dir: Schema.String,
+}) {}
+
+/** At least one role file is invalid or two files claim the same role name. */
+export class AgentConfigurationError extends Schema.TaggedError<AgentConfigurationError>()("AgentConfigurationError", {
+	dir: Schema.String,
+	errors: Schema.Array(Schema.String),
+	/** Roles parsed before the failure; profile validation still checks these names. */
+	knownNames: Schema.Array(Schema.String),
+}) {}
+
+export type AgentDiscoveryError = AgentsDirectoryError | NoAgentsError | AgentConfigurationError;
 
 const AGENTS_DIR = path.join(getAgentDir(), "extensions", "subagents", "agents");
 
 /** Read and validate every Markdown agent. Invalid files are startup errors. */
-export function discoverAgents(dir = AGENTS_DIR): Result<AgentConfig[], DiscoverError> {
-	let entries: fs.Dirent[];
-	try {
-		entries = fs.readdirSync(dir, { withFileTypes: true });
-	} catch (cause) {
-		return err({ kind: "read_dir", dir, cause: toError(cause) });
-	}
+export function discoverAgents(dir: string = AGENTS_DIR): Effect.Effect<AgentConfig[], AgentDiscoveryError> {
+	return Effect.gen(function* () {
+		const entries = yield* readDirectory(dir).pipe(
+			Effect.catchTag("FsError", (error) => Effect.fail(new AgentsDirectoryError({ dir, cause: error.cause }))),
+		);
 
-	const agents: AgentConfig[] = [];
-	const errors: string[] = [];
-	for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
-		if (!entry.name.endsWith(".md")) continue;
-		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-		const filePath = path.join(dir, entry.name);
-		let content: string;
-		try {
-			content = fs.readFileSync(filePath, "utf8");
-		} catch (cause) {
-			errors.push(`${filePath}: could not read file: ${toError(cause).message}`);
-			continue;
+		const errors: string[] = [];
+		const contents: Array<{ readonly filePath: string; readonly text: string }> = [];
+		// Entry order is the diagnostic order, so a failure list stays stable.
+		for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
+			if (!entry.name.endsWith(".md")) continue;
+			if (!entry.isFile && !entry.isSymbolicLink) continue;
+			const filePath = path.join(dir, entry.name);
+			const text = yield* readFileString(filePath).pipe(
+				Effect.catchTag("FsError", (error) => {
+					errors.push(`${filePath}: could not read file: ${toError(error.cause).message}`);
+					return Effect.succeed<string | undefined>(undefined);
+				}),
+			);
+			if (text !== undefined) contents.push({ filePath, text });
 		}
-		const parsed = parseAgentFile(filePath, content);
-		if (parsed.success) agents.push(parsed.agent);
-		else errors.push(...parsed.errors);
-	}
 
+		const agents: AgentConfig[] = [];
+		for (const file of contents) {
+			const parsed = parseAgentFile(file.filePath, file.text);
+			if (parsed.success) agents.push(parsed.agent);
+			else errors.push(...parsed.errors);
+		}
+		errors.push(...duplicateNameErrors(agents));
+
+		if (errors.length) {
+			return yield* new AgentConfigurationError({ dir, errors, knownNames: agents.map((agent) => agent.name) });
+		}
+		if (agents.length === 0) return yield* new NoAgentsError({ dir });
+		return agents.toSorted((a, b) => a.name.localeCompare(b.name));
+	});
+}
+
+function duplicateNameErrors(agents: readonly AgentConfig[]): string[] {
 	const filesByName = new Map<string, string[]>();
 	for (const agent of agents) {
 		const files = filesByName.get(agent.name) ?? [];
 		files.push(agent.filePath);
 		filesByName.set(agent.name, files);
 	}
-	for (const [name, files] of filesByName) {
-		if (files.length > 1) errors.push(`agents.${name}: duplicate agent name in ${files.join(", ")}`);
-	}
-	if (errors.length) return err({ kind: "configuration", dir, errors, agents });
-	if (agents.length === 0) return err({ kind: "empty", dir });
-	agents.sort((a, b) => a.name.localeCompare(b.name));
-	return ok(agents);
+	return [...filesByName].flatMap(([name, files]) =>
+		files.length > 1 ? [`agents.${name}: duplicate agent name in ${files.join(", ")}`] : [],
+	);
 }
 
 export function parseAgentFile(
@@ -89,40 +121,37 @@ export function parseAgentFile(
 	} catch (cause) {
 		return { success: false, errors: [`${filePath}: invalid frontmatter: ${toError(cause).message}`] };
 	}
-	const parsed = AgentFrontmatterSchema.safeParse(frontmatter);
-	if (!parsed.success) {
-		return {
-			success: false,
-			errors: parsed.error.issues.map(
-				(issue) => `${filePath}:${issue.path.length ? ` ${issue.path.join(".")}:` : ""} ${issue.message}`,
-			),
-		};
+	const decoded = decodeFrontmatter(frontmatter);
+	if (Result.isFailure(decoded)) {
+		return { success: false, errors: formatSchemaFailure(filePath, decoded.failure) };
 	}
 	if (!body.trim()) return { success: false, errors: [`${filePath}: system prompt must not be empty`] };
-	const duplicateTools = parsed.data.tools.filter((tool, index, tools) => tools.indexOf(tool) !== index);
+	const { name, description, tools } = decoded.success;
+	const duplicateTools = tools.filter((tool, index) => tools.indexOf(tool) !== index);
 	if (duplicateTools.length) {
 		return { success: false, errors: [`${filePath}: tools must not contain duplicates`] };
 	}
 	return {
 		success: true,
-		agent: {
-			name: parsed.data.name,
-			description: parsed.data.description,
-			tools: parsed.data.tools,
-			systemPrompt: body.trim(),
-			filePath,
-		},
+		agent: { name, description, tools: [...tools], systemPrompt: body.trim(), filePath },
 	};
 }
 
-export function formatAgentList(agents: AgentConfig[]): string {
+export function formatAgentList(agents: readonly AgentConfig[]): string {
 	return agents.map((agent) => `${agent.name}: ${agent.description}`).join("; ") || "none";
 }
 
-export function resolveAgent(
-	agents: AgentConfig[],
-	name: string,
-): Result<AgentConfig, { requested: string; available: AgentConfig[] }> {
-	const found = agents.find((agent) => agent.name === name);
-	return found ? ok(found) : err({ requested: name, available: agents });
+export function resolveAgent(agents: readonly AgentConfig[], name: string): AgentConfig | undefined {
+	return agents.find((agent) => agent.name === name);
+}
+
+/** The startup message for a discovery failure, matching what the user must fix. */
+export function discoveryErrorMessage(error: AgentDiscoveryError): string {
+	if (error instanceof AgentsDirectoryError) {
+		return `Could not read agents dir ${error.dir}: ${toError(error.cause).message || "unknown error"}.`;
+	}
+	if (error instanceof AgentConfigurationError) {
+		return error.errors.join("\n") || `Invalid agent configuration in ${error.dir}.`;
+	}
+	return `No agent files found in ${error.dir}.`;
 }

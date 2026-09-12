@@ -1,6 +1,7 @@
 import { getAgentDir, truncateHead, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isRecord } from "../_shared/json.ts";
-import { discoverAgents, type AgentConfig } from "./agents.ts";
+import { Effect, Predicate, Schema } from "effect";
+import { runPromise } from "../_shared/effect-runtime.ts";
+import { discoveryErrorMessage, discoverAgents, type AgentConfig } from "./agents.ts";
 import { AgentRegistry, SUBAGENT_SETTLEMENT_CUSTOM_TYPE } from "./agent-registry.ts";
 import { CleanupAggregateError, isAgentActive, type AgentQuestion, type AgentSummary } from "./agent-types.ts";
 import { loadProfiles, type ProfilesConfig } from "./profiles.ts";
@@ -121,7 +122,7 @@ export class SubagentRuntime {
 		for (const tick of this.ticks.values()) clearInterval(tick);
 		this.ticks.clear();
 		try {
-			await this.registry.closeAll();
+			await runPromise(this.registry.closeAll());
 		} catch (error) {
 			failures.push(error);
 		}
@@ -143,22 +144,63 @@ export class SubagentRuntime {
 	}
 }
 
-export function createSubagentRuntime(toolActivation: SubagentToolActivator): SubagentRuntime {
-	const discovered = discoverAgents();
-	let agents: AgentConfig[];
-	let agentErrors: string[] = [];
-	if (discovered.isOk()) {
-		agents = discovered.value;
-	} else if (discovered.error.kind === "configuration") {
-		agents = discovered.error.agents;
-		agentErrors = discovered.error.errors;
-	} else {
-		throw new Error(discoveryErrorMessage(discovered.error));
-	}
-	const profileResult = loadProfiles(agents);
-	if (profileResult.isErr()) throw new Error([...agentErrors, ...profileResult.error.errors].join("\n"));
-	if (agentErrors.length) throw new Error(agentErrors.join("\n"));
-	return new SubagentRuntime(agents, profileResult.value, toolActivation);
+/** Startup configuration that stopped subagents from loading. */
+export class SubagentConfigurationError extends Schema.TaggedError<SubagentConfigurationError>()(
+	"SubagentConfigurationError",
+	{
+		/** The text the host reports for this extension. */
+		message: Schema.String,
+		errors: Schema.Array(Schema.String),
+	},
+) {}
+
+/** Roles parsed before a failure; profile validation still checks these names. */
+interface AgentLoad {
+	readonly agents: AgentConfig[];
+	readonly names: readonly string[];
+	readonly errors: readonly string[];
+}
+
+/**
+ * Load roles and profiles, reporting every configuration error at once. A role
+ * file that failed to parse still contributes its name, so profile validation
+ * can point at the same pass instead of surfacing one error per retry.
+ */
+export function createSubagentRuntime(
+	toolActivation: SubagentToolActivator,
+): Effect.Effect<SubagentRuntime, SubagentConfigurationError> {
+	return Effect.gen(function* () {
+		const discovered: AgentLoad = yield* discoverAgents().pipe(
+			Effect.map((agents): AgentLoad => ({ agents, names: agents.map((agent) => agent.name), errors: [] })),
+			Effect.catchTag("AgentConfigurationError", (error) =>
+				Effect.succeed<AgentLoad>({ agents: [], names: [...error.knownNames], errors: [...error.errors] }),
+			),
+			Effect.catchTags({
+				AgentsDirectoryError: (error) => Effect.fail(configurationError([discoveryErrorMessage(error)])),
+				NoAgentsError: (error) => Effect.fail(configurationError([discoveryErrorMessage(error)])),
+			}),
+		);
+
+		const loaded = yield* loadProfiles(discovered.names).pipe(
+			Effect.map((profiles) => ({ profiles }) as const),
+			Effect.catchTags({
+				ProfilesFileError: (error) => Effect.succeed({ profiles: undefined, errors: [...error.errors] } as const),
+				ProfilesInvalidError: (error) =>
+					Effect.succeed({ profiles: undefined, errors: [...error.issues.errors] } as const),
+			}),
+		);
+
+		if (loaded.profiles === undefined) {
+			// Role diagnostics come first so the user fixes the file that names the roles.
+			return yield* configurationError([...discovered.errors, ...loaded.errors]);
+		}
+		if (discovered.errors.length > 0) return yield* configurationError(discovered.errors);
+		return new SubagentRuntime(discovered.agents, loaded.profiles, toolActivation);
+	});
+}
+
+function configurationError(errors: readonly string[]): SubagentConfigurationError {
+	return new SubagentConfigurationError({ message: errors.join("\n"), errors: [...errors] });
 }
 
 function sendCompletions(pi: ExtensionAPI, summaries: readonly AgentSummary[]): void {
@@ -254,9 +296,9 @@ export function isCompletionSuperseded(queued: AgentSummary, current: AgentSumma
 
 function restoreAccountedUsage(entries: readonly unknown[], accounted: Set<string>): void {
 	for (const entry of entries) {
-		if (!isRecord(entry) || entry.type !== "message" || !isRecord(entry.message)) continue;
+		if (!Predicate.isObject(entry) || entry.type !== "message" || !Predicate.isObject(entry.message)) continue;
 		const message = entry.message;
-		if (message.role !== "toolResult" || !isRecord(message.details)) continue;
+		if (message.role !== "toolResult" || !Predicate.isObject(message.details)) continue;
 		// Run details use camelCase agentId. Retired tool names are accepted so
 		// branches recorded before the flat-verb tools still restore usage.
 		if (
@@ -274,7 +316,7 @@ function restoreAccountedUsage(entries: readonly unknown[], accounted: Set<strin
 		if (message.toolName !== "wait_agents" && message.toolName !== "wait_agent") continue;
 		if (!Array.isArray(message.details.accountedGenerations)) continue;
 		for (const value of message.details.accountedGenerations) {
-			if (!isRecord(value)) continue;
+			if (!Predicate.isObject(value)) continue;
 			const key = usageKeyFromValue(value.agentId, value.generation);
 			if (key) accounted.add(key);
 		}
@@ -289,16 +331,4 @@ function usageKeyFromValue(agentId: unknown, generation: unknown): string | unde
 	return typeof agentId === "string" && typeof generation === "number" && Number.isInteger(generation) && generation > 0
 		? usageKey(agentId, generation)
 		: undefined;
-}
-
-function discoveryErrorMessage(error: {
-	readonly kind: string;
-	readonly dir: string;
-	readonly cause?: NodeJS.ErrnoException;
-	readonly errors?: readonly string[];
-}): string {
-	if (error.kind === "read_dir")
-		return `Could not read agents dir ${error.dir}: ${error.cause?.message ?? error.cause?.code ?? "unknown error"}.`;
-	if (error.kind === "configuration") return error.errors?.join("\n") || `Invalid agent configuration in ${error.dir}.`;
-	return `No agent files found in ${error.dir}.`;
 }

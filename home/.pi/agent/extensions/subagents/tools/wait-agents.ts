@@ -1,5 +1,6 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { ResolvedAgentTarget } from "../agent-registry.ts";
+import { runPromise } from "../../_shared/effect-runtime.ts";
+import type { AgentRegistry, ResolvedAgentTarget } from "../agent-registry.ts";
 import { renderWaitCall } from "../render.ts";
 import { renderWaitToolResult } from "../ui/result-renderers.ts";
 import { uniqueAgentTargets, WaitAgentsParamsSchema } from "../schemas.ts";
@@ -17,7 +18,7 @@ import {
 	isAgentActive,
 	type AgentSummary,
 } from "../agent-types.ts";
-import type { ReadonlyRunDetails, RunUsage } from "../run-state.ts";
+import type { RunUsage } from "../run-state.ts";
 import { sumRunUsage, toPiUsage } from "../run-state.ts";
 import type { WaitAgentsParams } from "../schemas.ts";
 import type { SubagentToolActivator } from "../tool-activation.ts";
@@ -25,7 +26,7 @@ import type { SubagentToolActivator } from "../tool-activation.ts";
 interface WaitExecutionRuntime {
 	readonly registry: {
 		readonly resolveGeneration: (target: string, generation?: number) => ResolvedAgentTarget;
-		readonly wait: (id: string, signal?: AbortSignal) => Promise<ReadonlyRunDetails>;
+		readonly wait: AgentRegistry["wait"];
 		readonly summary: (id: string) => AgentSummary;
 	};
 }
@@ -165,7 +166,7 @@ export async function executeWaitAgents(
 	const waitSignal = signal ? AbortSignal.any([wave.signal, signal]) : wave.signal;
 	const waits = Promise.allSettled(
 		pending.map(async (target) => {
-			const details = await runtime.registry.wait(target.agent_id, waitSignal);
+			const details = await runPromise(runtime.registry.wait(target.agent_id, waitSignal));
 			if (details.pendingQuestion && !wave.signal.aborted) {
 				wave.abort(new AgentWaitDeferredReason());
 			}

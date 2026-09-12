@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Result } from "effect";
 import { Check } from "typebox/value";
 
 import {
@@ -8,9 +9,9 @@ import {
 	makeAskQuestionResult,
 	makeQuestionOptions,
 	makeResult,
+	normalizeAlternatives,
 	resolveChoices,
 	toggleOptionSelection,
-	validateAlternatives,
 } from "../choices.ts";
 import { AskQuestionParamsSchema, prepareAskQuestionArguments, readAskQuestionDetails } from "../schema.ts";
 
@@ -47,12 +48,21 @@ test("special actions retain their existing indices and submit selected alternat
 
 test("alternatives normalize labels and descriptions and reject blank, reserved, or duplicate labels", () => {
 	assert.throws(
-		() => validateAlternatives([{ label: "  Compare options " }, { label: "Simple" }]),
+		() => Result.getOrThrow(normalizeAlternatives([{ label: "  Compare options " }, { label: "Simple" }])),
 		/reserved option labels/,
 	);
-	assert.throws(() => validateAlternatives([{ label: "Add comment" }, { label: "Simple" }]), /reserved option labels/);
-	assert.throws(() => validateAlternatives([{ label: " Fast " }, { label: "Fast" }]), /must be distinct/);
-	assert.throws(() => validateAlternatives([{ label: "Fast" }, { label: "   " }]), /must not be empty/);
+	assert.throws(
+		() => Result.getOrThrow(normalizeAlternatives([{ label: "Add comment" }, { label: "Simple" }])),
+		/reserved option labels/,
+	);
+	assert.throws(
+		() => Result.getOrThrow(normalizeAlternatives([{ label: " Fast " }, { label: "Fast" }])),
+		/must be distinct/,
+	);
+	assert.throws(
+		() => Result.getOrThrow(normalizeAlternatives([{ label: "Fast" }, { label: "   " }])),
+		/must not be empty/,
+	);
 	assert.deepEqual(makeQuestionOptions([{ label: " Fast ", description: " Quick " }, { label: " Simple " }]), [
 		{ kind: "alternative", label: "Fast", description: "Quick" },
 		{ kind: "alternative", label: "Simple" },
@@ -175,7 +185,7 @@ test("batch results preserve each answer and format every question for the agent
 		"Detailed",
 		false,
 	);
-	const result = makeAskQuestionResult([fast, simple]);
+	const result = Result.getOrThrow(makeAskQuestionResult([fast, simple]));
 
 	assert.match(required(result.content[0]).text, /Question 1: Pick a tool/u);
 	assert.match(required(result.content[0]).text, /Question 2: Pick a style/u);
@@ -187,7 +197,7 @@ test("batch results preserve each answer and format every question for the agent
 
 test("result details accept old result records and reject invalid additions", () => {
 	const response = makeResult(params, "Responder selected: Fast", "Fast", false);
-	const result = makeAskQuestionResult([response]);
+	const result = Result.getOrThrow(makeAskQuestionResult([response]));
 
 	assert.deepEqual(readAskQuestionDetails(result.details), result.details);
 	const { status: _status, optionDetails: _optionDetails, ...legacyResponse } = response.details;

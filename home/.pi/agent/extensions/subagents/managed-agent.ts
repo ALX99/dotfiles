@@ -1,7 +1,5 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomBytes } from "node:crypto";
-import { addAbortListener } from "node:events";
 import {
 	createAgentSession,
 	DefaultResourceLoader,
@@ -12,9 +10,12 @@ import {
 	type AgentSessionEvent,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import { Cause, Deferred, Effect, Exit, Fiber, Schema } from "effect";
+import { makeDirectory } from "../_shared/fs.ts";
 import { Type } from "typebox";
 import { toError } from "../_shared/errors.ts";
-import { getProcessReaper, type ProcessReaper } from "../process-reaper/index.ts";
+import { runFork, runPromise } from "../_shared/effect-runtime.ts";
+import { getProcessReaper } from "../process-reaper/index.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitInterruptedError,
@@ -51,6 +52,35 @@ import {
 
 let nextAgentId = 1;
 
+/** Terminates the process groups a child session started; failures cross as unknown values. */
+export interface OwnedProcessTerminator {
+	terminateOwner(ownerId: string): Effect.Effect<void, unknown>;
+}
+
+/** Why a child-session operation was rejected. */
+export const ManagedAgentReason = Schema.Literals([
+	"closed_while_starting",
+	"missing_session",
+	"missing_task_address",
+	"session_not_opened",
+	"missing_persisted_session",
+	"no_active_generation",
+	"question_already_pending",
+	"question_cancelled",
+	"missing_terminal_message",
+]);
+export type ManagedAgentReason = Schema.Schema.Type<typeof ManagedAgentReason>;
+
+/** A rejected child-session operation; `message` is the text a tool reports. */
+export class ManagedAgentError extends Schema.TaggedError<ManagedAgentError>()("ManagedAgentError", {
+	reason: ManagedAgentReason,
+	message: Schema.String,
+}) {}
+
+function agentError(reason: ManagedAgentReason, message: string): ManagedAgentError {
+	return new ManagedAgentError({ reason, message });
+}
+
 /** Silent child time before a generation is considered stuck and aborted internally. */
 export const AGENT_STALL_TIMEOUT_MS = 15 * 60 * 1_000;
 
@@ -73,24 +103,32 @@ type AssistantSessionEntry = Extract<SessionEntry, { type: "message" }> & {
 
 interface PendingQuestion {
 	readonly question: AgentQuestion;
-	readonly resolve: (answer: string) => void;
-	readonly reject: (error: Error) => void;
+	/** Resolved by answer_agent, failed when the question is cancelled. */
+	readonly answer: Deferred.Deferred<string, Error>;
 }
 
 interface Generation {
 	readonly number: number;
-	readonly completion: Promise<ReadonlyRunDetails>;
-	readonly resolve: (details: ReadonlyRunDetails) => void;
-	readonly reject: (error: Error) => void;
+	/** The single settlement point; its completion state is the generation's. */
+	readonly settlement: Deferred.Deferred<ReadonlyRunDetails, Error>;
+	/** Fires when a question arrives, so a waiting parent can return early. */
+	arrival: Deferred.Deferred<void>;
 	readonly run: MutableRunData;
 	readonly initialEntryIds: ReadonlySet<string>;
-	settled: boolean;
 	background: boolean;
 	aborted: boolean;
 	/** Set when the stall watchdog aborted this generation for inactivity. */
 	stalled: boolean;
-	questionArrival: ReturnType<typeof Promise.withResolvers<void>>;
 	question?: PendingQuestion;
+}
+
+/** A generation is over once its settlement is completed, once. */
+function generationSettled(generation: Generation): boolean {
+	return Deferred.isDoneUnsafe(generation.settlement);
+}
+
+function newArrival(): Deferred.Deferred<void> {
+	return Deferred.makeUnsafe<void>();
 }
 
 export interface ManagedAgentOptions {
@@ -101,7 +139,8 @@ export interface ManagedAgentOptions {
 	readonly agent: AgentConfig;
 	readonly resolvedRun: ResolvedRun;
 	readonly retain: boolean;
-	readonly processReaper?: Pick<ProcessReaper, "terminateOwner">;
+	/** The one reaper operation a child owns, declared so tests can substitute it. */
+	readonly processReaper?: OwnedProcessTerminator;
 	/** Test seam for contract tests; production always constructs an SDK session. */
 	readonly sessionFactory?: (customTools: readonly ToolDefinition[]) => Promise<AgentSession>;
 	/** Test seam for the stall-watchdog threshold; production uses AGENT_STALL_TIMEOUT_MS. */
@@ -119,13 +158,13 @@ export class ManagedAgent {
 	private readonly listeners = new Set<(details: ReadonlyRunDetails) => void>();
 	private readonly cwd: string;
 	private readonly options: ManagedAgentOptions;
-	private readonly processReaper: Pick<ProcessReaper, "terminateOwner">;
+	private readonly processReaper: OwnedProcessTerminator;
 	private session: AgentSession | undefined;
 	private unsubscribe: (() => void) | undefined;
 	private phaseState: AgentPhase = "created";
 	private current: Generation | undefined;
 	private closePromise: Promise<void> | undefined;
-	private stallTimer: NodeJS.Timeout | undefined;
+	private stallFiber: Fiber.Fiber<void> | undefined;
 
 	constructor(options: ManagedAgentOptions) {
 		this.options = options;
@@ -185,7 +224,7 @@ export class ManagedAgent {
 			await this.open();
 			if (this.phaseState !== "starting") {
 				this.disposeSession();
-				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
+				throw agentError("closed_while_starting", `Agent ${this.id} was closed while its session was starting.`);
 			}
 			await this.session!.bindExtensions({
 				mode: "print",
@@ -194,7 +233,7 @@ export class ManagedAgent {
 			});
 			if (this.phaseState !== "starting") {
 				this.disposeSession();
-				throw new Error(`Agent ${this.id} was closed while its session was starting.`);
+				throw agentError("closed_while_starting", `Agent ${this.id} was closed while its session was starting.`);
 			}
 		} catch (cause) {
 			if (this.phaseState === "starting") {
@@ -209,19 +248,65 @@ export class ManagedAgent {
 
 	private async steerActiveTurn(input: SteerTurnInput): Promise<void> {
 		const session = this.session;
-		if (!session) throw new Error(`Agent ${this.id} lost its running session.`);
+		if (!session) throw agentError("missing_session", `Agent ${this.id} lost its running session.`);
 		await session.steer(input.message);
 	}
 
 	private answerPendingQuestion(input: AnswerTurnInput): void {
-		const pending = this.current?.question;
-		if (!pending || pending.question.question_id !== input.questionId)
-			throw new Error(`Agent ${this.id} lost its pending question.`);
-		delete this.current!.question;
-		this.current!.run.lastActivityTime = Date.now();
-		this.current!.questionArrival = Promise.withResolvers<void>();
-		pending.resolve(input.answer);
+		const current = this.current;
+		const pending = current?.question;
+		if (!current || !pending || pending.question.question_id !== input.questionId) {
+			throw agentError("missing_session", `Agent ${this.id} lost its pending question.`);
+		}
+		this.clearPendingQuestion(current);
+		Deferred.doneUnsafe(pending.answer, Effect.succeed(input.answer));
 		this.emit();
+	}
+
+	/**
+	 * Release a pending question and arm a fresh arrival signal. The child's
+	 * question tool observes the completion of its own deferred.
+	 */
+	private clearPendingQuestion(generation: Generation): void {
+		if (!generation.question) return;
+		delete generation.question;
+		generation.run.lastActivityTime = Date.now();
+		generation.arrival = newArrival();
+	}
+
+	/** Wait for the parent's answer, releasing the question if the tool is cancelled. */
+	private awaitAnswer(
+		generation: Generation,
+		question: AgentQuestion,
+		answer: Deferred.Deferred<string, Error>,
+		signal?: AbortSignal,
+	): Effect.Effect<string, Error> {
+		if (!signal) return Deferred.await(answer);
+		return Effect.gen({ self: this }, function* () {
+			const cancelled = Effect.callback<never, Error>((resume) => {
+				const onAbort = () => {
+					if (generation.question?.question.question_id === question.question_id) {
+						this.clearPendingQuestion(generation);
+						this.emit();
+					}
+					resume(
+						Effect.fail(
+							agentError(
+								"question_cancelled",
+								`Subagent question was cancelled: ${String(signal.reason ?? "aborted")}`,
+							),
+						),
+					);
+				};
+				if (signal.aborted) {
+					onAbort();
+					return Effect.void;
+				}
+				signal.addEventListener("abort", onAbort, { once: true });
+				return Effect.sync(() => signal.removeEventListener("abort", onAbort));
+			});
+			return yield* Effect.raceFirst(Deferred.await(answer), cancelled);
+		});
 	}
 
 	private turnRoutingState() {
@@ -236,19 +321,19 @@ export class ManagedAgent {
 
 	private followUpTaskName(): string {
 		const taskName = this.current?.run.taskName;
-		if (!taskName) throw new Error(`Agent ${this.id} lost its task address.`);
+		if (!taskName) throw agentError("missing_task_address", `Agent ${this.id} lost its task address.`);
 		return taskName;
 	}
 
 	async wait(signal?: AbortSignal): Promise<ReadonlyRunDetails> {
 		const current = this.current;
-		if (!current || current.settled || current.question) return this.snapshot();
+		if (!current || generationSettled(current) || current.question) return this.snapshot();
 		return this.waitFor(current, signal);
 	}
 
 	async interrupt(): Promise<void> {
 		const current = this.current;
-		if (!current || current.settled || !this.session) {
+		if (!current || generationSettled(current) || !this.session) {
 			await this.reapOwnedProcesses();
 			this.finishInterruption();
 			return;
@@ -290,7 +375,7 @@ export class ManagedAgent {
 			this.clearStallWatchdog();
 			this.emit();
 			const current = this.current;
-			if (current && !current.settled) {
+			if (current && !generationSettled(current)) {
 				current.aborted = true;
 				this.cancelPendingQuestion(current, `Agent ${this.id} was closed while waiting for input.`);
 				try {
@@ -368,7 +453,7 @@ export class ManagedAgent {
 
 	/** True while the given generation is the live unsettled generation. */
 	hasPendingResult(generation: number): boolean {
-		return this.current?.number === generation && !this.current.settled;
+		return this.current?.number === generation && !generationSettled(this.current);
 	}
 
 	async getMessages(): Promise<unknown[]> {
@@ -391,42 +476,24 @@ export class ManagedAgent {
 			execute: async (_id, params, signal) => {
 				signal?.throwIfAborted();
 				const generation = this.current;
-				if (!generation || generation.settled) throw new Error("No active subagent generation.");
-				if (generation.question) throw new Error("The subagent already has a pending question.");
+				if (!generation || generationSettled(generation)) {
+					throw agentError("no_active_generation", "No active subagent generation.");
+				}
+				if (generation.question) {
+					throw agentError("question_already_pending", "The subagent already has a pending question.");
+				}
 				const question: AgentQuestion = {
 					question_id: randomBytes(16).toString("hex"),
 					question: params.question,
 					options: [...params.alternatives],
 				};
-				const answer = await new Promise<string>((resolve, reject) => {
-					const cleanup = () => signal?.removeEventListener("abort", abort);
-					const abort = () => {
-						if (generation.question?.question.question_id === question.question_id) {
-							delete generation.question;
-							generation.questionArrival = Promise.withResolvers<void>();
-							this.emit();
-						}
-						cleanup();
-						reject(new Error(`Subagent question was cancelled: ${String(signal?.reason ?? "aborted")}`));
-					};
-					generation.question = {
-						question,
-						resolve: (resolvedAnswer) => {
-							cleanup();
-							resolve(resolvedAnswer);
-						},
-						reject: (error) => {
-							cleanup();
-							reject(error);
-						},
-					};
-					generation.questionArrival.resolve();
-					this.emit();
-					this.options.onQuestion?.(this.summary(), question);
-					if (signal?.aborted) abort();
-					else signal?.addEventListener("abort", abort, { once: true });
-				});
-				return { content: [{ type: "text", text: answer }], details: { answer } };
+				const answer = Deferred.makeUnsafe<string, Error>();
+				generation.question = { question, answer };
+				Deferred.doneUnsafe(generation.arrival, Effect.void);
+				this.emit();
+				this.options.onQuestion?.(this.summary(), question);
+				const text = await runPromise(this.awaitAnswer(generation, question, answer, signal));
+				return { content: [{ type: "text", text }], details: { answer: text } };
 			},
 		});
 		const tools = this.options.agent.tools ? [...this.options.agent.tools] : [];
@@ -437,7 +504,11 @@ export class ManagedAgent {
 			return;
 		}
 		const directory = path.join(this.options.agentDir, "subagent-sessions");
-		await fs.promises.mkdir(directory, { recursive: true });
+		await runPromise(
+			Effect.gen(function* () {
+				yield* makeDirectory(directory);
+			}),
+		);
 		const manager = SessionManager.create(this.cwd, directory);
 		const subagentExtension = path.resolve(this.options.agentDir, "extensions", "subagents", "index.ts");
 		const loader = new DefaultResourceLoader({
@@ -475,9 +546,9 @@ export class ManagedAgent {
 		background: boolean,
 		signal?: AbortSignal,
 	): Promise<ReadonlyRunDetails> {
-		if (!this.session) throw new Error(`Agent ${this.id} did not open its child session.`);
-		const { promise, resolve, reject } = Promise.withResolvers<ReadonlyRunDetails>();
-		void promise.catch(() => {});
+		if (!this.session) {
+			throw agentError("session_not_opened", `Agent ${this.id} did not open its child session.`);
+		}
 		const run = initRunData({
 			agent: this.options.agent,
 			taskName,
@@ -491,16 +562,13 @@ export class ManagedAgent {
 		});
 		const generation: Generation = {
 			number: (this.current?.number ?? 0) + 1,
-			completion: promise,
-			resolve,
-			reject,
+			settlement: Deferred.makeUnsafe<ReadonlyRunDetails, Error>(),
+			arrival: newArrival(),
 			run,
 			initialEntryIds: new Set(this.session.sessionManager.getEntries().map((entry) => entry.id)),
-			settled: false,
 			background,
 			aborted: false,
 			stalled: false,
-			questionArrival: Promise.withResolvers<void>(),
 		};
 		this.current = generation;
 		this.phaseState = "running";
@@ -517,10 +585,15 @@ export class ManagedAgent {
 	}
 
 	private settle(generation: Generation, failure?: Error): void {
-		if (generation.settled || this.current !== generation || this.phaseState === "interrupting") return;
+		if (generationSettled(generation) || this.current !== generation || this.phaseState === "interrupting") return;
 		this.clearStallWatchdog();
 		const entry = this.terminalAssistantEntry(generation);
-		if (!entry) failure ??= new Error(`Agent ${this.id} completed without a terminal assistant message.`);
+		if (!entry) {
+			failure ??= agentError(
+				"missing_terminal_message",
+				`Agent ${this.id} completed without a terminal assistant message.`,
+			);
+		}
 		try {
 			this.persistResult(generation, entry);
 		} catch (cause) {
@@ -538,7 +611,6 @@ export class ManagedAgent {
 			generation.run.error = entry?.message.errorMessage ?? "Subagent assistant failed.";
 		}
 		generation.run.endTime = Date.now();
-		generation.settled = true;
 		const terminalPhase: AgentPhase = generation.stalled
 			? "failed"
 			: generation.aborted || stopReason === "aborted"
@@ -548,9 +620,14 @@ export class ManagedAgent {
 					: "idle";
 		if (this.phaseState !== "closing" && this.phaseState !== "closed") this.phaseState = terminalPhase;
 		const details = this.snapshot();
-		if (failure && !generation.aborted) generation.reject(failure);
-		else generation.resolve(details);
-		generation.questionArrival.resolve();
+		// The settlement is the generation's single completion point: failures
+		// reach the waiter, while an aborted generation settles successfully so
+		// its details stay readable.
+		Deferred.doneUnsafe(
+			generation.settlement,
+			failure && !generation.aborted ? Effect.fail(failure) : Effect.succeed(details),
+		);
+		Deferred.doneUnsafe(generation.arrival, Effect.void);
 		this.emit();
 		if (
 			generation.background &&
@@ -580,7 +657,9 @@ export class ManagedAgent {
 		const result = storedResult(generation.number, generation.run.resultId, text, entry.message.stopReason === "stop");
 		const sessionId = this.session?.sessionId ?? generation.run.sessionId;
 		const sessionFile = this.session?.sessionFile ?? generation.run.sessionFile;
-		if (!sessionId || !sessionFile) throw new Error(`Agent ${this.id} settled without a persisted child session.`);
+		if (!sessionId || !sessionFile) {
+			throw agentError("missing_persisted_session", `Agent ${this.id} settled without a persisted child session.`);
+		}
 		const locator: GenerationResultLocator = {
 			version: 2,
 			generation: generation.number,
@@ -596,7 +675,7 @@ export class ManagedAgent {
 
 	private handleEvent(event: AgentSessionEvent): void {
 		const generation = this.current;
-		if (!generation || generation.settled) return;
+		if (!generation || generationSettled(generation)) return;
 		foldSessionEvent(event, generation.run);
 		const contextUsage = this.session?.getContextUsage();
 		if (contextUsage) generation.run.contextUsage = { ...contextUsage };
@@ -607,39 +686,43 @@ export class ManagedAgent {
 		const pending = generation.question;
 		if (!pending) return;
 		delete generation.question;
-		pending.reject(new Error(message));
+		Deferred.doneUnsafe(pending.answer, Effect.fail(agentError("question_cancelled", message)));
 	}
 
-	/** Arm the per-generation liveness watchdog; activity stamps keep deferring it. */
+	/**
+	 * Watch generation liveness in a fiber: activity stamps keep deferring it,
+	 * and the frame that owns the generation interrupts the fiber on settle.
+	 */
 	private watchForStall(generation: Generation): void {
 		this.clearStallWatchdog();
-		const thresholdMs = this.stallTimeoutMs();
-		const schedule = (delayMs: number) => {
-			this.stallTimer = setTimeout(() => this.checkForStall(generation, thresholdMs, schedule), delayMs);
-			this.stallTimer.unref?.();
-		};
-		schedule(thresholdMs);
-	}
-
-	private checkForStall(generation: Generation, thresholdMs: number, schedule: (delayMs: number) => void): void {
-		if (generation.settled || this.current !== generation) return;
-		// A child parked at ask_question emits no events while waiting for its
-		// answer; poll again later instead of treating the human as a hang.
-		if (generation.question) {
-			schedule(thresholdMs);
-			return;
-		}
-		const remainingMs = thresholdMs - (Date.now() - generation.run.lastActivityTime);
-		if (remainingMs > 0) {
-			schedule(remainingMs);
-			return;
-		}
-		void this.recoverStalledGeneration(generation).catch((error: unknown) => this.reportCleanupFailure(error));
+		const watch: Effect.Effect<void> = Effect.gen({ self: this }, function* () {
+			while (!generationSettled(generation) && this.current === generation) {
+				const thresholdMs = this.stallTimeoutMs();
+				// A child parked at ask_question emits no events while waiting
+				// for its answer; poll later instead of treating the human as a hang.
+				if (generation.question) {
+					yield* Effect.sleep(thresholdMs);
+					continue;
+				}
+				const remainingMs = thresholdMs - (Date.now() - generation.run.lastActivityTime);
+				if (remainingMs > 0) {
+					yield* Effect.sleep(remainingMs);
+					continue;
+				}
+				const outcome = yield* Effect.tryPromise({
+					try: () => this.recoverStalledGeneration(generation),
+					catch: (error) => toError(error),
+				}).pipe(Effect.exit);
+				if (Exit.isFailure(outcome)) this.reportCleanupFailure(Cause.squash(outcome.cause));
+				return;
+			}
+		});
+		this.stallFiber = runFork(watch);
 	}
 
 	/** Abort a silent generation so it settles through the normal failure path. */
 	private async recoverStalledGeneration(generation: Generation): Promise<void> {
-		if (generation.settled || this.current !== generation || generation.question) return;
+		if (generationSettled(generation) || this.current !== generation || generation.question) return;
 		generation.stalled = true;
 		this.phaseState = "interrupting";
 		this.clearStallWatchdog();
@@ -658,9 +741,10 @@ export class ManagedAgent {
 	}
 
 	private clearStallWatchdog(): void {
-		if (this.stallTimer === undefined) return;
-		clearTimeout(this.stallTimer);
-		this.stallTimer = undefined;
+		const fiber = this.stallFiber;
+		if (fiber === undefined) return;
+		this.stallFiber = undefined;
+		void runPromise(Effect.andThen(Fiber.interrupt(fiber), Effect.void)).catch(() => {});
 	}
 
 	private stallTimeoutMs(): number {
@@ -685,30 +769,42 @@ export class ManagedAgent {
 
 	private async reapOwnedProcesses(): Promise<void> {
 		const owner = this.session?.sessionId ?? this.current?.run.sessionId;
-		if (owner !== undefined) await this.processReaper.terminateOwner(owner);
+		if (owner !== undefined) await runPromise(this.processReaper.terminateOwner(owner));
 	}
 
-	private async waitFor(generation: Generation, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
-		const question = generation.questionArrival.promise.then(() => {
-			if (generation.question) {
+	private waitFor(generation: Generation, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
+		return runPromise(this.awaitGeneration(generation, signal));
+	}
+
+	/**
+	 * Settle the wait on whichever comes first: the generation's settlement, a
+	 * question that needs the parent now, or the caller abandoning the wait. An
+	 * abandoned wait leaves the child running in the background.
+	 */
+	private awaitGeneration(generation: Generation, signal?: AbortSignal): Effect.Effect<ReadonlyRunDetails, Error> {
+		return Effect.gen({ self: this }, function* () {
+			const question = Effect.gen({ self: this }, function* () {
+				yield* Deferred.await(generation.arrival);
 				generation.background = true;
-				return this.snapshot();
-			}
-			return generation.completion;
-		});
-		if (!signal) return Promise.race([generation.completion, question]);
-		let remove: Disposable | undefined;
-		const interrupted = new Promise<never>((_resolve, reject) => {
-			remove = addAbortListener(signal, () => {
-				if (!generation.background) generation.background = true;
-				reject(new AgentWaitInterruptedError(this.id, signal.reason));
+				if (generation.question) return this.snapshot();
+				return yield* Deferred.await(generation.settlement);
 			});
+			const settled = Effect.raceFirst(Deferred.await(generation.settlement), question);
+			if (!signal) return yield* settled;
+			const interrupted = Effect.callback<never, Error>((resume) => {
+				const onAbort = () => {
+					generation.background = true;
+					resume(Effect.fail(new AgentWaitInterruptedError(this.id, signal.reason)));
+				};
+				if (signal.aborted) {
+					onAbort();
+					return Effect.void;
+				}
+				signal.addEventListener("abort", onAbort, { once: true });
+				return Effect.sync(() => signal.removeEventListener("abort", onAbort));
+			});
+			return yield* Effect.raceFirst(settled, interrupted);
 		});
-		try {
-			return await Promise.race([generation.completion, question, interrupted]);
-		} finally {
-			remove?.[Symbol.dispose]();
-		}
 	}
 
 	private snapshot(status?: "launched"): ReadonlyRunDetails {

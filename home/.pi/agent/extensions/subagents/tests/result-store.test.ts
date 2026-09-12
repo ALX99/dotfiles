@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { runPromise } from "../../_shared/effect-runtime.ts";
 import { ResultCatalog, readLocatedAgentResult, storedResult } from "../result-store.ts";
 
 test("a compact native entry locator restores and pages an exact result", async (t) => {
@@ -25,7 +26,7 @@ test("a compact native entry locator restores and pages an exact result", async 
 		sessionFile: manager.getSessionFile()!,
 		resultEntryId: entryId,
 	};
-	assert.deepEqual(await readLocatedAgentResult(locator, agentDir), result);
+	assert.deepEqual(await runPromise(readLocatedAgentResult(locator, agentDir)), result);
 
 	const catalog = new ResultCatalog(agentDir);
 	catalog.record("agent-1", locator);
@@ -33,10 +34,12 @@ test("a compact native entry locator restores and pages an exact result", async 
 	let cursor: string | undefined;
 	let firstCursor: string | undefined;
 	do {
-		const page = await catalog.readResult("agent-1", {
-			maxBytes: 1_024,
-			...(cursor === undefined ? {} : { cursor }),
-		});
+		const page = await runPromise(
+			catalog.readResult("agent-1", {
+				maxBytes: 1_024,
+				...(cursor === undefined ? {} : { cursor }),
+			}),
+		);
 		assert.ok(Buffer.byteLength(page.text) <= 1_024);
 		textRead += page.text;
 		cursor = page.next_cursor;
@@ -45,7 +48,7 @@ test("a compact native entry locator restores and pages an exact result", async 
 	assert.equal(textRead, text);
 	assert.ok(firstCursor);
 	await assert.rejects(
-		catalog.readResult("agent-1", { cursor: firstCursor, offset: 0, maxBytes: 1_024 }),
+		runPromise(catalog.readResult("agent-1", { cursor: firstCursor, offset: 0, maxBytes: 1_024 })),
 		/Provide either cursor or offset, not both/,
 	);
 });
@@ -61,16 +64,18 @@ test("a locator cannot treat a missing native result entry as an empty result", 
 	} as never);
 	const result = storedResult(1, "a".repeat(64), "", false);
 	await assert.rejects(
-		readLocatedAgentResult(
-			{
-				version: 2,
-				generation: 1,
-				resultId: result.resultId,
-				sessionId: manager.getSessionId(),
-				sessionFile: manager.getSessionFile()!,
-				resultEntryId: "missing-entry",
-			},
-			agentDir,
+		runPromise(
+			readLocatedAgentResult(
+				{
+					version: 2,
+					generation: 1,
+					resultId: result.resultId,
+					sessionId: manager.getSessionId(),
+					sessionFile: manager.getSessionFile()!,
+					resultEntryId: "missing-entry",
+				},
+				agentDir,
+			),
 		),
 		/missing or is not an assistant message/,
 	);

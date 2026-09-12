@@ -4,7 +4,8 @@ import {
 	type Skill,
 	type SkillFrontmatter,
 } from "@earendil-works/pi-coding-agent";
-import { readFile } from "node:fs/promises";
+import { Effect } from "effect";
+import { readFileString } from "../_shared/fs.ts";
 
 const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
@@ -67,48 +68,53 @@ export function formatNativeSkillBlock(skill: Skill, body: string): string {
 	return `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${skill.baseDir}.\n\n${body}\n</skill>`;
 }
 
-export async function inspectSkills(
+export function inspectSkills(
 	skills: readonly Skill[],
 	activeTools: readonly string[],
-): Promise<SkillAnalysis[]> {
-	return Promise.all(skills.map((skill) => inspectSkill(skill, activeTools)));
+): Effect.Effect<SkillAnalysis[]> {
+	return Effect.forEach(skills, (skill) => inspectSkill(skill, activeTools), { concurrency: "unbounded" });
 }
 
-export async function inspectSkill(skill: Skill, activeTools: readonly string[]): Promise<SkillAnalysis> {
-	const diagnostics: SkillDiagnostic[] = [];
-	let body: string | undefined;
+export function inspectSkill(skill: Skill, activeTools: readonly string[]): Effect.Effect<SkillAnalysis> {
+	return Effect.gen(function* () {
+		const diagnostics: SkillDiagnostic[] = [];
+		let body: string | undefined;
 
-	try {
-		const raw = await readFile(skill.filePath, "utf8");
-		try {
-			const parsed = parseFrontmatter<SkillFrontmatter>(raw);
-			body = parsed.body.trim();
-			validateFrontmatter(skill, parsed.frontmatter, activeTools, diagnostics);
-		} catch (error) {
-			addDiagnostic(diagnostics, "error", `Could not parse frontmatter: ${errorMessage(error)}`, skill.filePath);
-		}
-	} catch (error) {
-		addDiagnostic(diagnostics, "error", `Could not read skill file: ${errorMessage(error)}`, skill.filePath);
-	}
-
-	const normalizedBody = body ?? "";
-	if (body !== undefined && normalizedBody.length === 0) {
-		addDiagnostic(
-			diagnostics,
-			"warning",
-			"Skill body is empty; explicit loading will add no instructions.",
-			skill.filePath,
+		const raw = yield* readFileString(skill.filePath).pipe(
+			Effect.catchTag("FsError", (error) => {
+				addDiagnostic(diagnostics, "error", `Could not read skill file: ${errorMessage(error.cause)}`, skill.filePath);
+				return Effect.succeed(undefined);
+			}),
 		);
-	}
+		if (raw !== undefined) {
+			try {
+				const parsed = parseFrontmatter<SkillFrontmatter>(raw);
+				body = parsed.body.trim();
+				validateFrontmatter(skill, parsed.frontmatter, activeTools, diagnostics);
+			} catch (error) {
+				addDiagnostic(diagnostics, "error", `Could not parse frontmatter: ${errorMessage(error)}`, skill.filePath);
+			}
+		}
 
-	return {
-		skill,
-		body: normalizedBody,
-		descriptorTokens: estimateTextTokens(formatSkillDescriptor(skill)),
-		bodyTokens: estimateTextTokens(normalizedBody),
-		nativeLoadTokens: estimateTextTokens(formatNativeSkillBlock(skill, normalizedBody)),
-		diagnostics,
-	};
+		const normalizedBody = body ?? "";
+		if (body !== undefined && normalizedBody.length === 0) {
+			addDiagnostic(
+				diagnostics,
+				"warning",
+				"Skill body is empty; explicit loading will add no instructions.",
+				skill.filePath,
+			);
+		}
+
+		return {
+			skill,
+			body: normalizedBody,
+			descriptorTokens: estimateTextTokens(formatSkillDescriptor(skill)),
+			bodyTokens: estimateTextTokens(normalizedBody),
+			nativeLoadTokens: estimateTextTokens(formatNativeSkillBlock(skill, normalizedBody)),
+			diagnostics,
+		};
+	});
 }
 
 export function summarizeSkillTokens(

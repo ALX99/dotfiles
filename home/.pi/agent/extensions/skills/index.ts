@@ -6,7 +6,8 @@ import {
 	type Skill,
 } from "@earendil-works/pi-coding-agent";
 
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
+import { runPromise } from "../_shared/effect-runtime.ts";
 import { inspectSkills, summarizeSkillTokens } from "./analysis.ts";
 import { formatSkillsSummary, showSkillsPanel, showSkillsSelector, type SkillsPanelOptions } from "./ui.ts";
 
@@ -49,7 +50,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
 			const enabledNames = syncSkills(state, skills);
 			const locked = isSessionLocked(ctx);
 
-			const analyses = await inspectSkills(skills, pi.getActiveTools());
+			const analyses = await runPromise(inspectSkills(skills, pi.getActiveTools()));
 			const readActive = options.selectedTools?.includes("read") ?? true;
 			const getTokens = () => summarizeSkillTokens(analyses, enabledNames, readActive);
 			const onToggle = (name: string, enabled: boolean): void => {
@@ -166,7 +167,7 @@ function persistState(pi: ExtensionAPI, state: RuntimeState): void {
 }
 
 function parsePersistedState(data: unknown): PersistedSkillsState | undefined {
-	if (!isRecord(data) || data.version !== 1) return undefined;
+	if (!Predicate.isObject(data) || data.version !== 1) return undefined;
 	const knownNames = asStringArray(data.knownNames);
 	const enabledNames = asStringArray(data.enabledNames);
 	if (knownNames === undefined || enabledNames === undefined) return undefined;

@@ -1,4 +1,5 @@
-import { isRecord } from "../_shared/json.ts";
+import { Predicate, Result } from "effect";
+import { parseJson } from "../_shared/json.ts";
 
 /** One decoded Codex stream frame for the session that requested it. */
 export type CodexFrameHandler = (frame: unknown) => void;
@@ -85,12 +86,9 @@ function installObserver(observers: ObserverRegistry): void {
 function observe(socket: object, data: unknown, observers: ObserverRegistry): void {
 	const text = decodeFrameData(data);
 	if (text === undefined) return;
-	let frame: unknown;
-	try {
-		frame = JSON.parse(text);
-	} catch {
-		return;
-	}
+	const parsed = parseJson(text, "codex-frame");
+	if (Result.isFailure(parsed)) return;
+	const frame = parsed.success;
 	const sessionId = observers.socketSessions.get(socket);
 	if (sessionId === undefined) return;
 	for (const handler of observers.handlers.get(sessionId) ?? []) {
@@ -104,14 +102,9 @@ function observe(socket: object, data: unknown, observers: ObserverRegistry): vo
 
 /** Read the `prompt_cache_key` of a Codex request frame. */
 function readPromptCacheKey(text: string): string | undefined {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(text);
-	} catch {
-		return undefined;
-	}
-	if (!isRecord(parsed)) return undefined;
-	const key = parsed.prompt_cache_key;
+	const parsed = parseJson(text, "codex-request");
+	if (Result.isFailure(parsed) || !Predicate.isObject(parsed.success)) return undefined;
+	const key = parsed.success.prompt_cache_key;
 	return typeof key === "string" && key.length > 0 ? key : undefined;
 }
 

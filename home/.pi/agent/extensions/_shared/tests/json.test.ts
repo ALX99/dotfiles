@@ -1,22 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isRecord, parseJson } from "../json.ts";
+import { Result } from "effect";
+import { parseJson } from "../json.ts";
 
 test("parseJson returns unknown data and source-aware diagnostics", () => {
-	assert.deepEqual(parseJson('{"ok":true}', "settings.json"), {
-		ok: true,
-		value: { ok: true },
-	});
-	const invalid = parseJson("{", "profiles.json");
-	assert.equal(invalid.ok, false);
-	if (!invalid.ok) {
-		assert.equal(invalid.diagnostic.source, "profiles.json");
-		assert.match(invalid.diagnostic.message, /^profiles\.json: invalid JSON:/);
-	}
-});
+	const parsed = parseJson('{"ok":true}', "settings.json");
+	assert.ok(Result.isSuccess(parsed));
+	if (Result.isSuccess(parsed)) assert.deepEqual(parsed.success, { ok: true });
 
-test("isRecord excludes arrays and null", () => {
-	assert.equal(isRecord({}), true);
-	assert.equal(isRecord([]), false);
-	assert.equal(isRecord(null), false);
+	const invalid = parseJson("{", "profiles.json");
+	assert.ok(Result.isFailure(invalid));
+	if (Result.isFailure(invalid)) {
+		assert.equal(invalid.failure.source, "profiles.json");
+		assert.match(invalid.failure.message, /^profiles\.json: invalid JSON:/);
+	}
 });

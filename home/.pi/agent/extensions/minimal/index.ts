@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
 import { applyTools, MINIMAL_CORE_TOOL_NAMES, minimalToolNames, missingMinimalTools } from "./tool-activation.ts";
 
 const SESSION_STATE_TYPE = "minimal-mode-state";
@@ -164,7 +164,7 @@ function readBranchState(ctx: ExtensionContext): MinimalState | undefined {
 }
 
 function parseState(data: unknown): MinimalState | undefined {
-	if (!isRecord(data) || data.version !== STATE_VERSION) return undefined;
+	if (!Predicate.isObject(data) || data.version !== STATE_VERSION) return undefined;
 	if (typeof data.enabled !== "boolean" || !isStringArray(data.previousTools)) return undefined;
 	return { enabled: data.enabled, previousTools: [...data.previousTools] };
 }

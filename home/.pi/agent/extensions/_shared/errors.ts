@@ -1,3 +1,15 @@
+import { Schema } from "effect";
+
+/**
+ * A filesystem operation Node refused. The operation and path are separate fields
+ * so callers can report which access failed without re-parsing a message.
+ */
+export class FsError extends Schema.TaggedError<FsError>()("FsError", {
+	operation: Schema.String,
+	path: Schema.String,
+	cause: Schema.Defect(),
+}) {}
+
 /** Convert a caught or otherwise unknown value without discarding Error metadata. */
 export function toError(value: unknown): Error {
 	return value instanceof Error ? value : new Error(String(value));

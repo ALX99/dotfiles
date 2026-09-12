@@ -1,4 +1,12 @@
-import type { AskQuestionDetails, AskQuestionResponseDetails, QuestionAlternative, QuestionInput } from "./schema.ts";
+import { Result } from "effect";
+import {
+	askQuestionError,
+	type AskQuestionDetails,
+	type AskQuestionError,
+	type AskQuestionResponseDetails,
+	type QuestionAlternative,
+	type QuestionInput,
+} from "./schema.ts";
 
 export const COMPARE_OPTION = "Compare options";
 export const OTHER_OPTION = "Something else";
@@ -25,41 +33,48 @@ export interface QuestionResult {
 	details: AskQuestionResponseDetails;
 }
 
-export function normalizeAlternatives(alternatives: readonly QuestionAlternative[]): QuestionAlternative[] {
+export function normalizeAlternatives(
+	alternatives: readonly QuestionAlternative[],
+): Result.Result<QuestionAlternative[], AskQuestionError> {
 	const normalized = alternatives.map((alternative) => ({
 		label: alternative.label.trim(),
 		...(alternative.description === undefined ? {} : { description: alternative.description.trim() }),
 	}));
 	if (normalized.some((alternative) => alternative.label.length === 0)) {
-		throw new Error("ask_question alternatives must not be empty");
+		return Result.fail(askQuestionError("empty_alternative", "ask_question alternatives must not be empty"));
 	}
 	if (normalized.some((alternative) => alternative.label.length > 100)) {
-		throw new Error("ask_question alternative labels must be at most 100 characters");
+		return Result.fail(
+			askQuestionError("long_label", "ask_question alternative labels must be at most 100 characters"),
+		);
 	}
 	if (normalized.some((alternative) => alternative.description !== undefined && alternative.description.length > 500)) {
-		throw new Error("ask_question alternative descriptions must be at most 500 characters");
+		return Result.fail(
+			askQuestionError("long_description", "ask_question alternative descriptions must be at most 500 characters"),
+		);
 	}
 
 	const reserved = new Set([COMPARE_OPTION, OTHER_OPTION, COMMENT_OPTION]);
 	if (normalized.some((alternative) => reserved.has(alternative.label))) {
-		throw new Error("ask_question alternatives must not use reserved option labels");
+		return Result.fail(
+			askQuestionError("reserved_label", "ask_question alternatives must not use reserved option labels"),
+		);
 	}
 
 	const labels = normalized.map((alternative) => alternative.label);
 	if (new Set(labels).size !== labels.length) {
-		throw new Error("ask_question alternatives must be distinct");
+		return Result.fail(askQuestionError("duplicate_label", "ask_question alternatives must be distinct"));
 	}
 
-	return normalized;
-}
-
-export function validateAlternatives(alternatives: readonly QuestionAlternative[]): void {
-	normalizeAlternatives(alternatives);
+	return Result.succeed(normalized);
 }
 
 export function makeQuestionOptions(alternatives: readonly QuestionAlternative[]): QuestionOption[] {
 	return [
-		...normalizeAlternatives(alternatives).map((alternative) => ({ kind: "alternative" as const, ...alternative })),
+		...Result.getOrThrow(normalizeAlternatives(alternatives)).map((alternative) => ({
+			kind: "alternative" as const,
+			...alternative,
+		})),
 		{ kind: "compare", label: COMPARE_OPTION },
 		{ kind: "other", label: OTHER_OPTION },
 		{ kind: "comment", label: COMMENT_OPTION },
@@ -105,7 +120,9 @@ export function resolveChoices(
 
 function makeComparisonResult(params: QuestionInput, alternatives: readonly string[]): QuestionResult {
 	const comparisonAlternatives =
-		alternatives.length > 0 ? [...alternatives] : normalizeAlternatives(params.alternatives).map(({ label }) => label);
+		alternatives.length > 0
+			? [...alternatives]
+			: Result.getOrThrow(normalizeAlternatives(params.alternatives)).map(({ label }) => label);
 	const result = makeResult(
 		params,
 		`The responder requested a comparison of: ${comparisonAlternatives.join(", ")}. Compare only these target options, explain their key pros, cons, and trade-offs, and do not treat the comparison as approval. Then call ask_question again with the same question and alternatives.`,
@@ -142,7 +159,7 @@ export function makeResult(
 	action: AskQuestionAction | null = null,
 ): QuestionResult {
 	const answers = answer === null ? [] : typeof answer === "string" ? [answer] : [...answer];
-	const optionDetails = normalizeAlternatives(params.alternatives);
+	const optionDetails = Result.getOrThrow(normalizeAlternatives(params.alternatives));
 	return {
 		content: [{ type: "text", text }],
 		details: {
@@ -158,8 +175,12 @@ export function makeResult(
 	};
 }
 
-export function makeAskQuestionResult(results: readonly QuestionResult[]): AskQuestionResult {
-	if (results.length === 0) throw new Error("ask_question requires at least one result");
+export function makeAskQuestionResult(
+	results: readonly QuestionResult[],
+): Result.Result<AskQuestionResult, AskQuestionError> {
+	if (results.length === 0) {
+		return Result.fail(askQuestionError("no_results", "ask_question requires at least one result"));
+	}
 
 	const text =
 		results.length === 1
@@ -167,10 +188,10 @@ export function makeAskQuestionResult(results: readonly QuestionResult[]): AskQu
 			: results
 					.map((result, index) => `Question ${index + 1}: ${result.details.question}\n${result.content[0]!.text}`)
 					.join("\n\n");
-	return {
+	return Result.succeed({
 		content: [{ type: "text", text }],
 		details: { questions: results.map((result) => result.details) },
-	};
+	});
 }
 
 export function makeOptionLabel(selected: boolean, option: QuestionOption): string {

@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Result } from "effect";
 import { Text } from "@earendil-works/pi-tui";
 
 import {
@@ -100,7 +101,7 @@ export async function executeAskQuestion(
 ): Promise<AskQuestionResult> {
 	const questions = params.questions.map((question) => ({
 		...question,
-		alternatives: normalizeAlternatives(question.alternatives),
+		alternatives: Result.getOrThrow(normalizeAlternatives(question.alternatives)),
 	}));
 	const results = [];
 	let stopped = false;
@@ -122,7 +123,7 @@ export async function executeAskQuestion(
 		results.push(result);
 		stopped = result.details.answer === null && result.details.action !== "compare";
 	}
-	return makeAskQuestionResult(results);
+	return Result.getOrThrow(makeAskQuestionResult(results));
 }
 
 async function executeQuestion(

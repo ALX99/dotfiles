@@ -8,6 +8,7 @@ import type {
 import { isAbsolute, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
+import { Predicate, Result, Schema } from "effect";
 
 const TASK_QUEUE_DETAILS_TYPE = "tasks:queue";
 const TASK_FINISH_DETAILS_TYPE = "tasks:finish";
@@ -312,12 +313,18 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			ensureTasksEnabled(ctx);
 			if (ctx.mode === "print" && printTaskFinished) {
-				throw new Error("Print mode records one task per invocation. Resume the queue with the next invocation.");
+				throw taskError(
+					"print_mode",
+					"Print mode records one task per invocation. Resume the queue with the next invocation.",
+				);
 			}
 			requireIsolatedTaskCall(ctx, toolCallId, "create_tasks");
 			const active = getActiveQueue(ctx);
 			if (active !== undefined && (pendingCompaction(active) !== undefined || currentItem(active) !== undefined)) {
-				throw new Error("A task queue is already active. Finish its remaining tasks before creating another queue.");
+				throw taskError(
+					"active_queue",
+					"A task queue is already active. Finish its remaining tasks before creating another queue.",
+				);
 			}
 
 			const queueId = randomUUID();
@@ -389,16 +396,22 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			ensureTasksEnabled(ctx);
 			if (ctx.mode === "print" && printTaskFinished) {
-				throw new Error("Print mode records one task per invocation. Resume the queue with the next invocation.");
+				throw taskError(
+					"print_mode",
+					"Print mode records one task per invocation. Resume the queue with the next invocation.",
+				);
 			}
 			requireIsolatedTaskCall(ctx, toolCallId, "update_tasks");
 			const active = getActiveQueue(ctx);
-			if (active === undefined) throw new Error("No task queue is active. Call create_tasks first.");
+			if (active === undefined) throw taskError("no_queue", "No task queue is active. Call create_tasks first.");
 			if (pendingCompaction(active) !== undefined) {
-				throw new Error("A task outcome is waiting to compact. Let it finish before amending the queue.");
+				throw taskError(
+					"pending_compaction",
+					"A task outcome is waiting to compact. Let it finish before amending the queue.",
+				);
 			}
 			const update = normalizeTaskUpdate(params);
-			const queue = amendQueue(active, update);
+			const queue = Result.getOrThrow(amendQueue(active, update));
 			active.queue = queue;
 			const details = taskUpdateDetails(queue, update);
 			refreshStatus(ctx);
@@ -423,23 +436,32 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			ensureTasksEnabled(ctx);
 			if (ctx.mode === "print" && printTaskFinished) {
-				throw new Error("Print mode records one task per invocation. Resume the queue with the next invocation.");
+				throw taskError(
+					"print_mode",
+					"Print mode records one task per invocation. Resume the queue with the next invocation.",
+				);
 			}
 			requireIsolatedTaskCall(ctx, toolCallId, "finish_task");
 			const active = getActiveQueue(ctx);
 			if (active === undefined) {
-				throw new Error("No task queue is active. Call create_tasks with four or more related steps first.");
+				throw taskError(
+					"no_queue",
+					"No task queue is active. Call create_tasks with four or more related steps first.",
+				);
 			}
-			if (pendingCompaction(active) !== undefined) throw new Error("The current task already has a recorded outcome.");
+			if (pendingCompaction(active) !== undefined)
+				throw taskError("already_recorded", "The current task already has a recorded outcome.");
 			const item = currentItem(active);
-			if (item === undefined) throw new Error("Every queued task already has a recorded outcome.");
+			if (item === undefined)
+				throw taskError("no_pending_outcome", "Every queued task already has a recorded outcome.");
 
 			// Print mode is single-shot: preserve the checkpoint in place and let
 			// the model produce a final response for this invocation. The next
 			// invocation derives the next task from the durable finish record.
 			const compact = ctx.mode === "print" ? false : (params.compact ?? true);
 			if (compact && active.compactedSinceBase) {
-				throw new Error(
+				throw taskError(
+					"pending_compaction",
 					"The session compacted during this task, so its checkpoint can no longer be safely restored. Retry finish_task with compact: false.",
 				);
 			}
@@ -698,7 +720,7 @@ function applyCommandUpdate(
 
 	try {
 		const update = normalizeTaskUpdate(params);
-		const queue = amendQueue(active, update);
+		const queue = Result.getOrThrow(amendQueue(active, update));
 		active.queue = queue;
 		const details = taskUpdateDetails(queue, update);
 		pi.sendMessage(
@@ -732,61 +754,114 @@ function normalizeReadFilter(value: string | undefined): string | undefined {
 	return normalized === undefined || normalized === TASK_READ_ALL_FILTER ? undefined : normalized;
 }
 
-function amendQueue(active: ActiveQueue, params: TaskUpdateInput): TaskQueueDetails {
-	if (active.queue.cancelled === true) throw new Error("The task queue is already canceled.");
-	if (currentItem(active) === undefined) throw new Error("No pending tasks remain in the queue.");
+/**
+ * Apply one queue amendment, or report why it was rejected. Failures stay in the
+ * Result so the signature shows that every action can refuse a request.
+ */
+/** Why a queue amendment was refused; `message` is the text the model sees. */
+export const TaskQueueReason = Schema.Literals([
+	"cancelled",
+	"finished",
+	"capacity",
+	"unknown_task",
+	"unknown_action",
+	"missing_task",
+	"finished_task",
+	"missing_text",
+	"print_mode",
+	"active_queue",
+	"no_queue",
+	"pending_compaction",
+	"already_recorded",
+	"no_pending_outcome",
+	"tasks_disabled",
+	"not_isolated",
+]);
+export type TaskQueueReason = Schema.Schema.Type<typeof TaskQueueReason>;
+
+/** A refused queue amendment. Tool boundaries throw it; the message is user-facing. */
+export class TaskQueueError extends Schema.TaggedError<TaskQueueError>()("TaskQueueError", {
+	reason: TaskQueueReason,
+	message: Schema.String,
+}) {}
+
+function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
+	return new TaskQueueError({ reason, message });
+}
+
+function amendQueue(active: ActiveQueue, params: TaskUpdateInput): Result.Result<TaskQueueDetails, TaskQueueError> {
+	if (active.queue.cancelled === true)
+		return Result.fail(taskError("cancelled", "The task queue is already canceled."));
+	if (currentItem(active) === undefined)
+		return Result.fail(taskError("finished", "No pending tasks remain in the queue."));
 
 	const queue = cloneQueue(active.queue);
 	switch (params.action) {
 		case "insert": {
 			const title = requireText(params.title, "Insert requires a task title.");
+			if (Result.isFailure(title)) return Result.fail(title.failure);
 			if (queue.tasks.length >= MAX_TASKS) {
-				throw new Error(`A task queue can contain at most ${MAX_TASKS} tasks.`);
+				return Result.fail(taskError("capacity", `A task queue can contain at most ${MAX_TASKS} tasks.`));
 			}
 			const insertionIndex =
 				params.afterTaskId === undefined
 					? queue.tasks.length
 					: queue.tasks.findIndex((task) => task.id === params.afterTaskId) + 1;
-			if (insertionIndex === 0) throw new Error(`Unknown task ID: ${params.afterTaskId}.`);
-			const id = insertedTaskId(queue);
-			queue.tasks.splice(insertionIndex, 0, { id, title });
-			return queue;
+			if (insertionIndex === 0) {
+				return Result.fail(taskError("unknown_task", `Unknown task ID: ${params.afterTaskId}.`));
+			}
+			queue.tasks.splice(insertionIndex, 0, { id: insertedTaskId(queue), title: title.success });
+			return Result.succeed(queue);
 		}
 		case "rename": {
 			const task = pendingTask(active, queue, params.taskId);
-			task.title = requireText(params.title, "Rename requires a new task title.");
-			return queue;
+			if (Result.isFailure(task)) return Result.fail(task.failure);
+			const title = requireText(params.title, "Rename requires a new task title.");
+			if (Result.isFailure(title)) return Result.fail(title.failure);
+			task.success.title = title.success;
+			return Result.succeed(queue);
 		}
 		case "skip": {
 			const task = pendingTask(active, queue, params.taskId);
-			task.state = "skipped";
-			task.skipReason = requireText(params.reason, "Skip requires a reason.");
-			return queue;
+			if (Result.isFailure(task)) return Result.fail(task.failure);
+			const reason = requireText(params.reason, "Skip requires a reason.");
+			if (Result.isFailure(reason)) return Result.fail(reason.failure);
+			task.success.state = "skipped";
+			task.success.skipReason = reason.success;
+			return Result.succeed(queue);
 		}
-		case "cancel":
+		case "cancel": {
+			const reason = requireText(params.reason, "Cancel requires a reason.");
+			if (Result.isFailure(reason)) return Result.fail(reason.failure);
 			queue.cancelled = true;
-			queue.cancelReason = requireText(params.reason, "Cancel requires a reason.");
-			return queue;
+			queue.cancelReason = reason.success;
+			return Result.succeed(queue);
+		}
 		default:
-			throw new Error("Unknown task update action.");
+			return Result.fail(taskError("unknown_action", "Unknown task update action."));
 	}
 }
 
-function pendingTask(active: ActiveQueue, queue: TaskQueueDetails, taskId: string | undefined): TaskQueueItem {
+function pendingTask(
+	active: ActiveQueue,
+	queue: TaskQueueDetails,
+	taskId: string | undefined,
+): Result.Result<TaskQueueItem, TaskQueueError> {
 	if (taskId === undefined || taskId.trim().length === 0) {
-		throw new Error("This queue update requires a pending task ID.");
+		return Result.fail(taskError("missing_task", "This queue update requires a pending task ID."));
 	}
 	const task = queue.tasks.find((candidate) => candidate.id === taskId);
-	if (task === undefined) throw new Error(`Unknown task ID: ${taskId}.`);
+	if (task === undefined) return Result.fail(taskError("unknown_task", `Unknown task ID: ${taskId}.`));
 	if (task.state === "skipped" || active.outcomes.has(task.id)) {
-		throw new Error(`Task ${taskId} is already finished and cannot be amended.`);
+		return Result.fail(taskError("finished_task", `Task ${taskId} is already finished and cannot be amended.`));
 	}
-	return task;
+	return Result.succeed(task);
 }
 
-function requireText(value: string | undefined, message: string): string {
-	if (value === undefined || value.trim().length === 0) throw new Error(message);
-	return value.trim();
+function requireText(value: string | undefined, message: string): Result.Result<string, TaskQueueError> {
+	return value === undefined || value.trim().length === 0
+		? Result.fail(taskError("missing_text", message))
+		: Result.succeed(value.trim());
 }
 
 function cloneQueue(queue: TaskQueueDetails): TaskQueueDetails {
@@ -941,7 +1016,7 @@ function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string
 }
 
 function observedMutationPaths(toolName: string, input: unknown, cwd: string): string[] {
-	if (!isRecord(input)) return [];
+	if (!Predicate.isObject(input)) return [];
 	if ((toolName === "edit" || toolName === "write") && typeof input.path === "string") {
 		const path = normalizeObservedPath(input.path, cwd);
 		return path === undefined ? [] : [path];
@@ -1165,7 +1240,7 @@ function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boo
 
 function ensureTasksEnabled(ctx: ExtensionContext): void {
 	if (tasksEnabled(ctx)) return;
-	throw new Error("Tasks are disabled for this session. A user can re-enable them with /tasks on.");
+	throw taskError("tasks_disabled", "Tasks are disabled for this session. A user can re-enable them with /tasks on.");
 }
 
 function scheduleContinuation(pi: ExtensionAPI, text: string): void {
@@ -1206,7 +1281,7 @@ function activateTaskTools(pi: ExtensionAPI): void {
 function tasksEnabled(ctx: BranchContext): boolean {
 	for (const entry of ctx.sessionManager.getBranch().toReversed()) {
 		if (entry.type !== "custom_message" || entry.customType !== TASK_TOGGLE_TYPE) continue;
-		return isRecord(entry.details) && entry.details.enabled === true;
+		return Predicate.isObject(entry.details) && entry.details.enabled === true;
 	}
 	return true;
 }
@@ -1261,7 +1336,7 @@ function requireIsolatedTaskCall(
 ): void {
 	const toolCalls = getCurrentToolCalls(ctx);
 	if (toolCalls.length === 1 && toolCalls[0]?.id === toolCallId && toolCalls[0].name === toolName) return;
-	throw new Error(`${toolName} must be the only tool call in its assistant turn.`);
+	throw taskError("not_isolated", `${toolName} must be the only tool call in its assistant turn.`);
 }
 
 function getCurrentToolCalls(ctx: ExtensionContext): Array<{ id: string; name: string }> {
@@ -1465,7 +1540,7 @@ function hasTask(queue: TaskQueueDetails, taskId: string): boolean {
 
 function readTaskFinish(entry: SessionEntry): TaskFinishDetails | undefined {
 	const details = successfulToolResultDetails(entry);
-	if (!isRecord(details) || details.kind !== TASK_FINISH_DETAILS_TYPE) return undefined;
+	if (!Predicate.isObject(details) || details.kind !== TASK_FINISH_DETAILS_TYPE) return undefined;
 	return parseTaskFinish(details);
 }
 
@@ -1473,7 +1548,9 @@ function readTaskUpdate(entry: SessionEntry): TaskUpdateDetails | undefined {
 	const details =
 		successfulToolResultDetails(entry) ??
 		(entry.type === "custom_message" && entry.customType === TASK_UPDATE_DETAILS_TYPE ? entry.details : undefined);
-	return isRecord(details) && details.kind === TASK_UPDATE_DETAILS_TYPE ? parseTaskUpdate(details) : undefined;
+	return Predicate.isObject(details) && details.kind === TASK_UPDATE_DETAILS_TYPE
+		? parseTaskUpdate(details)
+		: undefined;
 }
 
 function readTaskQueue(entry: SessionEntry): TaskQueueDetails | undefined {
@@ -1490,7 +1567,7 @@ function successfulToolResultDetails(entry: SessionEntry): unknown {
 function readTaskCompletion(entry: SessionEntry): TaskCompletionDetails | undefined {
 	if (
 		entry.type !== "branch_summary" ||
-		!isRecord(entry.details) ||
+		!Predicate.isObject(entry.details) ||
 		entry.details.kind !== TASK_COMPLETION_DETAILS_TYPE
 	) {
 		return undefined;
@@ -1512,7 +1589,7 @@ function readTaskCompletion(entry: SessionEntry): TaskCompletionDetails | undefi
 
 function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {
 	if (
-		!isRecord(value) ||
+		!Predicate.isObject(value) ||
 		value.kind !== TASK_QUEUE_DETAILS_TYPE ||
 		typeof value.queueId !== "string" ||
 		value.queueId.trim().length === 0 ||
@@ -1542,7 +1619,7 @@ function parseTaskItems(value: unknown): TaskQueueItem[] | undefined {
 	const ids = new Set<string>();
 	const tasks: TaskQueueItem[] = [];
 	for (const item of value) {
-		if (!isRecord(item) || typeof item.id !== "string" || typeof item.title !== "string") return undefined;
+		if (!Predicate.isObject(item) || typeof item.id !== "string" || typeof item.title !== "string") return undefined;
 		if (
 			item.id.trim().length === 0 ||
 			item.id.length > 200 ||
@@ -1677,10 +1754,6 @@ function parseTaskFinish(details: Record<string, unknown>): TaskFinishDetails | 
 	};
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
 function isTaskStatus(value: unknown): value is TaskStatus {
 	return TASK_STATUSES.some((status) => status === value);
 }
@@ -1694,7 +1767,7 @@ function isTaskUpdateAction(value: unknown): value is TaskUpdateAction {
 }
 
 function isEvidence(value: unknown): value is Evidence {
-	if (!isRecord(value)) return false;
+	if (!Predicate.isObject(value)) return false;
 	const kind = EVIDENCE_KINDS.find((candidate) => candidate === value.kind);
 	if (kind === undefined) return false;
 	if (value.description !== undefined && typeof value.description !== "string") return false;

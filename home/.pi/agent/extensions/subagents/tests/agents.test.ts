@@ -3,7 +3,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { discoverAgents, parseAgentFile } from "../agents.ts";
+import { Effect, Result } from "effect";
+import { runPromise } from "../../_shared/effect-runtime.ts";
+import { AgentConfigurationError, discoverAgents, parseAgentFile } from "../agents.ts";
 
 test("parseAgentFile requires an explicit YAML tool list and rejects unsupported metadata", () => {
 	const parsed = parseAgentFile(
@@ -19,8 +21,8 @@ Prompt.
 	);
 	assert.equal(parsed.success, false);
 	if (parsed.success) return;
-	assert.ok(parsed.errors.some((error) => error.includes("Unrecognized key")));
-	assert.ok(parsed.errors.some((error) => error.includes("expected array")));
+	assert.ok(parsed.errors.some((error) => error.includes("Expected no excess property")));
+	assert.ok(parsed.errors.some((error) => error.includes("Expected array")));
 });
 
 test("parseAgentFile rejects duplicate tools and unsafe role names", () => {
@@ -38,7 +40,7 @@ test("parseAgentFile rejects duplicate tools and unsafe role names", () => {
 	}
 });
 
-test("discoverAgents aggregates malformed files and duplicate names", (t) => {
+test("discoverAgents aggregates malformed files and duplicate names", async (t) => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-agents-test-"));
 	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 	fs.writeFileSync(
@@ -51,9 +53,11 @@ test("discoverAgents aggregates malformed files and duplicate names", (t) => {
 	);
 	fs.writeFileSync(path.join(dir, "broken.md"), "---\nname: broken\n---\n");
 
-	const result = discoverAgents(dir);
-	assert.equal(result.isErr(), true);
-	if (result.isOk() || result.error.kind !== "configuration") return;
-	assert.ok(result.error.errors.some((error) => error.includes("broken.md")));
-	assert.ok(result.error.errors.some((error) => error.includes("duplicate agent name")));
+	const result = await runPromise(Effect.result(discoverAgents(dir)));
+	assert.ok(Result.isFailure(result));
+	if (Result.isFailure(result)) {
+		assert.ok(result.failure instanceof AgentConfigurationError);
+		assert.ok(result.failure.errors.some((error) => error.includes("broken.md")));
+		assert.ok(result.failure.errors.some((error) => error.includes("duplicate agent name")));
+	}
 });

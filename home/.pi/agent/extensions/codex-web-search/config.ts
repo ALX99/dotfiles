@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { Effect, Predicate, Result } from "effect";
 
-import { hasNodeErrorCode, toError } from "../_shared/errors.ts";
-import { isRecord, parseJson } from "../_shared/json.ts";
+import { toError } from "../_shared/errors.ts";
+import { readFileStringIfExists } from "../_shared/fs.ts";
+import { parseJson } from "../_shared/json.ts";
 
 /** Access level of the hosted search tool, mirroring Codex's `web_search` setting. */
 export type WebSearchMode = "cached" | "live" | "indexed";
@@ -50,39 +51,55 @@ export interface LoadedConfig {
  * Load `~/.pi/codex-web-search.json`. Every field is optional, and an invalid field
  * falls back to its default with a diagnostic rather than disabling the extension.
  */
-export function loadConfig(path: string = configPath()): LoadedConfig {
-	const raw = readConfigObject(path);
-	if (raw === undefined) return { config: DEFAULT_CONFIG, diagnostics: [] };
-	if (!raw.ok) return { config: DEFAULT_CONFIG, diagnostics: raw.diagnostics };
+export function loadConfig(path: string = configPath()): Effect.Effect<LoadedConfig> {
+	return Effect.gen(function* () {
+		const raw = yield* readConfigObject(path);
+		if (raw === undefined) return { config: DEFAULT_CONFIG, diagnostics: [] };
+		if (!raw.ok) return { config: DEFAULT_CONFIG, diagnostics: raw.diagnostics };
 
-	const diagnostics: string[] = [];
-	const config: CodexWebSearchConfig = {
-		enabled: readBoolean(raw.value.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled,
-		mode: readMode(raw.value.mode, path, diagnostics) ?? DEFAULT_CONFIG.mode,
-		suppressClientTools:
-			readStringArray(raw.value.suppressClientTools, "suppressClientTools", path, diagnostics) ??
-			DEFAULT_CONFIG.suppressClientTools,
-	};
-	return { config, diagnostics };
+		const diagnostics: string[] = [];
+		const config: CodexWebSearchConfig = {
+			enabled: readBoolean(raw.value.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled,
+			mode: readMode(raw.value.mode, path, diagnostics) ?? DEFAULT_CONFIG.mode,
+			suppressClientTools:
+				readStringArray(raw.value.suppressClientTools, "suppressClientTools", path, diagnostics) ??
+				DEFAULT_CONFIG.suppressClientTools,
+		};
+		return { config, diagnostics };
+	});
 }
 
 type ConfigObjectRead =
 	| { readonly ok: true; readonly value: Record<string, unknown> }
 	| { readonly ok: false; readonly diagnostics: readonly string[] };
 
+/** Reading a file that is missing is not a diagnostic; a refused read is. */
+type ConfigFileRead =
+	| { readonly ok: true; readonly text: string | undefined }
+	| { readonly ok: false; readonly diagnostics: readonly string[] };
+
 /** Read the config file as an object; `undefined` when the file does not exist. */
-function readConfigObject(path: string): ConfigObjectRead | undefined {
-	let text: string;
-	try {
-		text = readFileSync(path, "utf8");
-	} catch (cause) {
-		if (hasNodeErrorCode(cause, "ENOENT")) return undefined;
-		return { ok: false, diagnostics: [`${path}: ${toError(cause).message}`] };
-	}
-	const parsed = parseJson(text, path);
-	if (!parsed.ok) return { ok: false, diagnostics: [parsed.diagnostic.message] };
-	if (!isRecord(parsed.value)) return { ok: false, diagnostics: [`${path}: expected a JSON object`] };
-	return { ok: true, value: parsed.value };
+function readConfigObject(path: string): Effect.Effect<ConfigObjectRead | undefined> {
+	return Effect.gen(function* () {
+		const read = yield* readConfigText(path);
+		if (!read.ok) return { ok: false, diagnostics: read.diagnostics };
+		if (read.text === undefined) return undefined;
+		const parsed = parseJson(read.text, path);
+		if (Result.isFailure(parsed)) return { ok: false, diagnostics: [parsed.failure.message] };
+		if (!Predicate.isObject(parsed.success)) return { ok: false, diagnostics: [`${path}: expected a JSON object`] };
+		return { ok: true, value: parsed.success };
+	});
+}
+
+function readConfigText(path: string): Effect.Effect<ConfigFileRead> {
+	return Effect.gen(function* () {
+		return yield* readFileStringIfExists(path).pipe(
+			Effect.map((text): ConfigFileRead => ({ ok: true, text })),
+			Effect.catchTag("FsError", (error) =>
+				Effect.succeed<ConfigFileRead>({ ok: false, diagnostics: [`${path}: ${toError(error.cause).message}`] }),
+			),
+		);
+	});
 }
 
 function readBoolean(value: unknown, field: string, path: string, diagnostics: string[]): boolean | undefined {

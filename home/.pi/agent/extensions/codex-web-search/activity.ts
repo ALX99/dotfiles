@@ -1,4 +1,4 @@
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
 
 /** Search calls can return dozens of URLs; entries stay bounded. */
 const MAX_QUERIES = 20;
@@ -47,7 +47,7 @@ export function createActivityTracker(): ActivityTracker {
 	function recordCall(item: Record<string, unknown>): void {
 		callCount += 1;
 		const action = item.action;
-		if (!isRecord(action)) return;
+		if (!Predicate.isObject(action)) return;
 		if (action.type === "search") {
 			pushUnique(queries, action.query, MAX_QUERIES);
 			if (Array.isArray(action.queries)) {
@@ -63,7 +63,7 @@ export function createActivityTracker(): ActivityTracker {
 
 	return {
 		handle(frame: unknown): ActivityOutcome {
-			if (!isRecord(frame)) return { kind: "ignored" };
+			if (!Predicate.isObject(frame)) return { kind: "ignored" };
 			const type = typeof frame.type === "string" ? frame.type : "";
 			switch (type) {
 				case "response.created":
@@ -74,7 +74,7 @@ export function createActivityTracker(): ActivityTracker {
 					return { kind: "search-started" };
 				case "response.output_item.done": {
 					const item = frame.item;
-					if (!isRecord(item) || item.type !== "web_search_call") return { kind: "ignored" };
+					if (!Predicate.isObject(item) || item.type !== "web_search_call") return { kind: "ignored" };
 					recordCall(item);
 					return { kind: "search-started" };
 				}
@@ -106,6 +106,6 @@ function pushUnique(list: string[], value: unknown, limit: number): void {
 
 function sourceUrl(source: unknown): string | undefined {
 	if (typeof source === "string") return source;
-	if (isRecord(source) && typeof source.url === "string") return source.url;
+	if (Predicate.isObject(source) && typeof source.url === "string") return source.url;
 	return undefined;
 }

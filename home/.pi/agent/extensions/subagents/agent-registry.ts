@@ -1,4 +1,6 @@
 import { getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import { Cause, Effect, Exit, Result, Schema } from "effect";
+import { toError } from "../_shared/errors.ts";
 import { clipTextAtWord } from "../_shared/terminal-text.ts";
 import { assertCurrentGeneration, CleanupAggregateError, type AgentSummary, type AgentView } from "./agent-types.ts";
 import { ManagedAgent, reserveManagedAgentIds } from "./managed-agent.ts";
@@ -7,8 +9,36 @@ import {
 	ResultCatalog,
 	readChildTranscript,
 	type ResultPage,
+	type ResultReadError,
 	SUBAGENT_SETTLEMENT_CUSTOM_TYPE,
 } from "./result-store.ts";
+
+/** Why an address did not resolve to a usable agent. */
+export const AgentLookupReason = Schema.Literals([
+	"unknown_agent",
+	"closed_agent",
+	"ambiguous_address",
+	"blank_address",
+	"already_registered",
+	"taken_task_name",
+	"missing_session",
+	"stale_generation",
+	"pending_generation",
+]);
+export type AgentLookupReason = Schema.Schema.Type<typeof AgentLookupReason>;
+
+/**
+ * A rejected agent lookup or registration. Synchronous readers throw it and
+ * effectful paths return it, so one message describes each rejection.
+ */
+export class AgentLookupError extends Schema.TaggedError<AgentLookupError>()("AgentLookupError", {
+	reason: AgentLookupReason,
+	message: Schema.String,
+}) {}
+
+function lookupError(reason: AgentLookupReason, message: string): AgentLookupError {
+	return new AgentLookupError({ reason, message });
+}
 
 /** Closed agents retain dashboard and tool result metadata, but no live session resources. */
 export const DEFAULT_MAX_CLOSED_AGENT_HISTORY = 32;
@@ -40,21 +70,24 @@ export class AgentRegistry {
 		this.resultCatalog = new ResultCatalog(agentDir);
 	}
 
-	async add(agent: ManagedAgent): Promise<void> {
-		const existing = this.entries.get(agent.id);
-		if (existing?.kind === "live" && existing.agent === agent) return;
-		if (existing) throw new Error(`Agent '${agent.id}' is already registered.`);
-		this.entries.set(agent.id, { kind: "live", agent });
-		this.agentUnsubscribers.set(
-			agent.id,
-			agent.subscribe(() => this.handleAgentUpdate(agent)),
-		);
-		this.emit();
+	add(agent: ManagedAgent): Effect.Effect<void, AgentLookupError> {
+		return Effect.gen({ self: this }, function* () {
+			const existing = this.entries.get(agent.id);
+			if (existing?.kind === "live" && existing.agent === agent) return undefined;
+			if (existing) return yield* lookupError("already_registered", `Agent '${agent.id}' is already registered.`);
+			this.entries.set(agent.id, { kind: "live", agent });
+			this.agentUnsubscribers.set(
+				agent.id,
+				agent.subscribe(() => this.handleAgentUpdate(agent)),
+			);
+			this.emit();
+			return undefined;
+		});
 	}
 
 	getLive(id: string): ManagedAgent {
 		const entry = this.requireEntry(id);
-		if (entry.kind === "archived") throw new Error(`Agent '${id}' is closed.`);
+		if (entry.kind === "archived") throw lookupError("closed_agent", `Agent '${id}' is closed.`);
 		return entry.agent;
 	}
 
@@ -68,9 +101,15 @@ export class AgentRegistry {
 		return entry.kind === "live" ? entry.agent.summary() : entry.view.summary;
 	}
 
-	async wait(id: string, signal?: AbortSignal): Promise<ReadonlyRunDetails> {
-		const entry = this.requireEntry(id);
-		return entry.kind === "live" ? entry.agent.wait(signal) : entry.view.details;
+	wait(id: string, signal?: AbortSignal): Effect.Effect<ReadonlyRunDetails, AgentLookupError | Error> {
+		return Effect.gen({ self: this }, function* () {
+			const entry = yield* Effect.fromResult(this.lookup(id));
+			if (entry.kind === "archived") return entry.view.details;
+			return yield* Effect.tryPromise({
+				try: () => entry.agent.wait(signal),
+				catch: (error) => toError(error),
+			});
+		});
 	}
 
 	/**
@@ -80,21 +119,42 @@ export class AgentRegistry {
 	 * form stays valid.
 	 */
 	resolveTarget(target: string): { agent_id: string; summary: AgentSummary } {
-		const address = target.trim();
-		if (!address) throw new Error("target must not be blank.");
-		if (this.entries.has(address)) return { agent_id: address, summary: this.summary(address) };
-		const named = [...this.entries.keys()].filter((id) => this.summary(id).task_name === address);
-		if (named.length > 1)
-			throw new Error(`Agent address '${address}' matches ${named.length} agents; use agent_id instead.`);
-		const match = named[0];
-		if (match === undefined) throw new Error(`Unknown agent '${address}'.${this.knownAddressesHint()}`);
-		return { agent_id: match, summary: this.summary(match) };
+		return Result.getOrThrow(this.resolveAddress(target));
 	}
 
 	/** Resolve a target to its effective generation; omitted means latest. */
 	resolveGeneration(target: string, generation?: number): ResolvedAgentTarget {
-		const resolved = this.resolveTarget(target);
-		return { ...resolved, generation: generation ?? resolved.summary.generation };
+		return Result.getOrThrow(this.resolveGenerationForEffect(target, generation));
+	}
+
+	/** Address resolution is shared by the throwing and effectful callers. */
+	private resolveAddress(target: string): Result.Result<{ agent_id: string; summary: AgentSummary }, AgentLookupError> {
+		const address = target.trim();
+		if (!address) return Result.fail(lookupError("blank_address", "target must not be blank."));
+		if (this.entries.has(address)) return Result.succeed({ agent_id: address, summary: this.summary(address) });
+		const named = [...this.entries.keys()].filter((id) => this.summary(id).task_name === address);
+		if (named.length > 1) {
+			return Result.fail(
+				lookupError(
+					"ambiguous_address",
+					`Agent address '${address}' matches ${named.length} agents; use agent_id instead.`,
+				),
+			);
+		}
+		const match = named[0];
+		if (match === undefined) {
+			return Result.fail(lookupError("unknown_agent", `Unknown agent '${address}'.${this.knownAddressesHint()}`));
+		}
+		return Result.succeed({ agent_id: match, summary: this.summary(match) });
+	}
+
+	private resolveGenerationForEffect(
+		target: string,
+		generation?: number,
+	): Result.Result<ResolvedAgentTarget, AgentLookupError> {
+		return this.resolveAddress(target).pipe(
+			Result.map((resolved) => ({ ...resolved, generation: generation ?? resolved.summary.generation })),
+		);
 	}
 
 	/**
@@ -112,7 +172,7 @@ export class AgentRegistry {
 	 * name an evicted or restored agent_id unknown to the live registry; a
 	 * missing generation defaults to the latest known one.
 	 */
-	async readResultByAddress(
+	readResultByAddress(
 		target: string,
 		options: {
 			readonly generation?: number;
@@ -120,22 +180,23 @@ export class AgentRegistry {
 			readonly offset?: number;
 			readonly maxBytes?: number;
 		} = {},
-	): Promise<ResultPage> {
-		const address = target.trim();
-		if (!address) throw new Error("target must not be blank.");
-		try {
-			if (options.generation === undefined) {
-				const resolved = this.resolveGeneration(address);
-				return this.readResult(resolved.agent_id, { ...options, generation: resolved.generation });
-			}
-			const resolved = this.resolveTarget(address);
-			return this.readResult(resolved.agent_id, options);
-		} catch {
-			// Unknown among known agents: it may still be an evicted or restored
-			// agent_id with persisted results, which ResultCatalog serves and
-			// defaults to its latest generation.
-			return this.readResult(address, options);
-		}
+	): Effect.Effect<ResultPage, AgentLookupError | ResultReadError> {
+		return Effect.gen({ self: this }, function* () {
+			const address = target.trim();
+			if (!address) return yield* lookupError("blank_address", "target must not be blank.");
+			const resolved =
+				options.generation === undefined ? this.resolveGenerationForEffect(address) : this.resolveAddress(address);
+			// An address unknown to the live registry may still name an evicted or
+			// restored agent_id with persisted results, which the catalog serves and
+			// defaults to that agent's latest generation. Failures after resolution
+			// belong to the read itself and must not fall back.
+			if (Result.isFailure(resolved)) return yield* this.readResult(address, options);
+			const generation =
+				options.generation === undefined && "generation" in resolved.success
+					? { generation: resolved.success.generation }
+					: {};
+			return yield* this.readResult(resolved.success.agent_id, { ...options, ...generation });
+		});
 	}
 
 	/**
@@ -146,10 +207,12 @@ export class AgentRegistry {
 		const trimmed = proposed?.trim();
 		if (trimmed) {
 			const holder = this.addressHolder(trimmed);
-			if (holder !== undefined)
-				throw new Error(
+			if (holder !== undefined) {
+				throw lookupError(
+					"taken_task_name",
 					`task_name '${trimmed}' is already used by agent '${holder}'. Pick another task_name or omit it to derive one.`,
 				);
+			}
 			return trimmed;
 		}
 		const base = clipTextAtWord(message, 60) || "task";
@@ -172,15 +235,19 @@ export class AgentRegistry {
 		return ` Known agents: ${shown}${names.length > 8 ? ", …" : ""}.`;
 	}
 
-	async readTranscript(id: string): Promise<unknown[]> {
-		const entry = this.requireEntry(id);
-		if (entry.kind === "live") return entry.agent.getMessages();
-		const sessionFile = entry.view.summary.session_file;
-		if (!sessionFile) throw new Error(`Agent '${id}' has no persisted session.`);
-		return readChildTranscript(sessionFile, this.agentDir);
+	readTranscript(id: string): Effect.Effect<unknown[], AgentLookupError | ResultReadError | Error> {
+		return Effect.gen({ self: this }, function* () {
+			const entry = yield* Effect.fromResult(this.lookup(id));
+			if (entry.kind === "live") {
+				return yield* Effect.tryPromise({ try: () => entry.agent.getMessages(), catch: (error) => toError(error) });
+			}
+			const sessionFile = entry.view.summary.session_file;
+			if (!sessionFile) return yield* lookupError("missing_session", `Agent '${id}' has no persisted session.`);
+			return yield* readChildTranscript(sessionFile, this.agentDir);
+		});
 	}
 
-	async readResult(
+	readResult(
 		id: string,
 		options: {
 			readonly generation?: number;
@@ -188,17 +255,20 @@ export class AgentRegistry {
 			readonly offset?: number;
 			readonly maxBytes?: number;
 		} = {},
-	): Promise<ResultPage> {
-		const entry = this.entries.get(id);
-		if (!entry) return this.resultCatalog.readResult(id, options);
-		const view = entry.kind === "live" ? entry.agent.view() : entry.view;
-		const generation = options.generation ?? view.summary.generation;
-		if (entry.kind === "live" && entry.agent.hasPendingResult(generation)) {
-			throw new Error(
-				`Agent '${id}' generation ${generation} is still running; use wait_agents to wait for settlement before reading its exact result.`,
-			);
-		}
-		return this.resultCatalog.readResult(id, { ...options, generation });
+	): Effect.Effect<ResultPage, AgentLookupError | ResultReadError> {
+		return Effect.gen({ self: this }, function* () {
+			const entry = this.entries.get(id);
+			if (!entry) return yield* this.resultCatalog.readResult(id, options);
+			const view = entry.kind === "live" ? entry.agent.view() : entry.view;
+			const generation = options.generation ?? view.summary.generation;
+			if (entry.kind === "live" && entry.agent.hasPendingResult(generation)) {
+				return yield* lookupError(
+					"pending_generation",
+					`Agent '${id}' generation ${generation} is still running; use wait_agents to wait for settlement before reading its exact result.`,
+				);
+			}
+			return yield* this.resultCatalog.readResult(id, { ...options, generation });
+		});
 	}
 
 	restoreResultLocators(entries: readonly SessionEntry[]): number {
@@ -234,36 +304,53 @@ export class AgentRegistry {
 		return () => this.listeners.delete(listener);
 	}
 
-	async close(id: string): Promise<void> {
-		const entry = this.requireEntry(id);
-		if (entry.kind === "archived") return;
-		try {
-			await entry.agent.close();
-		} finally {
-			if (entry.agent.phase === "closed") this.archive(entry.agent);
-		}
+	close(id: string): Effect.Effect<void, AgentLookupError | Error> {
+		return Effect.gen({ self: this }, function* () {
+			const entry = yield* Effect.fromResult(this.lookup(id));
+			if (entry.kind === "archived") return;
+			yield* Effect.tryPromise({
+				try: () => entry.agent.close(),
+				catch: (error) => toError(error),
+			}).pipe(
+				// A failed cleanup still has an owner and must remain retryable,
+				// so the agent is archived only once its session really closed.
+				Effect.ensuring(Effect.sync(() => (entry.agent.phase === "closed" ? this.archive(entry.agent) : undefined))),
+			);
+		});
 	}
 
-	async closeAll(): Promise<void> {
-		const outcomes = await Promise.allSettled(
-			[...this.entries.values()]
-				.filter((entry): entry is Extract<RegistryEntry, { kind: "live" }> => entry.kind === "live")
-				.map((entry) => this.close(entry.agent.id)),
-		);
-		const failures = outcomes.flatMap((outcome) => (outcome.status === "rejected" ? [outcome.reason] : []));
-		// A failed cleanup still has an owner and must remain retryable.
-		if (failures.length > 0) throw new CleanupAggregateError("Agent registry", failures);
-		for (const unsubscribe of this.agentUnsubscribers.values()) unsubscribe();
-		this.agentUnsubscribers.clear();
-		this.entries.clear();
-		this.resultCatalog.clear();
-		this.emit();
+	/**
+	 * Close every live agent, collecting each outcome so one failure cannot skip
+	 * the others. Failures are reported together and stay retryable.
+	 */
+	closeAll(): Effect.Effect<void, CleanupAggregateError | Error> {
+		return Effect.gen({ self: this }, function* () {
+			const live = [...this.entries.values()].filter(
+				(entry): entry is Extract<RegistryEntry, { kind: "live" }> => entry.kind === "live",
+			);
+			const exits = yield* Effect.forEach(live, (entry) => this.close(entry.agent.id).pipe(Effect.exit), {
+				concurrency: "unbounded",
+			});
+			const failures = exits.flatMap((exit) => (Exit.isFailure(exit) ? [Cause.squash(exit.cause)] : []));
+			if (failures.length > 0) return yield* Effect.fail(new CleanupAggregateError("Agent registry", failures));
+			for (const unsubscribe of this.agentUnsubscribers.values()) unsubscribe();
+			this.agentUnsubscribers.clear();
+			this.entries.clear();
+			this.resultCatalog.clear();
+			this.emit();
+			return undefined;
+		});
+	}
+
+	private lookup(id: string): Result.Result<RegistryEntry, AgentLookupError> {
+		const entry = this.entries.get(id);
+		return entry === undefined
+			? Result.fail(lookupError("unknown_agent", `Unknown agent_id '${id}'.`))
+			: Result.succeed(entry);
 	}
 
 	private requireEntry(id: string): RegistryEntry {
-		const entry = this.entries.get(id);
-		if (!entry) throw new Error(`Unknown agent_id '${id}'.`);
-		return entry;
+		return Result.getOrThrow(this.lookup(id));
 	}
 
 	private handleAgentUpdate(agent: ManagedAgent): void {

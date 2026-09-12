@@ -1,4 +1,6 @@
 import * as assert from "node:assert/strict";
+import { Effect } from "effect";
+import { toError } from "../../_shared/errors.ts";
 import { test } from "node:test";
 import { Check } from "typebox/value";
 import { AgentWaitDeferredReason, AgentWaitInterruptedError, type AgentSummary } from "../agent-types.ts";
@@ -247,9 +249,9 @@ test("wait_agents trims a wave and observes completion repeatably", async () => 
 	const runtime = {
 		registry: {
 			...nameRegistry([running]),
-			wait: async (id: string) => {
+			wait: (id: string) => {
 				waits.push(id);
-				return waitingRunDetails;
+				return Effect.succeed(waitingRunDetails);
 			},
 		},
 	};
@@ -277,9 +279,7 @@ test("wait_agents defaults missing generations to latest and settles stale ones"
 	const runtime = {
 		registry: {
 			...nameRegistry([{ ...summary, generation: 2, status: "idle" as const }]),
-			wait: async () => {
-				throw new Error("settled generations must not wait");
-			},
+			wait: () => Effect.die(new Error("settled generations must not wait")),
 		},
 	};
 	const result = await executeWaitAgents(
@@ -304,9 +304,7 @@ test("wait_agents fails future generations and unknown targets explicitly", asyn
 	const runtime = {
 		registry: {
 			...nameRegistry([summary]),
-			wait: async () => {
-				throw new Error("future generations must not wait");
-			},
+			wait: () => Effect.die(new Error("future generations must not wait")),
 		},
 	};
 	const result = await executeWaitAgents(
@@ -335,13 +333,18 @@ test("wait_agents shares one composed signal across its wave", async () => {
 					{ ...summary, status: "running" },
 					{ ...summary, agent_id: "scout-2", task_name: "second", status: "running" },
 				]),
-				wait: async (id: string, signal: AbortSignal | undefined) => {
-					assert.ok(signal);
-					signals.push(signal);
-					return new Promise<ReadonlyRunDetails>((_, reject) => {
-						signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-					});
-				},
+				wait: (id: string, signal: AbortSignal | undefined) =>
+					Effect.tryPromise({
+						try: () => {
+							void id;
+							assert.ok(signal);
+							signals.push(signal);
+							return new Promise<ReadonlyRunDetails>((_, reject) => {
+								signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+							});
+						},
+						catch: (error) => toError(error),
+					}),
 			},
 		},
 		controller.signal,
@@ -368,17 +371,21 @@ test("wait_agents releases its wave when one child asks for input", async () => 
 					{ ...summary, status: "running" as const },
 					{ ...summary, agent_id: "scout-2", task_name: "second", status: "running" as const },
 				]),
-				wait: async (id: string, signal: AbortSignal | undefined) => {
-					if (id === "scout-1") return waitingDetails;
-					return new Promise<ReadonlyRunDetails>((_, reject) => {
-						signal?.addEventListener(
-							"abort",
-							() => {
-								released.push(signal.reason);
-								reject(new AgentWaitInterruptedError(id, signal.reason));
-							},
-							{ once: true },
-						);
+				wait: (id: string, signal: AbortSignal | undefined) => {
+					if (id === "scout-1") return Effect.succeed(waitingDetails);
+					return Effect.tryPromise({
+						try: () =>
+							new Promise<ReadonlyRunDetails>((_, reject) => {
+								signal?.addEventListener(
+									"abort",
+									() => {
+										released.push(signal.reason);
+										reject(new AgentWaitInterruptedError(id, signal.reason));
+									},
+									{ once: true },
+								);
+							}),
+						catch: (error) => toError(error),
 					});
 				},
 			},
@@ -453,7 +460,7 @@ test("agents_status includes a bounded recent closed history", async () => {
 			},
 			summary: (id: string) => [summary, ...closed].find((candidate) => candidate.agent_id === id)!,
 			list: () => [summary, ...closed],
-			close: async () => {},
+			close: () => Effect.void,
 		},
 		admission: {
 			capacity: () => ({
@@ -489,8 +496,9 @@ test("close_agent aborts a running child and disposes it in one step", async () 
 	const tool = createCloseAgentTool({
 		registry: {
 			...nameRegistry([{ ...summary, status: "running" as const }]),
-			close: async () => {
+			close: () => {
 				events.push("close");
+				return Effect.void;
 			},
 		},
 	} as never);
@@ -504,8 +512,9 @@ test("close_agent disposes a settled child without interrupting", async () => {
 	const tool = createCloseAgentTool({
 		registry: {
 			...nameRegistry([summary]),
-			close: async () => {
+			close: () => {
 				events.push("close");
+				return Effect.void;
 			},
 		},
 	} as never);
@@ -518,8 +527,9 @@ test("close_agent rejects stale generations without affecting the child", async 
 	const tool = createCloseAgentTool({
 		registry: {
 			...nameRegistry([{ ...summary, generation: 2, status: "running" as const }]),
-			close: async () => {
+			close: () => {
 				events.push("close");
+				return Effect.void;
 			},
 		},
 	} as never);
@@ -543,9 +553,7 @@ test("wait_agents returns immediately when a target already needs input", async 
 					},
 					{ ...summary, agent_id: "scout-2", task_name: "second", status: "running" },
 				]),
-				wait: async () => {
-					throw new Error("a barrier must not wait after input is already required");
-				},
+				wait: () => Effect.die(new Error("a barrier must not wait after input is already required")),
 			},
 		},
 		undefined,
@@ -565,7 +573,7 @@ test("wait_agents claims nested usage once while repeat observations stay free",
 		{
 			registry: {
 				...nameRegistry([{ ...summary, status: "running" as const }]),
-				wait: async () => waitingRunDetails,
+				wait: () => Effect.succeed(waitingRunDetails),
 				summary: () => settled,
 				list: () => [settled],
 			},
@@ -662,9 +670,9 @@ test("read_agent_result forwards one target read with its paging mode", async ()
 	const page = { generation: 3, text: "exact", next_cursor: undefined };
 	const requests: Array<{ target: string; options: unknown }> = [];
 	const tool = createReadAgentResultTool({
-		readResultByAddress: (async (target: string, options: unknown) => {
+		readResultByAddress: ((target: string, options: unknown) => {
 			requests.push({ target, options });
-			return page;
+			return Effect.succeed(page);
 		}) as never,
 		list: () => [],
 	} as never);
@@ -684,9 +692,9 @@ test("read_agent_result forwards explicit generations unchanged", async () => {
 	const page = { generation: 2, text: "evicted", next_cursor: undefined };
 	const requests: Array<{ target: string; options: unknown }> = [];
 	const tool = createReadAgentResultTool({
-		readResultByAddress: (async (target: string, options: unknown) => {
+		readResultByAddress: ((target: string, options: unknown) => {
 			requests.push({ target, options });
-			return page;
+			return Effect.succeed(page);
 		}) as never,
 		list: () => [],
 	} as never);

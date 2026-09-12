@@ -1,8 +1,10 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Container } from "@earendil-works/pi-tui";
+import { Effect } from "effect";
+import { runPromise } from "../../_shared/effect-runtime.ts";
+import { lstat } from "../../_shared/fs.ts";
 import { formatAgentList, resolveAgent, type AgentConfig } from "../agents.ts";
 import type { AgentRegistry } from "../agent-registry.ts";
 import { isAgentActive, type AgentQuestion, type AgentSummary } from "../agent-types.ts";
@@ -83,27 +85,36 @@ export function createSpawnAgentTool(
 			const defaultAgent = dependencies.agents[0];
 			if (!defaultAgent) throw new Error("No subagent roles are configured.");
 			const requestedAgent = trimOptional(params.agent) ?? defaultAgent.name;
-			const agentConfig = resolveAgent(dependencies.agents, requestedAgent).match(
-				(value) => value,
-				(error) => {
-					throw new Error(`Unknown agent '${error.requested}'. Available: ${formatAgentList(error.available)}.`);
-				},
-			);
+			const agentConfig = resolveAgent(dependencies.agents, requestedAgent);
+			if (!agentConfig) {
+				throw new Error(`Unknown agent '${requestedAgent}'. Available: ${formatAgentList(dependencies.agents)}.`);
+			}
 			const profile = trimOptional(params.profile);
 			const cwd = trimOptional(params.cwd);
 			const resolvedCwd = cwd === undefined ? undefined : path.resolve(ctx.cwd, cwd);
-			const resolvedRun = resolveRun({
-				config: dependencies.profiles,
-				modelRegistry: ctx.modelRegistry,
-				scopedModels: ctx.scopedModels,
-				agent: agentConfig,
-				...(profile === undefined ? {} : { profile }),
-				...(params.thinking === undefined ? {} : { requestedThinking: params.thinking }),
-			});
+			// Resolution failures carry the user-facing reason in their message, so a
+			// rejected spawn reads the same as any other tool error.
+			const resolvedRun = await runPromise(
+				resolveRun({
+					config: dependencies.profiles,
+					modelRegistry: ctx.modelRegistry,
+					scopedModels: ctx.scopedModels,
+					agent: agentConfig,
+					...(profile === undefined ? {} : { profile }),
+					...(params.thinking === undefined ? {} : { requestedThinking: params.thinking }),
+				}),
+			);
 			if (resolvedCwd !== undefined) {
-				const stats = await fs.promises.stat(resolvedCwd);
-				if (!stats.isDirectory()) throw new Error(`cwd is not a directory: ${cwd}`);
+				const target = resolvedCwd;
+				const status = await runPromise(
+					Effect.gen(function* () {
+						return yield* lstat(target);
+					}),
+				);
+				if (!status.isDirectory) throw new Error(`cwd is not a directory: ${cwd}`);
 			}
+			// Keep this adjacent to registry.add below: the capacity check reads the registry
+			// snapshot, so any suspension between the two would let concurrent spawns overfill it.
 			dependencies.admission.admit({
 				agent: resolvedRun.agent,
 				profile: resolvedRun.profile,
@@ -130,7 +141,7 @@ export function createSpawnAgentTool(
 					},
 					onQuestion: (summary, question) => dependencies.onQuestion(summary, question),
 				});
-				await dependencies.registry.add(managed);
+				await runPromise(dependencies.registry.add(managed));
 				if (onUpdate) {
 					unsubscribe = managed.subscribe((details) => {
 						try {

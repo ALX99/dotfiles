@@ -70,7 +70,7 @@ after(() => {
 	delete process.env.PI_CODEX_WEB_SEARCH_CONFIG;
 });
 
-function createHarness(config: Record<string, unknown> = {}) {
+async function createHarness(config: Record<string, unknown> = {}) {
 	writeFileSync(configFile, JSON.stringify(config));
 	const handlers = new Map<string, Handler>();
 	const commands = new Map<string, { handler(args: string, ctx: unknown): Promise<void> }>();
@@ -129,7 +129,7 @@ function createHarness(config: Record<string, unknown> = {}) {
 
 	globalThis.piCodexWebSearchObservers = undefined;
 	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
-	codexWebSearchExtension(pi);
+	await codexWebSearchExtension(pi);
 
 	return {
 		handlers,
@@ -190,8 +190,8 @@ function searchEntry(query: string): { customType: string; data: unknown } {
 	};
 }
 
-test("the provider hook injects the hosted tool for Codex and leaves other models alone", () => {
-	const harness = createHarness();
+test("the provider hook injects the hosted tool for Codex and leaves other models alone", async () => {
+	const harness = await createHarness();
 	try {
 		const handler = harness.handlers.get("before_provider_request");
 		assert.ok(handler);
@@ -219,8 +219,8 @@ test("the provider hook injects the hosted tool for Codex and leaves other model
 	}
 });
 
-test("a disabled extension neither injects nor observes", () => {
-	const harness = createHarness({ enabled: false });
+test("a disabled extension neither injects nor observes", async () => {
+	const harness = await createHarness({ enabled: false });
 	try {
 		assert.equal(harness.handlers.get("before_provider_request")?.({ payload: { tools: [] } }, harness.ctx), undefined);
 		harness.start();
@@ -230,8 +230,8 @@ test("a disabled extension neither injects nor observes", () => {
 	}
 });
 
-test("configuration diagnostics are reported once per session", () => {
-	const harness = createHarness({ mode: "sideways" });
+test("configuration diagnostics are reported once per session", async () => {
+	const harness = await createHarness({ mode: "sideways" });
 	try {
 		harness.start();
 		assert.equal(harness.notifications.length, 1);
@@ -241,8 +241,8 @@ test("configuration diagnostics are reported once per session", () => {
 	}
 });
 
-test("search frames from this session drive the footer status and record a transcript entry", () => {
-	const harness = createHarness();
+test("search frames from this session drive the footer status and record a transcript entry", async () => {
+	const harness = await createHarness();
 	try {
 		harness.start();
 		const socket = harness.socket();
@@ -262,8 +262,8 @@ test("search frames from this session drive the footer status and record a trans
 	}
 });
 
-test("a response without searches records nothing", () => {
-	const harness = createHarness();
+test("a response without searches records nothing", async () => {
+	const harness = await createHarness();
 	try {
 		harness.start();
 		const socket = harness.socket();
@@ -276,8 +276,8 @@ test("a response without searches records nothing", () => {
 	}
 });
 
-test("frames from other sessions are ignored", () => {
-	const harness = createHarness();
+test("frames from other sessions are ignored", async () => {
+	const harness = await createHarness();
 	try {
 		harness.start();
 		const foreign = new globalThis.WebSocket(CODEX_URL) as unknown as FakeWebSocket;
@@ -290,8 +290,8 @@ test("frames from other sessions are ignored", () => {
 	}
 });
 
-test("switching sessions follows the new session key", () => {
-	const harness = createHarness();
+test("switching sessions follows the new session key", async () => {
+	const harness = await createHarness();
 	try {
 		harness.start();
 		const previous = harness.socket();
@@ -310,8 +310,8 @@ test("switching sessions follows the new session key", () => {
 	}
 });
 
-test("session shutdown disposes the observer and clears the status", () => {
-	const harness = createHarness();
+test("session shutdown disposes the observer and clears the status", async () => {
+	const harness = await createHarness();
 	try {
 		harness.start();
 		const socket = harness.socket();
@@ -329,8 +329,8 @@ test("session shutdown disposes the observer and clears the status", () => {
 	}
 });
 
-test("the entry renderer summarizes searches and expands sources", () => {
-	const harness = createHarness();
+test("the entry renderer summarizes searches and expands sources", async () => {
+	const harness = await createHarness();
 	try {
 		const renderer = harness.renderers.get("codex-web-search");
 		assert.ok(renderer);
@@ -360,7 +360,7 @@ test("the entry renderer summarizes searches and expands sources", () => {
 });
 
 test("the status command reports the active model and config path", async () => {
-	const harness = createHarness();
+	const harness = await createHarness();
 	try {
 		const command = harness.commands.get("codex-web-search");
 		assert.ok(command);
@@ -411,8 +411,8 @@ function pointerEntry(id: string, entryIds: string[]): SessionEntry {
 	} as unknown as SessionEntry;
 }
 
-test("nothing is advertised before a search is recorded", () => {
-	const harness = createHarness();
+test("nothing is advertised before a search is recorded", async () => {
+	const harness = await createHarness();
 	try {
 		harness.setEntries([]);
 		assert.ok(harness.tools.has("web_search_log"));
@@ -423,8 +423,8 @@ test("nothing is advertised before a search is recorded", () => {
 	}
 });
 
-test("a recorded search is announced on the next prompt and announced only once", () => {
-	const harness = createHarness();
+test("a recorded search is announced on the next prompt and announced only once", async () => {
+	const harness = await createHarness();
 	try {
 		// A search lands mid-turn, after that turn's before_agent_start already ran.
 		const search = branchSearchEntry("s1", "uv latest release");
@@ -449,8 +449,8 @@ test("a recorded search is announced on the next prompt and announced only once"
 	}
 });
 
-test("a record this process never carried is announced on the first prompt", () => {
-	const harness = createHarness();
+test("a record this process never carried is announced on the first prompt", async () => {
+	const harness = await createHarness();
 	try {
 		// Resuming a session: the record is on disk, and this process has no chain for it.
 		const search = branchSearchEntry("s1", "uv latest release");
@@ -462,8 +462,8 @@ test("a record this process never carried is announced on the first prompt", () 
 	}
 });
 
-test("a compaction mid-turn also marks the records it hid", () => {
-	const harness = createHarness();
+test("a compaction mid-turn also marks the records it hid", async () => {
+	const harness = await createHarness();
 	try {
 		const search = branchSearchEntry("s1", "uv latest release");
 		harness.setEntries([search, compactionEntry("c1", "s1")]);
@@ -475,7 +475,7 @@ test("a compaction mid-turn also marks the records it hid", () => {
 });
 
 test("the recall tool lists every search the session recorded", async () => {
-	const harness = createHarness();
+	const harness = await createHarness();
 	try {
 		const before = branchSearchEntry("s1", "uv latest release");
 		const later = branchSearchEntry("s2", "mise tasks", { openedUrls: ["https://example.com/docs"] });
@@ -496,8 +496,8 @@ test("the recall tool lists every search the session recorded", async () => {
 	}
 });
 
-test("the recall pointer renders its record count", () => {
-	const harness = createHarness();
+test("the recall pointer renders its record count", async () => {
+	const harness = await createHarness();
 	try {
 		const renderer = harness.messageRenderers.get(RECALL_MESSAGE_TYPE);
 		assert.ok(renderer);

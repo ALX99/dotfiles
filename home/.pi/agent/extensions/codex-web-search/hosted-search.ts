@@ -1,4 +1,4 @@
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
 import type { CodexWebSearchConfig, WebSearchMode } from "./config.ts";
 
 /** Responses APIs whose request accepts the hosted `web_search` tool. */
@@ -51,11 +51,11 @@ export function applyHostedWebSearch(
 	if (model === undefined || !usesHostedWebSearch(model, config)) return undefined;
 
 	const tools = Array.isArray(payload.tools) ? payload.tools : [];
-	if (tools.some((entry) => isRecord(entry) && entry.type === "web_search")) return undefined;
+	if (tools.some((entry) => Predicate.isObject(entry) && entry.type === "web_search")) return undefined;
 
 	const suppressed = new Set(config.suppressClientTools);
 	const kept = tools.filter(
-		(entry) => !(isRecord(entry) && typeof entry.name === "string" && suppressed.has(entry.name)),
+		(entry) => !(Predicate.isObject(entry) && typeof entry.name === "string" && suppressed.has(entry.name)),
 	);
 	const include = readInclude(payload.include);
 	return {

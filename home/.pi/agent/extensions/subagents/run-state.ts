@@ -1,5 +1,6 @@
 import type { Usage } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent, ContextUsage } from "@earendil-works/pi-coding-agent";
+import { Predicate } from "effect";
 import type { AgentConfig } from "./agents.ts";
 import type { AgentQuestion } from "./agent-types.ts";
 import type { AgentResultReference, GenerationResultLocator } from "./result-store.ts";
@@ -212,7 +213,7 @@ export function foldSessionEvent(event: AgentSessionEvent, details: MutableRunDa
 }
 
 function argsPreview(args: unknown): string {
-	if (!isRecord(args)) return "";
+	if (!Predicate.isObject(args)) return "";
 	for (const key of ["path", "file_path", "command", "query", "url", "pattern", "content"]) {
 		const value = args[key];
 		if (typeof value === "string") return retainedText(value, MAX_ARGUMENT_PREVIEW_CHARACTERS);
@@ -224,8 +225,4 @@ function retainedText(value: string | undefined, maximum: number): string {
 	if (!value) return "";
 	const normalized = value.replace(/\s+/gu, " ").trim();
 	return normalized.length <= maximum ? normalized : `${normalized.slice(0, maximum - 1)}…`;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

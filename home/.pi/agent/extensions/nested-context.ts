@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { Effect, Predicate } from "effect";
+import { runPromise } from "./_shared/effect-runtime.ts";
+import { readFileString } from "./_shared/fs.ts";
 import { APPLY_PATCH_TOOL_NAME } from "./codex-apply-patch/types.ts";
-import { isRecord } from "./_shared/json.ts";
 
 /**
  * Pi only loads context files at startup from the global agent dir and the
@@ -50,12 +51,12 @@ export function patchTargetPaths(patch: string): string[] {
 /** Absolute paths a tool call will touch. Unrecognized tools contribute nothing. */
 export function toolCallTargetPaths(toolName: string, input: unknown, cwd: string): string[] {
 	if (toolName === "read" || toolName === "edit" || toolName === "write") {
-		if (!isRecord(input)) return [];
+		if (!Predicate.isObject(input)) return [];
 		const path = input.path;
 		return typeof path === "string" ? [resolveAgainstCwd(path, cwd)] : [];
 	}
 	if (toolName === APPLY_PATCH_TOOL_NAME) {
-		if (!isRecord(input)) return [];
+		if (!Predicate.isObject(input)) return [];
 		const patch = input.patch;
 		return typeof patch === "string" ? patchTargetPaths(patch).map((path) => resolveAgainstCwd(path, cwd)) : [];
 	}
@@ -63,16 +64,16 @@ export function toolCallTargetPaths(toolName: string, input: unknown, cwd: strin
 }
 
 /** First readable context file in `dir`, mirroring Pi's startup candidate precedence. */
-function readFirstContextFile(dir: string): NestedContextFile | undefined {
-	for (const filename of CONTEXT_FILE_CANDIDATES) {
-		const filePath = join(dir, filename);
-		try {
-			return { path: filePath, content: readFileSync(filePath, "utf8") };
-		} catch {
-			// Missing or unreadable candidate; try the next one.
+function readFirstContextFile(dir: string): Effect.Effect<NestedContextFile | undefined> {
+	return Effect.gen(function* () {
+		for (const filename of CONTEXT_FILE_CANDIDATES) {
+			const filePath = join(dir, filename);
+			// An unreadable candidate (missing, or a directory of that name) is skipped.
+			const content = yield* readFileString(filePath).pipe(Effect.catchTag("FsError", () => Effect.succeed(undefined)));
+			if (content !== undefined) return { path: filePath, content };
 		}
-	}
-	return undefined;
+		return undefined;
+	});
 }
 
 /**
@@ -81,20 +82,26 @@ function readFirstContextFile(dir: string): NestedContextFile | undefined {
  * cwd are skipped because startup loading already covered them; files outside
  * cwd discover nothing.
  */
-export function collectNestedContextFiles(filePath: string, cwd: string, loaded: Set<string>): NestedContextFile[] {
-	const subtreeRoot = resolve(cwd);
-	let dir = dirname(resolveAgainstCwd(filePath, cwd));
-	const found: NestedContextFile[] = [];
-	const prefix = subtreeRoot.endsWith(sep) ? subtreeRoot : `${subtreeRoot}${sep}`;
-	while (dir !== subtreeRoot && dir.startsWith(prefix)) {
-		const contextFile = readFirstContextFile(dir);
-		if (contextFile && !loaded.has(contextFile.path)) {
-			loaded.add(contextFile.path);
-			found.unshift(contextFile);
+export function collectNestedContextFiles(
+	filePath: string,
+	cwd: string,
+	loaded: Set<string>,
+): Effect.Effect<NestedContextFile[]> {
+	return Effect.gen(function* () {
+		const subtreeRoot = resolve(cwd);
+		let dir = dirname(resolveAgainstCwd(filePath, cwd));
+		const found: NestedContextFile[] = [];
+		const prefix = subtreeRoot.endsWith(sep) ? subtreeRoot : `${subtreeRoot}${sep}`;
+		while (dir !== subtreeRoot && dir.startsWith(prefix)) {
+			const contextFile = yield* readFirstContextFile(dir);
+			if (contextFile && !loaded.has(contextFile.path)) {
+				loaded.add(contextFile.path);
+				found.unshift(contextFile);
+			}
+			dir = dirname(dir);
 		}
-		dir = dirname(dir);
-	}
-	return found;
+		return found;
+	});
 }
 
 export function formatNestedContext(files: readonly NestedContextFile[]): string {
@@ -112,7 +119,7 @@ export function injectedContextPaths(entries: readonly SessionEntry[]): string[]
 	const paths: string[] = [];
 	for (const entry of entries) {
 		if (entry.type !== "custom_message" || entry.customType !== NESTED_CONTEXT_MESSAGE_TYPE) continue;
-		if (!isRecord(entry.details)) continue;
+		if (!Predicate.isObject(entry.details)) continue;
 		const recorded = entry.details.paths;
 		if (!Array.isArray(recorded)) continue;
 		for (const path of recorded) {
@@ -137,12 +144,17 @@ export default function nestedContext(pi: ExtensionAPI): void {
 	pi.on("session_start", restore);
 	pi.on("session_tree", restore);
 
-	pi.on("tool_call", (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
+		const targets = toolCallTargetPaths(event.toolName, event.input, ctx.cwd);
+		if (targets.length === 0) return;
 		const pending = new Set(loaded);
-		const discovered: NestedContextFile[] = [];
-		for (const target of toolCallTargetPaths(event.toolName, event.input, ctx.cwd)) {
-			discovered.push(...collectNestedContextFiles(target, ctx.cwd, pending));
-		}
+		const discovered = await runPromise(
+			Effect.gen(function* () {
+				const files: NestedContextFile[] = [];
+				for (const target of targets) files.push(...(yield* collectNestedContextFiles(target, ctx.cwd, pending)));
+				return files;
+			}),
+		);
 		if (discovered.length === 0) return;
 
 		pi.sendMessage(
@@ -160,7 +172,7 @@ export default function nestedContext(pi: ExtensionAPI): void {
 	});
 
 	pi.registerMessageRenderer(NESTED_CONTEXT_MESSAGE_TYPE, (message, options, theme) => {
-		const details = isRecord(message.details) ? message.details : undefined;
+		const details = Predicate.isObject(message.details) ? message.details : undefined;
 		const recorded = details?.paths;
 		const summary = Array.isArray(recorded) ? recorded.join(", ") : "";
 		return new Text(theme.fg("dim", `nested context: ${summary}`), options.outputPad, 0);

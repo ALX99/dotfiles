@@ -2,7 +2,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
+import { runPromise } from "../_shared/effect-runtime.ts";
 import { createActivityTracker, type SearchSummary } from "./activity.ts";
 import { configPath, loadConfig } from "./config.ts";
 import { applyHostedWebSearch, usesHostedWebSearch } from "./hosted-search.ts";
@@ -57,8 +58,8 @@ const RECALL_PARAMETERS = Type.Object({
 	),
 });
 
-export default function codexWebSearchExtension(pi: ExtensionAPI): void {
-	const { config, diagnostics } = loadConfig();
+export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise<void> {
+	const { config, diagnostics } = await runPromise(loadConfig());
 	const tracker = createActivityTracker();
 	let ctx: ExtensionContext | undefined;
 	let disposeObserver: (() => void) | undefined;
@@ -111,7 +112,7 @@ export default function codexWebSearchExtension(pi: ExtensionAPI): void {
 	pi.on("before_provider_request", (event, context) => {
 		ctx = context;
 		const payload = event.payload;
-		if (!isRecord(payload)) return undefined;
+		if (!Predicate.isObject(payload)) return undefined;
 		const model = context.model;
 		return applyHostedWebSearch(payload, model, config);
 	});
@@ -197,7 +198,7 @@ export default function codexWebSearchExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerMessageRenderer(RECALL_MESSAGE_TYPE, (message, options, theme) => {
-		const details = isRecord(message.details) ? message.details : undefined;
+		const details = Predicate.isObject(message.details) ? message.details : undefined;
 		const recorded = details?.entryIds;
 		const count = Array.isArray(recorded) ? recorded.length : 0;
 		// The message body is the digest sent to the model; the transcript shows only what changed.

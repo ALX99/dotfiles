@@ -1,6 +1,6 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { isRecord } from "../_shared/json.ts";
+import { Predicate } from "effect";
 import type { SearchSummary } from "./activity.ts";
 
 /** Custom entry the frame observer writes for every response that searched. */
@@ -34,7 +34,7 @@ export function advertisedEntryIds(entries: readonly SessionEntry[]): Set<string
 	const ids = new Set<string>();
 	for (const entry of entries) {
 		if (entry.type !== "custom_message" || entry.customType !== RECALL_MESSAGE_TYPE) continue;
-		if (!isRecord(entry.details)) continue;
+		if (!Predicate.isObject(entry.details)) continue;
 		const recorded = entry.details.entryIds;
 		if (!Array.isArray(recorded)) continue;
 		for (const id of recorded) {
@@ -156,7 +156,7 @@ function countSearches(count: number): string {
 
 /** Stored summaries are read back from disk, so their shape is checked rather than trusted. */
 function parseSummary(data: unknown): SearchSummary | undefined {
-	if (!isRecord(data)) return undefined;
+	if (!Predicate.isObject(data)) return undefined;
 	const queries = stringArray(data.queries);
 	const sources = stringArray(data.sources);
 	const openedUrls = stringArray(data.openedUrls);
