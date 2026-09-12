@@ -175,9 +175,8 @@ _fzf_file_insert() {
 # Key bindings
 # =============================================================================
 bind -x '"\eF": _fzf_file_insert'
-bind -m vi-insert -x '"\eF": _fzf_file_insert'
-bind -m vi-insert -x '"\eh": _arg_help'
-bind -m vi-insert -x '"\eH": _man_help'
+bind -x '"\eh": _arg_help'
+bind -x '"\eH": _man_help'
 bind -x $'"\C-l":clear;' # Ctrl+l to clear screen
 
 command -v direnv >/dev/null 2>&1 &&
