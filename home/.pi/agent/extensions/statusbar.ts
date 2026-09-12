@@ -2,16 +2,27 @@
  * Statusbar Extension — Full custom statusbar replacement.
  *
  * Shows the active model and working directory on the left and compact
- * generation speed and context usage on the right. When space is tight,
- * the directory yields to the model so the important state stays visible.
- * The input border mirrors context growth while idle and becomes an activity
- * wave while the agent runs.
+ * generation speed, turns, compactions, token totals and mix, and context
+ * usage on the right. Token totals span every reply recorded in the session
+ * file, including branches that were later summarized, and count recorded
+ * summary-generation usage. Right-side metrics are separated by whitespace
+ * and drawn as dim labels over muted values, so the numbers lead and the
+ * labels recede. Fast-changing fields keep fixed widths, and whole metrics
+ * drop before any value is cut, so the bar does not reflow while numbers
+ * grow. When space is tight, the directory yields to the model so the
+ * important state stays visible. The input border mirrors context growth
+ * while idle and becomes an activity wave while the agent runs.
  *
  * Right-side metrics are right-aligned with space padding.
  */
 
-import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
+import {
+	CustomEditor,
+	type ExtensionAPI,
+	type ExtensionContext,
+	type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage, ModelThinkingLevel, Usage } from "@earendil-works/pi-ai";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
@@ -59,6 +70,7 @@ export interface StatusbarViewModel {
 /* ─── context gradient ─── */
 
 const PART_SEPARATOR = " · ";
+const METRIC_SEPARATOR = "  ";
 const CONTEXT_GRADIENT_STEPS = 24;
 
 type StatusbarTheme = ExtensionContext["ui"]["theme"];
@@ -69,6 +81,13 @@ interface ContextUsage {
 	readonly percent: number | null;
 }
 
+const UNKNOWN_CONTEXT_USAGE: ContextUsage = { tokens: null, percent: null };
+
+// The token field keeps a fixed width so its growth never jitters the cells to
+// its left. Everything else is left natural: tps is the leftmost metric, and
+// the rest only change width at digit boundaries.
+const TOKEN_FIELD_WIDTH = 4;
+
 const CONTEXT_GRADIENT = [
 	{ percent: 0, color: [86, 211, 100] },
 	{ percent: 55, color: [227, 179, 65] },
@@ -76,19 +95,138 @@ const CONTEXT_GRADIENT = [
 	{ percent: 100, color: [248, 81, 73] },
 ] as const satisfies readonly { readonly percent: number; readonly color: Rgb }[];
 
-function joinParts(parts: readonly string[]): string {
-	return parts.filter((part) => part !== "").join(PART_SEPARATOR);
+function joinParts(parts: readonly string[], separator: string): string {
+	return parts.filter((part) => part !== "").join(separator);
 }
 
 function fitLeftParts(parts: readonly string[], width: number): string {
 	const retained = parts.filter((part) => part !== "");
-	while (retained.length > 1 && visibleWidth(joinParts(retained)) > width) retained.shift();
-	return truncateToWidth(joinParts(retained), width);
+	while (retained.length > 1 && visibleWidth(joinParts(retained, PART_SEPARATOR)) > width) retained.shift();
+	return truncateToWidth(joinParts(retained, PART_SEPARATOR), width);
+}
+
+function fitRightParts(parts: readonly string[], width: number): string {
+	const retained = parts.filter((part) => part !== "");
+	while (retained.length > 1 && visibleWidth(joinParts(retained, METRIC_SEPARATOR)) > width) retained.shift();
+	return truncateToWidth(joinParts(retained, METRIC_SEPARATOR), width);
 }
 
 function formatTokensPerSecond(tokensPerSecond: number): string {
 	if (!Number.isFinite(tokensPerSecond) || tokensPerSecond < 0) return "--";
-	return tokensPerSecond < 100 ? tokensPerSecond.toFixed(1) : Math.round(tokensPerSecond).toString();
+	return Math.round(tokensPerSecond).toString();
+}
+
+function metricField(value: number | undefined, format: (value: number) => string, width: number): string {
+	return (value === undefined ? "--" : format(value)).padStart(width);
+}
+
+const TOKEN_UNITS = [
+	{ divisor: 1_000, suffix: "K" },
+	{ divisor: 1_000_000, suffix: "M" },
+	{ divisor: 1_000_000_000, suffix: "B" },
+	{ divisor: 1_000_000_000_000, suffix: "T" },
+] as const;
+
+/** Formats a token count compactly: 950, 1.2K, 12K, 1.2M. Values fit the fixed token field. */
+export function formatTokenCount(tokens: number): string {
+	if (!Number.isFinite(tokens) || tokens < 0) return "--";
+	const value = Math.round(tokens);
+	if (value < TOKEN_UNITS[0].divisor) return String(value);
+
+	// Start at the largest unit the value reaches; rounding may carry it upward.
+	const next = TOKEN_UNITS.findIndex((unit) => value < unit.divisor);
+	const startIndex = next === -1 ? TOKEN_UNITS.length - 1 : Math.max(next - 1, 0);
+	for (let index = startIndex; index < TOKEN_UNITS.length; index++) {
+		const unit = TOKEN_UNITS[index]!;
+		const scaled = value / unit.divisor;
+		// One decimal below ten keeps small counts readable; larger ones round.
+		const rounded = scaled < 10 ? Math.round(scaled * 10) / 10 : Math.round(scaled);
+		if (rounded < 1000) return `${rounded}${unit.suffix}`;
+	}
+
+	// The largest unit has nothing to carry into; clamp to keep the field width.
+	return `999${TOKEN_UNITS.at(-1)!.suffix}`;
+}
+
+export interface SessionTotals {
+	readonly turns: number;
+	readonly compactions: number;
+	readonly totalTokens: number;
+	/** Prompt tokens: fresh input plus cache reads and writes. */
+	readonly readTokens: number;
+	/** Generated tokens. */
+	readonly writeTokens: number;
+	/** Prompt tokens served from cache. */
+	readonly cachedTokens: number;
+}
+
+const EMPTY_SESSION_TOTALS: SessionTotals = {
+	turns: 0,
+	compactions: 0,
+	totalTokens: 0,
+	readTokens: 0,
+	writeTokens: 0,
+	cachedTokens: 0,
+};
+
+function addUsage(totals: SessionTotals, usage: Usage): SessionTotals {
+	return {
+		...totals,
+		totalTokens: totals.totalTokens + usage.totalTokens,
+		readTokens: totals.readTokens + usage.input + usage.cacheRead + usage.cacheWrite,
+		writeTokens: totals.writeTokens + usage.output,
+		cachedTokens: totals.cachedTokens + usage.cacheRead,
+	};
+}
+
+/**
+ * Counts completed assistant turns, compaction events, and token usage across
+ * session entries. Summarized branches still count because the tokens were
+ * spent, and recorded summary-generation usage counts with their event.
+ */
+export function sessionTotals(entries: readonly SessionEntry[]): SessionTotals {
+	let totals = EMPTY_SESSION_TOTALS;
+	for (const entry of entries) {
+		if (entry.type === "message" && entry.message.role === "assistant") {
+			// Auto-retry removes failed attempts from agent state but keeps them in the
+			// session file, so excluding them keeps the counts on real responses.
+			if (entry.message.stopReason === "error") continue;
+			totals = { ...addUsage(totals, entry.message.usage), turns: totals.turns + 1 };
+			continue;
+		}
+		if (entry.type !== "compaction" && entry.type !== "branch_summary") continue;
+		totals = {
+			...(entry.usage ? addUsage(totals, entry.usage) : totals),
+			compactions: totals.compactions + 1,
+		};
+	}
+	return totals;
+}
+
+function metricText(theme: StatusbarTheme, label: string, value: string): string {
+	return `${theme.fg("dim", label)}${theme.fg("muted", value)}`;
+}
+
+export function renderSessionCounts(totals: SessionTotals, theme: StatusbarTheme): string[] {
+	return [metricText(theme, "turns:", String(totals.turns)), metricText(theme, "comp:", String(totals.compactions))];
+}
+
+export function renderTotalTokens(totals: SessionTotals, theme: StatusbarTheme): string {
+	return metricText(theme, "tok:", metricField(totals.totalTokens, formatTokenCount, TOKEN_FIELD_WIDTH));
+}
+
+function percentOf(part: number, whole: number): number {
+	if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0) return 0;
+	return Math.round((part / whole) * 100);
+}
+
+/** Splits session tokens into prompt reads and cache hits; writes are the remainder. */
+export function renderTokenMix(totals: SessionTotals, theme: StatusbarTheme): string[] {
+	const prompt = totals.readTokens + totals.writeTokens;
+	return [
+		metricText(theme, "read:", `${percentOf(totals.readTokens, prompt)}%`),
+		metricText(theme, "cache:", `${percentOf(totals.cachedTokens, totals.readTokens)}%`),
+	];
 }
 
 export function calculateTokensPerSecond(outputTokens: number, durationMs: number): number | undefined {
@@ -98,28 +236,24 @@ export function calculateTokensPerSecond(outputTokens: number, durationMs: numbe
 	return outputTokens / (durationMs / 1000);
 }
 
-export function renderTokensPerSecond(
-	tokensPerSecond: number | undefined,
-	averageTokensPerSecond: number | undefined,
-	theme: StatusbarTheme,
-): string {
-	const current = tokensPerSecond === undefined ? "--" : formatTokensPerSecond(tokensPerSecond);
-	const average = averageTokensPerSecond === undefined ? "" : ` avg:${formatTokensPerSecond(averageTokensPerSecond)}`;
-	return theme.fg("dim", `tps:${current}${average}`);
+/** Renders the average generation rate across measured turns. */
+export function renderTokensPerSecond(averageTokensPerSecond: number | undefined, theme: StatusbarTheme): string {
+	const average = averageTokensPerSecond === undefined ? "--" : formatTokensPerSecond(averageTokensPerSecond);
+	return `${theme.fg("dim", "tps:")}${theme.fg(averageTokensPerSecond === undefined ? "dim" : "muted", average)}`;
 }
 
-function createTokensPerSecondTracker(requestRender: () => void) {
+function createStatusbarMetrics(requestRender: () => void) {
 	let generationStartedAt: number | undefined;
-	let tokensPerSecond: number | undefined;
 	let totalOutputTokens = 0;
 	let totalGenerationMs = 0;
+	let recorded = EMPTY_SESSION_TOTALS;
 
 	return {
-		current() {
-			return tokensPerSecond;
-		},
-		average() {
+		tps() {
 			return calculateTokensPerSecond(totalOutputTokens, totalGenerationMs);
+		},
+		totals(): SessionTotals {
+			return recorded;
 		},
 		start: () => {
 			generationStartedAt = performance.now();
@@ -132,24 +266,41 @@ function createTokensPerSecondTracker(requestRender: () => void) {
 			if (startedAt === undefined) return;
 
 			const durationMs = performance.now() - startedAt;
-			const measured = calculateTokensPerSecond(outputTokens, durationMs);
-			if (measured === undefined) return;
+			if (calculateTokensPerSecond(outputTokens, durationMs) === undefined) return;
 
-			tokensPerSecond = measured;
 			totalOutputTokens += outputTokens;
 			totalGenerationMs += durationMs;
-			requestRender();
+		},
+		account(message: AssistantMessage) {
+			if (message.stopReason === "error") return;
+			recorded = { ...addUsage(recorded, message.usage), turns: recorded.turns + 1 };
+		},
+		restore(entries: readonly SessionEntry[]) {
+			recorded = sessionTotals(entries);
 		},
 	};
 }
 
-function setupTokensPerSecond(pi: ExtensionAPI, requestRender: () => void) {
-	const tracker = createTokensPerSecondTracker(requestRender);
-	pi.on("turn_start", tracker.start);
+function setupStatusbarMetrics(pi: ExtensionAPI, requestRender: () => void, entries: readonly SessionEntry[]) {
+	const metrics = createStatusbarMetrics(requestRender);
+	metrics.restore(entries);
+
+	pi.on("turn_start", metrics.start);
 	pi.on("message_end", (event) => {
-		if (event.message.role === "assistant") tracker.finish(event.message.usage.output);
+		if (event.message.role !== "assistant") return;
+		metrics.account(event.message);
+		metrics.finish(event.message.usage.output);
+		requestRender();
 	});
-	return tracker;
+	// Compactions and branch summaries arrive as session entries, so re-read
+	// them to pick up the event count and any recorded generation usage.
+	const resync = (ctx: ExtensionContext): void => {
+		metrics.restore(ctx.sessionManager.getEntries());
+		requestRender();
+	};
+	pi.on("session_compact", (_event, ctx) => resync(ctx));
+	pi.on("session_tree", (_event, ctx) => resync(ctx));
+	return metrics;
 }
 
 function clampPercent(percent: number): number {
@@ -239,7 +390,7 @@ function renderGradientFill(percent: number, width: number, filledCharacter: str
 export function buildStatusbarViewModel(input: StatusbarViewInput): StatusbarViewModel {
 	const width = columnCount(input.width);
 	const rightParts = input.rightParts ?? (input.contextPercentage ? [input.contextPercentage] : []);
-	const right = truncateToWidth(joinParts(rightParts), width);
+	const right = fitRightParts(rightParts, width);
 
 	if (right === "") {
 		const left = fitLeftParts(input.leftParts, width);
@@ -419,7 +570,7 @@ function setupInputBorder(ctx: ExtensionContext, pi: ExtensionAPI): void {
 
 function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 	let requestRender: (() => void) | undefined;
-	const tpsTracker = setupTokensPerSecond(pi, () => requestRender?.());
+	const metrics = setupStatusbarMetrics(pi, () => requestRender?.(), ctx.sessionManager.getEntries());
 
 	pi.on("turn_end", () => {
 		requestRender?.();
@@ -448,12 +599,16 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 				}
 
 				const ctxUsage = ctx.getContextUsage();
+				const totals = metrics.totals();
 				const viewInput: StatusbarViewInput = {
 					width,
 					leftParts,
 					rightParts: [
-						renderTokensPerSecond(tpsTracker.current(), tpsTracker.average(), theme),
-						...(ctxUsage ? [renderContextPercentage(ctxUsage, theme)] : []),
+						renderTokensPerSecond(metrics.tps(), theme),
+						...renderSessionCounts(totals, theme),
+						...renderTokenMix(totals, theme),
+						renderTotalTokens(totals, theme),
+						renderContextPercentage(ctxUsage ?? UNKNOWN_CONTEXT_USAGE, theme),
 					],
 				};
 				const view = buildStatusbarViewModel(viewInput);
