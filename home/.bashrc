@@ -133,28 +133,32 @@ __prompt_render() {
   local reset='\[\e[0m\]'
   local bold='\[\e[1m\]'
   local dim='\[\e[2m\]'
-  local lilac='\[\e[38;2;201;184;216m\]'
-  local red='\[\e[38;2;255;107;138m\]'
-  local green='\[\e[38;2;120;227;176m\]'
-  local blue='\[\e[38;2;143;168;255m\]'
-  local orchid='\[\e[38;2;231;161;255m\]'
+  # Terminal palette slots, not RGB values, so the prompt follows whichever
+  # Ghostty theme is active instead of pinning one palette's truecolor values.
+  # The slots match LS_COLORS in home/.profile, so a directory, a branch, and a
+  # failure read the same color everywhere.
+  local plain='\[\e[37m\]'
+  local alert='\[\e[31m\]'
+  local ok='\[\e[32m\]'
+  local path='\[\e[34m\]'
+  local extra='\[\e[35m\]'
 
   [[ -n $cwd ]] || cwd=/
 
   if [[ -n ${SSH_CLIENT:-} ]]; then
     host=${HOSTNAME%%.*}
-    segments+=("${lilac}${USER}@${host}${reset}")
+    segments+=("${plain}${USER}@${host}${reset}")
   fi
 
-  segments+=("${bold}${blue}${cwd}${reset}")
+  segments+=("${bold}${path}${cwd}${reset}")
 
-  __prompt_git_info "$green" "$orchid" "$reset"
+  __prompt_git_info "$ok" "$extra" "$reset"
   [[ -n $__prompt_git_segment ]] && segments+=("$__prompt_git_segment")
-  [[ -n ${VIRTUAL_ENV:-} ]] && segments+=("${orchid}venv${reset}")
-  [[ $exit_status -ne 0 ]] && segments+=("${red}✗$exit_status${reset}")
+  [[ -n ${VIRTUAL_ENV:-} ]] && segments+=("${extra}venv${reset}")
+  [[ $exit_status -ne 0 ]] && segments+=("${alert}✗$exit_status${reset}")
 
   local IFS=' '
-  PS1="${segments[*]} ${dim}${lilac}>${reset} "
+  PS1="${segments[*]} ${dim}${plain}>${reset} "
 }
 
 # Use direnv when installed; otherwise provide the lightweight .env loader.

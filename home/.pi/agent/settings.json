@@ -29,7 +29,7 @@
     "opencode/muse-spark-1.3-contributor-free",
     "commandcode/deepseek/deepseek-v4.1-flash"
   ],
-  "theme": "stellar",
+  "theme": "terminal-light/terminal-dark",
   "showCacheMissNotices": true,
   "enableInstallTelemetry": false,
   "terminal": {
