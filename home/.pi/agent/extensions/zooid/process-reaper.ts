@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { isBashToolResult, isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Effect, Schedule, Schema } from "effect";
+import { Effect, Fiber, Schedule, Schema } from "effect";
 import { runFork, runPromise } from "../_shared/effect-runtime.ts";
 import type { FsError } from "../_shared/errors.ts";
 import {
@@ -61,6 +61,26 @@ export interface BackgroundJob {
 	readonly ownerId: string;
 	readonly toolCallId: string;
 	readonly command: string;
+}
+
+/**
+ * The process reaper's sweep is useful for interactive and RPC hosts, but a
+ * print-mode Pi process must be able to exit after the agent settles. Effect's
+ * scheduled sleeps keep Node's event loop alive, so do not start the sweep in
+ * one-shot modes.
+ */
+export function shouldRunBackgroundSweep(
+	args: readonly string[] = process.argv,
+	stdinIsTTY = process.stdin.isTTY ?? false,
+	stdoutIsTTY = process.stdout.isTTY ?? false,
+): boolean {
+	const optionEnd = args.indexOf("--");
+	const options = optionEnd === -1 ? args : args.slice(0, optionEnd);
+	const modeIndex = options.indexOf("--mode");
+	const mode = modeIndex === -1 ? undefined : options[modeIndex + 1];
+	if (mode === "rpc") return true;
+	if (mode === "json" || options.includes("--print") || options.includes("-p")) return false;
+	return stdinIsTTY && stdoutIsTTY;
 }
 
 function hash(value: string): string {
@@ -304,15 +324,17 @@ function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): v
 	// Retained groups are only revisited on tool results, the /jobs command, and
 	// shutdown, so sweep on a schedule to converge stored state with live truth
 	// when a job exits while the user is idle.
-	runFork(
-		reaper
-			.pruneFinishedJobs()
-			// A failed sweep must not stop later sweeps from converging state.
-			.pipe(
-				Effect.catchTag("FsError", () => Effect.void),
-				Effect.repeat(Schedule.spaced(BACKGROUND_SWEEP_INTERVAL_MS)),
-			),
-	);
+	const sweepFiber = shouldRunBackgroundSweep()
+		? runFork(
+				reaper
+					.pruneFinishedJobs()
+					// A failed sweep must not stop later sweeps from converging state.
+					.pipe(
+						Effect.catchTag("FsError", () => Effect.void),
+						Effect.repeat(Schedule.spaced(BACKGROUND_SWEEP_INTERVAL_MS)),
+					),
+			)
+		: undefined;
 
 	pi.registerCommand("jobs", {
 		description: "List background jobs tracked by the process reaper",
@@ -334,6 +356,7 @@ function registerProcessReaper(pi: ExtensionAPI, reaper = getProcessReaper()): v
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		if (sweepFiber !== undefined) await runPromise(Fiber.interrupt(sweepFiber));
 		await runPromise(reaper.terminateOwner(ctx.sessionManager.getSessionId()));
 	});
 }

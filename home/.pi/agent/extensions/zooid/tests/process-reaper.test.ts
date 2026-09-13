@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { Effect } from "effect";
 import { test, type TestContext } from "node:test";
 import { runPromise } from "../../_shared/effect-runtime.ts";
-import { getProcessReaper, ProcessReaper } from "../process-reaper.ts";
+import { getProcessReaper, ProcessReaper, shouldRunBackgroundSweep } from "../process-reaper.ts";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
 	const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "process-reaper-test-"));
@@ -46,6 +46,15 @@ test("shares owner state across in-process extension instances", async () => {
 	await runPromise(second.finishCommand(ownerId, toolCallId));
 
 	assert.equal(await pathExists(marker), false);
+});
+
+test("does not keep print-mode Pi alive for background sweeping", () => {
+	assert.equal(shouldRunBackgroundSweep(["node", "pi", "--mode", "json", "--print"], true, true), false);
+	assert.equal(shouldRunBackgroundSweep(["node", "pi", "-p"], true, true), false);
+	assert.equal(shouldRunBackgroundSweep(["node", "pi", "--mode", "json"], true, true), false);
+	assert.equal(shouldRunBackgroundSweep(["node", "pi"], true, true), true);
+	assert.equal(shouldRunBackgroundSweep(["node", "pi", "--mode", "rpc"], false, false), true);
+	assert.equal(shouldRunBackgroundSweep(["node", "pi", "--", "--mode", "rpc", "--print"], true, true), true);
 });
 
 test("retains background job metadata and lists jobs in PID order", async (t) => {
