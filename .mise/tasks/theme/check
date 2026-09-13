@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Verify Twilight Bloom CUE formatting and generated consumers"
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+cue fmt --check --files misc/themes/twilight-bloom.cue
+cue vet misc/themes/twilight-bloom.cue
+python3 -m py_compile misc/themes/generate.py
+python3 misc/themes/generate.py --check

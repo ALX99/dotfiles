@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Generate Twilight Bloom theme consumers from the shared CUE palette"
+#MISE sources=["misc/themes/twilight-bloom.cue", "misc/themes/generate.py"]
+#MISE outputs=[".config/ghostty/themes/twilight-bloom", ".config/ghostty/themes/twilight-bloom-light", ".config/herdr/config.toml", "home/.pi/agent/themes/terminal-dark.json", "home/.pi/agent/themes/terminal-light.json"]
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+python3 misc/themes/generate.py

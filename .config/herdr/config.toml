@@ -7,16 +7,27 @@ auto_switch = true
 dark_name = "terminal"
 light_name = "terminal"
 
-# Herdr's terminal theme derives UI text from ANSI bright white (palette 15).
-# Twilight Bloom Light reserves that slot for terminal output, so map only the
-# UI's text hierarchy back to Ghostty's readable foreground shades. Keep these
-# values in sync with twilight-bloom-light's foreground and palette 8.
+# BEGIN GENERATED: Twilight Bloom theme
+# Generated from misc/themes/twilight-bloom.cue; do not edit here.
+[theme.custom.dark]
+text = "#d0d0d0"
+overlay1 = "#d0d0d0"
+subtext0 = "#a8a8a8"
+overlay0 = "#a8a8a8"
+active_row_bg = "#4e4e4e"
+selection_bg = "#4e4e4e"
+mauve = "#ffafaf"
+
 [theme.custom.light]
 text = "#4e4e4e"
 overlay1 = "#4e4e4e"
-subtext0 = "#626262"
-overlay0 = "#626262"
+subtext0 = "#3a3a3a"
+overlay0 = "#3a3a3a"
+active_row_bg = "#afd7d7"
+selection_bg = "#afd7d7"
+mauve = "#875f87"
 
+# END GENERATED: Twilight Bloom theme
 [terminal]
 shell_mode = "auto"
 new_cwd = "follow"
