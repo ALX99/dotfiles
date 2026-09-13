@@ -20,7 +20,8 @@ keybinding:
 git:
   diffRenderers:
     - colorArg: always
-      command: delta --paging=never --line-numbers --hyperlinks --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"
+      # Delta cannot query the terminal background reliably through LazyGit.
+      command: lazygit-delta --paging=never --line-numbers --hyperlinks --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"
 gui:
   showFileTree: false
   showCommandLog: false
