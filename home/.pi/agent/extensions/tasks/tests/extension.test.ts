@@ -775,9 +775,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation1.label, "task: Add schema");
 	assert.match(navigation1.summary, /## Queue progress\n1\/4 complete\. Continue with: Implement handler/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.ok(
-		h.sentUserMessages.at(-1)?.content?.includes(`Implement handler (${createdQueue.tasks[1]?.id}).`) ?? false,
-		"schedules the second generated task id",
+	assert.equal(
+		h.sentUserMessages.at(-1)?.content,
+		`Task 1 completed. Continue with: Implement handler (${createdQueue.tasks[1]?.id}).`,
 	);
 
 	// Second finish chains onto the first completion record instead of the anchor.
@@ -802,9 +802,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation2.label, "task: Implement handler");
 	assert.match(navigation2.summary, /2\/4 complete\. Continue with: Write tests/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.ok(
-		h.sentUserMessages.at(-1)?.content?.includes(`Write tests (${createdQueue.tasks[2]?.id}).`) ?? false,
-		"schedules the third generated task id",
+	assert.equal(
+		h.sentUserMessages.at(-1)?.content,
+		`Task 2 completed. Continue with: Write tests (${createdQueue.tasks[2]?.id}).`,
 	);
 
 	// Intermediate tasks keep the chain and schedule the next task.
@@ -831,9 +831,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 	assert.equal(navigation3.label, "task: Write tests");
 	assert.match(navigation3.summary, /3\/4 complete\. Continue with: Review integration/u);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.ok(
-		h.sentUserMessages.at(-1)?.content?.includes(`Review integration (${createdQueue.tasks[3]?.id}).`) ?? false,
-		"schedules the fourth generated task id",
+	assert.equal(
+		h.sentUserMessages.at(-1)?.content,
+		`Task 3 completed. Continue with: Review integration (${createdQueue.tasks[3]?.id}).`,
 	);
 
 	// The final task keeps the chain and schedules a user-facing final summary.

@@ -555,7 +555,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			// subsequent invocations resume from the durable finish record.
 			const next = currentItemAfter(active, finish.taskId);
 			if (ctx.mode !== "print") {
-				scheduleContinuation(pi, next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next));
+				scheduleContinuation(
+					pi,
+					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish.taskId, next),
+				);
 			}
 		},
 	});
@@ -988,8 +991,8 @@ function finalSummaryPrompt(active: ActiveQueue): string {
 	return "All queued tasks are complete. Summarize the overall outcome for the user.";
 }
 
-function nextTaskPrompt(next: TaskQueueItem): string {
-	return `Continue with the next queued task: ${next.title} (${next.id}).`;
+function nextTaskPrompt(active: ActiveQueue, completedId: string, next: TaskQueueItem): string {
+	return `Task ${positionOf(active, completedId)} completed. Continue with: ${next.title} (${next.id}).`;
 }
 
 function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string[] {
