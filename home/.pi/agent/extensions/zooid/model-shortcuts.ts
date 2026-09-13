@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { toError } from "./_shared/errors.ts";
+import { toError } from "../_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
 	{ command: "luna", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "xhigh" },

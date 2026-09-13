@@ -2,7 +2,7 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import minimalExtension from "../index.ts";
+import minimalExtension from "../minimal.ts";
 
 type Entry = Record<string, unknown>;
 type Handler = (event: unknown, ctx: unknown) => unknown;

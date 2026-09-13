@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { Effect } from "effect";
 import { test, type TestContext } from "node:test";
 import { runPromise } from "../../_shared/effect-runtime.ts";
-import { getProcessReaper, ProcessReaper } from "../index.ts";
+import { getProcessReaper, ProcessReaper } from "../process-reaper.ts";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
 	const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "process-reaper-test-"));

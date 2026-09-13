@@ -8,7 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { VERSION, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { toError } from "./_shared/errors.ts";
+import { toError } from "../_shared/errors.ts";
 
 export const TITLE_STARTUP_DELAY_MS = 500;
 export const TITLE_UPDATE_DELAY_MS = 50;
@@ -81,6 +81,18 @@ function setTitle(ctx: ExtensionContext, value: string): void {
 	else ctx.ui.setTitle(value);
 }
 
+/**
+ * Clears the title as the process's very last write.
+ *
+ * Pi's own teardown sets the title it started with *after* the shutdown handlers run, so a clear
+ * written from here is overwritten within the same tick and the old title is what survives. An exit
+ * handler runs after all of that, which is the only point where the clear cannot be undone.
+ */
+function clearTitle(ctx: ExtensionContext): void {
+	if (ctx.mode !== "tui") return ctx.ui.setTitle("");
+	process.once("exit", () => process.stdout.write("\x1b]2;\x07"));
+}
+
 export function createHerdrLabeler(
 	paneId: string,
 	bin: string,
@@ -141,7 +153,7 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("session_shutdown", (_event, ctx) => {
 		cancelPending();
-		setTitle(ctx, "");
+		clearTitle(ctx);
 		labeler?.clear();
 	});
 }

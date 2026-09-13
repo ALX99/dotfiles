@@ -13,7 +13,7 @@ import nestedContext, {
 	patchTargetPaths,
 	toolCallTargetPaths,
 } from "../nested-context.ts";
-import { runPromise } from "../_shared/effect-runtime.ts";
+import { runPromise } from "../../_shared/effect-runtime.ts";
 
 /** Collecting context reads the filesystem, so cases await the extension runtime. */
 function collect(filePath: string, cwd: string, loaded: Set<string>) {

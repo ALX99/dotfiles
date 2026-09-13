@@ -8,8 +8,8 @@
 
 import { spawn } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerAgentActivity } from "./_shared/agent-activity.ts";
-import { toError } from "./_shared/errors.ts";
+import { registerAgentActivity } from "../_shared/agent-activity.ts";
+import { toError } from "../_shared/errors.ts";
 
 type CaffeinateProcess = {
 	kill(): boolean | undefined;

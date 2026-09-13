@@ -36,7 +36,7 @@ node -e 'const {readFileSync}=require("node:fs");const m=JSON.parse(readFileSync
 
 ## Extensions and installed packages
 
-- Custom extensions live in the agent directory: `~/.pi/agent/extensions/` (`PI_CODING_AGENT_DIR` overrides), where root `*.ts` and `*/index.ts` are entry points and `**/tests/` holds coverage.
+- Custom extensions live in the agent directory: `~/.pi/agent/extensions/` (`PI_CODING_AGENT_DIR` overrides). The standalone features are grouped into one `zooid/` package through its `index.ts` entry point; other feature directories expose `*/index.ts` entry points, and `**/tests/` holds coverage.
 - `pi list` prints every installed package's path — npm packages under `~/.pi/agent/npm/node_modules/`, git packages under `~/.pi/agent/git/<host>/<owner>/<repo>/`. Read those sources to see what a third-party extension actually does.
 - Upstream source, tests, and history: `github.com/earendil-works/pi` (`packages/coding-agent`), per the `repository` field in the installed `package.json`.
 

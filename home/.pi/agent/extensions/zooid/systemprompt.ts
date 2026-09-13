@@ -6,9 +6,9 @@ import type { BuildSystemPromptOptions, ExtensionAPI, ExtensionContext } from "@
 import { Key, Markdown, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import { Effect } from "effect";
 
-import { runPromise } from "./_shared/effect-runtime.ts";
-import { writeFileString } from "./_shared/fs.ts";
-import { enabledModelSkillNames } from "./skills/index.ts";
+import { runPromise } from "../_shared/effect-runtime.ts";
+import { writeFileString } from "../_shared/fs.ts";
+import { enabledModelSkillNames } from "../skills/index.ts";
 
 /** Host fields matching mini-swe-agent's `platform.uname()` template variables. */
 export interface HostInformation {

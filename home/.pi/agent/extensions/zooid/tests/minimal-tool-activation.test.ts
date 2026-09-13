@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { applyTools, MINIMAL_CORE_TOOL_NAMES, minimalToolNames, missingMinimalTools } from "../tool-activation.ts";
+import { applyTools, MINIMAL_CORE_TOOL_NAMES, minimalToolNames, missingMinimalTools } from "../minimal.ts";
 
 const OTHER_TOOLS = ["apply_patch", "edit", "write", "spawn_agent"];
 const TASK_TOOLS = ["create_tasks", "finish_task", "read_tasks", "update_tasks"];

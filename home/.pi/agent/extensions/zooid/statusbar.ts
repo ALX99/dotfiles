@@ -26,8 +26,8 @@ import type { AssistantMessage, ModelThinkingLevel, Usage } from "@earendil-work
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
-import { sanitizeTerminalText } from "./_shared/terminal-text.ts";
-import { registerAgentActivity } from "./_shared/agent-activity.ts";
+import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
+import { registerAgentActivity } from "../_shared/agent-activity.ts";
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);

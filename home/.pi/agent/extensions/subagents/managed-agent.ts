@@ -15,7 +15,7 @@ import { makeDirectory } from "../_shared/fs.ts";
 import { Type } from "typebox";
 import { toError } from "../_shared/errors.ts";
 import { runFork, runPromise } from "../_shared/effect-runtime.ts";
-import { getProcessReaper } from "../process-reaper/index.ts";
+import { getProcessReaper } from "../zooid/process-reaper.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
 	AgentWaitInterruptedError,

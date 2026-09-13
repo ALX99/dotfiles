@@ -3,9 +3,9 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Effect, Predicate } from "effect";
-import { runPromise } from "./_shared/effect-runtime.ts";
-import { readFileString } from "./_shared/fs.ts";
-import { APPLY_PATCH_TOOL_NAME } from "./codex-apply-patch/types.ts";
+import { runPromise } from "../_shared/effect-runtime.ts";
+import { readFileString } from "../_shared/fs.ts";
+import { APPLY_PATCH_TOOL_NAME } from "../codex-apply-patch/types.ts";
 
 /**
  * Pi only loads context files at startup from the global agent dir and the
