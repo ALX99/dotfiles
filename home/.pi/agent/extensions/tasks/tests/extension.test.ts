@@ -176,6 +176,7 @@ type QueueDetails = Record<string, unknown> & {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+const TASK_ID_PATTERN = /^t[1-9]\d*$/u;
 
 function queueDetails(toolCallId: string): QueueDetails {
 	return {
@@ -312,6 +313,10 @@ test("shows generated task IDs when creating a queue", async () => {
 	const details = created.details as QueueDetails;
 	const text = created.content[0]?.text ?? "";
 
+	assert.deepEqual(
+		details.tasks.map((task) => task.id),
+		["t1", "t2", "t3", "t4"],
+	);
 	for (const task of details.tasks) {
 		assert.ok(text.includes(task.title));
 		assert.ok(text.includes(task.id));
@@ -336,6 +341,32 @@ test("loads task management tools after creating a queue", async () => {
 		"read_tasks",
 		"update_tasks",
 	]);
+});
+
+test("allocates the next sequential task ID when inserting into a generated queue", async () => {
+	const h = createHarness([assistantToolCall("queue-call", "create_tasks")]);
+	const created = await h.tools
+		.get("create_tasks")!
+		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
+	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
+	h.pushEntry(assistantToolCall("insert-1", "update_tasks"));
+
+	const inserted = await h.tools.get("update_tasks")!.execute(
+		"insert-1",
+		{
+			action: "insert",
+			afterTaskId: "t2",
+			title: "Review handler docs",
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+
+	assert.deepEqual(
+		(inserted.details as { tasks: Array<{ id: string }> }).tasks.map((task) => task.id),
+		["t1", "t2", "t5", "t3", "t4"],
+	);
 });
 
 test("keeps legacy checkpoints readable without optional fields", async () => {
@@ -545,7 +576,8 @@ test("amends pending tasks while preserving finished IDs and carrying the queue 
 		["Add schema", "Implement handler carefully", "Review handler docs", "Write tests", "Review integration"],
 	);
 	assert.equal(insertedTasks[0]?.id, "queue-call:1");
-	assert.match(insertedTasks[2]?.id ?? "", UUID_PATTERN);
+	assert.equal(insertedTasks[2]?.id, "t1");
+	assert.match(insertedTasks[2]?.id ?? "", TASK_ID_PATTERN);
 	assert.ok(
 		!insertedTasks.some((task, index) => index !== 2 && task.id === insertedTasks[2]?.id),
 		"inserted task id is unique",
@@ -709,7 +741,11 @@ test("compacts each queued task onto a chained completion record", async () => {
 		createdQueue.tasks.map((task) => task.title),
 		QUEUE_TITLES,
 	);
-	for (const task of createdQueue.tasks) assert.match(task.id, UUID_PATTERN);
+	assert.deepEqual(
+		createdQueue.tasks.map((task) => task.id),
+		["t1", "t2", "t3", "t4"],
+	);
+	for (const task of createdQueue.tasks) assert.match(task.id, TASK_ID_PATTERN);
 	assert.equal(new Set(createdQueue.tasks.map((task) => task.id)).size, createdQueue.tasks.length);
 	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
 

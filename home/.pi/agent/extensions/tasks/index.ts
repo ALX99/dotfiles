@@ -328,7 +328,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			}
 
 			const queueId = randomUUID();
-			const seen = new Set<string>([queueId]);
+			const seen = new Set<string>();
 			const tasks: TaskQueueItem[] = params.tasks.map((task) => ({
 				id: uniqueTaskId(seen),
 				title: task.title,
@@ -879,8 +879,14 @@ function insertedTaskId(queue: TaskQueueDetails): string {
 }
 
 function uniqueTaskId(seen: Set<string>): string {
-	let id = randomUUID();
-	while (seen.has(id)) id = randomUUID();
+	let next = 1;
+	for (const id of seen) {
+		const match = /^t([1-9]\d*)$/u.exec(id);
+		if (match !== null) next = Math.max(next, Number(match[1]) + 1);
+	}
+
+	let id = `t${next}`;
+	while (seen.has(id)) id = `t${++next}`;
 	seen.add(id);
 	return id;
 }
