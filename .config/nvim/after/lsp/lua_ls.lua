@@ -27,6 +27,12 @@ return {
       -- Make the server aware of Neovim runtime files
       workspace = {
         checkThirdParty = false,
+        -- This repository contains package-manager trees that LuaLS does not
+        -- need to inspect. Keep them out of the workspace scan.
+        ignoreDir = {
+          '.git',
+          'node_modules',
+        },
         library = {
           vim.env.VIMRUNTIME,
           -- For LSP Settings Type Annotations: https://github.com/neovim/nvim-lspconfig#lsp-settings-type-annotations
