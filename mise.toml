@@ -27,8 +27,14 @@
 "~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout" = { source = "misc/keymaps/Colemak-DH-ANSI.keylayout", mode = "0644" }
 
 [tools]
-"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # karabiner:* tasks
+"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # gen:karabiner, karabiner:check
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 
 # Automation lives in .mise/tasks/: flat entry points (install, linux-system),
-# <area>/<action> subsystem tasks (pi:check, karabiner:gen).
+# <area>/<action> subsystem tasks (pi:check, karabiner:check), and gen:<area>
+# generators. `gen` sits here rather than in .mise/tasks/gen, which is the task
+# directory holding its subcommands; the wildcard dependency means a new generator
+# is picked up without registering it.
+[tasks.gen]
+description = "Run every generator (gen:<area>) task"
+depends = ["gen:*"]

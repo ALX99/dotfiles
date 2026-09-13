@@ -14,7 +14,7 @@ This Stow-managed personal repository holds shell tooling, desktop applications,
 
 ## Key Flows and Sources of Truth
 
-`mise run install` restows the three user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. `mise.toml` owns the bootstrap manifest and tools; `.mise/tasks/` owns automation as standalone scripts (entry points flat, subsystem work namespaced like `pi:check`, `karabiner:gen`). Together they are the source for installation and host setup. GitHub Actions runs extension checks for extension changes and ShellCheck for all changes.
+`mise run install` restows the three user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. `mise.toml` owns the bootstrap manifest and tools; `.mise/tasks/` owns automation as standalone scripts (entry points flat, subsystem work namespaced like `pi:check` and `karabiner:check`, generators inverted as `gen:<area>` and run together by `mise run gen`). Together they are the source for installation and host setup. GitHub Actions runs extension checks for extension changes and ShellCheck for all changes.
 
 Within Pi extensions, prompt-owning extensions run in chain order and the last writer wins; minimal mode narrows only the live tool selection, which `systemprompt.ts` reads when it rebuilds the prompt. `skills/index.ts` reconciles live and restored skill visibility through one name-to-selection map; native session entries remain the durable source for branch-local selections, and its `enabledModelSkillNames` accessor lets a replacement prompt honor them without sharing state. `subagents/managed-agent.ts` owns live session transitions, questions, usage, and cleanup of its session's process groups; `subagents/result-store.ts` indexes compact native-entry locators persisted in parent session results or settlement entries, enabling exact reads across restart. `process-reaper/index.ts` owns a process-local group registry; its temporary marker files only hand PIDs from Bash to that registry and are not durable session state. Role prompts in `subagents/agents/` are separate from the runtime.
 
@@ -24,8 +24,8 @@ Managed children explicitly bind Pi extension startup and emit shutdown before d
 
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.
 - For an application or desktop change, begin under `.config/`; follow related Colemak-DH mappings across affected applications.
-- For Karabiner changes, edit `misc/karabiner/karabiner.cue`, then run `mise run karabiner:gen` and `mise run karabiner:check`.
-- For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run theme:gen` and `mise run theme:check`. It generates Ghostty, Herdr, and Pi themes.
+- For Karabiner changes, edit `misc/karabiner/karabiner.cue`, then run `mise run gen:karabiner` and `mise run karabiner:check`.
+- For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run gen:theme` and `mise run theme:check`. It generates Ghostty, Herdr, and Pi themes.
 - For system provisioning or keymaps, begin at `misc/` and `mise.linux.toml`. Do not casually run `MISE_ENV=linux mise bootstrap` or the `linux-system` task; they make privileged host changes.
 - For Pi behavior, begin at the relevant extension entry point and its tests. Run `mise run pi:check` for extension changes; use `bash -n home/.bashrc home/.profile` for shell changes.
 

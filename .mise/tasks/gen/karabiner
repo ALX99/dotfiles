@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 #MISE description="Generate Karabiner-Elements config from CUE source"
-#MISE aliases=["generate"]
 #MISE sources=["misc/karabiner/karabiner.cue"]
 #MISE outputs=[".config/karabiner/karabiner.json"]
 set -euo pipefail
