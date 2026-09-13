@@ -116,11 +116,8 @@ function namesTool(guideline: string, tool: string): boolean {
 
 /** Pi already stripped blanks and duplicates before handing the per-tool guidelines over. */
 function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<string, string>): string {
-	// The user's standing communication preference, so it leads the list whatever tools are active.
-	const guidelines = new Set([
-		"The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
-		...(options.promptGuidelines ?? []).map((guideline) => guideline.trim()),
-	]);
+	// The fixed rules below join a set so one a tool already declares still renders once.
+	const guidelines = new Set((options.promptGuidelines ?? []).map((guideline) => guideline.trim()));
 	if ((options.selectedTools ?? []).includes("read")) guidelines.add(READ_PATH_GUIDELINE);
 	// Commits go through bash, so the rule is dead weight without it.
 	if ((options.selectedTools ?? []).includes("bash")) guidelines.add(CONVENTIONAL_COMMITS_GUIDELINE);

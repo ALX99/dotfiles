@@ -189,7 +189,6 @@ test("guidelines render in order, skipping blanks and duplicates", () => {
 	const prompt = build({ promptGuidelines: ["Only tools rule", "  ", "Only tools rule", "Second rule"] });
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Only tools rule",
 		"- Second rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
@@ -197,11 +196,10 @@ test("guidelines render in order, skipping blanks and duplicates", () => {
 	]);
 });
 
-test("the ADHD guideline leads the list without any tool selection", () => {
-	assert.deepEqual(
-		section(build({ selectedTools: [], toolSnippets: {}, promptGuidelines: [] }), "Guidelines:")?.split("\n"),
-		["- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it."],
-	);
+test("an empty guideline set renders as none rather than a dangling heading", () => {
+	const prompt = build({ selectedTools: [], toolSnippets: {}, promptGuidelines: [] });
+
+	assert.equal(section(prompt, "Guidelines:"), "(none)");
 });
 
 test("guideline owners come from the declaration order of the active tools", () => {
@@ -257,7 +255,6 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 	});
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Only tools rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
@@ -270,7 +267,6 @@ test("dropping the PI_* guideline alone leaves only the renderer's own rules", (
 	});
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
 	]);
@@ -287,7 +283,6 @@ test("a contributor may still supply either fixed line itself", () => {
 	const prompt = build({ promptGuidelines: ["Be concise in your responses"] });
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Be concise in your responses",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
@@ -499,7 +494,6 @@ test("the prompt renders the live tools' guidelines, attributed to their owner",
 	);
 
 	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Use bash for file operations",
 		"- spawn_agent: Live-agent capacity is 10 root children total.",
 		"- Use Conventional Commits when committing.",
@@ -525,7 +519,6 @@ test("a tool disabled during this event drops its guidelines with it", async () 
 	);
 
 	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
-		"- The reader has ADHD. Output not just brief information, but shape it so an ADHD brain can act on it.",
 		"- Use bash for file operations",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- Use Conventional Commits when committing.",
