@@ -3,29 +3,19 @@ onboarding = false
 
 [theme]
 name = "terminal"
+auto_switch = true
+dark_name = "terminal"
+light_name = "terminal"
 
-[theme.custom]
-# Warm plum surfaces keep the sidebar, tabs, and focused UI distinct from panes.
-panel_bg = "#22182d"
-surface_dim = "#120d19"
-surface0 = "#30203d"
-surface1 = "#5a3b70"
-
-# Text remains bright; muted labels are lilac rather than washed-out gray.
-accent = "#8fa8ff"
-overlay0 = "#aa97bd"
-subtext0 = "#c9b8d8"
-overlay1 = "#e8ddf1"
-text = "#fff7ff"
-
-# Semantic states are intentionally vivid and distinct.
-mauve = "#e7a1ff"
-blue = "#8fa8ff"
-teal = "#63e6e8"
-green = "#78e3b0"
-yellow = "#ffd36a"
-peach = "#ffad72"
-red = "#ff6b8a"
+# Herdr's terminal theme derives UI text from ANSI bright white (palette 15).
+# Twilight Bloom Light reserves that slot for terminal output, so map only the
+# UI's text hierarchy back to Ghostty's readable foreground shades. Keep these
+# values in sync with twilight-bloom-light's foreground and palette 8.
+[theme.custom.light]
+text = "#4e4e4e"
+overlay1 = "#4e4e4e"
+subtext0 = "#626262"
+overlay0 = "#626262"
 
 [terminal]
 shell_mode = "auto"
