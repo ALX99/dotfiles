@@ -85,10 +85,6 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/status"
-  },
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true
   },
