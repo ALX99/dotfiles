@@ -366,6 +366,20 @@ test("a session using apply_patch keeps it instead of edit", async () => {
 	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, apply_patch");
 });
 
+test("a session using FFF search keeps its active FFF tools", async () => {
+	const fffTools = ["find", "grep"];
+	const active = [...DEFAULT_TOOLS, ...fffTools];
+	const harness = createHarness({ available: active, active });
+
+	await harness.runCommand("on");
+
+	assert.deepEqual(harness.activeTools(), ["bash", "read", "edit", ...fffTools]);
+	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, find, grep");
+
+	await harness.runCommand("off");
+	assert.deepEqual(harness.activeTools(), active);
+});
+
 test("a model switch that swaps the editing tool is followed at the next turn", async () => {
 	const harness = createHarness();
 

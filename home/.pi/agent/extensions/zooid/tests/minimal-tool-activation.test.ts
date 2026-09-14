@@ -5,6 +5,8 @@ import { applyTools, MINIMAL_CORE_TOOL_NAMES, minimalToolNames, missingMinimalTo
 
 const OTHER_TOOLS = ["apply_patch", "edit", "write", "spawn_agent"];
 const TASK_TOOLS = ["create_tasks", "finish_task", "read_tasks", "update_tasks"];
+const FFF_TOOLS = ["fffind", "ffgrep", "fff-multi-grep"];
+const FFF_OVERRIDE_TOOLS = ["find", "grep", "multi_grep"];
 
 function toolApi(initial: readonly string[], available = [...MINIMAL_CORE_TOOL_NAMES, ...OTHER_TOOLS]) {
 	let active = [...initial];
@@ -49,6 +51,16 @@ test("the minimal selection carries over the task tools the tasks extension has 
 	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write"]), ["bash", "read", "edit"]);
 });
 
+test("the minimal selection carries over FFF tools in both naming modes", () => {
+	assert.deepEqual(minimalToolNames(["read", "bash", "edit", ...FFF_TOOLS]), ["bash", "read", "edit", ...FFF_TOOLS]);
+	assert.deepEqual(minimalToolNames(["read", "bash", "edit", ...FFF_OVERRIDE_TOOLS]), [
+		"bash",
+		"read",
+		"edit",
+		...FFF_OVERRIDE_TOOLS,
+	]);
+});
+
 test("the minimal selection is stable when it is re-derived", () => {
 	for (const editor of ["apply_patch", "edit"]) {
 		const minimal = minimalToolNames(["read", "bash", editor, "write"]);
@@ -56,6 +68,8 @@ test("the minimal selection is stable when it is re-derived", () => {
 	}
 	const withTasks = minimalToolNames(["read", "bash", "edit", ...TASK_TOOLS]);
 	assert.deepEqual(minimalToolNames(withTasks), withTasks);
+	const withFff = minimalToolNames(["read", "bash", "edit", ...FFF_OVERRIDE_TOOLS]);
+	assert.deepEqual(minimalToolNames(withFff), withFff);
 	// The tasks extension loads its management tools by appending them in TASK_TOOL_NAMES order, so
 	// the turn re-assert must recompute that exact list and skip the write instead of rebuilding the
 	// system prompt in the middle of a queue.
