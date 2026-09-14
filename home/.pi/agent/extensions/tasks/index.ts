@@ -15,6 +15,10 @@ const TASK_FINISH_DETAILS_TYPE = "tasks:finish";
 const TASK_COMPLETION_DETAILS_TYPE = "tasks:completion";
 const TASK_READ_DETAILS_TYPE = "tasks:read";
 const TASK_UPDATE_DETAILS_TYPE = "tasks:update";
+const TASK_FILE_LEDGER_TYPE = "tasks:file-ledger";
+const TASK_FILE_SNAPSHOT_TYPE = "tasks:file-snapshot";
+const TASK_CLEAR_TYPE = "tasks:clear";
+const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
 /** Shared with minimal mode so its tool restriction can keep an active queue workable. */
@@ -53,6 +57,8 @@ interface TaskQueueDetails {
 	kind: typeof TASK_QUEUE_DETAILS_TYPE;
 	queueId: string;
 	tasks: TaskQueueItem[];
+	/** Conversation context captured automatically before create_tasks was called. */
+	origin?: string;
 	cancelled?: boolean;
 	cancelReason?: string;
 }
@@ -87,6 +93,24 @@ interface TaskUpdateDetails {
 	title?: string;
 	afterTaskId?: string;
 	reason?: string;
+}
+
+interface TaskFileLedgerDetails {
+	kind: typeof TASK_FILE_LEDGER_TYPE;
+	queueId: string;
+	taskId: string;
+	paths: string[];
+}
+
+interface TaskFileSnapshotDetails {
+	kind: typeof TASK_FILE_SNAPSHOT_TYPE;
+	queueId: string;
+	tasks: Array<{ taskId: string; paths: string[] }>;
+}
+
+interface TaskClearDetails {
+	kind: typeof TASK_CLEAR_TYPE;
+	queueId: string;
 }
 
 interface TaskReadItem {
@@ -125,15 +149,16 @@ interface ActiveQueue {
 	/** Entry the next compaction rewinds to: the queue anchor, or the latest recorded outcome. */
 	baseEntryId: string;
 	outcomes: Map<string, TaskFinishDetails>;
-	/** A compaction entry appeared after baseEntryId, so the current trace is incomplete. */
-	compactedSinceBase: boolean;
 	/** The finish record awaiting navigation to its completion summary. */
 	pendingCompaction?: TaskFinishDetails | undefined;
+	/** File paths recorded durably from successful mutation tool results. */
+	filePaths: Map<string, Set<string>>;
 }
 
 interface BranchContext {
 	sessionManager: {
 		getBranch(): SessionEntry[];
+		buildContextEntries?: () => SessionEntry[];
 	};
 }
 
@@ -143,6 +168,11 @@ interface TaskStatusContext extends BranchContext {
 		setStatus(key: string, text: string | undefined): void;
 	};
 }
+
+const MIN_TASKS = 4;
+const MAX_TASKS = 100;
+const MAX_TASK_READ_LENGTH = 12_000;
+const MAX_TASK_ORIGIN_LENGTH = 32_000;
 
 const CreateTasksParams = Type.Object({
 	tasks: Type.Array(
@@ -154,8 +184,8 @@ const CreateTasksParams = Type.Object({
 			}),
 		}),
 		{
-			minItems: 4,
-			maxItems: 10,
+			minItems: MIN_TASKS,
+			maxItems: MAX_TASKS,
 			description: "At least four substantial related phases; do not pad simple work with generic steps",
 		},
 	),
@@ -166,16 +196,14 @@ const ReadTasksParams = Type.Object({
 		Type.String({
 			minLength: 1,
 			maxLength: 200,
-			description:
-				"Optional task ID to inspect in detail. Use * for an unfiltered lookup when the caller requires a value.",
+			description: "Optional task ID to inspect in detail. Omit it or use * to show all tasks.",
 		}),
 	),
 	path: Type.Optional(
 		Type.String({
 			minLength: 1,
 			maxLength: 1000,
-			description:
-				"Optional file path to find across observed task changes. Use * for an unfiltered lookup when the caller requires a value.",
+			description: "Optional file path to find across observed task changes. Omit it or use * to show all tasks.",
 		}),
 	),
 });
@@ -259,23 +287,14 @@ const FinishTaskParams = Type.Object({
 			description: "Known follow-up work or unresolved constraints",
 		}),
 	),
-	compact: Type.Optional(
-		Type.Boolean({
-			description:
-				"Whether to replace the active task trace with its compact result. Defaults to true outside print mode; print mode records without compaction.",
-		}),
-	),
 });
-
-const MIN_TASKS = 4;
-const MAX_TASKS = 10;
-const MAX_TASK_READ_LENGTH = 12_000;
 
 export default function tasksExtension(pi: ExtensionAPI): void {
 	let agentActive = false;
 	let printTaskFinished = false;
 	let spinnerIndex = 0;
 	let spinnerTimer: ReturnType<typeof setInterval> | undefined;
+	let pendingFileSnapshot: TaskFileSnapshotDetails | undefined;
 
 	const refreshStatus = (ctx: TaskStatusContext): void => {
 		updateTaskStatus(ctx, agentActive, spinnerIndex);
@@ -333,10 +352,12 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				id: uniqueTaskId(seen),
 				title: task.title,
 			}));
+			const origin = captureTaskOrigin(ctx, toolCallId);
 			const details: TaskQueueDetails = {
 				kind: TASK_QUEUE_DETAILS_TYPE,
 				queueId,
 				tasks,
+				...(origin === undefined ? {} : { origin }),
 			};
 			activateTaskTools(pi);
 			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(1, tasks.length, tasks[0]!.title, agentActive, spinnerIndex));
@@ -364,7 +385,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		promptSnippet: "Look up task progress, previous changes, decisions, and evidence",
 		promptGuidelines: [
 			"Use read_tasks before repeating investigation or editing a file that may have been handled by an earlier task.",
-			"Use taskId for one task's full outcome or path to find tasks that observed a file change.",
+			"Omit taskId and path, or use *, to read all tasks. Use taskId for one task's full outcome or path to find tasks that observed a file change.",
 		],
 		parameters: ReadTasksParams,
 		executionMode: "sequential",
@@ -385,11 +406,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "update_tasks",
 		label: "Update Tasks",
 		description:
-			"Make small queue amendments: insert a task, rename or skip pending tasks, or cancel remaining work. Do not reopen finished tasks. Call alone in its turn.",
+			"Make small queue amendments: insert follow-up work, rename or skip pending tasks, or cancel remaining work. Call alone in its turn.",
 		promptSnippet: "Amend pending task titles, ordering, or cancellation",
 		promptGuidelines: [
 			"Use update_tasks only for a small queue amendment discovered during work. Finished tasks and their IDs are preserved.",
-			"Do not use update_tasks to retry or rewrite a finished task. Record follow-up work as a new pending task instead.",
+			"Use action: insert to add follow-up work as a new pending task.",
 		],
 		parameters: UpdateTasksParams,
 		executionMode: "sequential",
@@ -426,10 +447,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "finish_task",
 		label: "Finish Task",
 		description:
-			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its turn. Compacts the trace and continues from the record by default; print mode records without compaction and resumes next invocation.",
+			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its turn. Interactive mode compacts the trace and continues from the record; print mode records without compaction and resumes next invocation.",
 		promptSnippet: "Finish the current queued task with a summary and evidence",
 		promptGuidelines: [
-			"After each task, call finish_task alone with concrete evidence and the decisions, blockers, and remaining work a later task needs. Keep compact enabled unless the context must remain; if mid-task compaction is reported, retry with compact false.",
+			"After each task, call finish_task alone with concrete evidence and the decisions, blockers, and remaining work a later task needs. Interactive mode compacts automatically after the turn; mid-task compaction is recoverable and file attribution is preserved for supported mutation tools.",
 		],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
@@ -458,13 +479,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			// Print mode is single-shot: preserve the checkpoint in place and let
 			// the model produce a final response for this invocation. The next
 			// invocation derives the next task from the durable finish record.
-			const compact = ctx.mode === "print" ? false : (params.compact ?? true);
-			if (compact && active.compactedSinceBase) {
-				throw taskError(
-					"pending_compaction",
-					"The session compacted during this task, so its checkpoint can no longer be safely restored. Retry finish_task with compact: false.",
-				);
-			}
+			const compact = ctx.mode !== "print";
 			const details: TaskFinishDetails = {
 				kind: TASK_FINISH_DETAILS_TYPE,
 				taskId: item.id,
@@ -480,12 +495,19 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			const next = currentItemAfter(active, item.id);
 			const completedCount = finishedCount(active) + 1;
 			const taskNumber = positionOf(active, item.id);
+			if (ctx.mode === "print" && next === undefined) {
+				pi.appendEntry<TaskClearDetails>(TASK_CLEAR_TYPE, {
+					kind: TASK_CLEAR_TYPE,
+					queueId: active.queue.queueId,
+				});
+			}
 			ctx.ui.setStatus(
 				TASK_STATUS_KEY,
 				compact
 					? `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${active.queue.tasks.length} · compacting`
 					: `Task ${taskNumber}/${active.queue.tasks.length} · recorded`,
 			);
+			if (ctx.mode === "print" && next === undefined) refreshStatus(ctx);
 			return {
 				content: [
 					{
@@ -554,11 +576,17 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			// auto-continue. Print-mode finish_task records without compaction, so
 			// subsequent invocations resume from the durable finish record.
 			const next = currentItemAfter(active, finish.taskId);
+			const continuation =
+				next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish.taskId, next);
+			if (next === undefined) {
+				pi.appendEntry<TaskClearDetails>(TASK_CLEAR_TYPE, {
+					kind: TASK_CLEAR_TYPE,
+					queueId: active.queue.queueId,
+				});
+				refreshStatus(ctx);
+			}
 			if (ctx.mode !== "print") {
-				scheduleContinuation(
-					pi,
-					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish.taskId, next),
-				);
+				scheduleContinuation(pi, continuation);
 			}
 		},
 	});
@@ -580,9 +608,60 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		};
 	});
 
+	pi.on("tool_result", (event, ctx) => {
+		if (event.isError) return;
+		const paths = observedMutationPaths(event.toolName, event.input, ctx.cwd);
+		if (paths.length === 0) return;
+
+		const active = getActiveQueue(ctx);
+		const item = active === undefined ? undefined : currentItem(active);
+		if (active === undefined || item === undefined) return;
+
+		pi.appendEntry<TaskFileLedgerDetails>(TASK_FILE_LEDGER_TYPE, {
+			kind: TASK_FILE_LEDGER_TYPE,
+			queueId: active.queue.queueId,
+			taskId: item.id,
+			paths,
+		});
+	});
+
+	pi.on("session_before_compact", (_event, ctx) => {
+		const active = getActiveQueue(ctx);
+		pendingFileSnapshot = active === undefined ? undefined : taskFileSnapshot(active);
+	});
+
+	pi.on("session_compact", (event, ctx) => {
+		if (pendingFileSnapshot === undefined) return;
+		pi.appendEntry(TASK_FILE_SNAPSHOT_TYPE, pendingFileSnapshot);
+		pendingFileSnapshot = undefined;
+
+		if (event.reason === "manual") return;
+		const active = getActiveQueue(ctx);
+		const current = active === undefined ? undefined : currentItem(active);
+		if (active === undefined || current === undefined) return;
+		pi.sendMessage(
+			{
+				customType: TASK_RECOVERY_MESSAGE_TYPE,
+				content: formatTaskRecovery(active),
+				display: false,
+				details: {
+					queueId: active.queue.queueId,
+					taskId: current.id,
+					compactionEntryId: event.compactionEntry.id,
+				},
+			},
+			{ deliverAs: "steer" },
+		);
+	});
+
+	pi.on("session_compact_failed", () => {
+		pendingFileSnapshot = undefined;
+	});
+
 	pi.on("session_start", (_event, ctx) => {
 		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
+		pendingFileSnapshot = undefined;
 		agentActive = false;
 		stopSpinner();
 		refreshStatus(ctx);
@@ -872,6 +951,7 @@ function cloneQueue(queue: TaskQueueDetails): TaskQueueDetails {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: queue.queueId,
 		tasks: queue.tasks.map((task) => ({ ...task })),
+		...(queue.origin === undefined ? {} : { origin: queue.origin }),
 		...(queue.cancelled === undefined ? {} : { cancelled: queue.cancelled }),
 		...(queue.cancelReason === undefined ? {} : { cancelReason: queue.cancelReason }),
 	};
@@ -995,14 +1075,96 @@ function nextTaskPrompt(active: ActiveQueue, completedId: string, next: TaskQueu
 	return `Task ${positionOf(active, completedId)} completed. Continue with: ${next.title} (${next.id}).`;
 }
 
+function taskFileSnapshot(active: ActiveQueue): TaskFileSnapshotDetails {
+	return {
+		kind: TASK_FILE_SNAPSHOT_TYPE,
+		queueId: active.queue.queueId,
+		tasks: [...active.filePaths.entries()]
+			.filter(([, paths]) => paths.size > 0)
+			.map(([taskId, paths]) => ({ taskId, paths: [...paths] })),
+	};
+}
+
+function formatTaskRecovery(active: ActiveQueue): string {
+	const details = readTasks(active);
+	const current = currentItem(active);
+	const currentTitle = current === undefined ? "No pending task" : `${current.title} (${current.id})`;
+	const origin = active.queue.origin ?? "No prior conversation context was available.";
+	return [
+		"Task recovery checkpoint after automatic context compaction.",
+		`Continue working on the current task: ${currentTitle}.`,
+		`Queue progress: ${formatTaskCounts(details.counts)}.`,
+		"Task origin captured automatically before create_tasks:",
+		origin,
+		"Use read_tasks({}) if the queue state or prior task outcomes are unclear.",
+	].join("\n");
+}
+
+function captureTaskOrigin(ctx: ExtensionContext, toolCallId: string): string | undefined {
+	const entries = ctx.sessionManager.buildContextEntries?.() ?? ctx.sessionManager.getBranch();
+	const currentIndex = entries.findIndex(
+		(entry) =>
+			entry.type === "message" &&
+			entry.message.role === "assistant" &&
+			entry.message.content.some((block) => block.type === "toolCall" && block.id === toolCallId),
+	);
+	const priorEntries = currentIndex === -1 ? entries : entries.slice(0, currentIndex);
+	const sections = priorEntries.flatMap((entry) => {
+		const text = formatTaskOriginEntry(entry);
+		return text === undefined ? [] : [text];
+	});
+	if (sections.length === 0) return undefined;
+	return truncate(sections.join("\n\n"), MAX_TASK_ORIGIN_LENGTH);
+}
+
+function formatTaskOriginEntry(entry: SessionEntry): string | undefined {
+	if (entry.type !== "message") return undefined;
+	const message = entry.message;
+	if (message.role === "user" || message.role === "assistant") {
+		const text = formatTaskOriginContent(message.content);
+		if (text.length === 0) return undefined;
+		const label = message.role === "user" ? "User" : "Agent";
+		return `${label}: ${text}`;
+	}
+	return undefined;
+}
+
+function formatTaskOriginContent(content: unknown): string {
+	if (typeof content === "string") return compactTaskOriginText(content);
+	if (!Array.isArray(content)) return "";
+	const text = content.flatMap((block) => {
+		if (!Predicate.isObject(block)) return [];
+		if (block.type === "text" && typeof block.text === "string") return [block.text];
+		if (block.type === "image") return ["[image]"];
+		return [];
+	});
+	return compactTaskOriginText(text.join("\n"));
+}
+
+function compactTaskOriginText(text: string): string {
+	return text
+		.replace(/\r\n?/gu, "\n")
+		.replace(/[ \t]+\n/gu, "\n")
+		.replace(/\n{3,}/gu, "\n\n")
+		.trim();
+}
+
+function mergeTaskFilePaths(filePaths: Map<string, Set<string>>, taskId: string, paths: string[]): void {
+	let recorded = filePaths.get(taskId);
+	if (recorded === undefined) {
+		recorded = new Set<string>();
+		filePaths.set(taskId, recorded);
+	}
+	for (const path of paths) recorded.add(path);
+}
+
 function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string[] {
-	if (active.compactedSinceBase) return [];
 	const branch = ctx.sessionManager.getBranch();
 	const baseIndex = branch.findIndex((entry) => entry.id === active.baseEntryId);
-	if (baseIndex === -1) return [];
 	const entries = branch.slice(baseIndex + 1);
 	const mutationPaths = new Map<string, string[]>();
-	const observed = new Set<string>();
+	const observed = new Set(active.filePaths.get(currentItem(active)?.id ?? "") ?? []);
+	if (baseIndex === -1) return [...observed];
 
 	for (const entry of entries) {
 		if (entry.type === "message" && entry.message.role === "assistant") {
@@ -1368,11 +1530,28 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 				queue,
 				baseEntryId: entry.id,
 				outcomes: new Map(),
-				compactedSinceBase: false,
+				filePaths: new Map(),
 			};
 			continue;
 		}
 		if (active === undefined) continue;
+
+		const clear = readTaskClear(entry);
+		if (clear !== undefined) {
+			if (clear.queueId === active.queue.queueId) active = undefined;
+			continue;
+		}
+
+		const fileLedger = readTaskFileLedger(entry);
+		if (fileLedger !== undefined && fileLedger.queueId === active.queue.queueId) {
+			mergeTaskFilePaths(active.filePaths, fileLedger.taskId, fileLedger.paths);
+			continue;
+		}
+		const fileSnapshot = readTaskFileSnapshot(entry);
+		if (fileSnapshot !== undefined && fileSnapshot.queueId === active.queue.queueId) {
+			for (const task of fileSnapshot.tasks) mergeTaskFilePaths(active.filePaths, task.taskId, task.paths);
+			continue;
+		}
 
 		const update = readTaskUpdate(entry);
 		if (update !== undefined && update.queueId === active.queue.queueId) {
@@ -1387,7 +1566,6 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 			if (active.pendingCompaction?.taskId !== completion.taskId && active.outcomes.has(completion.taskId)) continue;
 			recordOutcome(active, asTaskFinish(completion));
 			active.baseEntryId = entry.id;
-			active.compactedSinceBase = false;
 			active.pendingCompaction = undefined;
 			continue;
 		}
@@ -1395,17 +1573,21 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 		if (finish !== undefined && hasTask(active.queue, finish.taskId)) {
 			if (active.outcomes.has(finish.taskId)) continue;
 			recordOutcome(active, finish);
-			// A pending compact finish does not move the base: its own result entry is
-			// part of the trace that compaction will discard. A compact:false outcome
+			// A pending interactive finish does not move the base: its own result entry
+			// is part of the trace that compaction will discard. A print-mode outcome
 			// becomes the new base so its record survives later compactions.
 			active.pendingCompaction = finish.compact ? finish : undefined;
 			if (!finish.compact) {
 				active.baseEntryId = entry.id;
-				active.compactedSinceBase = false;
 			}
 			continue;
 		}
-		if (entry.type === "compaction") active.compactedSinceBase = true;
+		if (entry.type === "compaction") {
+			// The compaction entry is now the safe anchor for the next task
+			// checkpoint. File paths from before it survive through the durable
+			// ledger snapshot appended by the session_compact hook.
+			active.baseEntryId = entry.id;
+		}
 	}
 	return active;
 }
@@ -1415,17 +1597,18 @@ function queueIsClosed(active: ActiveQueue): boolean {
 }
 
 function applyQueueUpdate(active: ActiveQueue, update: TaskUpdateDetails): boolean {
-	const next = queueFromUpdate(update);
+	const next = queueFromUpdate(active, update);
 	if (!isValidQueueTransition(active, next, update)) return false;
 	active.queue = next;
 	return true;
 }
 
-function queueFromUpdate(update: TaskUpdateDetails): TaskQueueDetails {
+function queueFromUpdate(active: ActiveQueue, update: TaskUpdateDetails): TaskQueueDetails {
 	return {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: update.queueId,
 		tasks: update.tasks.map((task) => ({ ...task })),
+		...(active.queue.origin === undefined ? {} : { origin: active.queue.origin }),
 		...(update.cancelled ? { cancelled: true, cancelReason: update.reason } : {}),
 	};
 }
@@ -1562,6 +1745,61 @@ function readTaskUpdate(entry: SessionEntry): TaskUpdateDetails | undefined {
 		: undefined;
 }
 
+function readTaskFileLedger(entry: SessionEntry): TaskFileLedgerDetails | undefined {
+	if (entry.type !== "custom" || entry.customType !== TASK_FILE_LEDGER_TYPE || !Predicate.isObject(entry.data)) {
+		return undefined;
+	}
+	const data = entry.data;
+	if (
+		data.kind !== TASK_FILE_LEDGER_TYPE ||
+		typeof data.queueId !== "string" ||
+		typeof data.taskId !== "string" ||
+		!isStringArray(data.paths)
+	) {
+		return undefined;
+	}
+	return {
+		kind: TASK_FILE_LEDGER_TYPE,
+		queueId: data.queueId,
+		taskId: data.taskId,
+		paths: data.paths,
+	};
+}
+
+function readTaskFileSnapshot(entry: SessionEntry): TaskFileSnapshotDetails | undefined {
+	if (entry.type !== "custom" || entry.customType !== TASK_FILE_SNAPSHOT_TYPE || !Predicate.isObject(entry.data)) {
+		return undefined;
+	}
+	const data = entry.data;
+	if (data.kind !== TASK_FILE_SNAPSHOT_TYPE || typeof data.queueId !== "string" || !Array.isArray(data.tasks)) {
+		return undefined;
+	}
+	const tasks: Array<{ taskId: string; paths: string[] }> = [];
+	for (const task of data.tasks) {
+		if (!Predicate.isObject(task) || typeof task.taskId !== "string" || !isStringArray(task.paths)) return undefined;
+		tasks.push({ taskId: task.taskId, paths: task.paths });
+	}
+	return {
+		kind: TASK_FILE_SNAPSHOT_TYPE,
+		queueId: data.queueId,
+		tasks,
+	};
+}
+
+function readTaskClear(entry: SessionEntry): TaskClearDetails | undefined {
+	if (entry.type !== "custom" || entry.customType !== TASK_CLEAR_TYPE || !Predicate.isObject(entry.data)) {
+		return undefined;
+	}
+	const data = entry.data;
+	if (data.kind !== TASK_CLEAR_TYPE || typeof data.queueId !== "string" || data.queueId.trim().length === 0) {
+		return undefined;
+	}
+	return {
+		kind: TASK_CLEAR_TYPE,
+		queueId: data.queueId,
+	};
+}
+
 function readTaskQueue(entry: SessionEntry): TaskQueueDetails | undefined {
 	return parseTaskQueue(successfulToolResultDetails(entry));
 }
@@ -1608,6 +1846,12 @@ function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {
 	}
 	const tasks = parseTaskItems(value.tasks);
 	if (tasks === undefined) return undefined;
+	if (
+		value.origin !== undefined &&
+		(typeof value.origin !== "string" || value.origin.length > MAX_TASK_ORIGIN_LENGTH)
+	) {
+		return undefined;
+	}
 	if (value.cancelled !== undefined && typeof value.cancelled !== "boolean") return undefined;
 	if (value.cancelReason !== undefined && typeof value.cancelReason !== "string") return undefined;
 	if (value.cancelReason !== undefined && value.cancelled !== true) return undefined;
@@ -1618,6 +1862,7 @@ function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: value.queueId,
 		tasks,
+		...(value.origin === undefined ? {} : { origin: value.origin }),
 		...(value.cancelled === undefined ? {} : { cancelled: value.cancelled }),
 		...(value.cancelReason === undefined ? {} : { cancelReason: value.cancelReason }),
 	};

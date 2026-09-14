@@ -29,15 +29,17 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 	const handlers = new Map<string, (event: never, ctx: never) => unknown>();
 	const sentUserMessages: Array<{ content: string; options: unknown }> = [];
 	const sentMessages: Array<{
-		message: { customType: string; details?: Record<string, unknown> };
+		message: { customType: string; content?: string; details?: Record<string, unknown> };
 		options: unknown;
 	}> = [];
+	const appendedEntries: Array<{ customType: string; data: unknown }> = [];
 	const notifications: string[] = [];
 	const statusWrites: Array<{ key: string; text: string | undefined }> = [];
 	const statuses = new Map<string, string>();
 	let activeTools = ["read", "bash", "create_tasks", "finish_task", "read_tasks", "update_tasks"];
 	const activeToolsLog: string[][] = [];
 	let branch = initialBranch;
+	let nextEntryId = 0;
 
 	const pi = {
 		registerTool(tool: RegisteredTool & { name: string }) {
@@ -52,8 +54,16 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		sendUserMessage(content: string, options: unknown) {
 			sentUserMessages.push({ content, options });
 		},
-		sendMessage(message: { customType: string; details?: Record<string, unknown> }, options: unknown) {
+		sendMessage(
+			message: { customType: string; content?: string; details?: Record<string, unknown> },
+			options: unknown,
+		) {
 			sentMessages.push({ message, options });
+		},
+		appendEntry(customType: string, data: unknown) {
+			const entry = { customType, data };
+			appendedEntries.push(entry);
+			branch.push({ id: `custom-${++nextEntryId}`, type: "custom", ...entry });
 		},
 		getActiveTools() {
 			return [...activeTools];
@@ -71,6 +81,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		handlers,
 		sentUserMessages,
 		sentMessages,
+		appendedEntries,
 		notifications,
 		statusWrites,
 		activeToolsLog,
@@ -170,8 +181,17 @@ function userMessage(text: string): Entry {
 	};
 }
 
+function assistantMessage(text: string): Entry {
+	return {
+		id: `assistant-${text}`,
+		type: "message",
+		message: { role: "assistant", content: [{ type: "text", text }] },
+	};
+}
+
 type QueueDetails = Record<string, unknown> & {
 	queueId?: string;
+	origin?: string;
 	tasks: Array<{ id: string; title: string; state?: string }>;
 };
 
@@ -294,13 +314,15 @@ test("supports wildcard filters for an unfiltered queue lookup", async () => {
 		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
 	]);
 
-	const read = await h.tools
-		.get("read_tasks")!
-		.execute("read-all", { taskId: "*", path: "*" }, undefined, undefined, h.ctx);
+	const readTool = h.tools.get("read_tasks")!;
+	assert.equal(Check(readTool.parameters!, {}), true);
+	const read = await readTool.execute("read-all", { taskId: "*", path: "*" }, undefined, undefined, h.ctx);
+	const omitted = await readTool.execute("read-omitted", {}, undefined, undefined, h.ctx);
 
 	assert.match(read.content[0]?.text ?? "", /Task queue active/u);
 	assert.match(read.content[0]?.text ?? "", /Add schema/u);
 	assert.match(read.content[0]?.text ?? "", /Current task: queue-call:1/u);
+	assert.deepEqual(omitted.details, read.details);
 });
 
 test("shows generated task IDs when creating a queue", async () => {
@@ -321,6 +343,62 @@ test("shows generated task IDs when creating a queue", async () => {
 		assert.ok(text.includes(task.title));
 		assert.ok(text.includes(task.id));
 	}
+});
+
+test("captures task origin automatically and injects recovery guidance after auto compaction", async () => {
+	const h = createHarness([
+		userMessage("Preserve the existing API while adding the parser."),
+		assistantMessage("I will inspect the current parser and keep the public API stable."),
+		assistantToolCall("queue-call", "create_tasks"),
+	]);
+	const created = await h.tools
+		.get("create_tasks")!
+		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
+	const queue = created.details as QueueDetails;
+	assert.equal(
+		queue.origin,
+		"User: Preserve the existing API while adding the parser.\n\nAgent: I will inspect the current parser and keep the public API stable.",
+	);
+	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
+
+	h.handlers.get("session_before_compact")!({} as never, h.ctx as never);
+	h.pushEntry({ id: "auto-compaction", type: "compaction" });
+	h.handlers.get("session_compact")!(
+		{ reason: "threshold", compactionEntry: { id: "auto-compaction" } } as never,
+		h.ctx as never,
+	);
+
+	const recovery = h.sentMessages.at(-1);
+	assert.equal(recovery?.message.customType, "tasks:recovery");
+	assert.match(recovery?.message.content ?? "", /Continue working on the current task: Add schema \(t1\)/u);
+	assert.match(recovery?.message.content ?? "", /Preserve the existing API/u);
+	assert.match(recovery?.message.content ?? "", /I will inspect the current parser/u);
+	assert.deepEqual(recovery?.options, { deliverAs: "steer" });
+});
+
+test("supports queues up to 100 tasks and rejects the 101st", async () => {
+	const h = createHarness();
+	const tasks = Array.from({ length: 100 }, (_, index) => ({ title: `Task ${index + 1}` }));
+	const createTool = h.tools.get("create_tasks")!;
+
+	assert.equal(Check(createTool.parameters!, { tasks }), true);
+	assert.equal(Check(createTool.parameters!, { tasks: [...tasks, { title: "Task 101" }] }), false);
+
+	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
+	const created = await createTool.execute("queue-call", { tasks }, undefined, undefined, h.ctx);
+	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
+
+	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
+	assert.equal((read.details as { tasks: unknown[] }).tasks.length, 100);
+	assert.equal((created.details as QueueDetails).tasks.at(-1)?.id, "t100");
+
+	h.pushEntry(assistantToolCall("insert-101", "update_tasks"));
+	await assert.rejects(
+		h.tools
+			.get("update_tasks")!
+			.execute("insert-101", { action: "insert", title: "Task 101" }, undefined, undefined, h.ctx),
+		/at most 100 tasks/u,
+	);
 });
 
 test("loads task management tools after creating a queue", async () => {
@@ -865,6 +943,9 @@ test("compacts each queued task onto a chained completion record", async () => {
 		h.sentUserMessages.at(-1)?.content,
 		"All queued tasks are complete. Summarize the overall outcome for the user.",
 	);
+	const cleared = await h.tools.get("read_tasks")!.execute("read-after-clear", {}, undefined, undefined, h.ctx);
+	assert.equal(cleared.content[0]?.text, "No task queue is active.");
+	assert.equal(h.statuses.get("tasks"), undefined);
 
 	// Status reflects the derived progress.
 	h.setBranch([
@@ -983,48 +1064,84 @@ test("rejects boundary calls that share their turn and enforces queue state", as
 	);
 });
 
-test("does not discard a session compaction made during the current task", async () => {
+test("rebases the task checkpoint after mid-task compaction", async () => {
 	const h = createHarness([
 		assistantToolCall("queue-call", "create_tasks"),
 		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
 		{ id: "mid-task-compaction", type: "compaction" },
 		assistantToolCall("finish-1", "finish_task"),
 	]);
-	await assert.rejects(
-		h.tools
-			.get("finish_task")!
-			.execute(
-				"finish-1",
-				{ status: "completed", summary: "Done.", evidence: [evidenceEntry()] },
-				undefined,
-				undefined,
-				h.ctx,
-			),
-		/session compacted during this task/u,
+	const finish = await h.tools
+		.get("finish_task")!
+		.execute(
+			"finish-1",
+			{ status: "completed", summary: "Done.", evidence: [evidenceEntry()] },
+			undefined,
+			undefined,
+			h.ctx,
+		);
+	assert.equal(finish.details.compact, true);
+	assert.equal(finish.terminate, true);
+	assert.equal(
+		"compact" in
+			((h.tools.get("finish_task")!.parameters as { properties?: Record<string, unknown> }).properties ?? {}),
+		false,
 	);
 });
 
-test("does not attribute mutations from a compacted task trace", async () => {
+test("preserves file attribution across mid-task compaction", async () => {
 	const h = createHarness([
 		assistantToolCall("queue-call", "create_tasks"),
 		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
 		assistantToolCallWithArgs("write", "write", { path: "src/new.ts" }),
 		mutationToolResult("write-result", "write", "write"),
-		{ id: "mid-task-compaction", type: "compaction" },
-		assistantToolCall("finish-1", "finish_task"),
 	]);
 
+	h.handlers.get("tool_result")!(
+		{ toolName: "write", input: { path: "src/new.ts" }, isError: false } as never,
+		h.ctx as never,
+	);
+	assert.deepEqual(h.appendedEntries, [
+		{
+			customType: "tasks:file-ledger",
+			data: {
+				kind: "tasks:file-ledger",
+				queueId: "queue-call",
+				taskId: "queue-call:1",
+				paths: ["src/new.ts"],
+			},
+		},
+	]);
+
+	h.handlers.get("session_before_compact")!({} as never, h.ctx as never);
+	h.pushEntry({ id: "mid-task-compaction", type: "compaction" });
+	h.handlers.get("session_compact")!(
+		{ reason: "threshold", compactionEntry: { id: "mid-task-compaction" } } as never,
+		h.ctx as never,
+	);
+	const snapshot = h.appendedEntries.at(-1)!;
+	assert.equal(snapshot.customType, "tasks:file-snapshot");
+
+	// Simulate compaction discarding the pre-compaction mutation trace and ledger.
+	h.setBranch([
+		assistantToolCall("queue-call", "create_tasks"),
+		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+		{ id: "mid-task-compaction", type: "compaction" },
+		{ id: "snapshot", type: "custom", ...snapshot },
+		assistantToolCall("finish-1", "finish_task"),
+	]);
 	const finish = await h.tools
 		.get("finish_task")!
 		.execute(
 			"finish-1",
-			{ status: "completed", summary: "Recorded without attribution.", evidence: [evidenceEntry()], compact: false },
+			{ status: "completed", summary: "Recorded with attribution.", evidence: [evidenceEntry()] },
 			undefined,
 			undefined,
 			h.ctx,
 		);
 
-	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, []);
+	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, ["src/new.ts"]);
+	assert.equal(finish.details.compact, true);
 });
 
 test("records print-mode checkpoints without compaction", async () => {
@@ -1070,6 +1187,35 @@ test("records print-mode checkpoints without compaction", async () => {
 	assert.equal(h.statuses.get("tasks"), "Task 2/4 · Implement handler");
 });
 
+test("clears the queue after the final print-mode checkpoint", async () => {
+	const h = createHarness(
+		[
+			assistantToolCall("queue-call", "create_tasks"),
+			toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
+		],
+		"print",
+	);
+
+	for (const [index, title] of QUEUE_TITLES.entries()) {
+		h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
+		const callId = `finish-${index + 1}`;
+		h.pushEntry(assistantToolCall(callId, "finish_task"));
+		const finish = await h.tools
+			.get("finish_task")!
+			.execute(
+				callId,
+				{ status: "completed", summary: `${title} done.`, evidence: [evidenceEntry()] },
+				undefined,
+				undefined,
+				h.ctx,
+			);
+		h.pushEntry(toolResult(`${callId}-result`, "finish_task", finish.details));
+	}
+
+	const read = await h.tools.get("read_tasks")!.execute("read-after-clear", {}, undefined, undefined, h.ctx);
+	assert.equal(read.content[0]?.text, "No task queue is active.");
+});
+
 test("advances past failed and blocked checkpoints", async () => {
 	const h = createHarness([
 		assistantToolCall("queue-call", "create_tasks"),
@@ -1086,12 +1232,12 @@ test("advances past failed and blocked checkpoints", async () => {
 			.get("finish_task")!
 			.execute(
 				callId,
-				{ status, summary: `${status} outcome.`, evidence: [evidenceEntry()], compact: false },
+				{ status, summary: `${status} outcome.`, evidence: [evidenceEntry()] },
 				undefined,
 				undefined,
 				h.ctx,
 			);
-		h.pushEntry(toolResult(`${callId}-result`, "finish_task", finish.details));
+		h.pushEntry(completionEntry(`${callId}-summary`, finish.details, QUEUE_TITLES[number - 1]!));
 		h.handlers.get("session_tree")!({} as never, h.ctx as never);
 		assert.equal(h.statuses.get("tasks"), `Task ${number + 1}/4 · ${nextTitle}`);
 	}
