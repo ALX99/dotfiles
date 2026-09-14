@@ -15,9 +15,6 @@ const TASK_FINISH_DETAILS_TYPE = "tasks:finish";
 const TASK_COMPLETION_DETAILS_TYPE = "tasks:completion";
 const TASK_READ_DETAILS_TYPE = "tasks:read";
 const TASK_UPDATE_DETAILS_TYPE = "tasks:update";
-const TASK_FILE_LEDGER_TYPE = "tasks:file-ledger";
-const TASK_FILE_SNAPSHOT_TYPE = "tasks:file-snapshot";
-const TASK_CLEAR_TYPE = "tasks:clear";
 const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
@@ -78,49 +75,29 @@ interface TaskOutcome {
 	remaining: string[];
 	/** Files targeted by successful edit/write/apply_patch calls observed in this task. */
 	changedFiles: string[];
-	compact: boolean;
 }
 
 interface TaskFinishDetails extends TaskOutcome {
 	kind: typeof TASK_FINISH_DETAILS_TYPE;
+	/** Interactive finishes compact their working trace; print-mode finishes remain in place. */
+	compact: boolean;
 }
 
 interface TaskCompletionDetails extends TaskOutcome {
 	kind: typeof TASK_COMPLETION_DETAILS_TYPE;
 	title: string;
-	/** Latest queue shape, carried through compaction so amendments survive. */
+	/** Latest queue shape, carried through task compaction so amendments survive. */
 	queue?: TaskQueueDetails;
 }
 
-interface TaskUpdateDetails {
+type TaskUpdateDetails = TaskUpdate & {
 	kind: typeof TASK_UPDATE_DETAILS_TYPE;
 	queueId: string;
-	action: TaskUpdateAction;
-	tasks: TaskQueueItem[];
-	cancelled: boolean;
-	taskId?: string;
-	title?: string;
-	afterTaskId?: string;
-	reason?: string;
-}
-
-interface TaskFileLedgerDetails {
-	kind: typeof TASK_FILE_LEDGER_TYPE;
-	queueId: string;
-	taskId: string;
-	paths: string[];
-}
-
-interface TaskFileSnapshotDetails {
-	kind: typeof TASK_FILE_SNAPSHOT_TYPE;
-	queueId: string;
-	tasks: Array<{ taskId: string; paths: string[] }>;
-}
-
-interface TaskClearDetails {
-	kind: typeof TASK_CLEAR_TYPE;
-	queueId: string;
-}
+	/** New records persist the generated insert identity without mirroring the queue. */
+	insertedTaskId?: string;
+	/** Read-only compatibility for pre-refactor insert records. Never written by new code. */
+	legacyTasks?: TaskQueueItem[];
+};
 
 interface TaskReadItem {
 	id: string;
@@ -155,13 +132,11 @@ interface Evidence {
 
 interface ActiveQueue {
 	queue: TaskQueueDetails;
-	/** Entry the next compaction rewinds to: the queue anchor, or the latest recorded outcome. */
-	baseEntryId: string;
-	outcomes: Map<string, TaskFinishDetails>;
-	/** The finish record awaiting navigation to its completion summary. */
+	/** Stable boundary for the current task: the queue anchor or previous task checkpoint. */
+	checkpointEntryId: string;
+	outcomes: Map<string, TaskOutcome>;
+	/** The interactive finish awaiting navigation to its completion summary. */
 	pendingCompaction?: TaskFinishDetails | undefined;
-	/** File paths recorded durably from successful mutation tool results. */
-	filePaths: Map<string, Set<string>>;
 }
 
 interface BranchContext {
@@ -307,7 +282,6 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	let printTaskFinished = false;
 	let spinnerIndex = 0;
 	let spinnerTimer: ReturnType<typeof setInterval> | undefined;
-	let pendingFileSnapshot: TaskFileSnapshotDetails | undefined;
 
 	const refreshStatus = (ctx: TaskStatusContext): void => {
 		updateTaskStatus(ctx, agentActive, spinnerIndex);
@@ -508,19 +482,12 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			const next = currentItemAfter(active, item.id);
 			const completedCount = finishedCount(active) + 1;
 			const taskNumber = positionOf(active, item.id);
-			if (ctx.mode === "print" && next === undefined) {
-				pi.appendEntry<TaskClearDetails>(TASK_CLEAR_TYPE, {
-					kind: TASK_CLEAR_TYPE,
-					queueId: active.queue.queueId,
-				});
-			}
 			ctx.ui.setStatus(
 				TASK_STATUS_KEY,
 				compact
 					? `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${active.queue.tasks.length} · compacting`
 					: `Task ${taskNumber}/${active.queue.tasks.length} · recorded`,
 			);
-			if (ctx.mode === "print" && next === undefined) refreshStatus(ctx);
 			return {
 				content: [
 					{
@@ -572,7 +539,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				ctx.ui.notify("No completed task is waiting to compact.", "warning");
 				return;
 			}
-			const result = await ctx.navigateTree(active.baseEntryId, {
+			const result = await ctx.navigateTree(active.checkpointEntryId, {
 				summarize: true,
 				label: `task: ${titleOf(active, finish.taskId)}`,
 			});
@@ -591,13 +558,6 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			const next = currentItemAfter(active, finish.taskId);
 			const continuation =
 				next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish.taskId, next);
-			if (next === undefined) {
-				pi.appendEntry<TaskClearDetails>(TASK_CLEAR_TYPE, {
-					kind: TASK_CLEAR_TYPE,
-					queueId: active.queue.queueId,
-				});
-				refreshStatus(ctx);
-			}
 			if (ctx.mode !== "print") {
 				scheduleContinuation(pi, continuation);
 			}
@@ -605,11 +565,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_before_tree", (event, ctx) => {
-		// Any navigation rewinding exactly to the current compaction base carries the
-		// derived completion record plus queue progress instead of an LLM summary.
+		// Rewinding to the current task checkpoint replaces the whole task trace,
+		// including any mid-task compactions, with its durable completion record.
 		const active = getActiveQueue(ctx);
 		const finish = pendingCompaction(active);
-		if (active === undefined || finish === undefined || event.preparation.targetId !== active.baseEntryId)
+		if (active === undefined || finish === undefined || event.preparation.targetId !== active.checkpointEntryId)
 			return undefined;
 		const completion = toCompletion(active, finish);
 		return {
@@ -621,33 +581,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		};
 	});
 
-	pi.on("tool_result", (event, ctx) => {
-		if (event.isError) return;
-		const paths = observedMutationPaths(event.toolName, event.input, ctx.cwd);
-		if (paths.length === 0) return;
-
-		const active = getActiveQueue(ctx);
-		const item = active === undefined ? undefined : currentItem(active);
-		if (active === undefined || item === undefined) return;
-
-		pi.appendEntry<TaskFileLedgerDetails>(TASK_FILE_LEDGER_TYPE, {
-			kind: TASK_FILE_LEDGER_TYPE,
-			queueId: active.queue.queueId,
-			taskId: item.id,
-			paths,
-		});
-	});
-
-	pi.on("session_before_compact", (_event, ctx) => {
-		const active = getActiveQueue(ctx);
-		pendingFileSnapshot = active === undefined ? undefined : taskFileSnapshot(active);
-	});
-
 	pi.on("session_compact", (event, ctx) => {
-		if (pendingFileSnapshot === undefined) return;
-		pi.appendEntry(TASK_FILE_SNAPSHOT_TYPE, pendingFileSnapshot);
-		pendingFileSnapshot = undefined;
-
 		if (event.reason === "manual") return;
 		const active = getActiveQueue(ctx);
 		const current = active === undefined ? undefined : currentItem(active);
@@ -667,14 +601,9 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		);
 	});
 
-	pi.on("session_compact_failed", () => {
-		pendingFileSnapshot = undefined;
-	});
-
 	pi.on("session_start", (_event, ctx) => {
 		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
-		pendingFileSnapshot = undefined;
 		agentActive = false;
 		stopSpinner();
 		refreshStatus(ctx);
@@ -919,7 +848,11 @@ function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
 	return new TaskQueueError({ reason, message });
 }
 
-function amendQueue(active: ActiveQueue, update: TaskUpdate): Result.Result<TaskQueueDetails, TaskQueueError> {
+function amendQueue(
+	active: ActiveQueue,
+	update: TaskUpdate,
+	insertedId?: string,
+): Result.Result<TaskQueueDetails, TaskQueueError> {
 	if (active.queue.cancelled === true)
 		return Result.fail(taskError("cancelled", "The task queue is already canceled."));
 	if (currentItem(active) === undefined)
@@ -938,7 +871,10 @@ function amendQueue(active: ActiveQueue, update: TaskUpdate): Result.Result<Task
 			if (insertionIndex === 0) {
 				return Result.fail(taskError("unknown_task", `Unknown task ID: ${update.afterTaskId}.`));
 			}
-			queue.tasks.splice(insertionIndex, 0, { id: insertedTaskId(queue), title: update.title });
+			if (insertedId !== undefined && queue.tasks.some((task) => task.id === insertedId)) {
+				return Result.fail(taskError("unknown_task", `Task ID already exists: ${insertedId}.`));
+			}
+			queue.tasks.splice(insertionIndex, 0, { id: insertedId ?? insertedTaskId(queue), title: update.title });
 			return Result.succeed(queue);
 		}
 		case "rename": {
@@ -1015,28 +951,43 @@ function uniqueTaskId(seen: Set<string>): string {
 }
 
 function taskUpdateDetails(queue: TaskQueueDetails, update: TaskUpdate): TaskUpdateDetails {
+	if (update.action !== "insert") {
+		return {
+			kind: TASK_UPDATE_DETAILS_TYPE,
+			queueId: queue.queueId,
+			...update,
+		};
+	}
+	const insertionIndex =
+		update.afterTaskId === undefined
+			? queue.tasks.length - 1
+			: queue.tasks.findIndex((task) => task.id === update.afterTaskId) + 1;
+	const insertedTaskId = queue.tasks[insertionIndex]?.id;
 	return {
 		kind: TASK_UPDATE_DETAILS_TYPE,
 		queueId: queue.queueId,
-		tasks: cloneTaskItems(queue.tasks),
-		cancelled: queue.cancelled === true,
 		...update,
+		...(insertedTaskId === undefined ? {} : { insertedTaskId }),
 	};
 }
 
 function formatTaskUpdate(details: TaskUpdateDetails, active: ActiveQueue): string {
-	const task = details.taskId === undefined ? undefined : active.queue.tasks.find((item) => item.id === details.taskId);
-	const subject = task === undefined ? (details.taskId ?? details.title ?? "queue") : `${task.title} (${task.id})`;
-	const action =
-		details.action === "insert"
-			? `Inserted ${details.title ?? "task"}`
-			: details.action === "rename"
-				? `Renamed ${subject} to ${details.title ?? "new title"}`
-				: details.action === "skip"
-					? `Skipped ${subject}`
-					: "Canceled the remaining queue";
-	const reason = details.reason === undefined ? "" : ` Reason: ${details.reason}`;
-	return `${action}.${reason} Queue: ${formatTaskCounts(readTasks(active).counts)}.`;
+	const counts = formatTaskCounts(readTasks(active).counts);
+	switch (details.action) {
+		case "insert":
+			return `Inserted ${details.title}. Queue: ${counts}.`;
+		case "rename":
+			return `Renamed ${details.taskId} to ${details.title}. Queue: ${counts}.`;
+		case "skip": {
+			const task = active.queue.tasks.find((item) => item.id === details.taskId);
+			const subject = task === undefined ? details.taskId : `${task.title} (${task.id})`;
+			return `Skipped ${subject}. Reason: ${details.reason} Queue: ${counts}.`;
+		}
+		case "cancel":
+			return `Canceled the remaining queue. Reason: ${details.reason} Queue: ${counts}.`;
+		default:
+			return `Updated task queue. Queue: ${counts}.`;
+	}
 }
 
 function formatTaskLabel(
@@ -1113,16 +1064,6 @@ function nextTaskPrompt(active: ActiveQueue, completedId: string, next: TaskQueu
 
 // Recovery and observed file changes
 
-function taskFileSnapshot(active: ActiveQueue): TaskFileSnapshotDetails {
-	return {
-		kind: TASK_FILE_SNAPSHOT_TYPE,
-		queueId: active.queue.queueId,
-		tasks: [...active.filePaths.entries()]
-			.filter(([, paths]) => paths.size > 0)
-			.map(([taskId, paths]) => ({ taskId, paths: [...paths] })),
-	};
-}
-
 function formatTaskRecovery(active: ActiveQueue): string {
 	const details = readTasks(active);
 	const current = currentItem(active);
@@ -1187,30 +1128,19 @@ function compactTaskOriginText(text: string): string {
 		.trim();
 }
 
-function mergeTaskFilePaths(filePaths: Map<string, Set<string>>, taskId: string, paths: string[]): void {
-	let recorded = filePaths.get(taskId);
-	if (recorded === undefined) {
-		recorded = new Set<string>();
-		filePaths.set(taskId, recorded);
-	}
-	for (const path of paths) recorded.add(path);
-}
-
 function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string[] {
 	const branch = ctx.sessionManager.getBranch();
-	const baseIndex = branch.findIndex((entry) => entry.id === active.baseEntryId);
-	const entries = branch.slice(baseIndex + 1);
-	const mutationPaths = new Map<string, string[]>();
-	const observed = new Set(active.filePaths.get(currentItem(active)?.id ?? "") ?? []);
-	if (baseIndex === -1) return [...observed];
+	const checkpointIndex = branch.findIndex((entry) => entry.id === active.checkpointEntryId);
+	if (checkpointIndex === -1) return [];
 
-	for (const entry of entries) {
+	const mutationPaths = new Map<string, string[]>();
+	const changed = new Set<string>();
+	for (const entry of branch.slice(checkpointIndex + 1)) {
 		if (entry.type === "message" && entry.message.role === "assistant") {
 			for (const block of entry.message.content) {
 				if (block.type !== "toolCall") continue;
 				const paths = observedMutationPaths(block.name, block.arguments, ctx.cwd);
 				if (paths.length > 0) mutationPaths.set(block.id, paths);
-				continue;
 			}
 			continue;
 		}
@@ -1218,10 +1148,9 @@ function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string
 		if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.isError) continue;
 		const callId = entry.message.toolCallId;
 		if (typeof callId !== "string") continue;
-		for (const path of mutationPaths.get(callId) ?? []) observed.add(path);
+		for (const path of mutationPaths.get(callId) ?? []) changed.add(path);
 	}
-
-	return [...observed];
+	return [...changed];
 }
 
 function observedMutationPaths(toolName: string, input: unknown, cwd: string): string[] {
@@ -1275,12 +1204,8 @@ function titleOf(active: ActiveQueue, taskId: string): string {
 	return active.queue.tasks.find((task) => task.id === taskId)?.title ?? taskId;
 }
 
-function recordOutcome(active: ActiveQueue, finish: TaskFinishDetails): void {
-	if (!active.outcomes.has(finish.taskId)) active.outcomes.set(finish.taskId, finish);
-}
-
-function asTaskFinish(finish: TaskCompletionDetails): TaskFinishDetails {
-	return { ...finish, kind: TASK_FINISH_DETAILS_TYPE };
+function recordOutcome(active: ActiveQueue, outcome: TaskOutcome): void {
+	if (!active.outcomes.has(outcome.taskId)) active.outcomes.set(outcome.taskId, outcome);
 }
 
 // Read model and presentation
@@ -1334,7 +1259,7 @@ function readTasks(active: ActiveQueue | undefined, taskId?: string, path?: stri
 	return details;
 }
 
-function statusOf(active: ActiveQueue, item: TaskQueueItem, outcome?: TaskFinishDetails): TaskReadStatus {
+function statusOf(active: ActiveQueue, item: TaskQueueItem, outcome?: TaskOutcome): TaskReadStatus {
 	if (outcome !== undefined) return outcome.status;
 	if (item.state === "skipped") return "skipped";
 	if (active.queue.cancelled === true) return "cancelled";
@@ -1418,10 +1343,26 @@ function truncate(value: string, maxLength: number): string {
 
 function toCompletion(active: ActiveQueue, finish: TaskFinishDetails): TaskCompletionDetails {
 	return {
-		...finish,
 		kind: TASK_COMPLETION_DETAILS_TYPE,
+		taskId: finish.taskId,
+		status: finish.status,
+		summary: finish.summary,
+		evidence: finish.evidence,
+		decisions: finish.decisions,
+		remaining: finish.remaining,
+		changedFiles: finish.changedFiles,
 		title: titleOf(active, finish.taskId),
-		queue: cloneQueue(active.queue),
+		queue: queueSnapshot(active.queue),
+	};
+}
+
+function queueSnapshot(queue: TaskQueueDetails): TaskQueueDetails {
+	return {
+		kind: TASK_QUEUE_DETAILS_TYPE,
+		queueId: queue.queueId,
+		tasks: cloneTaskItems(queue.tasks),
+		...(queue.cancelled === undefined ? {} : { cancelled: queue.cancelled }),
+		...(queue.cancelReason === undefined ? {} : { cancelReason: queue.cancelReason }),
 	};
 }
 
@@ -1566,74 +1507,52 @@ function getCurrentToolCalls(ctx: ExtensionContext): Array<{ id: string; name: s
 
 function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 	let active: ActiveQueue | undefined;
+	let retired = false;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		const queue = readTaskQueue(entry);
 		if (queue !== undefined) {
 			if (active !== undefined && !queueIsClosed(active)) continue;
 			active = {
 				queue,
-				baseEntryId: entry.id,
+				checkpointEntryId: entry.id,
 				outcomes: new Map(),
-				filePaths: new Map(),
 			};
+			retired = false;
 			continue;
 		}
 		if (active === undefined) continue;
-
-		const clear = readTaskClear(entry);
-		if (clear !== undefined) {
-			if (clear.queueId === active.queue.queueId) active = undefined;
-			continue;
-		}
-
-		const fileLedger = readTaskFileLedger(entry);
-		if (fileLedger !== undefined && fileLedger.queueId === active.queue.queueId) {
-			mergeTaskFilePaths(active.filePaths, fileLedger.taskId, fileLedger.paths);
-			continue;
-		}
-		const fileSnapshot = readTaskFileSnapshot(entry);
-		if (fileSnapshot !== undefined && fileSnapshot.queueId === active.queue.queueId) {
-			for (const task of fileSnapshot.tasks) mergeTaskFilePaths(active.filePaths, task.taskId, task.paths);
-			continue;
-		}
 
 		const update = readTaskUpdate(entry);
 		if (update !== undefined && update.queueId === active.queue.queueId) {
 			applyQueueUpdate(active, update);
 			continue;
 		}
+
 		const completion = readTaskCompletion(entry);
 		if (completion !== undefined && hasTask(active.queue, completion.taskId)) {
 			if (completion.queue !== undefined && completion.queue.queueId === active.queue.queueId) {
 				if (!applyQueueSnapshot(active, completion.queue)) continue;
 			}
 			if (active.pendingCompaction?.taskId !== completion.taskId && active.outcomes.has(completion.taskId)) continue;
-			recordOutcome(active, asTaskFinish(completion));
-			active.baseEntryId = entry.id;
+			recordOutcome(active, completion);
+			active.checkpointEntryId = entry.id;
 			active.pendingCompaction = undefined;
+			retired = currentItem(active) === undefined;
 			continue;
 		}
+
 		const finish = readTaskFinish(entry);
 		if (finish !== undefined && hasTask(active.queue, finish.taskId)) {
 			if (active.outcomes.has(finish.taskId)) continue;
 			recordOutcome(active, finish);
-			// A pending interactive finish does not move the base: its own result entry
-			// is part of the trace that compaction will discard. A print-mode outcome
-			// becomes the new base so its record survives later compactions.
 			active.pendingCompaction = finish.compact ? finish : undefined;
 			if (!finish.compact) {
-				active.baseEntryId = entry.id;
+				active.checkpointEntryId = entry.id;
+				retired = currentItem(active) === undefined;
 			}
-			continue;
-		}
-		if (entry.type === "compaction") {
-			// The compaction entry is now the safe anchor for the next task
-			// checkpoint. File paths from before it survive through the durable
-			// ledger snapshot appended by the session_compact hook.
-			active.baseEntryId = entry.id;
 		}
 	}
-	return active;
+	return retired ? undefined : active;
 }
 
 function queueIsClosed(active: ActiveQueue): boolean {
@@ -1641,32 +1560,56 @@ function queueIsClosed(active: ActiveQueue): boolean {
 }
 
 function applyQueueUpdate(active: ActiveQueue, update: TaskUpdateDetails): boolean {
-	const next = queueFromUpdate(active, update);
-	if (!isValidQueueTransition(active, next, update)) return false;
-	active.queue = next;
+	const insertedId =
+		update.action === "insert"
+			? (update.insertedTaskId ?? legacyInsertedTaskId(active, update))
+			: undefined;
+	if (
+		update.action === "insert" &&
+		update.insertedTaskId === undefined &&
+		update.legacyTasks !== undefined &&
+		insertedId === undefined
+	) {
+		return false;
+	}
+	const amended = amendQueue(active, update, insertedId);
+	if (Result.isFailure(amended)) return false;
+	active.queue = amended.success;
 	return true;
 }
 
-function queueFromUpdate(active: ActiveQueue, update: TaskUpdateDetails): TaskQueueDetails {
-	return {
-		kind: TASK_QUEUE_DETAILS_TYPE,
-		queueId: update.queueId,
-		tasks: cloneTaskItems(update.tasks),
-		...(active.queue.origin === undefined ? {} : { origin: active.queue.origin }),
-		...(update.cancelled ? { cancelled: true, cancelReason: update.reason } : {}),
-	};
+function legacyInsertedTaskId(active: ActiveQueue, update: TaskUpdateDetails): string | undefined {
+	if (update.action !== "insert" || update.legacyTasks === undefined) return undefined;
+
+	const currentIds = active.queue.tasks.map((task) => task.id);
+	const currentIdSet = new Set(currentIds);
+	const added = update.legacyTasks.filter((task) => !currentIdSet.has(task.id));
+	if (added.length !== 1 || added[0]!.title !== update.title || added[0]!.state !== undefined) return undefined;
+
+	const existingIds = update.legacyTasks.filter((task) => currentIdSet.has(task.id)).map((task) => task.id);
+	if (existingIds.length !== currentIds.length || existingIds.some((id, index) => id !== currentIds[index])) {
+		return undefined;
+	}
+
+	const insertionIndex =
+		update.afterTaskId === undefined
+			? active.queue.tasks.length
+			: active.queue.tasks.findIndex((task) => task.id === update.afterTaskId) + 1;
+	if (insertionIndex < 1 && update.afterTaskId !== undefined) return undefined;
+	return update.legacyTasks[insertionIndex]?.id === added[0]!.id ? added[0]!.id : undefined;
 }
 
 function applyQueueSnapshot(active: ActiveQueue, next: TaskQueueDetails): boolean {
-	if (!isValidQueueTransition(active, next)) return false;
+	if (!isValidQueueSnapshot(active, next)) return false;
+	const origin = active.queue.origin;
 	active.queue = cloneQueue(next);
+	if (origin !== undefined) active.queue.origin = origin;
 	return true;
 }
 
-function isValidQueueTransition(active: ActiveQueue, next: TaskQueueDetails, update?: TaskUpdateDetails): boolean {
+function isValidQueueSnapshot(active: ActiveQueue, next: TaskQueueDetails): boolean {
 	const current = active.queue;
 	if (next.queueId !== current.queueId || (current.cancelled === true && next.cancelled !== true)) return false;
-	if (next.cancelled === true && (current.cancelled === true || next.cancelReason === undefined)) return false;
 	if (next.cancelled !== true && next.cancelReason !== undefined) return false;
 
 	const currentById = new Map(current.tasks.map((task, index) => [task.id, { task, index }]));
@@ -1674,91 +1617,17 @@ function isValidQueueTransition(active: ActiveQueue, next: TaskQueueDetails, upd
 	if (current.tasks.some((task) => !nextIds.has(task.id))) return false;
 
 	let previousIndex = -1;
-	let added = 0;
-	let addedTask: TaskQueueItem | undefined;
-	let addedIndex = -1;
-	let changedPending = 0;
-	let changedTaskId: string | undefined;
-	for (const [nextIndex, nextTask] of next.tasks.entries()) {
+	for (const nextTask of next.tasks) {
 		const existing = currentById.get(nextTask.id);
 		if (existing === undefined) {
 			if (nextTask.state !== undefined) return false;
-			added += 1;
-			addedTask = nextTask;
-			addedIndex = nextIndex;
 			continue;
 		}
 		if (existing.index <= previousIndex) return false;
 		previousIndex = existing.index;
-
-		if (isTaskFinished(active, existing.task.id)) {
-			if (!sameTaskItem(existing.task, nextTask)) return false;
-			continue;
-		}
-		if (nextTask.state === "skipped") {
-			changedPending += 1;
-			changedTaskId = nextTask.id;
-			continue;
-		}
-		if (nextTask.title !== existing.task.title) {
-			changedPending += 1;
-			changedTaskId = nextTask.id;
-		}
+		if (isTaskFinished(active, existing.task.id) && !sameTaskItem(existing.task, nextTask)) return false;
 	}
-
-	if (update === undefined) return true;
-	switch (update.action) {
-		case "insert":
-			return (
-				!next.cancelled &&
-				added === 1 &&
-				changedPending === 0 &&
-				addedTask?.title === update.title &&
-				addedIndex ===
-					(update.afterTaskId === undefined
-						? current.tasks.length
-						: (currentById.get(update.afterTaskId)?.index ?? -2) + 1)
-			);
-		case "rename": {
-			const renamed = next.tasks.find((task) => task.id === update.taskId);
-			return (
-				!next.cancelled &&
-				added === 0 &&
-				changedPending === 1 &&
-				changedTaskId === update.taskId &&
-				renamed?.title === update.title &&
-				renamed?.state === undefined &&
-				renamed?.skipReason === undefined
-			);
-		}
-		case "skip": {
-			const skipped = next.tasks.find((task) => task.id === update.taskId);
-			const previous = update.taskId === undefined ? undefined : currentById.get(update.taskId)?.task;
-			return (
-				!next.cancelled &&
-				added === 0 &&
-				changedPending === 1 &&
-				changedTaskId === update.taskId &&
-				skipped?.title === previous?.title &&
-				skipped?.state === "skipped" &&
-				skipped?.skipReason === update.reason
-			);
-		}
-		case "cancel":
-			return (
-				next.cancelled === true &&
-				added === 0 &&
-				changedPending === 0 &&
-				next.cancelReason === update.reason &&
-				sameTaskList(current.tasks, next.tasks)
-			);
-		default:
-			return false;
-	}
-}
-
-function sameTaskList(left: TaskQueueItem[], right: TaskQueueItem[]): boolean {
-	return left.length === right.length && left.every((task, index) => sameTaskItem(task, right[index]!));
+	return true;
 }
 
 function sameTaskItem(left: TaskQueueItem, right: TaskQueueItem): boolean {
@@ -1791,61 +1660,6 @@ function readTaskUpdate(entry: SessionEntry): TaskUpdateDetails | undefined {
 		: undefined;
 }
 
-function readTaskFileLedger(entry: SessionEntry): TaskFileLedgerDetails | undefined {
-	if (entry.type !== "custom" || entry.customType !== TASK_FILE_LEDGER_TYPE || !Predicate.isObject(entry.data)) {
-		return undefined;
-	}
-	const data = entry.data;
-	if (
-		data.kind !== TASK_FILE_LEDGER_TYPE ||
-		typeof data.queueId !== "string" ||
-		typeof data.taskId !== "string" ||
-		!isStringArray(data.paths)
-	) {
-		return undefined;
-	}
-	return {
-		kind: TASK_FILE_LEDGER_TYPE,
-		queueId: data.queueId,
-		taskId: data.taskId,
-		paths: data.paths,
-	};
-}
-
-function readTaskFileSnapshot(entry: SessionEntry): TaskFileSnapshotDetails | undefined {
-	if (entry.type !== "custom" || entry.customType !== TASK_FILE_SNAPSHOT_TYPE || !Predicate.isObject(entry.data)) {
-		return undefined;
-	}
-	const data = entry.data;
-	if (data.kind !== TASK_FILE_SNAPSHOT_TYPE || typeof data.queueId !== "string" || !Array.isArray(data.tasks)) {
-		return undefined;
-	}
-	const tasks: Array<{ taskId: string; paths: string[] }> = [];
-	for (const task of data.tasks) {
-		if (!Predicate.isObject(task) || typeof task.taskId !== "string" || !isStringArray(task.paths)) return undefined;
-		tasks.push({ taskId: task.taskId, paths: task.paths });
-	}
-	return {
-		kind: TASK_FILE_SNAPSHOT_TYPE,
-		queueId: data.queueId,
-		tasks,
-	};
-}
-
-function readTaskClear(entry: SessionEntry): TaskClearDetails | undefined {
-	if (entry.type !== "custom" || entry.customType !== TASK_CLEAR_TYPE || !Predicate.isObject(entry.data)) {
-		return undefined;
-	}
-	const data = entry.data;
-	if (data.kind !== TASK_CLEAR_TYPE || typeof data.queueId !== "string" || data.queueId.trim().length === 0) {
-		return undefined;
-	}
-	return {
-		kind: TASK_CLEAR_TYPE,
-		queueId: data.queueId,
-	};
-}
-
 function readTaskQueue(entry: SessionEntry): TaskQueueDetails | undefined {
 	return parseTaskQueue(successfulToolResultDetails(entry));
 }
@@ -1865,15 +1679,15 @@ function readTaskCompletion(entry: SessionEntry): TaskCompletionDetails | undefi
 	) {
 		return undefined;
 	}
-	const finish = parseTaskFinish(entry.details);
-	if (finish === undefined || typeof entry.details.title !== "string") return undefined;
+	const outcome = parseTaskOutcome(entry.details);
+	if (outcome === undefined || typeof entry.details.title !== "string") return undefined;
 	let queue: TaskQueueDetails | undefined;
 	if (entry.details.queue !== undefined) {
 		queue = parseTaskQueue(entry.details.queue);
 		if (queue === undefined) return undefined;
 	}
 	return {
-		...finish,
+		...outcome,
 		kind: TASK_COMPLETION_DETAILS_TYPE,
 		title: entry.details.title,
 		...(queue === undefined ? {} : { queue }),
@@ -1951,83 +1765,90 @@ function parseTaskItems(value: unknown): TaskQueueItem[] | undefined {
 function parseTaskUpdate(details: Record<string, unknown>): TaskUpdateDetails | undefined {
 	if (
 		typeof details.queueId !== "string" ||
-		!isTaskUpdateAction(details.action) ||
-		typeof details.cancelled !== "boolean"
+		details.queueId.trim().length === 0 ||
+		!isTaskUpdateAction(details.action)
 	) {
 		return undefined;
 	}
-	const tasks = parseTaskItems(details.tasks);
-	if (tasks === undefined) return undefined;
-	if (
-		(details.taskId !== undefined && typeof details.taskId !== "string") ||
-		(details.title !== undefined && typeof details.title !== "string") ||
-		(details.afterTaskId !== undefined && typeof details.afterTaskId !== "string") ||
-		(details.reason !== undefined && typeof details.reason !== "string")
-	) {
-		return undefined;
-	}
-	if (
-		(details.cancelled &&
-			(details.action !== "cancel" || typeof details.reason !== "string" || details.reason.trim().length === 0)) ||
-		(!details.cancelled && details.action === "cancel")
-	) {
-		return undefined;
-	}
-	if (!validTaskUpdateFields(details)) return undefined;
-	return {
-		kind: TASK_UPDATE_DETAILS_TYPE,
-		queueId: details.queueId,
-		action: details.action,
-		tasks,
-		cancelled: details.cancelled,
-		...(details.taskId === undefined ? {} : { taskId: details.taskId }),
-		...(details.title === undefined ? {} : { title: details.title }),
-		...(details.afterTaskId === undefined ? {} : { afterTaskId: details.afterTaskId }),
-		...(details.reason === undefined ? {} : { reason: details.reason }),
-	};
-}
-
-function validTaskUpdateFields(details: Record<string, unknown>): boolean {
+	const queueId = details.queueId;
 	switch (details.action) {
-		case "insert":
-			return (
-				typeof details.title === "string" &&
-				details.title.trim().length > 0 &&
-				details.taskId === undefined &&
-				details.reason === undefined
-			);
+		case "insert": {
+			if (typeof details.title !== "string" || details.title.trim().length === 0) return undefined;
+			if (
+				details.afterTaskId !== undefined &&
+				(typeof details.afterTaskId !== "string" || details.afterTaskId.trim().length === 0)
+			) {
+				return undefined;
+			}
+			if (
+				details.insertedTaskId !== undefined &&
+				(typeof details.insertedTaskId !== "string" || details.insertedTaskId.trim().length === 0)
+			) {
+				return undefined;
+			}
+			let legacyTasks: TaskQueueItem[] | undefined;
+			if (details.insertedTaskId === undefined && details.tasks !== undefined) {
+				legacyTasks = parseTaskItems(details.tasks);
+				if (legacyTasks === undefined) return undefined;
+			}
+			return {
+				kind: TASK_UPDATE_DETAILS_TYPE,
+				queueId,
+				action: "insert",
+				title: details.title.trim(),
+				...(details.afterTaskId === undefined ? {} : { afterTaskId: details.afterTaskId.trim() }),
+				...(details.insertedTaskId === undefined
+					? {}
+					: { insertedTaskId: details.insertedTaskId.trim() }),
+				...(legacyTasks === undefined ? {} : { legacyTasks }),
+			};
+		}
 		case "rename":
-			return (
-				typeof details.taskId === "string" &&
-				details.taskId.trim().length > 0 &&
-				typeof details.title === "string" &&
-				details.title.trim().length > 0 &&
-				details.afterTaskId === undefined &&
-				details.reason === undefined
-			);
+			if (
+				typeof details.taskId !== "string" ||
+				details.taskId.trim().length === 0 ||
+				typeof details.title !== "string" ||
+				details.title.trim().length === 0
+			) {
+				return undefined;
+			}
+			return {
+				kind: TASK_UPDATE_DETAILS_TYPE,
+				queueId,
+				action: "rename",
+				taskId: details.taskId.trim(),
+				title: details.title.trim(),
+			};
 		case "skip":
-			return (
-				typeof details.taskId === "string" &&
-				details.taskId.trim().length > 0 &&
-				typeof details.reason === "string" &&
-				details.reason.trim().length > 0 &&
-				details.title === undefined &&
-				details.afterTaskId === undefined
-			);
+			if (
+				typeof details.taskId !== "string" ||
+				details.taskId.trim().length === 0 ||
+				typeof details.reason !== "string" ||
+				details.reason.trim().length === 0
+			) {
+				return undefined;
+			}
+			return {
+				kind: TASK_UPDATE_DETAILS_TYPE,
+				queueId,
+				action: "skip",
+				taskId: details.taskId.trim(),
+				reason: details.reason.trim(),
+			};
 		case "cancel":
-			return (
-				typeof details.reason === "string" &&
-				details.reason.trim().length > 0 &&
-				details.taskId === undefined &&
-				details.title === undefined &&
-				details.afterTaskId === undefined
-			);
+			if (typeof details.reason !== "string" || details.reason.trim().length === 0) return undefined;
+			return {
+				kind: TASK_UPDATE_DETAILS_TYPE,
+				queueId,
+				action: "cancel",
+				reason: details.reason.trim(),
+			};
 		default:
-			return false;
+			return undefined;
 	}
 }
 
-function parseTaskFinish(details: Record<string, unknown>): TaskFinishDetails | undefined {
+function parseTaskOutcome(details: Record<string, unknown>): TaskOutcome | undefined {
 	if (
 		typeof details.taskId !== "string" ||
 		!isTaskStatus(details.status) ||
@@ -2036,13 +1857,11 @@ function parseTaskFinish(details: Record<string, unknown>): TaskFinishDetails | 
 		!details.evidence.every(isEvidence) ||
 		!isStringArray(details.decisions) ||
 		!isStringArray(details.remaining) ||
-		(details.changedFiles !== undefined && !isStringArray(details.changedFiles)) ||
-		typeof details.compact !== "boolean"
+		(details.changedFiles !== undefined && !isStringArray(details.changedFiles))
 	) {
 		return undefined;
 	}
 	return {
-		kind: TASK_FINISH_DETAILS_TYPE,
 		taskId: details.taskId,
 		status: details.status,
 		summary: details.summary,
@@ -2050,6 +1869,15 @@ function parseTaskFinish(details: Record<string, unknown>): TaskFinishDetails | 
 		decisions: details.decisions,
 		remaining: details.remaining,
 		changedFiles: details.changedFiles === undefined ? [] : details.changedFiles,
+	};
+}
+
+function parseTaskFinish(details: Record<string, unknown>): TaskFinishDetails | undefined {
+	const outcome = parseTaskOutcome(details);
+	if (outcome === undefined || typeof details.compact !== "boolean") return undefined;
+	return {
+		...outcome,
+		kind: TASK_FINISH_DETAILS_TYPE,
 		compact: details.compact,
 	};
 }
