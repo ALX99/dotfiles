@@ -30,4 +30,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: home/.pi/agent/extensions/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run check
+      - run: |
+          pnpm exec oxfmt tasks/index.ts tasks/tests/extension.test.ts
+          git diff -- tasks/index.ts tasks/tests/extension.test.ts
+          exit 1
