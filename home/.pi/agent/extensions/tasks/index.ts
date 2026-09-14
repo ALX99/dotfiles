@@ -866,6 +866,8 @@ function normalizeTaskUpdate(params: TaskUpdateInput): Result.Result<TaskUpdate,
 			if (Result.isFailure(reason)) return Result.fail(reason.failure);
 			return Result.succeed({ action: "cancel", reason: reason.success });
 		}
+		default:
+			return Result.fail(taskError("unknown_action", "Unknown task update action."));
 	}
 }
 
@@ -956,6 +958,8 @@ function amendQueue(active: ActiveQueue, update: TaskUpdate): Result.Result<Task
 			queue.cancelled = true;
 			queue.cancelReason = update.reason;
 			return Result.succeed(queue);
+		default:
+			return Result.fail(taskError("unknown_action", "Unknown task update action."));
 	}
 }
 
