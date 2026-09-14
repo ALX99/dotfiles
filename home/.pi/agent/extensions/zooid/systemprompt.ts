@@ -170,9 +170,9 @@ export function buildSystemPrompt(
 		options.customPrompt?.trim() || ROLE_LINE,
 		toolBlock(options),
 		guidelineBlock(options, owners),
+		options.appendSystemPrompt?.trim() ?? "",
 		skillBlock(options, enabledSkills),
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
-		options.appendSystemPrompt?.trim() ?? "",
 		contextBlock(options.contextFiles),
 	]
 		.filter((section) => section.length > 0)

@@ -73,6 +73,7 @@ test("a TUI session uses one random title until shutdown", async (t) => {
 			t.mock.timers.tick(TITLE_UPDATE_DELAY_MS);
 			handlers.get("turn_start")!({}, ctx);
 			handlers.get("session_shutdown")!({}, ctx);
+			process.emit("exit", 0);
 		});
 		assert.deepEqual(writes, [
 			titleSequence(MOODS[0]!),
@@ -99,6 +100,7 @@ test("a turn or shutdown cancels an obsolete delayed title", async (t) => {
 			handlers.get("session_info_changed")!({}, ctx);
 			handlers.get("session_shutdown")!({}, ctx);
 			t.mock.timers.tick(TITLE_UPDATE_DELAY_MS);
+			process.emit("exit", 0);
 		});
 		assert.deepEqual(writes, [titleSequence(MOODS[0]!), "\x1b]2;\x07"]);
 	} finally {

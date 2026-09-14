@@ -83,9 +83,9 @@ test("the prompt assembles every section in the documented order", () => {
 	const order = [
 		"Available tools:",
 		"Guidelines:",
+		"APPENDED INSTRUCTIONS",
 		"Skills:",
 		"System Information",
-		"APPENDED INSTRUCTIONS",
 		"<project_context>",
 	];
 	const positions = order.map((marker) => prompt.indexOf(marker));
