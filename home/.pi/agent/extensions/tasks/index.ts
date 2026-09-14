@@ -46,6 +46,12 @@ interface TaskUpdateInput {
 	reason?: string;
 }
 
+type TaskUpdate =
+	| { action: "insert"; title: string; afterTaskId?: string }
+	| { action: "rename"; taskId: string; title: string }
+	| { action: "skip"; taskId: string; reason: string }
+	| { action: "cancel"; reason: string };
+
 interface TaskQueueItem {
 	id: string;
 	title: string;
@@ -63,8 +69,7 @@ interface TaskQueueDetails {
 	cancelReason?: string;
 }
 
-interface TaskFinishDetails {
-	kind: typeof TASK_FINISH_DETAILS_TYPE;
+interface TaskOutcome {
 	taskId: string;
 	status: TaskStatus;
 	summary: string;
@@ -76,7 +81,11 @@ interface TaskFinishDetails {
 	compact: boolean;
 }
 
-interface TaskCompletionDetails extends Omit<TaskFinishDetails, "kind"> {
+interface TaskFinishDetails extends TaskOutcome {
+	kind: typeof TASK_FINISH_DETAILS_TYPE;
+}
+
+interface TaskCompletionDetails extends TaskOutcome {
 	kind: typeof TASK_COMPLETION_DETAILS_TYPE;
 	title: string;
 	/** Latest queue shape, carried through compaction so amendments survive. */
@@ -173,6 +182,8 @@ const MIN_TASKS = 4;
 const MAX_TASKS = 100;
 const MAX_TASK_READ_LENGTH = 12_000;
 const MAX_TASK_ORIGIN_LENGTH = 32_000;
+
+// Tool schemas
 
 const CreateTasksParams = Type.Object({
 	tasks: Type.Array(
@@ -288,6 +299,8 @@ const FinishTaskParams = Type.Object({
 		}),
 	),
 });
+
+// Extension wiring
 
 export default function tasksExtension(pi: ExtensionAPI): void {
 	let agentActive = false;
@@ -431,7 +444,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 					"A task outcome is waiting to compact. Let it finish before amending the queue.",
 				);
 			}
-			const update = normalizeTaskUpdate(params);
+			const update = Result.getOrThrow(normalizeTaskUpdate(params));
 			const queue = Result.getOrThrow(amendQueue(active, update));
 			active.queue = queue;
 			const details = taskUpdateDetails(queue, update);
@@ -702,6 +715,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 }
 
+// Commands and queue transitions
+
 function pendingCompaction(active: ActiveQueue | undefined): TaskFinishDetails | undefined {
 	return active?.pendingCompaction;
 }
@@ -740,7 +755,7 @@ function updateTaskStatus(ctx: TaskStatusContext, agentActive: boolean, spinnerI
 	);
 }
 
-function parseTaskCommand(args: string): TaskUpdateInput | undefined {
+function parseTaskCommand(args: string): TaskUpdate | undefined {
 	const match = /^(\S+)(?:\s+([\s\S]*))?$/u.exec(args.trim());
 	if (match === null) return undefined;
 
@@ -783,7 +798,7 @@ function taskCommandUsage(): string {
 function applyCommandUpdate(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
-	params: TaskUpdateInput,
+	update: TaskUpdate,
 	refresh?: () => void,
 ): void {
 	if (!tasksEnabled(ctx)) {
@@ -801,7 +816,6 @@ function applyCommandUpdate(
 	}
 
 	try {
-		const update = normalizeTaskUpdate(params);
 		const queue = Result.getOrThrow(amendQueue(active, update));
 		active.queue = queue;
 		const details = taskUpdateDetails(queue, update);
@@ -821,14 +835,50 @@ function applyCommandUpdate(
 	}
 }
 
-function normalizeTaskUpdate(params: TaskUpdateInput): TaskUpdateInput {
-	return {
-		action: params.action,
-		...(params.taskId === undefined ? {} : { taskId: params.taskId.trim() }),
-		...(params.title === undefined ? {} : { title: params.title.trim() }),
-		...(params.afterTaskId === undefined ? {} : { afterTaskId: params.afterTaskId.trim() }),
-		...(params.reason === undefined ? {} : { reason: params.reason.trim() }),
-	};
+function normalizeTaskUpdate(params: TaskUpdateInput): Result.Result<TaskUpdate, TaskQueueError> {
+	switch (params.action) {
+		case "insert": {
+			const title = requireText(params.title, "Insert requires a task title.");
+			if (Result.isFailure(title)) return Result.fail(title.failure);
+			const afterTaskId = optionalText(params.afterTaskId);
+			return Result.succeed({
+				action: "insert",
+				title: title.success,
+				...(afterTaskId === undefined ? {} : { afterTaskId }),
+			});
+		}
+		case "rename": {
+			const taskId = requireTaskId(params.taskId);
+			if (Result.isFailure(taskId)) return Result.fail(taskId.failure);
+			const title = requireText(params.title, "Rename requires a new task title.");
+			if (Result.isFailure(title)) return Result.fail(title.failure);
+			return Result.succeed({ action: "rename", taskId: taskId.success, title: title.success });
+		}
+		case "skip": {
+			const taskId = requireTaskId(params.taskId);
+			if (Result.isFailure(taskId)) return Result.fail(taskId.failure);
+			const reason = requireText(params.reason, "Skip requires a reason.");
+			if (Result.isFailure(reason)) return Result.fail(reason.failure);
+			return Result.succeed({ action: "skip", taskId: taskId.success, reason: reason.success });
+		}
+		case "cancel": {
+			const reason = requireText(params.reason, "Cancel requires a reason.");
+			if (Result.isFailure(reason)) return Result.fail(reason.failure);
+			return Result.succeed({ action: "cancel", reason: reason.success });
+		}
+	}
+}
+
+function optionalText(value: string | undefined): string | undefined {
+	const text = value?.trim();
+	return text === undefined || text.length === 0 ? undefined : text;
+}
+
+function requireTaskId(value: string | undefined): Result.Result<string, TaskQueueError> {
+	const taskId = optionalText(value);
+	return taskId === undefined
+		? Result.fail(taskError("missing_task", "This queue update requires a pending task ID."))
+		: Result.succeed(taskId);
 }
 
 function normalizeReadFilter(value: string | undefined): string | undefined {
@@ -836,10 +886,6 @@ function normalizeReadFilter(value: string | undefined): string | undefined {
 	return normalized === undefined || normalized === TASK_READ_ALL_FILTER ? undefined : normalized;
 }
 
-/**
- * Apply one queue amendment, or report why it was rejected. Failures stay in the
- * Result so the signature shows that every action can refuse a request.
- */
 /** Why a queue amendment was refused; `message` is the text the model sees. */
 export const TaskQueueReason = Schema.Literals([
 	"cancelled",
@@ -871,67 +917,53 @@ function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
 	return new TaskQueueError({ reason, message });
 }
 
-function amendQueue(active: ActiveQueue, params: TaskUpdateInput): Result.Result<TaskQueueDetails, TaskQueueError> {
+function amendQueue(active: ActiveQueue, update: TaskUpdate): Result.Result<TaskQueueDetails, TaskQueueError> {
 	if (active.queue.cancelled === true)
 		return Result.fail(taskError("cancelled", "The task queue is already canceled."));
 	if (currentItem(active) === undefined)
 		return Result.fail(taskError("finished", "No pending tasks remain in the queue."));
 
 	const queue = cloneQueue(active.queue);
-	switch (params.action) {
+	switch (update.action) {
 		case "insert": {
-			const title = requireText(params.title, "Insert requires a task title.");
-			if (Result.isFailure(title)) return Result.fail(title.failure);
 			if (queue.tasks.length >= MAX_TASKS) {
 				return Result.fail(taskError("capacity", `A task queue can contain at most ${MAX_TASKS} tasks.`));
 			}
 			const insertionIndex =
-				params.afterTaskId === undefined
+				update.afterTaskId === undefined
 					? queue.tasks.length
-					: queue.tasks.findIndex((task) => task.id === params.afterTaskId) + 1;
+					: queue.tasks.findIndex((task) => task.id === update.afterTaskId) + 1;
 			if (insertionIndex === 0) {
-				return Result.fail(taskError("unknown_task", `Unknown task ID: ${params.afterTaskId}.`));
+				return Result.fail(taskError("unknown_task", `Unknown task ID: ${update.afterTaskId}.`));
 			}
-			queue.tasks.splice(insertionIndex, 0, { id: insertedTaskId(queue), title: title.success });
+			queue.tasks.splice(insertionIndex, 0, { id: insertedTaskId(queue), title: update.title });
 			return Result.succeed(queue);
 		}
 		case "rename": {
-			const task = pendingTask(active, queue, params.taskId);
+			const task = pendingTask(active, queue, update.taskId);
 			if (Result.isFailure(task)) return Result.fail(task.failure);
-			const title = requireText(params.title, "Rename requires a new task title.");
-			if (Result.isFailure(title)) return Result.fail(title.failure);
-			task.success.title = title.success;
+			task.success.title = update.title;
 			return Result.succeed(queue);
 		}
 		case "skip": {
-			const task = pendingTask(active, queue, params.taskId);
+			const task = pendingTask(active, queue, update.taskId);
 			if (Result.isFailure(task)) return Result.fail(task.failure);
-			const reason = requireText(params.reason, "Skip requires a reason.");
-			if (Result.isFailure(reason)) return Result.fail(reason.failure);
 			task.success.state = "skipped";
-			task.success.skipReason = reason.success;
+			task.success.skipReason = update.reason;
 			return Result.succeed(queue);
 		}
-		case "cancel": {
-			const reason = requireText(params.reason, "Cancel requires a reason.");
-			if (Result.isFailure(reason)) return Result.fail(reason.failure);
+		case "cancel":
 			queue.cancelled = true;
-			queue.cancelReason = reason.success;
+			queue.cancelReason = update.reason;
 			return Result.succeed(queue);
-		}
-		default:
-			return Result.fail(taskError("unknown_action", "Unknown task update action."));
 	}
 }
 
 function pendingTask(
 	active: ActiveQueue,
 	queue: TaskQueueDetails,
-	taskId: string | undefined,
+	taskId: string,
 ): Result.Result<TaskQueueItem, TaskQueueError> {
-	if (taskId === undefined || taskId.trim().length === 0) {
-		return Result.fail(taskError("missing_task", "This queue update requires a pending task ID."));
-	}
 	const task = queue.tasks.find((candidate) => candidate.id === taskId);
 	if (task === undefined) return Result.fail(taskError("unknown_task", `Unknown task ID: ${taskId}.`));
 	if (task.state === "skipped" || active.outcomes.has(task.id)) {
@@ -946,11 +978,15 @@ function requireText(value: string | undefined, message: string): Result.Result<
 		: Result.succeed(value.trim());
 }
 
+function cloneTaskItems(tasks: TaskQueueItem[]): TaskQueueItem[] {
+	return tasks.map((task) => ({ ...task }));
+}
+
 function cloneQueue(queue: TaskQueueDetails): TaskQueueDetails {
 	return {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: queue.queueId,
-		tasks: queue.tasks.map((task) => ({ ...task })),
+		tasks: cloneTaskItems(queue.tasks),
 		...(queue.origin === undefined ? {} : { origin: queue.origin }),
 		...(queue.cancelled === undefined ? {} : { cancelled: queue.cancelled }),
 		...(queue.cancelReason === undefined ? {} : { cancelReason: queue.cancelReason }),
@@ -974,17 +1010,13 @@ function uniqueTaskId(seen: Set<string>): string {
 	return id;
 }
 
-function taskUpdateDetails(queue: TaskQueueDetails, params: TaskUpdateInput): TaskUpdateDetails {
+function taskUpdateDetails(queue: TaskQueueDetails, update: TaskUpdate): TaskUpdateDetails {
 	return {
 		kind: TASK_UPDATE_DETAILS_TYPE,
 		queueId: queue.queueId,
-		action: params.action,
-		tasks: queue.tasks.map((task) => ({ ...task })),
+		tasks: cloneTaskItems(queue.tasks),
 		cancelled: queue.cancelled === true,
-		...(params.taskId === undefined ? {} : { taskId: params.taskId.trim() }),
-		...(params.title === undefined ? {} : { title: params.title.trim() }),
-		...(params.afterTaskId === undefined ? {} : { afterTaskId: params.afterTaskId.trim() }),
-		...(params.reason === undefined ? {} : { reason: params.reason.trim() }),
+		...update,
 	};
 }
 
@@ -1074,6 +1106,8 @@ function finalSummaryPrompt(active: ActiveQueue): string {
 function nextTaskPrompt(active: ActiveQueue, completedId: string, next: TaskQueueItem): string {
 	return `Task ${positionOf(active, completedId)} completed. Continue with: ${next.title} (${next.id}).`;
 }
+
+// Recovery and observed file changes
 
 function taskFileSnapshot(active: ActiveQueue): TaskFileSnapshotDetails {
 	return {
@@ -1245,6 +1279,8 @@ function asTaskFinish(finish: TaskCompletionDetails): TaskFinishDetails {
 	return { ...finish, kind: TASK_FINISH_DETAILS_TYPE };
 }
 
+// Read model and presentation
+
 function readTasks(active: ActiveQueue | undefined, taskId?: string, path?: string): TaskReadDetails {
 	if (active === undefined) {
 		return {
@@ -1385,6 +1421,8 @@ function toCompletion(active: ActiveQueue, finish: TaskFinishDetails): TaskCompl
 	};
 }
 
+// Tool visibility and session controls
+
 function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boolean, refresh?: () => void): void {
 	if (tasksEnabled(ctx) === enabled) {
 		ctx.ui.notify(`Tasks are already ${enabled ? "enabled" : "disabled"}.`, "info");
@@ -1520,6 +1558,8 @@ function getCurrentToolCalls(ctx: ExtensionContext): Array<{ id: string; name: s
 	return [];
 }
 
+// Session replay
+
 function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 	let active: ActiveQueue | undefined;
 	for (const entry of ctx.sessionManager.getBranch()) {
@@ -1607,7 +1647,7 @@ function queueFromUpdate(active: ActiveQueue, update: TaskUpdateDetails): TaskQu
 	return {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: update.queueId,
-		tasks: update.tasks.map((task) => ({ ...task })),
+		tasks: cloneTaskItems(update.tasks),
 		...(active.queue.origin === undefined ? {} : { origin: active.queue.origin }),
 		...(update.cancelled ? { cancelled: true, cancelReason: update.reason } : {}),
 	};
@@ -1729,6 +1769,8 @@ function sameTaskItem(left: TaskQueueItem, right: TaskQueueItem): boolean {
 function hasTask(queue: TaskQueueDetails, taskId: string): boolean {
 	return queue.tasks.some((task) => task.id === taskId);
 }
+
+// Durable entry decoding
 
 function readTaskFinish(entry: SessionEntry): TaskFinishDetails | undefined {
 	const details = successfulToolResultDetails(entry);
@@ -2039,6 +2081,8 @@ function evidenceSummary(evidence: Evidence): string {
 function isStringArray(value: unknown): value is string[] {
 	return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
+
+// Compaction summaries
 
 function formatCompletion(task: TaskCompletionDetails): string {
 	const lines = [`## Task: ${task.title}`, `Status: ${task.status}`, "", "## Summary", task.summary, "", "## Evidence"];
