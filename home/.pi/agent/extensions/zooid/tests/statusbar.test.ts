@@ -9,8 +9,11 @@ import {
 	buildStatusbarViewModel,
 	calculateTokensPerSecond,
 	formatTokenCount,
+	renderCachePercentage,
 	renderContextPercentage,
+	renderReadPercentage,
 	renderSessionCounts,
+	renderReasoningTokens,
 	renderTokenMix,
 	renderTokensPerSecond,
 	renderTotalTokens,
@@ -62,6 +65,7 @@ interface UsageParts {
 	readonly output: number;
 	readonly cacheRead: number;
 	readonly cacheWrite: number;
+	readonly reasoning?: number;
 }
 
 function totals(overrides: Partial<SessionTotals> = {}): SessionTotals {
@@ -71,6 +75,7 @@ function totals(overrides: Partial<SessionTotals> = {}): SessionTotals {
 		totalTokens: 0,
 		readTokens: 0,
 		writeTokens: 0,
+		reasoningTokens: 0,
 		cachedTokens: 0,
 		...overrides,
 	};
@@ -93,13 +98,13 @@ function usageEntry(type: "compaction" | "branch_summary", usage: UsageParts): S
 
 test("counts turns, compactions, and token usage across session entries", () => {
 	const entries = [
-		assistantEntry("stop", { input: 100, output: 200, cacheRead: 700, cacheWrite: 0 }),
+		assistantEntry("stop", { input: 100, output: 200, cacheRead: 700, cacheWrite: 0, reasoning: 80 }),
 		{ type: "message", message: { role: "user" } } as unknown as SessionEntry,
-		assistantEntry("error", { input: 500, output: 500, cacheRead: 0, cacheWrite: 0 }),
+		assistantEntry("error", { input: 500, output: 500, cacheRead: 0, cacheWrite: 0, reasoning: 500 }),
 		{ type: "model_change" } as unknown as SessionEntry,
-		assistantEntry("aborted", { input: 50, output: 50, cacheRead: 150, cacheWrite: 0 }),
-		usageEntry("compaction", { input: 10, output: 5, cacheRead: 0, cacheWrite: 0 }),
-		usageEntry("branch_summary", { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }),
+		assistantEntry("aborted", { input: 50, output: 50, cacheRead: 150, cacheWrite: 0, reasoning: 10 }),
+		usageEntry("compaction", { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 2 }),
+		usageEntry("branch_summary", { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 1 }),
 		{ type: "branch_summary", fromId: "x", summary: "s" } as unknown as SessionEntry,
 	];
 
@@ -109,6 +114,7 @@ test("counts turns, compactions, and token usage across session entries", () => 
 		totalTokens: 1000 + 250 + 15 + 2,
 		readTokens: 800 + 200 + 10 + 1,
 		writeTokens: 200 + 50 + 5 + 1,
+		reasoningTokens: 80 + 10 + 2 + 1,
 		cachedTokens: 700 + 150,
 	});
 });
@@ -144,11 +150,17 @@ test("renders the compact total token count", () => {
 	assert.equal(renderTotalTokens(totals({ totalTokens: 950 }), plainTheme), "tok: 950");
 });
 
+test("renders the compact reasoning token count", () => {
+	assert.equal(renderReasoningTokens(totals({ reasoningTokens: 1_234 }), plainTheme), "cot:1.2K");
+	assert.equal(renderReasoningTokens(totals(), plainTheme), "cot:   0");
+});
+
 test("renders the read and cache mix", () => {
 	assert.deepEqual(
 		renderTokenMix(totals({ readTokens: 45_440_000, writeTokens: 380_000, cachedTokens: 45_160_000 }), plainTheme),
 		["read:99%", "cache:99%"],
 	);
+	assert.equal(renderReadPercentage(totals({ readTokens: 99, writeTokens: 1 }), plainTheme), "read:99%");
 	assert.deepEqual(renderTokenMix(totals(), plainTheme), ["read:0%", "cache:0%"]);
 	// The write share is the deducible remainder (100% - read%).
 	assert.deepEqual(renderTokenMix(totals({ readTokens: 985, writeTokens: 15 }), plainTheme), ["read:99%", "cache:0%"]);
@@ -186,8 +198,8 @@ test("draws metric labels dim and values muted", () => {
 	} as Parameters<typeof renderSessionCounts>[1];
 
 	assert.equal(
-		`${renderTokensPerSecond(38.4, theme)} ${renderSessionCounts(totals({ turns: 12, compactions: 1 }), theme).join(" ")} ${renderTokenMix(totals({ readTokens: 99, writeTokens: 1, cachedTokens: 50 }), theme).join(" ")} ${renderTotalTokens(totals({ totalTokens: 1_234_567 }), theme)}`,
-		"tps:38 turns:12 comp:1 read:99% cache:51% tok:1.2M",
+		`${renderTokensPerSecond(38.4, theme)} ${renderSessionCounts(totals({ turns: 12, compactions: 1 }), theme).join(" ")} ${renderReadPercentage(totals({ readTokens: 99, writeTokens: 1 }), theme)} ${renderReasoningTokens(totals({ reasoningTokens: 1_234 }), theme)} ${renderCachePercentage(totals({ readTokens: 99, writeTokens: 1, cachedTokens: 50 }), theme)} ${renderTotalTokens(totals({ totalTokens: 1_234_567 }), theme)} ${renderContextPercentage({ tokens: null, percent: null }, theme)}`,
+		"tps:38 turns:12 comp:1 read:99% cot:1.2K cache:51% tok:1.2M --%",
 	);
 	assert.deepEqual(calls, [
 		["dim", "tps:"],
@@ -198,10 +210,13 @@ test("draws metric labels dim and values muted", () => {
 		["muted", "1"],
 		["dim", "read:"],
 		["muted", "99%"],
+		["dim", "cot:"],
+		["muted", "1.2K"],
 		["dim", "cache:"],
 		["muted", "51%"],
 		["dim", "tok:"],
 		["muted", "1.2M"],
+		["dim", "--%"],
 	]);
 
 	calls.length = 0;

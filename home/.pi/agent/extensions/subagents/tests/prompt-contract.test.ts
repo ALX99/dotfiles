@@ -31,7 +31,7 @@ test("checkpoint and thinking guidance retain attribution and defaults", () => {
 	const tasks = promptSource("tasks/index.ts");
 	const tools = promptSource("tasks/tools.ts");
 	assert.match(tasks, /Previous task summaries remain in the conversation history/);
-	assert.match(tools, /Call finish_task alone after reaching an outcome for the current task/);
+	assert.match(tools, /Call finish_task as the only tool in its turn/);
 	assert.match(promptSource("subagents/schemas.ts"), /omit for its default/);
 });
 
@@ -51,19 +51,20 @@ test("subagent role prompts preserve ownership, leaf, and bounded-work contracts
 	assert.match(worker, /exact validation commands and observed outcomes/);
 });
 
-test("prompt guidance retains lifecycle, safety, and approval boundaries", () => {
+test("tool prompts stay capability-focused and keep only enforced protocol guidance", () => {
 	const tasks = promptSource("tasks/tools.ts");
 	const taskRuntime = promptSource("tasks/index.ts");
-	assert.match(tasks, /only for genuinely complex work/);
-	assert.match(tasks, /add their titles in addTasks/);
+	assert.match(tasks, /Create an ordered task queue for multi-step work/);
+	assert.match(tasks, /Call create_tasks as the only tool in its turn/);
+	assert.match(tasks, /Call finish_task as the only tool in its turn/);
+	assert.doesNotMatch(tasks, /genuinely complex|do not pad|independently useful/i);
 	assert.match(taskRuntime, /do not claim the queue succeeded/);
 
 	const spawn = promptSource("subagents/tools.ts");
-	assert.match(spawn, /one-shot subagent by default/);
-	assert.match(spawn, /do not duplicate its assigned scope/);
-	assert.match(spawn, /do not build repeated automatic turns or a task scheduler/i);
+	assert.match(spawn, /Run a subagent on a self-contained task/);
+	assert.doesNotMatch(spawn, /promptSnippet|promptGuidelines|do not duplicate its assigned scope|task scheduler/);
 
 	const askQuestion = promptSource("ask-question/tools.ts");
-	assert.match(askQuestion, /materially changes implementation, scope, or an authorization decision/);
-	assert.match(askQuestion, /Never treat cancellation.*as approval/s);
+	assert.match(askQuestion, /Ask 1-3 multiple-choice questions/);
+	assert.doesNotMatch(askQuestion, /materially changes implementation|Never treat cancellation/);
 });

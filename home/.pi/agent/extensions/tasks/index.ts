@@ -284,10 +284,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (!Check(FinishTaskParams, params)) throw new Error("Invalid finish_task parameters.");
 			const active = getActiveQueue(ctx);
 			if (active === undefined) {
-				throw taskError(
-					"no_queue",
-					"No task queue is active. Call create_tasks with four or more related steps first.",
-				);
+				throw taskError("no_queue", "No task queue is active. Call create_tasks with at least three tasks first.");
 			}
 			if (pendingCompaction(active) !== undefined)
 				throw taskError("already_recorded", "The current task already has a recorded outcome.");

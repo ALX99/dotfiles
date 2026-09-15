@@ -36,5 +36,10 @@
     "showTerminalProgress": true
   },
   "tuiMode": "fullscreen",
-  "hideThinkingBlock": true
+  "hideThinkingBlock": true,
+  "markdown": {
+    "mermaid": "streaming"
+  },
+  "doubleEscapeAction": "tree",
+  "fullscreenExitOutput": "transcript"
 }

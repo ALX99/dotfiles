@@ -255,6 +255,8 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	const create = h.tools.get("create_tasks")!;
 	const finish = h.tools.get("finish_task")!;
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES }), true);
+	assert.equal(Check(create.parameters!, { tasks: ["One", "Two", "Three"] }), true);
+	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), false);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
 	assert.equal(Check(finish.parameters!, { status: "completed", summary: "Verified." }), true);
 	assert.equal(Check(finish.parameters!, { status: "skipped", summary: "Not supported." }), false);
@@ -289,7 +291,7 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 
 	const prompt = [finish.description, ...(finish.promptGuidelines ?? [])].join("\n");
 	assert.doesNotMatch(prompt, /evidence|interactive|print mode|compaction|recovery|skip|cancel/u);
-	assert.match(prompt, /addTasks/u);
+	assert.match(prompt, /only tool in its turn/u);
 });
 
 test("generates short stable task IDs for precise queue additions", async () => {

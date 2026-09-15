@@ -20,7 +20,7 @@ import { createCloseAgentTool } from "../tools/close-agent.ts";
 import { createFollowupAgentTool } from "../tools/followup-agent.ts";
 import { createReadAgentResultTool } from "../tools/read-agent-result.ts";
 import { createSteerAgentTool } from "../tools/steer-agent.ts";
-import { spawnGuidelines, thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
+import { thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
 import { executeWaitAgents, createWaitAgentsTool } from "../tools/wait-agents.ts";
@@ -123,55 +123,6 @@ test("thinking overrides are safe across every configured model fallback", () =>
 		},
 	};
 	assert.deepEqual(thinkingLevelsForProfiles(config, ["fast"]), ["high"]);
-});
-
-test("spawn guidance reserves fast for bounded mechanical work", () => {
-	const guidelines = spawnGuidelines(
-		[
-			{ name: "worker", description: "Implementation" },
-			{ name: "general", description: "Analysis" },
-		],
-		[
-			{ name: "fast", description: "Mechanical work" },
-			{ name: "balanced", description: "Judgment work" },
-		],
-	);
-	assert.ok(
-		guidelines.some((guideline) => guideline.includes("Do not select it for debugging or root-cause analysis")),
-	);
-	assert.ok(guidelines.some((guideline) => guideline.includes("well-scoped implementation")));
-	assert.ok(guidelines.some((guideline) => guideline.includes("Balanced is the default for work requiring judgment")));
-});
-
-test("spawn guidance nests roles and profiles under the sentence that introduces them", () => {
-	const guidelines = spawnGuidelines(
-		[{ name: "worker", description: "Implementation" }],
-		[{ name: "fast", description: "Mechanical work" }],
-	);
-	const roleMap = guidelines.find((guideline) => guideline.startsWith("Choose the narrowest matching role"));
-	const profileMap = guidelines.find((guideline) => guideline.startsWith("Choose the least expensive"));
-	assert.match(roleMap ?? "", /\n {2}- worker: Implementation$/);
-	assert.match(profileMap ?? "", /\n {2}- fast: Mechanical work$/);
-	// The resolution caveat belongs to the whole profile list, not to each profile.
-	assert.equal(guidelines.join("\n").match(/enabled scoped models/g)?.length, 1);
-});
-
-test("spawn guidance names flat verbs and name addressing", () => {
-	const guidelines = spawnGuidelines(
-		[{ name: "worker", description: "Implementation" }],
-		[{ name: "fast", description: "Mechanical work" }],
-	);
-	const joined = guidelines.join("\n");
-	assert.match(joined, /wait_agents/);
-	assert.match(joined, /followup_agent/);
-	assert.match(joined, /steer_agent/);
-	assert.match(joined, /answer_agent/);
-	assert.match(joined, /close_agent/);
-	assert.match(joined, /agents_status/);
-	assert.match(joined, /task_name/);
-	assert.doesNotMatch(joined, /send_agent/);
-	assert.doesNotMatch(joined, /agent_input/);
-	assert.doesNotMatch(joined, /agent_control/);
 });
 
 test("wait schema accepts targets with defaulted generations", () => {
@@ -703,29 +654,4 @@ test("read_agent_result forwards explicit generations unchanged", async () => {
 	assert.deepEqual(requests, [
 		{ target: "evicted-1", options: { generation: 2, maxBytes: RESULT_READ_DEFAULT_BYTES } },
 	]);
-});
-
-test("spawn guidance carries the resolved profile mapping as its own guideline", () => {
-	const hint =
-		"Live subagent models: fast → provider/cheap; you are running provider/strong. Children run models at least as capable as yours.";
-	const guidelines = spawnGuidelines(
-		[{ name: "worker", description: "Implementation" }],
-		[{ name: "fast", description: "Mechanical work" }],
-		10,
-		hint,
-	);
-
-	assert.ok(guidelines.includes(hint), "the hint must travel as a guideline so a prompt replacement keeps it");
-	const hintIndex = guidelines.indexOf(hint);
-	const profileIndex = guidelines.findIndex((guideline) => guideline.startsWith("Choose the least expensive"));
-	assert.equal(hintIndex, profileIndex + 1, "the hint follows the profile choices it explains");
-});
-
-test("spawn guidance omits the hint when no profile resolves", () => {
-	const guidelines = spawnGuidelines([{ name: "worker", description: "Implementation" }], [], 10);
-
-	assert.equal(
-		guidelines.some((guideline) => guideline.startsWith("Live subagent models")),
-		false,
-	);
 });

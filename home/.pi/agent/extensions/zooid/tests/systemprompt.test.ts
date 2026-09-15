@@ -192,7 +192,7 @@ test("guidelines render in order, skipping blanks and duplicates", () => {
 		"- Only tools rule",
 		"- Second rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 
@@ -221,7 +221,7 @@ test("guideline owners come from the declaration order of the active tools", () 
 	);
 });
 
-test("a guideline that never names its tool is attributed to the tool that owns it", () => {
+test("tool-owned guidelines always use the tool prefix", () => {
 	const owners = new Map([
 		["Live-agent capacity is 10 root children total.", "spawn_agent"],
 		["Use edit for precise changes", "edit"],
@@ -232,12 +232,12 @@ test("a guideline that never names its tool is attributed to the tool that owns 
 		attributeGuideline("Live-agent capacity is 10 root children total.", owners),
 		"spawn_agent: Live-agent capacity is 10 root children total.",
 	);
-	// Rules that already name their tool stay as written rather than repeating it.
-	assert.equal(attributeGuideline("Use edit for precise changes", owners), "Use edit for precise changes");
+	assert.equal(attributeGuideline("Use edit for precise changes", owners), "edit: Use edit for precise changes");
 	assert.equal(
 		attributeGuideline("Keep edits[].oldText as small as possible", owners),
-		"Keep edits[].oldText as small as possible",
+		"edit: Keep edits[].oldText as small as possible",
 	);
+	assert.equal(attributeGuideline("edit: Use edit for precise changes", owners), "edit: Use edit for precise changes");
 	// An unattributed rule is still better off unlabeled than mislabeled.
 	assert.equal(attributeGuideline("Be concise in your responses", owners), "Be concise in your responses");
 	assert.equal(
@@ -257,7 +257,7 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- Only tools rule",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 
@@ -268,7 +268,7 @@ test("dropping the PI_* guideline alone leaves only the renderer's own rules", (
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 
@@ -285,7 +285,7 @@ test("a contributor may still supply either fixed line itself", () => {
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- Be concise in your responses",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 
@@ -341,7 +341,7 @@ test("the read guideline documents home-relative paths", () => {
 });
 
 test("the commit guideline appears only when bash can make a commit", () => {
-	assert.match(build(), /^- Use Conventional Commits when committing\.$/m);
+	assert.match(build(), /^- bash: Use Conventional Commits when committing\.$/m);
 	assert.doesNotMatch(build({ selectedTools: ["read"] }), /Conventional Commits/);
 });
 
@@ -494,9 +494,9 @@ test("the prompt renders the live tools' guidelines, attributed to their owner",
 	);
 
 	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
-		"- Use bash for file operations",
+		"- bash: Use bash for file operations",
 		"- spawn_agent: Live-agent capacity is 10 root children total.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 
@@ -519,9 +519,9 @@ test("a tool disabled during this event drops its guidelines with it", async () 
 	);
 
 	assert.deepEqual(section(prompt ?? "", "Guidelines:")?.split("\n"), [
-		"- Use bash for file operations",
+		"- bash: Use bash for file operations",
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- Use Conventional Commits when committing.",
+		"- bash: Use Conventional Commits when committing.",
 	]);
 });
 

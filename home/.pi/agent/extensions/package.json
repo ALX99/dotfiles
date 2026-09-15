@@ -39,6 +39,7 @@
 		"entry": [
 			"zooid/index.ts",
 			"*/index.ts",
+			"subagents/tools/*.ts",
 			"**/tests/*.test.ts"
 		],
 		"project": [

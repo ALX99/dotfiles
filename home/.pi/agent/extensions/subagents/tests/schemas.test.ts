@@ -17,7 +17,9 @@ import {
 test("subagent tool schemas are strict and reject blank or oversized structural input", () => {
 	const spawn = createSpawnAgentSchema({
 		agents: ["scout", "worker"],
+		agentDescriptions: { scout: "Read-only discovery", worker: "Implementation" },
 		profiles: ["fast", "balanced"],
+		profileDescriptions: { fast: "Mechanical work", balanced: "Judgment work" },
 		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
 	});
 	assert.equal(Check(spawn, { message: "inspect" }), true);
@@ -25,6 +27,11 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect", extra: true }), false);
 	assert.equal(Check(spawn, { agent: "unknown", message: "inspect" }), false);
 	assert.equal(Check(spawn, { agent: "scout", profile: "unknown", message: "inspect" }), false);
+	const spawnJson = JSON.parse(JSON.stringify(spawn)) as {
+		properties: { agent: { description: string }; profile: { description: string } };
+	};
+	assert.match(spawnJson.properties.agent.description, /scout: Read-only discovery/);
+	assert.match(spawnJson.properties.profile.description, /balanced: Judgment work/);
 	assert.equal(Check(SteerAgentParamsSchema, { target: "agent-1", generation: 1, message: "focus" }), true);
 	assert.equal(
 		Check(SteerAgentParamsSchema, { target: "agent-1", generation: 1, message: "focus", extra: true }),

@@ -74,12 +74,6 @@ export interface SpawnAgentDependencies {
 	readonly onBackgroundComplete: (summary: AgentSummary) => void;
 	readonly onQuestion: (summary: AgentSummary, question: AgentQuestion) => void;
 	readonly claimUsage: (summary: AgentSummary) => Readonly<RunUsage> | undefined;
-	/**
-	 * Which models the advertised profiles resolve to for the parent's current model. Travels as a
-	 * guideline so it survives any extension that replaces the system prompt, and disappears with the
-	 * tool if the host or a mode disables this one.
-	 */
-	readonly capabilityHint?: string;
 }
 
 export function createSpawnAgentTool(
@@ -88,35 +82,10 @@ export function createSpawnAgentTool(
 ): ToolDefinition<ReturnType<typeof createSpawnAgentSchema>, ReadonlyRunDetails> {
 	const schemaOptions = spawnSchemaOptions(dependencies);
 	const schema = createSpawnAgentSchema(schemaOptions);
-	const allowedAgents = dependencies.agents
-		.filter((agent) => schemaOptions.agents.includes(agent.name))
-		.map((agent) => ({
-			...agent,
-			description: `${agent.description} Allowed profiles: ${dependencies.profiles.agentPolicies[agent.name]?.allowedProfiles.join(", ") ?? "none"}.`,
-		}));
-	const allowedProfiles = schemaOptions.profiles.flatMap((name) => {
-		const profile = dependencies.profiles.profiles[name];
-		return profile
-			? [
-					{
-						name,
-						description: profile.description,
-					},
-				]
-			: [];
-	});
 	return defineTool<typeof schema, ReadonlyRunDetails>({
 		name: "spawn_agent",
 		label: "Spawn Agent",
-		description:
-			"Spawn an isolated one-shot subagent by default; retain:true only for later work needing its live context.",
-		promptSnippet: "Spawn an isolated leaf subagent",
-		promptGuidelines: spawnGuidelines(
-			allowedAgents,
-			allowedProfiles,
-			dependencies.profiles.rootPolicy.maxConcurrentRootAgents,
-			dependencies.capabilityHint,
-		),
+		description: "Run a subagent on a self-contained task. One-shot by default; retain it to reuse its context later.",
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const message = preserveRequired(params.message, "message");
@@ -246,7 +215,16 @@ function spawnSchemaOptions(dependencies: SpawnAgentDependencies): SpawnAgentSch
 	];
 	return {
 		agents,
+		agentDescriptions: Object.fromEntries(
+			dependencies.agents.map((agent) => [
+				agent.name,
+				`${agent.description} Allowed profiles: ${dependencies.profiles.agentPolicies[agent.name]?.allowedProfiles.join(", ") ?? "none"}.`,
+			]),
+		),
 		profiles,
+		profileDescriptions: Object.fromEntries(
+			profiles.map((name) => [name, dependencies.profiles.profiles[name]!.description] as const),
+		),
 		thinkingLevels: thinkingLevelsForProfiles(dependencies.profiles, profiles),
 	};
 }
@@ -278,47 +256,6 @@ export function thinkingLevelsForProfiles(
 	return THINKING_LEVELS.slice(minimumRank, maximumRank + 1);
 }
 
-export function spawnGuidelines(
-	agents: readonly Pick<AgentConfig, "name" | "description">[] = [],
-	profiles: readonly { readonly name: string; readonly description: string }[] = [],
-	rootLimit?: number,
-	capabilityHint?: string,
-): string[] {
-	// The renderer prefixes only a guideline's first line, so role and profile
-	// entries are indented to stay nested under the sentence that introduces them.
-	const roleMap =
-		agents.length > 0
-			? `Choose the narrowest matching role:\n${agents
-					.map((agent) => `  - ${agent.name}: ${agent.description}`)
-					.join("\n")}`
-			: undefined;
-	const profileMap =
-		profiles.length > 0
-			? `Choose the least expensive execution profile that can complete the work. Each profile's model and permitted thinking range resolve from your enabled scoped models:\n${profiles
-					.map((profile) => `  - ${profile.name}: ${profile.description}`)
-					.join("\n")}`
-			: undefined;
-
-	return [
-		...(roleMap === undefined ? [] : [roleMap]),
-		...(profileMap === undefined ? [] : [profileMap]),
-		...(capabilityHint === undefined ? [] : [capabilityHint]),
-		"Select fast only for bounded mechanical or well-scoped implementation with a known path and criterion. Do not select it for debugging or root-cause analysis, review, design, ambiguous investigation, security/correctness decisions, or final synthesis. Balanced is the default for work requiring judgment; worker/general use fast only when these criteria clearly fit.",
-		...(rootLimit === undefined
-			? []
-			: [
-					`Live-agent capacity is ${rootLimit} root children total. Profile/model/thinking ranges are preflighted before capacity is occupied.`,
-				]),
-		"Use subagents for independent work benefiting from parallelism, specialization, or isolation; handle simple, coupled, or single-file work directly. Once delegated, do not duplicate its assigned scope: do only non-overlapping work or wait. The current agent owns synthesis and proportionate final verification.",
-		"Use foreground spawn_agent for one blocking task, or background:true for a parallel wave; use wait_agents as one barrier on explicit targets. Generations default to latest, so poll for progress with names, not bookkeeping. Do not build repeated automatic turns or a task scheduler.",
-		"Address children by task_name (unique per session, stable across generations); agent_id works as an alias. Talk to children with flat verbs: followup_agent starts another task on a retained settled child, steer_agent guides a running generation at its next message boundary (generation required), answer_agent resolves a specific pending question (generation required). Never silently convert steering into followup or treat a generic message as a question answer.",
-		"Inspect status and capacity with agents_status; release a child with close_agent (aborts a running generation and disposes in one step; persisted results remain readable). Use read_agent_result with target for exact cursor-paged output; generation defaults to latest.",
-		"For dependent, retry, review/fix, or replacement work, hand off only the factual delta: decisions, findings, exact paths/symbols, constraints, and validation. Children do not inherit the transcript. Keep message self-contained; do not repeat it or paste the transcript in handoff. Omit handoff for independent work.",
-		"For worker assignments, specify ownership, known concurrent edits, and required validation. Avoid concurrent writers unless ownership is explicitly disjoint.",
-		"Use scouts only for bounded read-only discovery, never implementation, broad exploration, or final review verdicts.",
-	];
-}
-
 const DEFAULT_CLOSED_AGENT_LIMIT = 10;
 
 interface AgentsStatusDependencies {
@@ -334,8 +271,7 @@ export function createAgentsStatusTool(
 	return defineTool<typeof AgentsStatusParamsSchema, AgentSummaryDetails>({
 		name: "agents_status",
 		label: "Agents Status",
-		description:
-			"Inspect live agents, spawn capacity, and the most-recent archived agents with their terminal outcomes.",
+		description: "Inspect subagent status and available capacity.",
 		parameters: AgentsStatusParamsSchema,
 		async execute(_id, params: AgentsStatusParams) {
 			const limit = params.closed_limit ?? DEFAULT_CLOSED_AGENT_LIMIT;
@@ -377,8 +313,7 @@ export function createAnswerAgentTool(
 	return defineTool<typeof AnswerAgentParamsSchema, AgentSummaryDetails>({
 		name: "answer_agent",
 		label: "Answer Agent",
-		description:
-			"Resolve a child's pending question. Generation is required and must be current; further questions or completion are delivered automatically.",
+		description: "Answer a pending question from a subagent.",
 		parameters: AnswerAgentParamsSchema,
 		async execute(_id, params: AnswerAgentParams) {
 			const questionId = trimRequired(params.question_id, "question_id");
@@ -423,8 +358,7 @@ export function createCloseAgentTool(
 	return defineTool<typeof CloseAgentParamsSchema, AgentSummaryDetails>({
 		name: "close_agent",
 		label: "Close Agent",
-		description:
-			"Release a child in one step: a running generation is aborted (acknowledged only after cleanup), then disposed. Generation defaults to latest; persisted results stay readable.",
+		description: "Close a subagent, aborting it first if still running. Stored results remain available.",
 		parameters: CloseAgentParamsSchema,
 		async execute(_id, params: CloseAgentParams) {
 			const resolved = dependencies.registry.resolveGeneration(params.target, params.generation);
@@ -465,8 +399,7 @@ export function createFollowupAgentTool(
 	return defineTool<typeof FollowupAgentParamsSchema, ReadonlyRunDetails>({
 		name: "followup_agent",
 		label: "Followup Agent",
-		description:
-			"Start another task on a retained settled child. Address it by task_name or agent_id. The address never changes across generations.",
+		description: "Run another task on a retained, settled subagent.",
 		parameters: FollowupAgentParamsSchema,
 		async execute(_id, params: FollowupAgentParams, signal, onUpdate) {
 			const message = preserveRequired(params.message, "message");
@@ -518,8 +451,7 @@ export function createReadAgentResultTool(
 	return defineTool({
 		name: "read_agent_result",
 		label: "Read Agent Result",
-		description:
-			"Read exact persisted result text for one target generation. Address by task_name or agent_id; generation defaults to latest. Paginate with either an opaque cursor or an offset, never both. Still-running generations fail explicitly instead of returning previews; use wait_agents first. Does not wait, execute, or inspect live progress; available for any stored generation even when the preview fits.",
+		description: "Read persisted output from a subagent generation.",
 		parameters: ReadAgentResultParamsSchema,
 		async execute(_id, params: ReadAgentResultParams) {
 			const page = await runPromise(
@@ -558,8 +490,7 @@ export function createSteerAgentTool(
 	return defineTool<typeof SteerAgentParamsSchema, AgentSummaryDetails>({
 		name: "steer_agent",
 		label: "Steer Agent",
-		description:
-			"Guide a running generation at its next message boundary. Generation is required and must be current; staleness fails without affecting the child.",
+		description: "Send guidance to a running subagent generation.",
 		parameters: SteerAgentParamsSchema,
 		async execute(_id, params: SteerAgentParams) {
 			const message = preserveRequired(params.message, "message");
@@ -618,8 +549,7 @@ export function createWaitAgentsTool(
 	return defineTool<typeof WaitAgentsParamsSchema, WaitDetails>({
 		name: "wait_agents",
 		label: "Wait Agents",
-		description:
-			"Wait as one multi-agent barrier for explicit targets until each settles or requests input. Generations default to latest; already-settled generations return immediately. Waiting observes completion repeatably and never consumes it.",
+		description: "Wait for selected subagents to settle or request input.",
 		parameters: WaitAgentsParamsSchema,
 		async execute(_id, params, signal) {
 			const result = await executeWaitAgents(params, dependencies, signal, now);

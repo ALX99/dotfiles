@@ -44,6 +44,8 @@ keybind = cmd+i=text:\x1bi
 keybind = cmd+g=text:\x1bg
 keybind = cmd+t=text:\x1bt
 keybind = cmd+h=text:\x1bh
-keybind = cmd+o=text:\x1bo
+# cmd+o is Reeve's own "open project"; this keeps the popup on Option+o (M-o) instead.
+#keybind = cmd+o=text:\x1bo
+#keybind = cmd+shift+o=text:\x1bo
 
 confirm-close-surface = false

@@ -85,8 +85,6 @@ export const ProfilesSchema = Schema.Struct({
 	rootPolicy: RootPolicySchema,
 	profiles: keyedRecord("profile name", ProfileSchema),
 	agentPolicies: keyedRecord("agent name", AgentPolicySchema),
-	/** Optional weakest-to-strongest ordering used only for capability-hint wording. Unlisted models degrade to neutral advice. */
-	capabilityRanking: Schema.optional(Schema.Array(ModelIdSchema)),
 });
 
 export type ProfilesConfig = Schema.Schema.Type<typeof ProfilesSchema>;
@@ -254,17 +252,6 @@ export function validateProfiles(
 			errors.push(
 				`${filePath}: agentPolicies.${printPathPart(agentName)}: missing policy binding for agent '${agentName}'`,
 			);
-		}
-	}
-	const seenRank = new Map<string, number>();
-	for (const [index, id] of (config.capabilityRanking ?? []).entries()) {
-		const previous = seenRank.get(id);
-		if (previous !== undefined) {
-			errors.push(
-				`${filePath}: capabilityRanking.${index}: duplicate model id '${id}' (first at capabilityRanking.${previous})`,
-			);
-		} else {
-			seenRank.set(id, index);
 		}
 	}
 	return errors;

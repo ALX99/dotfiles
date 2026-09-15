@@ -44,9 +44,14 @@ const SKILL_INSTRUCTIONS =
 	"Use the list below to identify relevant skills. Read a skill's `SKILL.md` only when its instructions are needed for the current task. Multiple skills may apply. Resolve paths referenced by a skill relative to the directory containing its `SKILL.md`.";
 
 const READ_PATH_GUIDELINE =
-	"read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.";
+	"Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.";
 
 const CONVENTIONAL_COMMITS_GUIDELINE = "Use Conventional Commits when committing.";
+
+const FIXED_GUIDELINE_OWNERS = new Map([
+	[READ_PATH_GUIDELINE, "read"],
+	[CONVENTIONAL_COMMITS_GUIDELINE, "bash"],
+]);
 
 /**
  * Pi's built-in bash snippet names the search tools the model would otherwise reach for in a shell.
@@ -99,19 +104,11 @@ export function guidelineOwners(pi: GuidelineToolSource): ReadonlyMap<string, st
 	return owners;
 }
 
-/**
- * Names the owning tool unless the rule already names it, so rules that read as global get
- * attributed while rules like "Use edit for precise changes" do not repeat themselves.
- */
+/** Prefixes tool-owned guidelines so every tool rule has a stable, searchable owner. */
 export function attributeGuideline(guideline: string, owners?: ReadonlyMap<string, string>): string {
-	const tool = owners?.get(guideline);
-	if (tool === undefined || namesTool(guideline, tool)) return guideline;
+	const tool = owners?.get(guideline) ?? FIXED_GUIDELINE_OWNERS.get(guideline);
+	if (tool === undefined || guideline.startsWith(`${tool}: `)) return guideline;
 	return `${tool}: ${guideline}`;
-}
-
-/** A tool name counts as named when it appears as a whole word, plurals and inflections included. */
-function namesTool(guideline: string, tool: string): boolean {
-	return new RegExp(`\\b${tool.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*`, "i").test(guideline);
 }
 
 /** Pi already stripped blanks and duplicates before handing the per-tool guidelines over. */

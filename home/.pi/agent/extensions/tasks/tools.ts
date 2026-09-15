@@ -4,7 +4,7 @@ import { Type, type Static } from "typebox";
 
 export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 export const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const;
-export const MIN_TASKS = 4;
+export const MIN_TASKS = 3;
 export const MAX_TASKS = 100;
 export const MAX_ADDED_TASKS = 20;
 
@@ -14,12 +14,12 @@ export const CreateTasksParams = Type.Object(
 			Type.String({
 				minLength: 1,
 				maxLength: 200,
-				description: "Outcome-oriented title for one clearly separable step",
+				description: "Task title",
 			}),
 			{
 				minItems: MIN_TASKS,
 				maxItems: MAX_TASKS,
-				description: "At least four substantial related phases; do not pad simple work with generic steps",
+				description: "Ordered task titles",
 			},
 		),
 	},
@@ -31,13 +31,12 @@ export type CreateTasksParams = Static<typeof CreateTasksParams>;
 export const FinishTaskParams = Type.Object(
 	{
 		status: StringEnum(TASK_OUTCOME_STATUSES, {
-			description:
-				"completed when the task succeeded, failed when it could not be completed, or blocked when an external dependency prevents progress",
+			description: "Task outcome",
 		}),
 		summary: Type.String({
 			minLength: 1,
 			maxLength: 6000,
-			description: "Concise outcome and continuation context required to continue correctly",
+			description: "Outcome and context needed to continue",
 		}),
 		addTasks: Type.Optional(
 			Type.Array(
@@ -46,7 +45,7 @@ export const FinishTaskParams = Type.Object(
 						title: Type.String({
 							minLength: 1,
 							maxLength: 200,
-							description: "Outcome-oriented title for newly discovered work",
+							description: "Task title",
 						}),
 						after: Type.Optional(
 							Type.Union([
@@ -92,12 +91,8 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 	pi.registerTool({
 		name: "create_tasks",
 		label: "Create Tasks",
-		description:
-			"Create a task queue for genuinely complex multi-phase work, then work the tasks in order with finish_task.",
-		promptSnippet: "Create a task queue for genuinely complex multi-phase work",
-		promptGuidelines: [
-			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints. Never pad to four items or split routine reading, coding, testing, review, or verification; complete small or straightforward edits directly.",
-		],
+		description: "Create an ordered task queue for multi-step work.",
+		promptGuidelines: ["Call create_tasks as the only tool in its turn."],
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {
@@ -108,12 +103,8 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 	pi.registerTool({
 		name: "finish_task",
 		label: "Finish Task",
-		description:
-			"Finish the current queued task with its outcome and concise continuation context. If the work revealed additional necessary tasks, add them at precise positions in the existing queue.",
-		promptSnippet: "Finish the current queued task with its outcome and summary",
-		promptGuidelines: [
-			"Call finish_task alone after reaching an outcome for the current task. Use completed, failed, or blocked status and a concise summary. If the work revealed additional necessary tasks, add their titles in addTasks: omit after to place them after the current task, use end to append, or use a pending task ID to place them after that task.",
-		],
+		description: "Record the outcome of the current task and optionally add newly discovered tasks.",
+		promptGuidelines: ["Call finish_task as the only tool in its turn."],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {

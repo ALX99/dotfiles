@@ -287,6 +287,5 @@ test("result renderer preserves errors and call renderer accepts partial argumen
 	assert.deepEqual(tool.prepareArguments({ questions: [{ question: "Old call", alternatives: ["A", "B"] }] }), {
 		questions: [{ question: "Old call", alternatives: [{ label: "A" }, { label: "B" }] }],
 	});
-	assert.match(tool.promptGuidelines!.join("\n"), /recommended alternatives first/u);
-	assert.match(tool.promptGuidelines!.join("\n"), /Never treat cancellation/u);
+	assert.match(tool.description, /Ask 1-3 multiple-choice questions/u);
 });

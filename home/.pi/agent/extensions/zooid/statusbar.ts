@@ -2,16 +2,17 @@
  * Statusbar Extension — Full custom statusbar replacement.
  *
  * Shows the active model and working directory on the left and compact
- * generation speed, turns, compactions, token totals and mix, and context
- * usage on the right. Token totals span every reply recorded in the session
- * file, including branches that were later summarized, and count recorded
- * summary-generation usage. Right-side metrics are separated by whitespace
- * and drawn as dim labels over muted values, so the numbers lead and the
- * labels recede. Fast-changing fields keep fixed widths, and whole metrics
- * drop before any value is cut, so the bar does not reflow while numbers
- * grow. When space is tight, the directory yields to the model so the
- * important state stays visible. The input border mirrors context growth
- * while idle and becomes an activity wave while the agent runs.
+ * generation speed, turns, compactions, token totals and mix, reasoning
+ * tokens, and context usage on the right. Token totals span every reply
+ * recorded in the session file, including branches that were later
+ * summarized, and count recorded summary-generation usage. Right-side
+ * metrics are separated by whitespace and drawn as dim labels over muted
+ * values, so the numbers lead and the labels recede. Fast-changing fields
+ * keep fixed widths, and whole metrics drop before any value is cut, so the
+ * bar does not reflow while numbers grow. When space is tight, the directory
+ * yields to the model so the important state stays visible. The input border
+ * mirrors context growth while idle and becomes an activity wave while the
+ * agent runs.
  *
  * Right-side metrics are right-aligned with space padding.
  */
@@ -156,6 +157,8 @@ export interface SessionTotals {
 	readonly readTokens: number;
 	/** Generated tokens. */
 	readonly writeTokens: number;
+	/** Reasoning/thinking tokens, reported as a subset of generated tokens. */
+	readonly reasoningTokens: number;
 	/** Prompt tokens served from cache. */
 	readonly cachedTokens: number;
 }
@@ -166,6 +169,7 @@ const EMPTY_SESSION_TOTALS: SessionTotals = {
 	totalTokens: 0,
 	readTokens: 0,
 	writeTokens: 0,
+	reasoningTokens: 0,
 	cachedTokens: 0,
 };
 
@@ -175,6 +179,7 @@ function addUsage(totals: SessionTotals, usage: Usage): SessionTotals {
 		totalTokens: totals.totalTokens + usage.totalTokens,
 		readTokens: totals.readTokens + usage.input + usage.cacheRead + usage.cacheWrite,
 		writeTokens: totals.writeTokens + usage.output,
+		reasoningTokens: totals.reasoningTokens + (usage.reasoning ?? 0),
 		cachedTokens: totals.cachedTokens + usage.cacheRead,
 	};
 }
@@ -215,18 +220,28 @@ export function renderTotalTokens(totals: SessionTotals, theme: StatusbarTheme):
 	return metricText(theme, "tok:", metricField(totals.totalTokens, formatTokenCount, TOKEN_FIELD_WIDTH));
 }
 
+export function renderReasoningTokens(totals: SessionTotals, theme: StatusbarTheme): string {
+	return metricText(theme, "cot:", metricField(totals.reasoningTokens, formatTokenCount, TOKEN_FIELD_WIDTH));
+}
+
 function percentOf(part: number, whole: number): number {
 	if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0) return 0;
 	return Math.round((part / whole) * 100);
 }
 
+/** Renders the share of prompt tokens that were fresh input or cache reads/writes. */
+export function renderReadPercentage(totals: SessionTotals, theme: StatusbarTheme): string {
+	const prompt = totals.readTokens + totals.writeTokens;
+	return metricText(theme, "read:", `${percentOf(totals.readTokens, prompt)}%`);
+}
+
+export function renderCachePercentage(totals: SessionTotals, theme: StatusbarTheme): string {
+	return metricText(theme, "cache:", `${percentOf(totals.cachedTokens, totals.readTokens)}%`);
+}
+
 /** Splits session tokens into prompt reads and cache hits; writes are the remainder. */
 export function renderTokenMix(totals: SessionTotals, theme: StatusbarTheme): string[] {
-	const prompt = totals.readTokens + totals.writeTokens;
-	return [
-		metricText(theme, "read:", `${percentOf(totals.readTokens, prompt)}%`),
-		metricText(theme, "cache:", `${percentOf(totals.cachedTokens, totals.readTokens)}%`),
-	];
+	return [renderReadPercentage(totals, theme), renderCachePercentage(totals, theme)];
 }
 
 export function calculateTokensPerSecond(outputTokens: number, durationMs: number): number | undefined {
@@ -606,7 +621,9 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					rightParts: [
 						renderTokensPerSecond(metrics.tps(), theme),
 						...renderSessionCounts(totals, theme),
-						...renderTokenMix(totals, theme),
+						renderReadPercentage(totals, theme),
+						renderReasoningTokens(totals, theme),
+						renderCachePercentage(totals, theme),
 						renderTotalTokens(totals, theme),
 						renderContextPercentage(ctxUsage ?? UNKNOWN_CONTEXT_USAGE, theme),
 					],

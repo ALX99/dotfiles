@@ -27,7 +27,9 @@ const message = Type.String({
 
 export interface SpawnAgentSchemaOptions {
 	readonly agents: readonly string[];
+	readonly agentDescriptions?: Readonly<Record<string, string>>;
 	readonly profiles: readonly string[];
+	readonly profileDescriptions?: Readonly<Record<string, string>>;
 	/** Thinking overrides advertised from the configured profile ranges. */
 	readonly thinkingLevels: readonly ModelThinkingLevel[];
 }
@@ -60,12 +62,18 @@ export function createSpawnAgentSchema(options: SpawnAgentSchemaOptions) {
 			),
 			agent: Type.Optional(
 				StringEnum(options.agents, {
-					description: `Allowed subagent role for this execution. Defaults to '${options.agents[0]}' when omitted.`,
+					description: `Subagent role. ${options.agents
+						.map((name) => `${name}${options.agentDescriptions?.[name] ? `: ${options.agentDescriptions[name]}` : ""}`)
+						.join("; ")}. Defaults to '${options.agents[0]}' when omitted.`,
 				}),
 			),
 			profile: Type.Optional(
 				StringEnum(options.profiles, {
-					description: "Allowed execution-profile override.",
+					description: `Execution profile. ${options.profiles
+						.map(
+							(name) => `${name}${options.profileDescriptions?.[name] ? `: ${options.profileDescriptions[name]}` : ""}`,
+						)
+						.join("; ")}.`,
 				}),
 			),
 			thinking: Type.Optional(

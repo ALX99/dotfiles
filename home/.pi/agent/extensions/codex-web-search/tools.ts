@@ -16,8 +16,7 @@ export function registerRecallTool(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: RECALL_TOOL_NAME,
 		label: "Web Search Log",
-		description:
-			"List the web searches recorded earlier in this session, with their source URLs. Use it when you need a source from before a compaction, or before repeating a search.",
+		description: "Recall web searches and source URLs recorded earlier in this session.",
 		parameters: RECALL_PARAMETERS,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, _signal, _onUpdate, toolContext) {
