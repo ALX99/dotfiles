@@ -4,7 +4,7 @@ set -euo pipefail
 
 git ls-files --cached --others --exclude-standard -z |
   while IFS= read -r -d '' file; do
-    [[ -L $file ]] && continue
+    [[ -f $file && ! -L $file ]] || continue
 
     first_line=$(head -n 1 "$file")
     [[ $first_line == '#!'* ]] || continue

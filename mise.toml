@@ -31,6 +31,8 @@
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 "aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
 "aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
+node = "26" # pi:check
+"aqua:pnpm/pnpm" = "12" # pi:check
 
 # Task files live in .mise/tasks/: flat entry points (install, linux-system),
 # subsystem tasks (pi:check, shell:check, shell:fmt, cue:fmt, karabiner:check),
