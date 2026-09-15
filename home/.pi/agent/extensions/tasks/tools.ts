@@ -92,7 +92,7 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 		name: "create_tasks",
 		label: "Create Tasks",
 		description: "Create an ordered task queue for multi-step work.",
-		promptGuidelines: ["Call create_tasks as the only tool in its turn."],
+		// promptGuidelines: ["Call create_tasks as the only tool in its turn."],
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {
@@ -104,7 +104,7 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 		name: "finish_task",
 		label: "Finish Task",
 		description: "Record the outcome of the current task and optionally add newly discovered tasks.",
-		promptGuidelines: ["Call finish_task as the only tool in its turn."],
+		// promptGuidelines: ["Call finish_task as the only tool in its turn."],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {

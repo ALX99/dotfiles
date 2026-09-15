@@ -172,7 +172,6 @@ test("interrupt cleans processes owned by an idle retained agent", async (t) => 
 	await agent.interrupt();
 	assert.deepEqual(reaped, [manager.getSessionId()]);
 	await agent.close();
-	assert.ok(reaped.every((ownerId) => ownerId === manager.getSessionId()));
 });
 
 test("closing during session startup cannot revive the agent", async (t) => {

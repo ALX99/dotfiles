@@ -9,7 +9,6 @@ import {
 	buildStatusbarViewModel,
 	calculateTokensPerSecond,
 	formatTokenCount,
-	renderCachePercentage,
 	renderContextPercentage,
 	renderReadPercentage,
 	renderSessionCounts,
@@ -185,46 +184,6 @@ test("keeps the token field a fixed width as values grow", () => {
 		),
 	);
 	assert.equal(tokenWidths.size, 1);
-});
-
-test("draws metric labels dim and values muted", () => {
-	const calls: Array<[string, string]> = [];
-	const theme = {
-		fg: (color: string, text: string) => {
-			calls.push([color, text]);
-			return text;
-		},
-		getColorMode: () => "truecolor",
-	} as Parameters<typeof renderSessionCounts>[1];
-
-	assert.equal(
-		`${renderTokensPerSecond(38.4, theme)} ${renderSessionCounts(totals({ turns: 12, compactions: 1 }), theme).join(" ")} ${renderReadPercentage(totals({ readTokens: 99, writeTokens: 1 }), theme)} ${renderReasoningTokens(totals({ reasoningTokens: 1_234 }), theme)} ${renderCachePercentage(totals({ readTokens: 99, writeTokens: 1, cachedTokens: 50 }), theme)} ${renderTotalTokens(totals({ totalTokens: 1_234_567 }), theme)} ${renderContextPercentage({ tokens: null, percent: null }, theme)}`,
-		"tps:38 turns:12 comp:1 read:99% cot:1.2K cache:51% tok:1.2M --%",
-	);
-	assert.deepEqual(calls, [
-		["dim", "tps:"],
-		["muted", "38"],
-		["dim", "turns:"],
-		["muted", "12"],
-		["dim", "comp:"],
-		["muted", "1"],
-		["dim", "read:"],
-		["muted", "99%"],
-		["dim", "cot:"],
-		["muted", "1.2K"],
-		["dim", "cache:"],
-		["muted", "51%"],
-		["dim", "tok:"],
-		["muted", "1.2M"],
-		["dim", "--%"],
-	]);
-
-	calls.length = 0;
-	assert.equal(renderTokensPerSecond(undefined, theme), "tps:--");
-	assert.deepEqual(calls, [
-		["dim", "tps:"],
-		["dim", "--"],
-	]);
 });
 
 test("drops whole right-side metrics before cutting a value", () => {

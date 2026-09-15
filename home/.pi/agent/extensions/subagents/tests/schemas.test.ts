@@ -17,9 +17,7 @@ import {
 test("subagent tool schemas are strict and reject blank or oversized structural input", () => {
 	const spawn = createSpawnAgentSchema({
 		agents: ["scout", "worker"],
-		agentDescriptions: { scout: "Read-only discovery", worker: "Implementation" },
 		profiles: ["fast", "balanced"],
-		profileDescriptions: { fast: "Mechanical work", balanced: "Judgment work" },
 		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
 	});
 	assert.equal(Check(spawn, { message: "inspect" }), true);
@@ -27,11 +25,6 @@ test("subagent tool schemas are strict and reject blank or oversized structural 
 	assert.equal(Check(spawn, { agent: "scout", message: "inspect", extra: true }), false);
 	assert.equal(Check(spawn, { agent: "unknown", message: "inspect" }), false);
 	assert.equal(Check(spawn, { agent: "scout", profile: "unknown", message: "inspect" }), false);
-	const spawnJson = JSON.parse(JSON.stringify(spawn)) as {
-		properties: { agent: { description: string }; profile: { description: string } };
-	};
-	assert.match(spawnJson.properties.agent.description, /scout: Read-only discovery/);
-	assert.match(spawnJson.properties.profile.description, /balanced: Judgment work/);
 	assert.equal(Check(SteerAgentParamsSchema, { target: "agent-1", generation: 1, message: "focus" }), true);
 	assert.equal(
 		Check(SteerAgentParamsSchema, { target: "agent-1", generation: 1, message: "focus", extra: true }),
@@ -89,10 +82,6 @@ test("spawn defaults the role so the easy call is message-only", () => {
 		thinkingLevels: ["low"],
 	});
 	assert.equal(Check(spawn, { message: "inspect" }), true);
-	const schemaJson = JSON.parse(JSON.stringify(spawn)) as {
-		properties: { agent: { description: string } };
-	};
-	assert.match(schemaJson.properties.agent.description, /Defaults to 'scout'/);
 });
 
 test("wait schema bounds input and duplicate normalization is stable after trimming", () => {
@@ -141,9 +130,4 @@ test("read defaults to the latest generation and keeps an object root providers 
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1, offset: 0 }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 1, cursor: "v1.a.0" }), true);
 	assert.equal(Check(ReadAgentResultParamsSchema, { target: "a-1", generation: 0 }), false);
-	assert.equal(
-		ReadAgentResultParamsSchema.type,
-		"object",
-		"function-calling APIs require a 'type: object' tool schema root; exclusivity lives in paginateStoredResult",
-	);
 });

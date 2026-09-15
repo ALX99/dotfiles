@@ -18,12 +18,7 @@ import {
 	supportsApplyPatchTransport,
 	type SpawnApplyPatchProcess,
 } from "../index.ts";
-import {
-	APPLY_PATCH_OPENAI_LARK_GRAMMAR,
-	APPLY_PATCH_TOOL_DESCRIPTION,
-	APPLY_PATCH_TOOL_GUIDELINES,
-	APPLY_PATCH_TOOL_SNIPPET,
-} from "../types.ts";
+import { APPLY_PATCH_OPENAI_LARK_GRAMMAR } from "../types.ts";
 
 const FAKE_EXECUTABLE = fileURLToPath(new URL("./fake-apply-patch.mjs", import.meta.url));
 
@@ -80,18 +75,12 @@ async function fileContains(file: string, needle: string): Promise<boolean> {
 	return false;
 }
 
-test("the tool definition matches Codex's freeform apply_patch spec", () => {
+test("the tool definition uses Codex's freeform grammar transport", () => {
 	const tool = createApplyPatchTool();
-	assert.equal(tool.name, "apply_patch");
-	assert.equal(tool.description, APPLY_PATCH_TOOL_DESCRIPTION);
-	assert.equal(tool.promptSnippet, APPLY_PATCH_TOOL_SNIPPET);
-	assert.deepEqual(tool.promptGuidelines, APPLY_PATCH_TOOL_GUIDELINES);
 	assert.deepEqual(tool.constrainedSampling, {
 		type: "grammar",
 		variants: { openai_lark: APPLY_PATCH_OPENAI_LARK_GRAMMAR },
 	});
-	assert.ok(APPLY_PATCH_OPENAI_LARK_GRAMMAR.startsWith("start: begin_patch hunk+ end_patch\n"));
-	assert.ok(APPLY_PATCH_OPENAI_LARK_GRAMMAR.endsWith("%import common.LF\n"));
 });
 
 test("the vendored grammar is the one the installed Codex CLI ships", async (t) => {

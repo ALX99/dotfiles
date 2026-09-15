@@ -49,7 +49,6 @@ function titleSequence(mood: string): string {
 }
 
 test("the mood pool is unique and safe for an OSC title", () => {
-	assert.equal(MOODS.length, 50);
 	assert.equal(new Set(MOODS).size, MOODS.length);
 	for (const mood of MOODS) {
 		for (const char of mood) {

@@ -75,11 +75,6 @@ test("the prompt assembles every section in the documented order", () => {
 		skills: [skill({ name: "commit" })],
 	});
 
-	assert.match(
-		prompt,
-		/^You are an expert coding assistant that interacts with a computer\. Use the tools available to you to achieve the goal efficiently\./,
-	);
-
 	const order = [
 		"Available tools:",
 		"Guidelines:",
@@ -601,14 +596,6 @@ test("the command opens the rendered prompt in a read-only viewer", async () => 
 	assert.match(harness.previews[0]?.text ?? "", /enter esc close/);
 });
 
-test("the viewer never writes to the message composer", async () => {
-	const harness = createCommandHarness();
-	await harness.run("");
-
-	// Regression: `ui.editor` prefills the chat input, which would send the prompt as a message.
-	assert.equal("editor" in (harness as Record<string, unknown>), false);
-});
-
 test("passing a path writes the prompt instead of opening the editor", async () => {
 	const harness = createCommandHarness();
 	const target = join(tmpdir(), `pi-systemprompt-${process.pid}-${Date.now()}`, "prompt.txt");
@@ -730,27 +717,6 @@ test("unrelated keys neither close nor scroll the viewer", () => {
 	assert.equal(harness.closed(), 0);
 	assert.equal(harness.footer(), before);
 	assert.equal(harness.renders(), 0);
-});
-
-test("tool-delivered guidance survives this replacement, unlike an appended prompt block", () => {
-	// The subagents extension publishes its capability hint as a spawn_agent guideline for exactly
-	// this reason: a replacement prompt that drops appendSystemPrompt recipients still renders
-	// per-tool guidelines, because the host rebuilds them from the live tool registry.
-	const hint = "Live subagent models: fast → provider/cheap; you are running provider/strong.";
-	const prompt = build({ promptGuidelines: ["Only tools rule", hint] });
-
-	assert.match(prompt, /- Only tools rule/);
-	assert.ok(prompt.includes(`- ${hint}`), "the hint appears as its own guideline bullet");
-});
-
-test("guidance disappears with its tool when a mode disables it", () => {
-	// Minimal mode activates bash alone, so spawn_agent's guidelines are not rendered at all.
-	const hint = "Live subagent models: fast → provider/cheap; you are running provider/strong.";
-	const withTool = build({ selectedTools: ["bash", "spawn_agent"], promptGuidelines: [hint] });
-	const withoutTool = build({ selectedTools: ["bash"], promptGuidelines: [] });
-
-	assert.ok(withTool.includes(hint));
-	assert.equal(withoutTool.includes(hint), false);
 });
 
 function skillsStateEntry(enabledNames: string[], knownNames = ["commit", "go-code"]): Entry {

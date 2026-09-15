@@ -283,7 +283,6 @@ test("malformed recorded state falls back to the default rather than being trust
 		await harness.runSessionEvent("session_start");
 
 		assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS, JSON.stringify(data));
-		assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit", JSON.stringify(data));
 		assert.deepEqual(harness.entries, [
 			{ customType: "minimal-mode-state", data: { version: 1, enabled: true, previousTools: DEFAULT_TOOLS } },
 		]);

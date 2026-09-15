@@ -572,7 +572,6 @@ test("followup_agent reuses the stable address and forwards foreground cancellat
 	assert.equal(result.details, waitingRunDetails);
 	assert.ok(result.usage);
 	assert.deepEqual(activated, [summary]);
-	assert.ok(updates.length >= 0);
 });
 
 test("followup_agent runs detached follow-ups without claiming their usage yet", async () => {

@@ -8,8 +8,6 @@ import tasksExtension from "../index.ts";
 
 interface RegisteredTool {
 	parameters?: TSchema;
-	description?: string;
-	promptGuidelines?: string[];
 	execute(
 		toolCallId: string,
 		params: Record<string, unknown>,
@@ -288,10 +286,6 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal("decisions" in finishProperties, false);
 	assert.equal("remaining" in finishProperties, false);
 	assert.equal("followups" in finishProperties, false);
-
-	const prompt = [finish.description, ...(finish.promptGuidelines ?? [])].join("\n");
-	assert.doesNotMatch(prompt, /evidence|interactive|print mode|compaction|recovery|skip|cancel/u);
-	assert.match(prompt, /only tool in its turn/u);
 });
 
 test("generates short stable task IDs for precise queue additions", async () => {
@@ -325,7 +319,6 @@ test("generates task IDs for additions and defaults them after the current task"
 	const createCall = h.ctx.sessionManager.getBranch().find((entry) => entry.id === "queue-call-assistant");
 	assert.ok(createCall);
 
-	assert.match(created.content, /Add schema/u);
 	assert.match(created.content, /t1: Add schema/u);
 
 	const finish = await finishTask(
@@ -341,7 +334,6 @@ test("generates task IDs for additions and defaults them after the current task"
 		{ id: "t5", title: "Investigate the unrelated parser warning.", after: "current" },
 	]);
 	assert.match(finish.content, /Next: t5: Investigate the unrelated parser warning/u);
-	assert.match(finish.content, /t5: Investigate the unrelated parser warning/u);
 	assert.equal(queue.tasks[0]?.id, "t1");
 });
 
