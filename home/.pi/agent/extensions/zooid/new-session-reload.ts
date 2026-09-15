@@ -8,6 +8,7 @@ const RELOAD_AFTER_NEW_COMMAND = "reload-after-new";
  * internal command until the replacement session has finished binding.
  */
 export default function newSessionReloadExtension(pi: ExtensionAPI): void {
+	let pendingNewSession = false;
 	let pendingReload: ReturnType<typeof setTimeout> | undefined;
 
 	pi.registerCommand(RELOAD_AFTER_NEW_COMMAND, {
@@ -20,6 +21,16 @@ export default function newSessionReloadExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (event) => {
 		if (event.reason !== "new") return;
 
+		// resources_discover runs after every session_start handler. Waiting until
+		// that event has finished keeps the deferred reload from invalidating the
+		// new runner while another extension is still using it.
+		pendingNewSession = true;
+	});
+
+	pi.on("resources_discover", () => {
+		if (!pendingNewSession) return;
+		pendingNewSession = false;
+
 		if (pendingReload !== undefined) clearTimeout(pendingReload);
 		pendingReload = setTimeout(() => {
 			pendingReload = undefined;
@@ -30,6 +41,7 @@ export default function newSessionReloadExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_shutdown", () => {
+		pendingNewSession = false;
 		if (pendingReload === undefined) return;
 		clearTimeout(pendingReload);
 		pendingReload = undefined;

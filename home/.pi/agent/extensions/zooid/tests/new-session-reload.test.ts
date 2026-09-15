@@ -32,6 +32,9 @@ function createHarness() {
 		async runSessionStart(reason: string) {
 			await handlers.get("session_start")?.({ reason }, {});
 		},
+		async runResourcesDiscover() {
+			await handlers.get("resources_discover")?.({ type: "resources_discover" }, {});
+		},
 		runSessionShutdown() {
 			handlers.get("session_shutdown")?.({}, {});
 		},
@@ -52,6 +55,7 @@ test("reloads after a new session but not after other session starts", async () 
 	assert.deepEqual(harness.sentMessages, []);
 
 	await harness.runSessionStart("new");
+	await harness.runResourcesDiscover();
 	await waitForDeferredWork();
 	assert.deepEqual(harness.sentMessages, [
 		{
@@ -66,9 +70,27 @@ test("cancels the deferred reload when the session shuts down", async () => {
 
 	await harness.runSessionStart("new");
 	harness.runSessionShutdown();
+	await harness.runResourcesDiscover();
 	await waitForDeferredWork();
 
 	assert.deepEqual(harness.sentMessages, []);
+});
+
+test("waits for resource discovery before scheduling the reload", async () => {
+	const harness = createHarness();
+
+	await harness.runSessionStart("new");
+	await waitForDeferredWork();
+	assert.deepEqual(harness.sentMessages, []);
+
+	await harness.runResourcesDiscover();
+	await waitForDeferredWork();
+	assert.deepEqual(harness.sentMessages, [
+		{
+			content: "/reload-after-new",
+			expandPromptTemplates: true,
+		},
+	]);
 });
 
 test("the internal command runs the normal reload flow", async () => {
