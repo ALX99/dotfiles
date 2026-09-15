@@ -8,13 +8,19 @@ import tasksExtension from "../index.ts";
 
 interface RegisteredTool {
 	parameters?: TSchema;
+	description?: string;
+	promptGuidelines?: string[];
 	execute(
 		toolCallId: string,
 		params: Record<string, unknown>,
 		signal: undefined,
 		onUpdate: undefined,
 		ctx: unknown,
-	): Promise<{ content: Array<{ type: string; text: string }>; details: Record<string, unknown>; terminate?: boolean }>;
+	): Promise<{
+		content: Array<{ type: string; text: string }>;
+		details: Record<string, unknown>;
+		terminate?: boolean;
+	}>;
 }
 
 interface RegisteredCommand {
@@ -35,7 +41,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 	const notifications: string[] = [];
 	const statusWrites: Array<{ key: string; text: string | undefined }> = [];
 	const statuses = new Map<string, string>();
-	let activeTools = ["read", "bash", "create_tasks", "finish_task", "read_tasks", "update_tasks"];
+	let activeTools = ["read", "bash"];
 	const activeToolsLog: string[][] = [];
 	let branch = initialBranch;
 
@@ -105,18 +111,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 
 const QUEUE_TITLES = ["Add schema", "Implement handler", "Write tests", "Review integration"];
 
-function assistantToolCall(id: string, name: string): Entry {
-	return {
-		id: `${id}-assistant`,
-		type: "message",
-		message: {
-			role: "assistant",
-			content: [{ type: "toolCall", id, name, arguments: {} }],
-		},
-	};
-}
-
-function assistantToolCallWithArgs(id: string, name: string, arguments_: Record<string, unknown>): Entry {
+function assistantToolCall(id: string, name: string, arguments_: Record<string, unknown> = {}): Entry {
 	return {
 		id: `${id}-assistant`,
 		type: "message",
@@ -127,11 +122,11 @@ function assistantToolCallWithArgs(id: string, name: string, arguments_: Record<
 	};
 }
 
-function toolResult(id: string, toolName: string, details: Record<string, unknown>): Entry {
+function toolResult(id: string, toolCallId: string, toolName: string, details: Record<string, unknown>): Entry {
 	return {
 		id,
 		type: "message",
-		message: { role: "toolResult", toolName, isError: false, details },
+		message: { role: "toolResult", toolCallId, toolName, isError: false, details },
 	};
 }
 
@@ -140,28 +135,6 @@ function mutationToolResult(id: string, toolCallId: string, toolName: string, is
 		id,
 		type: "message",
 		message: { role: "toolResult", toolCallId, toolName, isError, details: undefined },
-	};
-}
-
-function toggleEntry(id: string, enabled: boolean): Entry {
-	return {
-		id,
-		type: "custom_message",
-		customType: "tasks:toggle",
-		content: enabled ? "/tasks on" : "/tasks off",
-		display: false,
-		details: { enabled },
-	};
-}
-
-function updateEntry(id: string, details: Record<string, unknown>): Entry {
-	return {
-		id,
-		type: "custom_message",
-		customType: "tasks:update",
-		content: "task update",
-		display: false,
-		details,
 	};
 }
 
@@ -181,861 +154,78 @@ function assistantMessage(text: string): Entry {
 	};
 }
 
+function toggleEntry(id: string, enabled: boolean): Entry {
+	return {
+		id,
+		type: "custom_message",
+		customType: "tasks:toggle",
+		content: enabled ? "/tasks on" : "/tasks off",
+		display: false,
+		details: { enabled },
+	};
+}
+
 type QueueDetails = Record<string, unknown> & {
-	queueId?: string;
-	origin?: string;
-	tasks: Array<{ id: string; title: string; state?: string }>;
+	kind: string;
+	queueId: string;
+	tasks: Array<{ id: string; title: string }>;
+	origin: string;
 };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const TASK_ID_PATTERN = /^t[1-9]\d*$/u;
+type OutcomeDetails = Record<string, unknown> & {
+	kind: string;
+	taskId: string;
+	result: string;
+	summary: string;
+	addedTasks: Array<{ id: string; title: string }>;
+	changedFiles: string[];
+	checkpoint: "rewrite" | "inline";
+};
 
-function queueDetails(toolCallId: string): QueueDetails {
+async function createQueue(
+	h: ReturnType<typeof createHarness>,
+	titles: readonly string[] = QUEUE_TITLES,
+	callId = "queue-call",
+): Promise<QueueDetails> {
+	return (await createQueueResult(h, titles, callId)).details;
+}
+
+async function createQueueResult(
+	h: ReturnType<typeof createHarness>,
+	titles: readonly string[] = QUEUE_TITLES,
+	callId = "queue-call",
+): Promise<{ details: QueueDetails; content: string }> {
+	h.pushEntry(assistantToolCall(callId, "create_tasks"));
+	const result = await h.tools
+		.get("create_tasks")!
+		.execute(callId, { tasks: [...titles] }, undefined, undefined, h.ctx);
+	h.pushEntry(toolResult(`${callId}-result`, callId, "create_tasks", result.details));
+	return { details: result.details as QueueDetails, content: result.content[0]?.text ?? "" };
+}
+
+async function finishTask(
+	h: ReturnType<typeof createHarness>,
+	params: Record<string, unknown>,
+	callId: string,
+): Promise<{ content: string; details: OutcomeDetails; terminate?: boolean }> {
+	h.pushEntry(assistantToolCall(callId, "finish_task"));
+	const result = await h.tools.get("finish_task")!.execute(callId, params, undefined, undefined, h.ctx);
 	return {
-		kind: "tasks:queue",
-		queueId: toolCallId,
-		tasks: QUEUE_TITLES.map((title, index) => ({ id: `${toolCallId}:${index + 1}`, title })),
+		content: result.content[0]?.text ?? "",
+		details: result.details as OutcomeDetails,
+		...(result.terminate === undefined ? {} : { terminate: result.terminate }),
 	};
 }
 
-function finishDetails(taskId: string): Record<string, unknown> {
-	return {
-		kind: "tasks:finish",
-		taskId,
-		status: "completed",
-		summary: `${taskId} done.`,
-		evidence: [{ kind: "test", description: "Verified.", command: "pnpm test", result: "ok" }],
-		decisions: [],
-		remaining: [],
-		compact: true,
-	};
-}
-
-test("accepts reference-only evidence entries and renders their reference", async () => {
-	const evidence = [
-		{ kind: "test", command: "pnpm test", result: "2 passed" },
-		{ kind: "file", path: "src/handler.ts" },
-	];
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-	const finishTool = h.tools.get("finish_task")!;
-	assert.ok(
-		Check(finishTool.parameters!, { status: "completed", summary: "Recorded.", evidence }),
-		"the schema accepts evidence entries that carry a reference instead of a description",
-	);
-
-	const finish = await finishTool.execute(
-		"finish-1",
-		{ status: "completed", summary: "Recorded.", evidence, compact: false },
-		undefined,
-		undefined,
-		h.ctx,
-	);
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.match(read.content[0]?.text ?? "", /Evidence: test: pnpm test \| file: src\/handler\.ts/u);
-});
-
-test("renders reference-only evidence in the completion summary", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-	const finish = await h.tools.get("finish_task")!.execute(
-		"finish-1",
-		{
-			status: "completed",
-			summary: "Verified.",
-			evidence: [{ kind: "test", command: "pnpm test", result: "2 passed" }],
-		},
-		undefined,
-		undefined,
-		h.ctx,
-	);
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
-
-	const prepared = h.handlers.get("session_before_tree")!(
-		{ preparation: { targetId: "queue-result" } } as never,
-		h.ctx as never,
-	) as { summary: { summary: string } };
-	assert.match(prepared.summary.summary, /- \*\*test\*\* `pnpm test`: 2 passed/u);
-	assert.doesNotMatch(prepared.summary.summary, /Result:/u);
-});
-
-test("does not restore queues with fewer than four tasks", async () => {
-	const details = queueDetails("queue-call");
-	details.tasks = details.tasks.slice(0, 3);
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", details),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.equal(read.content[0]?.text, "No task queue is active.");
-});
-
-test("reads the active queue and recorded outcomes", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", finishDetails("queue-call:1")),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.equal((read.details as { kind: string }).kind, "tasks:read");
-	assert.match(read.content[0]?.text ?? "", /1 completed, 3 pending/u);
-	assert.match(read.content[0]?.text ?? "", /\[completed\] Add schema/u);
-	assert.match(read.content[0]?.text ?? "", /Summary: queue-call:1 done\./u);
-	assert.match(read.content[0]?.text ?? "", /Current task: queue-call:2/u);
-
-	const filtered = await h.tools
-		.get("read_tasks")!
-		.execute("read-filtered", { taskId: "queue-call:1" }, undefined, undefined, h.ctx);
-	assert.match(filtered.content[0]?.text ?? "", /Add schema/u);
-	assert.doesNotMatch(filtered.content[0]?.text ?? "", /Implement handler/u);
-});
-
-test("supports wildcard filters for an unfiltered queue lookup", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-
-	const readTool = h.tools.get("read_tasks")!;
-	assert.equal(Check(readTool.parameters!, {}), true);
-	const read = await readTool.execute("read-all", { taskId: "*", path: "*" }, undefined, undefined, h.ctx);
-	const omitted = await readTool.execute("read-omitted", {}, undefined, undefined, h.ctx);
-
-	assert.match(read.content[0]?.text ?? "", /Task queue active/u);
-	assert.match(read.content[0]?.text ?? "", /Add schema/u);
-	assert.match(read.content[0]?.text ?? "", /Current task: queue-call:1/u);
-	assert.deepEqual(omitted.details, read.details);
-});
-
-test("shows generated task IDs when creating a queue", async () => {
-	const h = createHarness();
-	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
-	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
-	const created = await h.tools
-		.get("create_tasks")!
-		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	const details = created.details as QueueDetails;
-	const text = created.content[0]?.text ?? "";
-
-	assert.deepEqual(
-		details.tasks.map((task) => task.id),
-		["t1", "t2", "t3", "t4"],
-	);
-	for (const task of details.tasks) {
-		assert.ok(text.includes(task.title));
-		assert.ok(text.includes(task.id));
-	}
-});
-
-test("captures task origin automatically and injects recovery guidance after auto compaction", async () => {
-	const h = createHarness([
-		userMessage("Preserve the existing API while adding the parser."),
-		assistantMessage("I will inspect the current parser and keep the public API stable."),
-		assistantToolCall("queue-call", "create_tasks"),
-	]);
-	const created = await h.tools
-		.get("create_tasks")!
-		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	const queue = created.details as QueueDetails;
-	assert.equal(
-		queue.origin,
-		"User: Preserve the existing API while adding the parser.\n\nAgent: I will inspect the current parser and keep the public API stable.",
-	);
-	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
-
-	h.pushEntry({ id: "auto-compaction", type: "compaction" });
-	h.handlers.get("session_compact")!(
-		{ reason: "threshold", compactionEntry: { id: "auto-compaction" } } as never,
-		h.ctx as never,
-	);
-
-	const recovery = h.sentMessages.at(-1);
-	assert.equal(recovery?.message.customType, "tasks:recovery");
-	assert.match(recovery?.message.content ?? "", /Continue working on the current task: Add schema \(t1\)/u);
-	assert.match(recovery?.message.content ?? "", /Preserve the existing API/u);
-	assert.match(recovery?.message.content ?? "", /I will inspect the current parser/u);
-	assert.deepEqual(recovery?.options, { deliverAs: "steer" });
-});
-
-test("supports queues up to 100 tasks and rejects the 101st", async () => {
-	const h = createHarness();
-	const tasks = Array.from({ length: 100 }, (_, index) => ({ title: `Task ${index + 1}` }));
-	const createTool = h.tools.get("create_tasks")!;
-
-	assert.equal(Check(createTool.parameters!, { tasks }), true);
-	assert.equal(Check(createTool.parameters!, { tasks: [...tasks, { title: "Task 101" }] }), false);
-
-	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
-	const created = await createTool.execute("queue-call", { tasks }, undefined, undefined, h.ctx);
-	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.equal((read.details as { tasks: unknown[] }).tasks.length, 100);
-	assert.equal((created.details as QueueDetails).tasks.at(-1)?.id, "t100");
-
-	h.pushEntry(assistantToolCall("insert-101", "update_tasks"));
-	await assert.rejects(
-		h.tools
-			.get("update_tasks")!
-			.execute("insert-101", { action: "insert", title: "Task 101" }, undefined, undefined, h.ctx),
-		/at most 100 tasks/u,
-	);
-});
-
-test("loads task management tools after creating a queue", async () => {
-	const h = createHarness();
-	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
-	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks"]);
-
-	h.pushEntry(assistantToolCall("queue-call", "create_tasks"));
-	await h.tools
-		.get("create_tasks")!
-		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-
-	assert.deepEqual(h.activeToolsLog.at(-1), [
-		"read",
-		"bash",
-		"create_tasks",
-		"finish_task",
-		"read_tasks",
-		"update_tasks",
-	]);
-});
-
-test("allocates the next sequential task ID when inserting into a generated queue", async () => {
-	const h = createHarness([assistantToolCall("queue-call", "create_tasks")]);
-	const created = await h.tools
-		.get("create_tasks")!
-		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
-	h.pushEntry(assistantToolCall("insert-1", "update_tasks"));
-
-	const inserted = await h.tools.get("update_tasks")!.execute(
-		"insert-1",
-		{
-			action: "insert",
-			afterTaskId: "t2",
-			title: "Review handler docs",
-		},
-		undefined,
-		undefined,
-		h.ctx,
-	);
-	h.pushEntry(toolResult("insert-1-result", "update_tasks", inserted.details));
-
-	const read = await h.tools.get("read_tasks")!.execute("read-after-insert", {}, undefined, undefined, h.ctx);
-	assert.deepEqual(
-		(read.details as { tasks: Array<{ id: string }> }).tasks.map((task) => task.id),
-		["t1", "t2", "t5", "t3", "t4"],
-	);
-});
-
-test("keeps legacy checkpoints readable without optional fields", async () => {
-	const legacy = finishDetails("queue-call:1");
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		completionEntry("summary-1", legacy, "Add schema"),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-legacy", {}, undefined, undefined, h.ctx);
-	const details = read.details as {
-		tasks: Array<{ id: string; status: string; changedFiles?: string[] }>;
-		currentTaskId?: string;
-	};
-	assert.deepEqual(details.tasks[0], {
-		id: "queue-call:1",
-		title: "Add schema",
-		status: "completed",
-		summary: "queue-call:1 done.",
-		evidence: [evidenceEntry()],
-		decisions: [],
-		remaining: [],
-		changedFiles: [],
-	});
-	assert.equal(details.currentTaskId, "queue-call:2");
-});
-
-test("filters task history by observed file path", async () => {
-	const first = {
-		...finishDetails("queue-call:1"),
-		changedFiles: ["src/shared.ts", "src/schema.ts"],
-	};
-	const second = {
-		...finishDetails("queue-call:2"),
-		changedFiles: ["src/handler.ts"],
-	};
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		completionEntry("summary-1", first, "Add schema"),
-		completionEntry("summary-2", second, "Implement handler"),
-	]);
-
-	const read = await h.tools
-		.get("read_tasks")!
-		.execute("read-by-path", { path: "shared.ts" }, undefined, undefined, h.ctx);
-	const details = read.details as { tasks: Array<{ id: string; changedFiles?: string[] }> };
-	assert.deepEqual(
-		details.tasks.map((task) => task.id),
-		["queue-call:1"],
-	);
-	assert.deepEqual(details.tasks[0]?.changedFiles, ["src/shared.ts", "src/schema.ts"]);
-	assert.match(read.content[0]?.text ?? "", /src\/shared\.ts/u);
-	assert.doesNotMatch(read.content[0]?.text ?? "", /src\/handler\.ts/u);
-});
-
-test("does not leak a completed queue into a later queue", async () => {
-	const h = createHarness([
-		assistantToolCall("old-queue", "create_tasks"),
-		toolResult("old-queue-result", "create_tasks", queueDetails("old-queue")),
-		completionEntry("old-summary-1", finishDetails("old-queue:1"), "Add schema"),
-		completionEntry("old-summary-2", finishDetails("old-queue:2"), "Implement handler"),
-		completionEntry("old-summary-3", finishDetails("old-queue:3"), "Write tests"),
-		completionEntry("old-summary-4", finishDetails("old-queue:4"), "Review integration"),
-		assistantToolCall("new-queue", "create_tasks"),
-		toolResult("new-queue-result", "create_tasks", queueDetails("new-queue")),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-new-queue", {}, undefined, undefined, h.ctx);
-	const details = read.details as { queueId?: string; tasks: Array<{ id: string }> };
-	assert.equal(details.queueId, "new-queue");
-	assert.deepEqual(
-		details.tasks.map((task) => task.id),
-		["new-queue:1", "new-queue:2", "new-queue:3", "new-queue:4"],
-	);
-});
-
-test("records successful mutation-tool paths for the current task only", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCallWithArgs("failed-edit", "edit", { path: "src/failed.ts" }),
-		mutationToolResult("failed-edit-result", "failed-edit", "edit", true),
-		assistantToolCallWithArgs("write", "write", { path: "/workspace/project/src/new.ts" }),
-		mutationToolResult("write-result", "write", "write"),
-		assistantToolCallWithArgs("patch", "apply_patch", {
-			patch: [
-				"*** Begin Patch",
-				"*** Update File: src/handler.ts",
-				"*** Move to: src/renamed-handler.ts",
-				"@@",
-				"-old",
-				"+new",
-				"*** Add File: src/added.ts",
-				"+content",
-				"*** End Patch",
-			].join("\n"),
-		}),
-		mutationToolResult("patch-result", "patch", "apply_patch"),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-
-	const finish = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-1",
-			{ status: "completed", summary: "Files changed.", evidence: [evidenceEntry()], compact: false },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-
-	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, [
-		"src/new.ts",
-		"src/handler.ts",
-		"src/renamed-handler.ts",
-		"src/added.ts",
-	]);
-
-	// A later task starts after the first task's result and does not inherit its
-	// observed paths.
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
-	h.pushEntry(completionEntry("summary-1", finish.details, "Add schema"));
-	h.pushEntry(assistantToolCallWithArgs("second-write", "write", { path: "src/second.ts" }));
-	h.pushEntry(mutationToolResult("second-write-result", "second-write", "write"));
-	h.pushEntry(assistantToolCall("finish-2", "finish_task"));
-	const second = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-2",
-			{ status: "completed", summary: "Second task changed one file.", evidence: [evidenceEntry()], compact: false },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.deepEqual((second.details as { changedFiles: string[] }).changedFiles, ["src/second.ts"]);
-});
-
-test("fails closed when the task checkpoint anchor is unavailable", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCallWithArgs("write", "write", { path: "src/new.ts" }),
-		mutationToolResult("write-result", "write", "write"),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-	const branch = h.ctx.sessionManager.getBranch;
-	let calls = 0;
-	h.ctx.sessionManager.getBranch = () => {
-		calls += 1;
-		const entries = branch();
-		return calls >= 4 ? entries.filter((entry) => entry.id !== "queue-result") : entries;
-	};
-
-	const finish = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-1",
-			{ status: "completed", summary: "Recorded without attribution.", evidence: [evidenceEntry()], compact: false },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-
-	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, []);
-});
-
-test("amends pending tasks while preserving finished IDs and carrying the queue through compaction", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", { ...finishDetails("queue-call:1"), compact: false }),
-		assistantToolCall("rename-2", "update_tasks"),
-	]);
-
-	const renamed = await h.tools
-		.get("update_tasks")!
-		.execute(
-			"rename-2",
-			{ action: "rename", taskId: "queue-call:2", title: "Implement handler carefully" },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	h.pushEntry(toolResult("rename-2-result", "update_tasks", renamed.details));
-
-	h.pushEntry(assistantToolCall("insert-1", "update_tasks"));
-	const inserted = await h.tools.get("update_tasks")!.execute(
-		"insert-1",
-		{
-			action: "insert",
-			afterTaskId: "queue-call:2",
-			title: "Review handler docs",
-		},
-		undefined,
-		undefined,
-		h.ctx,
-	);
-	h.pushEntry(toolResult("insert-1-result", "update_tasks", inserted.details));
-
-	h.pushEntry(assistantToolCall("skip-1", "update_tasks"));
-	const skipped = await h.tools
-		.get("update_tasks")!
-		.execute(
-			"skip-1",
-			{ action: "skip", taskId: "queue-call:3", reason: "Covered by the handler documentation task." },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	h.pushEntry(toolResult("skip-1-result", "update_tasks", skipped.details));
-
-	const read = await h.tools.get("read_tasks")!.execute("read-after-update", {}, undefined, undefined, h.ctx);
-	const tasks = (read.details as {
-		tasks: Array<{ id: string; title: string; status: string }>;
-	}).tasks;
-	assert.deepEqual(
-		tasks.map(({ id, title, status }) => ({ id, title, status })),
-		[
-			{ id: "queue-call:1", title: "Add schema", status: "completed" },
-			{ id: "queue-call:2", title: "Implement handler carefully", status: "pending" },
-			{ id: "t1", title: "Review handler docs", status: "pending" },
-			{ id: "queue-call:3", title: "Write tests", status: "skipped" },
-			{ id: "queue-call:4", title: "Review integration", status: "pending" },
-		],
-	);
-
-	h.pushEntry(assistantToolCall("finish-2", "finish_task"));
-	const finish = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-2",
-			{ status: "completed", summary: "Handler implemented.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	h.pushEntry(toolResult("finish-2-result", "finish_task", finish.details));
-	const prepared = h.handlers.get("session_before_tree")!(
-		{ preparation: { targetId: "finish-1-result" } } as never,
-		h.ctx as never,
-	) as { summary: { details: { queue?: { tasks: Array<{ title: string }> } } } };
-	assert.deepEqual(
-		prepared.summary.details.queue?.tasks.map((task) => task.title),
-		["Add schema", "Implement handler carefully", "Review handler docs", "Write tests", "Review integration"],
-	);
-});
-
-test("rejects amendments to finished tasks and malformed queue edits", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", { ...finishDetails("queue-call:1"), compact: false }),
-	]);
-
-	h.pushEntry(assistantToolCall("rename-finished", "update_tasks"));
-	await assert.rejects(
-		h.tools
-			.get("update_tasks")!
-			.execute(
-				"rename-finished",
-				{ action: "rename", taskId: "queue-call:1", title: "Do not reopen this" },
-				undefined,
-				undefined,
-				h.ctx,
-			),
-		/already finished/u,
-	);
-
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", { ...finishDetails("queue-call:1"), compact: false }),
-		assistantToolCall("cancel-without-reason", "update_tasks"),
-	]);
-	await assert.rejects(
-		h.tools.get("update_tasks")!.execute("cancel-without-reason", { action: "cancel" }, undefined, undefined, h.ctx),
-		/Cancel requires a reason/u,
-	);
-});
-
-test("replays legacy amendments from their canonical action fields", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", { ...finishDetails("queue-call:1"), compact: false }),
-		updateEntry("legacy-update", {
-			kind: "tasks:update",
-			queueId: "queue-call",
-			action: "rename",
-			taskId: "queue-call:2",
-			title: "Implement handler safely",
-			// Legacy records mirrored the entire post-update queue. Replay ignores this
-			// redundant snapshot and trusts the canonical update fields above.
-			tasks: [
-				{ id: "queue-call:1", title: "Rewritten schema" },
-				{ id: "queue-call:2", title: "Implement handler safely" },
-				{ id: "queue-call:3", title: "Write tests" },
-				{ id: "queue-call:4", title: "Review integration" },
-			],
-			cancelled: false,
-		}),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-legacy-update", {}, undefined, undefined, h.ctx);
-	const details = read.details as {
-		tasks: Array<{ id: string; title: string }>;
-		currentTaskId?: string;
-	};
-	assert.deepEqual(
-		details.tasks.map(({ id, title }) => ({ id, title })),
-		[
-			{ id: "queue-call:1", title: "Add schema" },
-			{ id: "queue-call:2", title: "Implement handler safely" },
-			{ id: "queue-call:3", title: "Write tests" },
-			{ id: "queue-call:4", title: "Review integration" },
-		],
-	);
-	assert.equal(details.currentTaskId, "queue-call:2");
-});
-
-test("preserves inserted task IDs from legacy snapshot records", async () => {
-	const insertedId = "11111111-1111-4111-8111-111111111111";
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		updateEntry("legacy-insert", {
-			kind: "tasks:update",
-			queueId: "queue-call",
-			action: "insert",
-			afterTaskId: "queue-call:2",
-			title: "Legacy follow-up",
-			tasks: [
-				{ id: "queue-call:1", title: "Add schema" },
-				{ id: "queue-call:2", title: "Implement handler" },
-				{ id: insertedId, title: "Legacy follow-up" },
-				{ id: "queue-call:3", title: "Write tests" },
-				{ id: "queue-call:4", title: "Review integration" },
-			],
-			cancelled: false,
-		}),
-		updateEntry("rename-legacy-insert", {
-			kind: "tasks:update",
-			queueId: "queue-call",
-			action: "rename",
-			taskId: insertedId,
-			title: "Legacy follow-up renamed",
-			tasks: [],
-			cancelled: false,
-		}),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-legacy-insert", {}, undefined, undefined, h.ctx);
-	const inserted = (read.details as { tasks: Array<{ id: string; title: string }> }).tasks.find(
-		(task) => task.id === insertedId,
-	);
-	assert.deepEqual(inserted, { id: insertedId, title: "Legacy follow-up renamed", status: "pending" });
-});
-
-test("does not accept impossible persisted queue item states", async () => {
-	const details = queueDetails("queue-call");
-	details.tasks = [
-		{ id: "queue-call:1", title: "Add schema", state: "skipped" },
-		{ id: "queue-call:2", title: "Implement handler" },
-		{ id: "queue-call:3", title: "Write tests" },
-		{ id: "queue-call:4", title: "Review integration" },
-	];
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", details),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.equal(read.content[0]?.text, "No task queue is active.");
-});
-
-test("keeps full task lookup output bounded", async () => {
-	const finish = {
-		...finishDetails("queue-call:1"),
-		changedFiles: Array.from({ length: 2_000 }, (_, index) => `src/generated/file-${index}.ts`),
-	};
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		toolResult("finish-1-result", "finish_task", finish),
-	]);
-
-	const read = await h.tools.get("read_tasks")!.execute("read-call", {}, undefined, undefined, h.ctx);
-	assert.ok(read.content[0]!.text.length <= 12_000);
-	assert.match(read.content[0]!.text, /…/u);
-});
-
-test("compacts each queued task onto a chained completion record", async () => {
-	const h = createHarness([assistantToolCall("queue-call", "create_tasks")]);
-
-	const created = await h.tools
-		.get("create_tasks")!
-		.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	const createdQueue = created.details as QueueDetails;
-	assert.equal(createdQueue.kind, "tasks:queue");
-	assert.match(createdQueue.queueId ?? "", UUID_PATTERN);
-	assert.deepEqual(
-		createdQueue.tasks.map((task) => task.title),
-		QUEUE_TITLES,
-	);
-	assert.deepEqual(
-		createdQueue.tasks.map((task) => task.id),
-		["t1", "t2", "t3", "t4"],
-	);
-	for (const task of createdQueue.tasks) assert.match(task.id, TASK_ID_PATTERN);
-	assert.equal(new Set(createdQueue.tasks.map((task) => task.id)).size, createdQueue.tasks.length);
-	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
-
-	// First finish rewinds to the queue anchor.
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		assistantToolCall("finish-1", "finish_task"),
-	]);
-	const finish1 = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-1",
-			{ status: "completed", summary: "Schema added.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.equal(finish1.terminate, true);
-	assert.match(finish1.content[0]?.text ?? "", /1\/4.*Next: Implement handler/u);
-	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish1.details));
-
-	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
-	assert.deepEqual(h.sentUserMessages, [{ content: "/tasks commit", options: { expandPromptTemplates: true } }]);
-	const navigation1 = await commit(h, "queue-result");
-	assert.equal(navigation1.label, "task: Add schema");
-	assert.match(navigation1.summary, /## Queue progress\n1\/4 complete\. Continue with: Implement handler/u);
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.equal(
-		h.sentUserMessages.at(-1)?.content,
-		`Task 1 completed. Continue with: Implement handler (${createdQueue.tasks[1]?.id}).`,
-	);
-
-	// Second finish chains onto the first completion record instead of the anchor.
-	const summary1 = completionEntry("summary-1", finish1.details, "Add schema");
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		summary1,
-		assistantToolCall("finish-2", "finish_task"),
-	]);
-	const finish2 = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-2",
-			{ status: "completed", summary: "Handler added.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	h.pushEntry(toolResult("finish-2-result", "finish_task", finish2.details));
-	const navigation2 = await commit(h, "summary-1");
-	assert.equal(navigation2.label, "task: Implement handler");
-	assert.match(navigation2.summary, /2\/4 complete\. Continue with: Write tests/u);
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.equal(
-		h.sentUserMessages.at(-1)?.content,
-		`Task 2 completed. Continue with: Write tests (${createdQueue.tasks[2]?.id}).`,
-	);
-
-	// Intermediate tasks keep the chain and schedule the next task.
-	const summary2 = completionEntry("summary-2", finish2.details, "Implement handler");
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		summary1,
-		summary2,
-		assistantToolCall("finish-3", "finish_task"),
-	]);
-	const finish3 = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-3",
-			{ status: "completed", summary: "Tests written.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.match(finish3.content[0]?.text ?? "", /3\/4.*Next: Review integration/u);
-	h.pushEntry(toolResult("finish-3-result", "finish_task", finish3.details));
-	const navigation3 = await commit(h, "summary-2");
-	assert.equal(navigation3.label, "task: Write tests");
-	assert.match(navigation3.summary, /3\/4 complete\. Continue with: Review integration/u);
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.equal(
-		h.sentUserMessages.at(-1)?.content,
-		`Task 3 completed. Continue with: Review integration (${createdQueue.tasks[3]?.id}).`,
-	);
-
-	// The final task keeps the chain and schedules a user-facing final summary.
-	const summary3 = completionEntry("summary-3", finish3.details, "Write tests");
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		summary1,
-		summary2,
-		summary3,
-		assistantToolCall("finish-4", "finish_task"),
-	]);
-	const finish4 = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-4",
-			{ status: "completed", summary: "Integration reviewed.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.match(finish4.content[0]?.text ?? "", /4\/4.*Queue complete/u);
-	h.pushEntry(toolResult("finish-4-result", "finish_task", finish4.details));
-	const navigation4 = await commit(h, "summary-3");
-	assert.equal(navigation4.label, "task: Review integration");
-	assert.match(navigation4.summary, /4\/4 complete\. The queue is finished/u);
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.equal(
-		h.sentUserMessages.at(-1)?.content,
-		"All queued tasks are complete. Summarize the overall outcome for the user.",
-	);
-	const cleared = await h.tools.get("read_tasks")!.execute("read-after-clear", {}, undefined, undefined, h.ctx);
-	assert.equal(cleared.content[0]?.text, "No task queue is active.");
-	assert.equal(h.statuses.get("tasks"), undefined);
-
-	// The final completion retires the queue; no tombstone entry is required.
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		summary1,
-		summary2,
-		summary3,
-		completionEntry("summary-4", finish4.details, "Review integration"),
-	]);
-	h.handlers.get("session_tree")!({} as never, h.ctx as never);
-	assert.equal(h.statuses.get("tasks"), undefined);
-	await h.commands.get("tasks")!.handler("status", h.ctx as never);
-	assert.equal(h.notifications.at(-1), "No task queue.");
-
-	// A completed queue does not block a later queue.
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", created.details),
-		summary1,
-		summary2,
-		summary3,
-		completionEntry("summary-4", finish4.details, "Review integration"),
-		assistantToolCall("new-queue-call", "create_tasks"),
-	]);
-	const nextQueue = await h.tools
-		.get("create_tasks")!
-		.execute("new-queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-	assert.equal(nextQueue.details.kind, "tasks:queue");
-});
-
-test("starts the spinner when a queue is created during an active agent run", async () => {
-	const h = createHarness([assistantToolCall("queue-call", "create_tasks")], "tui");
-	h.handlers.get("agent_start")!({} as never, h.ctx as never);
-
-	try {
-		const created = await h.tools
-			.get("create_tasks")!
-			.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx);
-		h.pushEntry(toolResult("queue-result", "create_tasks", created.details));
-		assert.equal(h.statuses.get("tasks"), "⣾ Task 1/4 · Add schema");
-
-		// agent_start ran before create_tasks, so only turn_end can observe the
-		// newly persisted queue and start the interval.
-		h.handlers.get("turn_end")!({} as never, h.ctx as never);
-		await new Promise((resolve) => setTimeout(resolve, 150));
-		assert.notEqual(h.statuses.get("tasks"), "⣾ Task 1/4 · Add schema");
-	} finally {
-		h.handlers.get("agent_settled")!({} as never, h.ctx as never);
-	}
-});
-
-function evidenceEntry(): Record<string, unknown> {
-	return { kind: "test", description: "Verified.", command: "pnpm test", result: "ok" };
-}
-
-function completionEntry(id: string, details: Record<string, unknown>, title: string): Entry {
-	return { id, type: "branch_summary", details: { ...details, kind: "tasks:completion", title } };
+function branchSummary(id: string, details: OutcomeDetails): Entry {
+	return { id, type: "branch_summary", details };
 }
 
 async function commit(
 	h: ReturnType<typeof createHarness>,
 	baseId: string,
-): Promise<{ label: string; summary: string }> {
-	let result!: { label: string; summary: string };
+): Promise<{ label: string; summary: string; details: OutcomeDetails }> {
+	let result!: { label: string; summary: string; details: OutcomeDetails };
 	const commandCtx = {
 		...h.ctx,
 		navigateTree: async (targetId: string, options: { summarize?: boolean; label?: string }) => {
@@ -1044,8 +234,13 @@ async function commit(
 			const prepared = h.handlers.get("session_before_tree")!(
 				{ preparation: { targetId } } as never,
 				h.ctx as never,
-			) as { summary: { summary: string }; label: string };
-			result = { label: prepared.label, summary: prepared.summary.summary };
+			) as { summary: { summary: string; details: OutcomeDetails }; label: string };
+			result = {
+				label: prepared.label,
+				summary: prepared.summary.summary,
+				details: prepared.summary.details,
+			};
+			h.pushEntry(branchSummary(`summary-${targetId}`, prepared.summary.details));
 			return { cancelled: false };
 		},
 	};
@@ -1053,7 +248,341 @@ async function commit(
 	return result;
 }
 
-test("rejects boundary calls that share their turn and enforces queue state", async () => {
+test("exposes only the two bookkeeping tools with model-facing schemas", () => {
+	const h = createHarness();
+	assert.deepEqual([...h.tools.keys()], ["create_tasks", "finish_task"]);
+
+	const create = h.tools.get("create_tasks")!;
+	const finish = h.tools.get("finish_task")!;
+	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES }), true);
+	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
+	assert.equal(Check(finish.parameters!, { result: "completed", summary: "Verified." }), true);
+	assert.equal(
+		Check(finish.parameters!, {
+			result: "completed",
+			summary: "Verified.",
+			followups: ["Current follow-up", "End follow-up", "Pending follow-up"],
+		}),
+		true,
+	);
+	assert.equal(
+		Check(finish.parameters!, {
+			result: "completed",
+			summary: "Verified.",
+			followups: [{ title: "Not a string" }],
+		}),
+		false,
+	);
+	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
+	assert.deepEqual(Object.keys(finishProperties), ["result", "summary", "followups"]);
+	assert.equal("taskId" in finishProperties, false);
+	assert.equal("evidence" in finishProperties, false);
+	assert.equal("decisions" in finishProperties, false);
+	assert.equal("remaining" in finishProperties, false);
+	assert.equal("addTasks" in finishProperties, false);
+
+	const prompt = [finish.description, ...(finish.promptGuidelines ?? [])].join("\n");
+	assert.doesNotMatch(prompt, /evidence|interactive|print mode|compaction|recovery|skip|cancel/u);
+	assert.match(prompt, /followups/u);
+});
+
+test("generates short stable task IDs for precise queue additions", async () => {
+	const h = createHarness([
+		userMessage("Preserve the existing API while adding the parser."),
+		assistantMessage("I will keep the public API stable."),
+	]);
+	const created = await createQueueResult(h);
+	const queue = created.details;
+
+	assert.equal(queue.kind, "tasks:queue");
+	assert.equal(
+		queue.origin,
+		"User: Preserve the existing API while adding the parser.\n\nAgent: I will keep the public API stable.",
+	);
+	assert.deepEqual(
+		queue.tasks.map((task) => task.id),
+		["t1", "t2", "t3", "t4"],
+	);
+	assert.deepEqual(
+		queue.tasks.map((task) => task.title),
+		QUEUE_TITLES,
+	);
+	assert.match(created.content, /t1: Add schema/u);
+});
+
+test("generates task IDs for appended follow-ups", async () => {
+	const h = createHarness();
+	const created = await createQueueResult(h);
+	const queue = created.details;
+	const createCall = h.ctx.sessionManager.getBranch().find((entry) => entry.id === "queue-call-assistant");
+	assert.ok(createCall);
+
+	assert.match(created.content, /Add schema/u);
+	assert.match(created.content, /t1: Add schema/u);
+
+	const finish = await finishTask(
+		h,
+		{
+			result: "completed",
+			summary: "Schema added and verified.",
+			followups: ["Investigate the unrelated parser warning."],
+		},
+		"finish-1",
+	);
+	assert.deepEqual(finish.details.addedTasks, [{ id: "t5", title: "Investigate the unrelated parser warning." }]);
+	assert.match(finish.content, /Next: t2: Implement handler/u);
+	assert.match(finish.content, /t5: Investigate the unrelated parser warning/u);
+	assert.equal(queue.tasks[0]?.id, "t1");
+});
+
+test("appends follow-ups in supplied order", async () => {
+	const h = createHarness();
+	await createQueue(h);
+
+	const followups = ["First follow-up", "Second follow-up", "Third follow-up", "Fourth follow-up"];
+	const expectedOrder = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"];
+	let nextCallId = 1;
+	for (const [index, expectedTaskId] of expectedOrder.entries()) {
+		const callId = `finish-${nextCallId++}`;
+		const finish = await finishTask(
+			h,
+			{
+				result: "completed",
+				summary: `Finished ${expectedTaskId}.`,
+				...(index === 0 ? { followups } : {}),
+			},
+			callId,
+		);
+		assert.equal(finish.details.taskId, expectedTaskId);
+		if (index === 0) {
+			assert.deepEqual(finish.details.addedTasks, [
+				{ id: "t5", title: "First follow-up" },
+				{ id: "t6", title: "Second follow-up" },
+				{ id: "t7", title: "Third follow-up" },
+				{ id: "t8", title: "Fourth follow-up" },
+			]);
+		}
+		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
+		h.pushEntry(branchSummary(`summary-${callId}`, finish.details));
+	}
+});
+
+test("keeps follow-up additions atomic when capacity would be exceeded", async () => {
+	const h = createHarness();
+	await createQueue(h, [...QUEUE_TITLES, ...Array.from({ length: 96 }, (_, index) => `Existing ${index + 5}`)]);
+
+	await assert.rejects(
+		finishTask(
+			h,
+			{
+				result: "completed",
+				summary: "Should not be recorded.",
+				followups: ["One too many", "Another too many"],
+			},
+			"over-capacity",
+		),
+		/A task queue can contain at most 100 tasks/u,
+	);
+});
+
+test("tracks successful mutation paths for the current task only", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	h.pushEntry(assistantToolCall("failed-edit", "edit", { path: "src/failed.ts" }));
+	h.pushEntry(mutationToolResult("failed-edit-result", "failed-edit", "edit", true));
+	h.pushEntry(assistantToolCall("write", "write", { path: "/workspace/project/src/new.ts" }));
+	h.pushEntry(mutationToolResult("write-result", "write", "write"));
+	h.pushEntry(
+		assistantToolCall("patch", "apply_patch", {
+			patch: [
+				"*** Begin Patch",
+				"*** Update File: src/handler.ts",
+				"*** Move to: src/renamed-handler.ts",
+				"*** Add File: src/added.ts",
+				"*** End Patch",
+			].join("\n"),
+		}),
+	);
+	h.pushEntry(mutationToolResult("patch-result", "patch", "apply_patch"));
+
+	const first = await finishTask(h, { result: "completed", summary: "Files changed." }, "finish-1");
+	assert.deepEqual(first.details.changedFiles, [
+		"src/new.ts",
+		"src/handler.ts",
+		"src/renamed-handler.ts",
+		"src/added.ts",
+	]);
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+	h.pushEntry(branchSummary("summary-1", first.details));
+
+	h.pushEntry(assistantToolCall("second-write", "write", { path: "src/second.ts" }));
+	h.pushEntry(mutationToolResult("second-write-result", "second-write", "write"));
+	const second = await finishTask(h, { result: "completed", summary: "Second task changed one file." }, "finish-2");
+	assert.deepEqual(second.details.changedFiles, ["src/second.ts"]);
+});
+
+test("chains one outcome through the tool result and branch summary", async () => {
+	const h = createHarness();
+	const queue = await createQueue(h);
+	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	assert.equal(first.details.checkpoint, "rewrite");
+	assert.equal(first.terminate, true);
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+
+	const committed = await commit(h, "queue-call-result");
+	assert.equal(committed.label, "task: Add schema");
+	assert.match(committed.summary, /1\/4 complete\. Continue with: t2: Implement handler/u);
+	assert.deepEqual(committed.details, first.details);
+
+	const second = await finishTask(h, { result: "completed", summary: "Handler added." }, "finish-2");
+	assert.equal(second.details.taskId, queue.tasks[1]?.id);
+	assert.equal(h.statuses.get("tasks"), "⟳ Task 2/4 · compacting");
+	h.pushEntry(toolResult("finish-2-result", "finish-2", "finish_task", second.details));
+
+	const duplicate = branchSummary("duplicate", first.details);
+	h.pushEntry(duplicate);
+	h.handlers.get("session_tree")!({} as never, h.ctx as never);
+	assert.equal(h.statuses.get("tasks"), "⟳ Task 2/4 · compacting");
+});
+
+test("fails closed for mismatched or out-of-order persisted outcomes", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+	h.pushEntry(
+		branchSummary("mismatch", {
+			...first.details,
+			summary: "Tampered summary.",
+		}),
+	);
+	h.handlers.get("session_tree")!({} as never, h.ctx as never);
+	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
+
+	const h2 = createHarness();
+	await createQueue(h2);
+	h2.pushEntry(
+		branchSummary("out-of-order", {
+			kind: "tasks:outcome",
+			taskId: "t2",
+			result: "completed",
+			summary: "Wrong task.",
+			addedTasks: [],
+			changedFiles: [],
+			checkpoint: "rewrite",
+		}),
+	);
+	await h2.commands.get("tasks")!.handler("status", h2.ctx as never);
+	assert.equal(h2.notifications.at(-1), "Task queue: 0/4 complete. Current: Add schema");
+});
+
+test("compacts each interactive task and retires a successful queue", async () => {
+	const h = createHarness();
+	const queue = await createQueue(h);
+
+	let checkpoint = "queue-call-result";
+	for (const [index, title] of QUEUE_TITLES.entries()) {
+		const callId = `finish-${index + 1}`;
+		const finish = await finishTask(h, { result: "completed", summary: `${title} done.` }, callId);
+		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
+		const committed = await commit(h, checkpoint);
+		assert.equal(committed.details.taskId, queue.tasks[index]?.id);
+		assert.match(committed.summary, new RegExp(`${index + 1}/${QUEUE_TITLES.length}`, "u"));
+		checkpoint = `summary-${checkpoint}`;
+	}
+
+	assert.equal(h.statuses.get("tasks"), undefined);
+	await h.commands.get("tasks")!.handler("status", h.ctx as never);
+	assert.equal(h.notifications.at(-1), "No task queue.");
+
+	h.pushEntry(assistantToolCall("new-queue", "create_tasks"));
+	const next = await h.tools
+		.get("create_tasks")!
+		.execute("new-queue", { tasks: QUEUE_TITLES }, undefined, undefined, h.ctx);
+	assert.equal(next.details.kind, "tasks:queue");
+});
+
+test("records print-mode outcomes inline and allows one task per invocation", async () => {
+	const h = createHarness(
+		[
+			assistantToolCall("queue-call", "create_tasks"),
+			toolResult("queue-call-result", "queue-call", "create_tasks", {
+				kind: "tasks:queue",
+				queueId: "print-queue",
+				tasks: QUEUE_TITLES.map((title, index) => ({ id: `t${index + 1}`, title })),
+				origin: "",
+			}),
+		],
+		"print",
+	);
+
+	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	assert.equal(first.details.checkpoint, "inline");
+	assert.equal(first.terminate, false);
+	assert.match(first.content, /Next: t2: Implement handler/u);
+	assert.doesNotMatch(first.content, /print|compaction|invocation/u);
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+
+	h.pushEntry(assistantToolCall("finish-2", "finish_task"));
+	await assert.rejects(
+		h.tools
+			.get("finish_task")!
+			.execute("finish-2", { result: "completed", summary: "Handler added." }, undefined, undefined, h.ctx),
+		/current task outcome has already been recorded/u,
+	);
+
+	h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
+	const second = await finishTask(h, { result: "completed", summary: "Handler added." }, "finish-2b");
+	assert.equal(second.details.taskId, "t2");
+	assert.equal(second.details.checkpoint, "inline");
+});
+
+test("derives failed, blocked, and skipped outcomes without a second task state", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	for (const [index, result] of ["failed", "blocked", "skipped", "completed"].entries()) {
+		const callId = `finish-${index + 1}`;
+		const finish = await finishTask(h, { result, summary: `${result} outcome.` }, callId);
+		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
+		h.pushEntry(branchSummary(`summary-${index + 1}`, finish.details));
+		h.handlers.get("session_tree")!({} as never, h.ctx as never);
+	}
+	assert.equal(h.statuses.get("tasks"), "! Tasks finished with issues · 1 completed, 1 failed, 1 blocked, 1 skipped");
+	await h.commands.get("tasks")!.handler("status", h.ctx as never);
+	assert.equal(
+		h.notifications.at(-1),
+		"Task queue finished with issues (1 completed, 1 failed, 1 blocked, 1 skipped).",
+	);
+});
+
+test("keeps cancellation human-only", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	await h.commands.get("tasks")!.handler("cancel No longer needed", h.ctx as never);
+	assert.equal(h.sentMessages.at(-1)?.message.customType, "tasks:cancel");
+	assert.equal(h.sentMessages.at(-1)?.message.details?.reason, "No longer needed");
+	h.pushEntry({
+		id: "cancelled",
+		type: "custom_message",
+		customType: "tasks:cancel",
+		details: h.sentMessages.at(-1)?.message.details,
+	});
+	h.handlers.get("session_tree")!({} as never, h.ctx as never);
+	assert.equal(h.statuses.get("tasks"), "! Tasks canceled · 4 cancelled");
+
+	h.pushEntry(assistantToolCall("finish-after-cancel", "finish_task"));
+	await assert.rejects(
+		h.tools
+			.get("finish_task")!
+			.execute("finish-after-cancel", { result: "completed", summary: "Should not run." }, undefined, undefined, {
+				...h.ctx,
+				sessionManager: { getBranch: h.ctx.sessionManager.getBranch },
+			}),
+		/Every queued task already has a recorded outcome/u,
+	);
+});
+
+test("requires boundary tools to be isolated in their assistant turn", async () => {
 	const h = createHarness([
 		{
 			id: "mixed-turn",
@@ -1062,259 +591,57 @@ test("rejects boundary calls that share their turn and enforces queue state", as
 				role: "assistant",
 				content: [
 					{ type: "toolCall", id: "queue-call", name: "create_tasks", arguments: {} },
-					{ type: "toolCall", id: "read-call", name: "read", arguments: {} },
+					{ type: "toolCall", id: "read", name: "read", arguments: {} },
 				],
 			},
 		},
 	]);
 	await assert.rejects(
-		h.tools
-			.get("create_tasks")!
-			.execute("queue-call", { tasks: QUEUE_TITLES.map((title) => ({ title })) }, undefined, undefined, h.ctx),
+		h.tools.get("create_tasks")!.execute("queue-call", { tasks: QUEUE_TITLES }, undefined, undefined, h.ctx),
 		/must be the only tool call/u,
 	);
-
-	// finish_task without an active queue is rejected.
-	await assert.rejects(
-		h.tools
-			.get("finish_task")!
-			.execute(
-				"finish-solo",
-				{ status: "completed", summary: "Done.", evidence: [evidenceEntry()] },
-				undefined,
-				undefined,
-				{ sessionManager: { getBranch: () => [assistantToolCall("finish-solo", "finish_task")] } },
-			),
-		/No task queue is active/u,
-	);
 });
 
-test("keeps one stable task checkpoint across mid-task compaction", async () => {
+test("injects compact recovery guidance after automatic compaction", async () => {
 	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		assistantToolCallWithArgs("before-write", "write", { path: "src/before.ts" }),
-		mutationToolResult("before-write-result", "before-write", "write"),
-		{ id: "mid-task-compaction", type: "compaction" },
-		assistantToolCallWithArgs("after-patch", "apply_patch", {
-			patch: [
-				"*** Begin Patch",
-				"*** Update File: src/after.ts",
-				"@@",
-				"-old",
-				"+new",
-				"*** End Patch",
-			].join("\n"),
-		}),
-		mutationToolResult("after-patch-result", "after-patch", "apply_patch"),
-		assistantToolCall("finish-1", "finish_task"),
+		userMessage("Preserve the existing API while adding the parser."),
+		assistantMessage("I will keep the public API stable."),
 	]);
-
-	const finish = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-1",
-			{ status: "completed", summary: "Done across compaction.", evidence: [evidenceEntry()] },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.deepEqual((finish.details as { changedFiles: string[] }).changedFiles, ["src/before.ts", "src/after.ts"]);
-	assert.equal(finish.details.compact, true);
-	assert.equal(finish.terminate, true);
-	assert.equal(
-		"compact" in
-			((h.tools.get("finish_task")!.parameters as { properties?: Record<string, unknown> }).properties ?? {}),
-		false,
+	await createQueue(h);
+	h.pushEntry({ id: "auto-compaction", type: "compaction" });
+	h.handlers.get("session_compact")!(
+		{ reason: "threshold", compactionEntry: { id: "auto-compaction" } } as never,
+		h.ctx as never,
 	);
 
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
-	const navigation = await commit(h, "queue-result");
-	assert.equal(navigation.label, "task: Add schema");
-	assert.match(navigation.summary, /src\/before\.ts/u);
-	assert.match(navigation.summary, /src\/after\.ts/u);
+	const recovery = h.sentMessages.at(-1);
+	assert.equal(recovery?.message.customType, "tasks:recovery");
+	assert.match(recovery?.message.content ?? "", /Continue with the current task: t1: Add schema\./u);
+	assert.match(recovery?.message.content ?? "", /Queue progress: 4 pending\./u);
+	assert.match(recovery?.message.content ?? "", /Previous task summaries remain in the conversation history\./u);
+	assert.deepEqual(recovery?.options, { deliverAs: "steer" });
 });
 
-test("records print-mode checkpoints without compaction", async () => {
-	const h = createHarness(
-		[
-			assistantToolCall("queue-call", "create_tasks"),
-			toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-			assistantToolCall("finish-1", "finish_task"),
-		],
-		"print",
-	);
-
-	const finish = await h.tools
-		.get("finish_task")!
-		.execute(
-			"finish-1",
-			{ status: "completed", summary: "Schema added.", evidence: [evidenceEntry()], compact: true },
-			undefined,
-			undefined,
-			h.ctx,
-		);
-	assert.equal(finish.details.compact, false);
-	assert.equal(finish.terminate, false);
-	assert.match(finish.content[0]?.text ?? "", /next invocation resumes with Implement handler/u);
-
-	h.pushEntry(toolResult("finish-1-result", "finish_task", finish.details));
-	h.pushEntry(assistantToolCall("finish-2", "finish_task"));
-	await assert.rejects(
-		h.tools
-			.get("finish_task")!
-			.execute(
-				"finish-2",
-				{ status: "completed", summary: "Handler added.", evidence: [evidenceEntry()] },
-				undefined,
-				undefined,
-				h.ctx,
-			),
-		/one task per invocation/u,
-	);
-	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
-	assert.deepEqual(h.sentUserMessages, []);
-	h.handlers.get("session_tree")!({} as never, h.ctx as never);
-	assert.equal(h.statuses.get("tasks"), "Task 2/4 · Implement handler");
-});
-
-test("retires the queue after the final print-mode checkpoint", async () => {
-	const h = createHarness(
-		[
-			assistantToolCall("queue-call", "create_tasks"),
-			toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		],
-		"print",
-	);
-
-	for (const [index, title] of QUEUE_TITLES.entries()) {
-		h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
-		const callId = `finish-${index + 1}`;
-		h.pushEntry(assistantToolCall(callId, "finish_task"));
-		const finish = await h.tools
-			.get("finish_task")!
-			.execute(
-				callId,
-				{ status: "completed", summary: `${title} done.`, evidence: [evidenceEntry()] },
-				undefined,
-				undefined,
-				h.ctx,
-			);
-		h.pushEntry(toolResult(`${callId}-result`, "finish_task", finish.details));
-	}
-
-	const read = await h.tools.get("read_tasks")!.execute("read-after-final", {}, undefined, undefined, h.ctx);
-	assert.equal(read.content[0]?.text, "No task queue is active.");
-});
-
-test("advances past failed and blocked checkpoints", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-
-	for (const [number, status, nextTitle] of [
-		[1, "failed", "Implement handler"],
-		[2, "blocked", "Write tests"],
-	] as const) {
-		const callId = `finish-${number}`;
-		h.pushEntry(assistantToolCall(callId, "finish_task"));
-		const finish = await h.tools
-			.get("finish_task")!
-			.execute(
-				callId,
-				{ status, summary: `${status} outcome.`, evidence: [evidenceEntry()] },
-				undefined,
-				undefined,
-				h.ctx,
-			);
-		h.pushEntry(completionEntry(`${callId}-summary`, finish.details, QUEUE_TITLES[number - 1]!));
-		h.handlers.get("session_tree")!({} as never, h.ctx as never);
-		assert.equal(h.statuses.get("tasks"), `Task ${number + 1}/4 · ${nextTitle}`);
-	}
-});
-
-test("does not present unsuccessful terminal outcomes as successful completion", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		completionEntry("summary-1", { ...finishDetails("queue-call:1"), status: "failed" }, "Add schema"),
-		completionEntry("summary-2", { ...finishDetails("queue-call:2"), status: "blocked" }, "Implement handler"),
-		toolResult("finish-3-result", "finish_task", finishDetails("queue-call:3")),
-		toolResult("finish-4-result", "finish_task", finishDetails("queue-call:4")),
-	]);
-
-	const navigation = await commit(h, "summary-2");
-	assert.match(
-		navigation.summary,
-		/Queue finished with issues: 2 completed, 1 failed, 1 blocked\. Do not report the queue as fully successful\./u,
-	);
-
-	h.setBranch([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-		completionEntry("summary-1", { ...finishDetails("queue-call:1"), status: "failed" }, "Add schema"),
-		completionEntry("summary-2", { ...finishDetails("queue-call:2"), status: "blocked" }, "Implement handler"),
-		completionEntry("summary-3", finishDetails("queue-call:3"), "Write tests"),
-		completionEntry("summary-4", finishDetails("queue-call:4"), "Review integration"),
-	]);
-	h.handlers.get("session_tree")!({} as never, h.ctx as never);
-	assert.equal(h.statuses.get("tasks"), "! Tasks finished with issues · 2 completed, 1 failed, 1 blocked");
-	await h.commands.get("tasks")!.handler("status", h.ctx as never);
-	assert.equal(h.notifications.at(-1), "Task queue finished with issues (2 completed, 1 failed, 1 blocked).");
-
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.match(
-		h.sentUserMessages.at(-1)?.content ?? "",
-		/The task queue finished with 2 completed, 1 failed, 1 blocked/u,
-	);
-	assert.match(h.sentUserMessages.at(-1)?.content ?? "", /Do not claim full success/u);
-});
-
-test("loads only the task queue loader before the first message", async () => {
+test("loads only create_tasks initially and both task tools for an active queue", async () => {
 	const h = createHarness();
-
-	// Disabled with an empty conversation: hard-hide before any cache exists.
-	h.setBranch([toggleEntry("toggle-off", false)]);
-	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
-	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash"]);
-
-	// Enabled sessions retain only the queue loader until a queue is created.
-	h.setBranch([]);
 	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
 	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks"]);
 
-	// Disabled mid-conversation: leave the cached prefix untouched.
-	h.setBranch([userMessage("hello"), toggleEntry("toggle-off-2", false)]);
+	await createQueue(h);
+	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks", "finish_task"]);
+
+	h.setBranch([toggleEntry("toggle-off", false)]);
 	h.handlers.get("session_start")!({ reason: "resume" } as never, h.ctx as never);
-	assert.equal(h.activeToolsLog.length, 2);
+	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash"]);
 });
 
-test("does not rewrite the cached tools when tasks are re-enabled mid-conversation", async () => {
-	const h = createHarness([userMessage("hello")]);
+test("updates status while a queue is active", async () => {
+	const h = createHarness();
+	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
+	await createQueue(h);
+	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
 
-	await h.commands.get("tasks")!.handler("off", h.ctx as never);
-	h.pushEntry(toggleEntry("toggle-off", false));
-	await h.commands.get("tasks")!.handler("on", h.ctx as never);
-
-	assert.deepEqual(h.activeToolsLog, []);
-});
-
-test("restores deferred tools for an active queue after a session switch", async () => {
-	const h = createHarness([
-		assistantToolCall("queue-call", "create_tasks"),
-		toolResult("queue-result", "create_tasks", queueDetails("queue-call")),
-	]);
-	h.setActiveTools(["read", "bash", "create_tasks"]);
-
-	h.handlers.get("session_start")!({ reason: "resume" } as never, h.ctx as never);
-
-	assert.deepEqual(h.activeToolsLog.at(-1), [
-		"read",
-		"bash",
-		"create_tasks",
-		"finish_task",
-		"read_tasks",
-		"update_tasks",
-	]);
+	const finish = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
+	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
 });

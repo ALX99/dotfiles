@@ -5,59 +5,39 @@ import type {
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { isAbsolute, relative } from "node:path";
 import { randomUUID } from "node:crypto";
+import { isAbsolute, relative } from "node:path";
 import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { Predicate, Result, Schema } from "effect";
 
 const TASK_QUEUE_DETAILS_TYPE = "tasks:queue";
-const TASK_FINISH_DETAILS_TYPE = "tasks:finish";
-const TASK_COMPLETION_DETAILS_TYPE = "tasks:completion";
-const TASK_READ_DETAILS_TYPE = "tasks:read";
-const TASK_UPDATE_DETAILS_TYPE = "tasks:update";
+const TASK_OUTCOME_DETAILS_TYPE = "tasks:outcome";
+const TASK_CANCEL_DETAILS_TYPE = "tasks:cancel";
 const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
+
 /** Shared with minimal mode so its tool restriction can keep an active queue workable. */
-export const TASK_TOOL_NAMES = ["create_tasks", "finish_task", "read_tasks", "update_tasks"] as const;
+export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
 const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
-const TASK_STATUSES = ["completed", "failed", "blocked"] as const;
-const TASK_ITEM_STATES = ["pending", "skipped"] as const;
-const TASK_UPDATE_ACTIONS = ["insert", "rename", "skip", "cancel"] as const;
-const EVIDENCE_KINDS = ["file", "test", "commit", "finding"] as const;
+const TASK_OUTCOME_RESULTS = ["completed", "failed", "blocked", "skipped"] as const;
 const TASK_SPINNER_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"] as const;
 const TASK_COMPACTION_MARKER = "⟳";
-const TASK_READ_ALL_FILTER = "*";
 const MIN_TASKS = 4;
 const MAX_TASKS = 100;
-const MAX_TASK_READ_LENGTH = 12_000;
+const MAX_ADDED_TASKS = 20;
 const MAX_TASK_ORIGIN_LENGTH = 32_000;
 
-type TaskStatus = (typeof TASK_STATUSES)[number];
-type TaskItemState = (typeof TASK_ITEM_STATES)[number];
-type TaskUpdateAction = (typeof TASK_UPDATE_ACTIONS)[number];
-type TaskReadStatus = TaskStatus | TaskItemState | "cancelled";
-
-interface TaskUpdateInput {
-	action: TaskUpdateAction;
-	taskId?: string;
-	title?: string;
-	afterTaskId?: string;
-	reason?: string;
-}
-
-type TaskUpdate =
-	| { action: "insert"; title: string; afterTaskId?: string }
-	| { action: "rename"; taskId: string; title: string }
-	| { action: "skip"; taskId: string; reason: string }
-	| { action: "cancel"; reason: string };
+type TaskOutcomeResult = (typeof TASK_OUTCOME_RESULTS)[number];
+type TaskCheckpoint = "rewrite" | "inline";
+type TaskStatus = TaskOutcomeResult | "pending" | "cancelled";
+type TaskCounts = Record<TaskStatus, number>;
 
 interface TaskQueueItem {
 	id: string;
 	title: string;
-	state: TaskItemState;
-	skipReason: string;
 }
 
 interface TaskQueueDetails {
@@ -66,70 +46,58 @@ interface TaskQueueDetails {
 	tasks: TaskQueueItem[];
 	/** Conversation context captured automatically before create_tasks was called. */
 	origin: string;
-	cancelled: boolean;
-	cancelReason: string;
 }
 
+type TaskAddedItem = TaskQueueItem;
+
+/**
+ * The only task outcome persisted by the extension. The same payload is stored
+ * in the finish tool result and in the branch summary created at the boundary.
+ */
 interface TaskOutcome {
+	kind: typeof TASK_OUTCOME_DETAILS_TYPE;
 	taskId: string;
-	status: TaskStatus;
+	result: TaskOutcomeResult;
 	summary: string;
-	evidence: Evidence[];
-	decisions: string[];
-	remaining: string[];
+	addedTasks: TaskAddedItem[];
 	/** Files targeted by successful edit/write/apply_patch calls observed in this task. */
 	changedFiles: string[];
+	/** Whether this outcome is expected to be rewritten into a branch summary. */
+	checkpoint: TaskCheckpoint;
 }
 
-interface TaskFinishDetails extends TaskOutcome {
-	kind: typeof TASK_FINISH_DETAILS_TYPE;
-	/** Interactive finishes compact their working trace; print-mode finishes remain in place. */
-	compact: boolean;
-}
-
-interface TaskCompletionDetails extends TaskOutcome {
-	kind: typeof TASK_COMPLETION_DETAILS_TYPE;
-	title: string;
-	/** Latest queue shape, carried through task compaction so amendments survive. */
-	queue: TaskQueueDetails;
-}
-
-type TaskUpdateDetails = TaskUpdate & {
-	kind: typeof TASK_UPDATE_DETAILS_TYPE;
+interface TaskCancelledDetails {
+	kind: typeof TASK_CANCEL_DETAILS_TYPE;
 	queueId: string;
-	/** New records persist the generated insert identity without mirroring the queue. */
-	insertedTaskId?: string;
-};
-
-interface TaskReadItem {
-	id: string;
-	title: string;
-	status: TaskReadStatus;
-	summary?: string;
-	evidence?: Evidence[];
-	decisions?: string[];
-	remaining?: string[];
-	changedFiles?: string[];
-	skipReason?: string;
+	reason: string;
 }
 
-interface TaskReadDetails {
-	kind: typeof TASK_READ_DETAILS_TYPE;
-	queueId?: string;
-	currentTaskId?: string;
-	cancelled: boolean;
-	cancelReason?: string;
-	tasks: TaskReadItem[];
-	counts: Record<TaskReadStatus, number>;
+interface ActiveQueue {
+	queue: TaskQueueDetails;
+	/** Stable boundary for the current task: the queue anchor or previous task checkpoint. */
+	checkpointEntryId: string;
+	outcomes: Map<string, TaskOutcome>;
+	/** The interactive outcome awaiting navigation to its branch summary. */
+	pendingCompaction?: TaskOutcome;
+	cancelled?: TaskCancelledDetails;
 }
 
-interface Evidence {
-	kind: (typeof EVIDENCE_KINDS)[number];
-	description?: string;
-	path?: string;
-	command?: string;
-	result?: string;
-	hash?: string;
+interface TaskStatusContext {
+	sessionManager: {
+		getBranch(): SessionEntry[];
+		buildContextEntries?: () => SessionEntry[];
+	};
+	mode?: string;
+	ui: {
+		setStatus(key: string, text: string | undefined): void;
+	};
+}
+
+interface BranchContext {
+	sessionManager: {
+		getBranch(): SessionEntry[];
+		buildContextEntries?: () => SessionEntry[];
+	};
 }
 
 const boundedString = (maxLength: number) =>
@@ -148,18 +116,7 @@ const requiredText = (maxLength: number) =>
 const TaskQueueItemSchema = Schema.Struct({
 	id: requiredText(200),
 	title: requiredText(200),
-	state: Schema.Literals(TASK_ITEM_STATES),
-	skipReason: boundedString(1000),
-}).check(
-	Schema.makeFilter((item) => {
-		if (item.state === "skipped") {
-			return typeof item.skipReason === "string" && item.skipReason.trim().length > 0
-				? undefined
-				: "skipped tasks require a reason";
-		}
-		return item.skipReason.length === 0 ? undefined : "only skipped tasks may have a skip reason";
-	}),
-);
+});
 
 const TaskQueueItemsSchema = Schema.Array(TaskQueueItemSchema).check(
 	Schema.isMinLength(MIN_TASKS),
@@ -170,250 +127,114 @@ const TaskQueueItemsSchema = Schema.Array(TaskQueueItemSchema).check(
 	),
 );
 
+const TaskAddedItemSchema = Schema.Struct({
+	id: requiredText(200),
+	title: requiredText(200),
+});
+
+const AddedTaskItemsSchema = Schema.Array(TaskAddedItemSchema).check(
+	Schema.makeFilter((tasks) =>
+		tasks.length <= MAX_ADDED_TASKS && new Set(tasks.map((task) => task.id)).size === tasks.length
+			? undefined
+			: `must contain at most ${MAX_ADDED_TASKS} unique added tasks`,
+	),
+);
+
 const TaskQueueSchema = Schema.Struct({
 	kind: Schema.Literals([TASK_QUEUE_DETAILS_TYPE]),
 	queueId: requiredText(200),
 	tasks: TaskQueueItemsSchema,
 	origin: boundedString(MAX_TASK_ORIGIN_LENGTH),
-	cancelled: Schema.Boolean,
-	cancelReason: Schema.String,
-}).check(
-	Schema.makeFilter((queue) => {
-		if (!queue.cancelled && queue.cancelReason.length > 0) {
-			return "cancelReason requires cancelled";
-		}
-		if (queue.cancelled && queue.cancelReason.trim().length === 0) {
-			return "cancelled queues require a reason";
-		}
-		return undefined;
-	}),
-);
-
-const EvidenceSchema = Schema.Struct({
-	kind: Schema.Literals(EVIDENCE_KINDS),
-	description: Schema.optional(boundedString(1000)),
-	path: Schema.optional(boundedString(1000)),
-	command: Schema.optional(boundedString(2000)),
-	result: Schema.optional(boundedString(2000)),
-	hash: Schema.optional(boundedString(200)),
 });
 
-const TaskFinishSchema = Schema.Struct({
-	kind: Schema.Literals([TASK_FINISH_DETAILS_TYPE]),
-	taskId: Schema.String,
-	status: Schema.Literals(TASK_STATUSES),
-	summary: Schema.String,
-	evidence: Schema.Array(EvidenceSchema),
-	decisions: Schema.Array(Schema.String),
-	remaining: Schema.Array(Schema.String),
-	changedFiles: Schema.Array(Schema.String),
-	compact: Schema.Boolean,
+const TaskOutcomeSchema = Schema.Struct({
+	kind: Schema.Literals([TASK_OUTCOME_DETAILS_TYPE]),
+	taskId: requiredText(200),
+	result: Schema.Literals(TASK_OUTCOME_RESULTS),
+	summary: requiredText(6000),
+	addedTasks: AddedTaskItemsSchema,
+	changedFiles: Schema.Array(boundedString(2000)),
+	checkpoint: Schema.Literals(["rewrite", "inline"]),
 });
 
-const TaskUpdateSchema = Schema.Struct({
-	kind: Schema.Literals([TASK_UPDATE_DETAILS_TYPE]),
+const TaskCancelledSchema = Schema.Struct({
+	kind: Schema.Literals([TASK_CANCEL_DETAILS_TYPE]),
 	queueId: requiredText(200),
-	action: Schema.Literals(TASK_UPDATE_ACTIONS),
-	title: Schema.optional(requiredText(200)),
-	taskId: Schema.optional(requiredText(200)),
-	afterTaskId: Schema.optional(requiredText(200)),
-	reason: Schema.optional(requiredText(1000)),
-	insertedTaskId: Schema.optional(requiredText(200)),
+	reason: requiredText(1000),
 });
 
-const TaskCompletionSchema = Schema.Struct({
-	kind: Schema.Literals([TASK_COMPLETION_DETAILS_TYPE]),
-	taskId: Schema.String,
-	status: Schema.Literals(TASK_STATUSES),
-	summary: Schema.String,
-	evidence: Schema.Array(EvidenceSchema),
-	decisions: Schema.Array(Schema.String),
-	remaining: Schema.Array(Schema.String),
-	changedFiles: Schema.Array(Schema.String),
-	title: Schema.String,
-	queue: TaskQueueSchema,
-});
-
-type DecodedEvidence = Schema.Schema.Type<typeof EvidenceSchema>;
-
-interface DecodedTaskOutcome {
-	taskId: string;
-	status: TaskStatus;
-	summary: string;
-	evidence: readonly DecodedEvidence[];
-	decisions: readonly string[];
-	remaining: readonly string[];
-	changedFiles: readonly string[];
-}
-
-function copyEvidence(evidence: DecodedEvidence): Evidence {
-	return {
-		kind: evidence.kind,
-		...(evidence.description === undefined ? {} : { description: evidence.description }),
-		...(evidence.path === undefined ? {} : { path: evidence.path }),
-		...(evidence.command === undefined ? {} : { command: evidence.command }),
-		...(evidence.result === undefined ? {} : { result: evidence.result }),
-		...(evidence.hash === undefined ? {} : { hash: evidence.hash }),
-	};
-}
-
-function copyEvidenceList(evidence: readonly DecodedEvidence[]): Evidence[] {
-	return evidence.map(copyEvidence);
-}
-
-function copyTaskOutcome(outcome: DecodedTaskOutcome): TaskOutcome {
-	return {
-		taskId: outcome.taskId,
-		status: outcome.status,
-		summary: outcome.summary,
-		evidence: copyEvidenceList(outcome.evidence),
-		decisions: [...outcome.decisions],
-		remaining: [...outcome.remaining],
-		changedFiles: [...outcome.changedFiles],
-	};
-}
-
-interface ActiveQueue {
-	queue: TaskQueueDetails;
-	/** Stable boundary for the current task: the queue anchor or previous task checkpoint. */
-	checkpointEntryId: string;
-	outcomes: Map<string, TaskOutcome>;
-	/** The interactive finish awaiting navigation to its completion summary. */
-	pendingCompaction?: TaskFinishDetails;
-}
-
-interface BranchContext {
-	sessionManager: {
-		getBranch(): SessionEntry[];
-		buildContextEntries?: () => SessionEntry[];
-	};
-}
-
-interface TaskStatusContext extends BranchContext {
-	mode?: string;
-	ui: {
-		setStatus(key: string, text: string | undefined): void;
-	};
-}
-
-// Tool schemas
-
-const CreateTasksParams = Type.Object({
-	tasks: Type.Array(
-		Type.Object({
-			title: Type.String({
+const CreateTasksParams = Type.Object(
+	{
+		tasks: Type.Array(
+			Type.String({
 				minLength: 1,
 				maxLength: 200,
 				description: "Outcome-oriented title for one clearly separable step",
 			}),
-		}),
-		{
-			minItems: MIN_TASKS,
-			maxItems: MAX_TASKS,
-			description: "At least four substantial related phases; do not pad simple work with generic steps",
-		},
-	),
-});
+			{
+				minItems: MIN_TASKS,
+				maxItems: MAX_TASKS,
+				description: "At least four substantial related phases; do not pad simple work with generic steps",
+			},
+		),
+	},
+	{ additionalProperties: false },
+);
 
-const ReadTasksParams = Type.Object({
-	taskId: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 200,
-			description: "Optional task ID to inspect in detail. Omit it or use * to show all tasks.",
+const FinishTaskParams = Type.Object(
+	{
+		result: StringEnum(TASK_OUTCOME_RESULTS, {
+			description:
+				"completed when the task succeeded, failed when it could not be completed, blocked when an external dependency prevents progress, or skipped when the task is no longer necessary",
 		}),
-	),
-	path: Type.Optional(
-		Type.String({
+		summary: Type.String({
 			minLength: 1,
-			maxLength: 1000,
-			description: "Optional file path to find across observed task changes. Omit it or use * to show all tasks.",
+			maxLength: 6000,
+			description: "Concise outcome and the critical context required to continue correctly",
 		}),
-	),
-});
+		followups: Type.Optional(
+			Type.Array(
+				Type.String({
+					minLength: 1,
+					maxLength: 200,
+					description: "Outcome-oriented title for newly discovered work",
+				}),
+				{
+					maxItems: MAX_ADDED_TASKS,
+					description: "Optional newly discovered tasks to append to the queue.",
+				},
+			),
+		),
+	},
+	{ additionalProperties: false },
+);
 
-const UpdateTasksParams = Type.Object({
-	action: StringEnum(TASK_UPDATE_ACTIONS, {
-		description: "insert a pending task, rename or skip a pending task, or cancel the remaining queue",
-	}),
-	taskId: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 200,
-			description: "Existing task ID for rename or skip",
-		}),
-	),
-	title: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 200,
-			description: "New title for rename, or title for insert",
-		}),
-	),
-	afterTaskId: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 200,
-			description: "Insert after this existing task; omit to append",
-		}),
-	),
-	reason: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 1000,
-			description: "Why a task was skipped or the queue was canceled",
-		}),
-	),
-});
+/** Why a task operation was refused; `message` is the text shown at the boundary. */
+export const TaskQueueReason = Schema.Literals([
+	"cancelled",
+	"finished",
+	"capacity",
+	"invalid_task",
+	"print_mode",
+	"active_queue",
+	"no_queue",
+	"pending_compaction",
+	"already_recorded",
+	"no_pending_outcome",
+	"tasks_disabled",
+	"not_isolated",
+]);
+export type TaskQueueReason = Schema.Schema.Type<typeof TaskQueueReason>;
 
-const EvidenceParams = Type.Object({
-	kind: StringEnum(EVIDENCE_KINDS, {
-		description:
-			"file for a relevant path, test for a verification command, commit for a Git commit, finding for an investigation result",
-	}),
-	description: Type.Optional(
-		Type.String({
-			minLength: 1,
-			maxLength: 1000,
-			description: "What this evidence establishes",
-		}),
-	),
-	path: Type.Optional(Type.String({ minLength: 1, maxLength: 1000 })),
-	command: Type.Optional(Type.String({ minLength: 1, maxLength: 2000 })),
-	result: Type.Optional(Type.String({ minLength: 1, maxLength: 2000 })),
-	hash: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-});
+/** A refused task operation. Tool boundaries throw it; the message is user-facing. */
+export class TaskQueueError extends Schema.TaggedError<TaskQueueError>()("TaskQueueError", {
+	reason: TaskQueueReason,
+	message: Schema.String,
+}) {}
 
-const FinishTaskParams = Type.Object({
-	status: StringEnum(TASK_STATUSES, {
-		description:
-			"completed when the task succeeded, failed when it could not be completed, blocked when an external dependency prevents progress. Every status is a terminal checkpoint and advances the queue; put unresolved work in remaining",
-	}),
-	summary: Type.String({
-		minLength: 1,
-		maxLength: 6000,
-		description: "Concise outcome and the critical context required to continue correctly",
-	}),
-	evidence: Type.Array(EvidenceParams, {
-		minItems: 1,
-		maxItems: 30,
-		description: "Concrete files, verification commands, commits, or findings supporting the outcome",
-	}),
-	decisions: Type.Optional(
-		Type.Array(Type.String({ minLength: 1, maxLength: 1000 }), {
-			maxItems: 20,
-			description: "Decisions a later task must preserve",
-		}),
-	),
-	remaining: Type.Optional(
-		Type.Array(Type.String({ minLength: 1, maxLength: 1000 }), {
-			maxItems: 20,
-			description: "Known follow-up work or unresolved constraints",
-		}),
-	),
-});
-
-// Extension wiring
+function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
+	return new TaskQueueError({ reason, message });
+}
 
 export default function tasksExtension(pi: ExtensionAPI): void {
 	let agentActive = false;
@@ -442,12 +263,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		spinnerTimer = undefined;
 	};
 
-	// All task state lives in the session tree; every handler derives from it.
 	pi.registerTool({
 		name: "create_tasks",
 		label: "Create Tasks",
 		description:
-			"Create the session's task queue, then work it in order with finish_task after each task. Call alone in its turn; print mode records one task per invocation.",
+			"Create a task queue for genuinely complex multi-phase work, then work the tasks in order with finish_task.",
 		promptSnippet: "Create a task queue for genuinely complex multi-phase work",
 		promptGuidelines: [
 			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints. Never pad to four items or split routine reading, coding, testing, review, or verification; complete small or straightforward edits directly.",
@@ -459,7 +279,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (ctx.mode === "print" && printTaskFinished) {
 				throw taskError(
 					"print_mode",
-					"Print mode records one task per invocation. Resume the queue with the next invocation.",
+					"The current task outcome has already been recorded. Continue with the next task.",
 				);
 			}
 			requireIsolatedTaskCall(ctx, toolCallId, "create_tasks");
@@ -473,19 +293,15 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 			const queueId = randomUUID();
 			const seen = new Set<string>();
-			const tasks: TaskQueueItem[] = params.tasks.map((task) => ({
+			const tasks: TaskQueueItem[] = params.tasks.map((title) => ({
 				id: uniqueTaskId(seen),
-				title: task.title,
-				state: "pending",
-				skipReason: "",
+				title,
 			}));
 			const details: TaskQueueDetails = {
 				kind: TASK_QUEUE_DETAILS_TYPE,
 				queueId,
 				tasks,
 				origin: captureTaskOrigin(ctx, toolCallId),
-				cancelled: false,
-				cancelReason: "",
 			};
 			activateTaskTools(pi);
 			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(1, tasks.length, tasks[0]!.title, agentActive, spinnerIndex));
@@ -495,8 +311,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 						type: "text",
 						text: [
 							`Queued ${tasks.length} tasks.`,
-							...tasks.map((task, index) => `${index + 1}. ${task.title} (${task.id})`),
-							"Work them in order, and after each one call finish_task alone in its turn with an outcome summary and concrete evidence.",
+							...tasks.map((task, index) => `${index + 1}. ${task.id}: ${task.title}`),
+							"Work them in order and call finish_task alone after each task with an outcome summary.",
 						].join("\n"),
 					},
 				],
@@ -506,79 +322,13 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "read_tasks",
-		label: "Read Tasks",
-		description:
-			"Read the active task queue and its recorded outcomes. Use it to check what previous tasks changed, decided, tested, or left unresolved. Optionally filter by taskId or file path.",
-		promptSnippet: "Look up task progress, previous changes, decisions, and evidence",
-		promptGuidelines: [
-			"Use read_tasks before repeating investigation or editing a file that may have been handled by an earlier task.",
-			"Omit taskId and path, or use *, to read all tasks. Use taskId for one task's full outcome or path to find tasks that observed a file change.",
-		],
-		parameters: ReadTasksParams,
-		executionMode: "sequential",
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			ensureTasksEnabled(ctx);
-			const active = getActiveQueue(ctx);
-			const taskId = normalizeReadFilter(params.taskId);
-			const path = normalizeReadFilter(params.path);
-			const details = readTasks(active, taskId, path);
-			return {
-				content: [{ type: "text", text: formatTaskRead(details, taskId !== undefined || path !== undefined) }],
-				details,
-			};
-		},
-	});
-
-	pi.registerTool({
-		name: "update_tasks",
-		label: "Update Tasks",
-		description:
-			"Make small queue amendments: insert follow-up work, rename or skip pending tasks, or cancel remaining work. Call alone in its turn.",
-		promptSnippet: "Amend pending task titles, ordering, or cancellation",
-		promptGuidelines: [
-			"Use update_tasks only for a small queue amendment discovered during work. Finished tasks and their IDs are preserved.",
-			"Use action: insert to add follow-up work as a new pending task.",
-		],
-		parameters: UpdateTasksParams,
-		executionMode: "sequential",
-		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
-			ensureTasksEnabled(ctx);
-			if (ctx.mode === "print" && printTaskFinished) {
-				throw taskError(
-					"print_mode",
-					"Print mode records one task per invocation. Resume the queue with the next invocation.",
-				);
-			}
-			requireIsolatedTaskCall(ctx, toolCallId, "update_tasks");
-			const active = getActiveQueue(ctx);
-			if (active === undefined) throw taskError("no_queue", "No task queue is active. Call create_tasks first.");
-			if (pendingCompaction(active) !== undefined) {
-				throw taskError(
-					"pending_compaction",
-					"A task outcome is waiting to compact. Let it finish before amending the queue.",
-				);
-			}
-			const update = Result.getOrThrow(normalizeTaskUpdate(params));
-			const queue = Result.getOrThrow(amendQueue(active, update));
-			active.queue = queue;
-			const details = taskUpdateDetails(queue, update);
-			refreshStatus(ctx);
-			return {
-				content: [{ type: "text", text: formatTaskUpdate(details, active) }],
-				details,
-			};
-		},
-	});
-
-	pi.registerTool({
 		name: "finish_task",
 		label: "Finish Task",
 		description:
-			"Record the current task's outcome, context, and evidence. Changed files track successful edit/write/apply_patch calls since the previous checkpoint, not shell or external changes. Call alone in its turn. Interactive mode compacts the trace and continues from the record; print mode records without compaction and resumes next invocation.",
-		promptSnippet: "Finish the current queued task with a summary and evidence",
+			"Finish the current queued task with its result and concise continuation context. Optionally append newly discovered follow-up work.",
+		promptSnippet: "Finish the current queued task with its outcome and summary",
 		promptGuidelines: [
-			"After each task, call finish_task alone with concrete evidence and the decisions, blockers, and remaining work a later task needs. Interactive mode compacts automatically after the turn; mid-task compaction is recoverable and file attribution is preserved for supported mutation tools.",
+			"Call finish_task alone after reaching an outcome for the current task. Include verification, decisions, blockers, and remaining work in the summary when relevant. If the work revealed additional necessary tasks, add their titles in followups.",
 		],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
@@ -587,10 +337,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (ctx.mode === "print" && printTaskFinished) {
 				throw taskError(
 					"print_mode",
-					"Print mode records one task per invocation. Resume the queue with the next invocation.",
+					"The current task outcome has already been recorded. Continue with the next task.",
 				);
 			}
 			requireIsolatedTaskCall(ctx, toolCallId, "finish_task");
+			if (!Check(FinishTaskParams, params)) throw new Error("Invalid finish_task parameters.");
 			const active = getActiveQueue(ctx);
 			if (active === undefined) {
 				throw taskError(
@@ -604,59 +355,54 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (item === undefined)
 				throw taskError("no_pending_outcome", "Every queued task already has a recorded outcome.");
 
-			// Print mode is single-shot: preserve the checkpoint in place and let
-			// the model produce a final response for this invocation. The next
-			// invocation derives the next task from the durable finish record.
-			const compact = ctx.mode !== "print";
-			const details: TaskFinishDetails = {
-				kind: TASK_FINISH_DETAILS_TYPE,
+			const checkpoint = ctx.mode === "print" ? "inline" : "rewrite";
+			const addedTasks = addedTasksForOutcome(active, params.followups);
+			const details: TaskOutcome = {
+				kind: TASK_OUTCOME_DETAILS_TYPE,
 				taskId: item.id,
-				status: params.status,
+				result: params.result,
 				summary: params.summary,
-				evidence: params.evidence,
-				decisions: params.decisions === undefined ? [] : params.decisions,
-				remaining: params.remaining === undefined ? [] : params.remaining,
+				addedTasks,
 				changedFiles: changedFilesForTask(ctx, active),
-				compact,
+				checkpoint,
 			};
 			if (ctx.mode === "print") printTaskFinished = true;
-			const next = currentItemAfter(active, item.id);
-			const completedCount = finishedCount(active) + 1;
+
+			const projected = projectOutcome(active, details);
+			const next = currentItem(projected);
+			const completedCount = finishedCount(projected);
 			const taskNumber = positionOf(active, item.id);
-			const nextLabel = next === undefined ? "the final summary" : next.title;
+			const total = projected.queue.tasks.length;
 			ctx.ui.setStatus(
 				TASK_STATUS_KEY,
-				compact
-					? `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${active.queue.tasks.length} · compacting`
-					: `Task ${taskNumber}/${active.queue.tasks.length} · recorded`,
+				checkpoint === "rewrite"
+					? `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${total} · compacting`
+					: `Task ${taskNumber}/${total} · recorded`,
 			);
 			return {
 				content: [
 					{
 						type: "text",
-						text:
-							ctx.mode === "print"
-								? `Task outcome recorded (${completedCount}/${active.queue.tasks.length}) without compaction. This print invocation ends after the current task; the next invocation resumes with ${
-										nextLabel
-									}.`
-								: compact
-									? `Task outcome recorded (${completedCount}/${active.queue.tasks.length}).${
-											next === undefined ? finishQueueMessage(active, params.status) : ` Next: ${next.title}.`
-										} Its working trace will be compacted after this turn settles.`
-									: "Task outcome recorded without compaction.",
+						text: [
+							`Task outcome recorded (${completedCount}/${total}).`,
+							...(addedTasks.length === 0
+								? []
+								: [`Added: ${addedTasks.map((task) => `${task.id}: ${task.title}`).join("; ")}`]),
+							next === undefined ? finishQueueMessage(projected, params.result) : `Next: ${next.id}: ${next.title}.`,
+						].join(" "),
 					},
 				],
 				details,
-				terminate: compact,
+				terminate: checkpoint === "rewrite",
 			};
 		},
 	});
 
 	pi.registerCommand("tasks", {
-		description:
-			"Inspect, toggle, amend, or commit tasks (/tasks [status|on|off|commit|insert|insert-after|rename|skip|cancel]). Interactive modes compact after finish_task; print mode records one checkpoint per invocation.",
+		description: "Inspect or control tasks (/tasks [status|on|off|commit|cancel <reason>]).",
 		handler: async (args, ctx) => {
-			const action = args.trim().toLowerCase();
+			const trimmed = args.trim();
+			const action = trimmed.toLowerCase();
 			if (action === "" || action === "status") {
 				showTaskStatus(ctx);
 				return;
@@ -665,13 +411,17 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				setEnabled(pi, ctx, action === "on", () => refreshStatus(ctx));
 				return;
 			}
-			if (action !== "commit") {
-				const update = parseTaskCommand(args);
-				if (update === undefined) {
-					ctx.ui.notify(taskCommandUsage(), "warning");
+			if (action.startsWith("cancel")) {
+				const reason = trimmed.slice("cancel".length).trim();
+				if (reason.length === 0) {
+					ctx.ui.notify("Usage: /tasks cancel <reason>", "warning");
 					return;
 				}
-				applyCommandUpdate(pi, ctx, update, () => refreshStatus(ctx));
+				cancelQueue(pi, ctx, reason, () => refreshStatus(ctx));
+				return;
+			}
+			if (action !== "commit") {
+				ctx.ui.notify("Usage: /tasks [status|on|off|commit|cancel <reason>]", "warning");
 				return;
 			}
 
@@ -691,33 +441,27 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			refreshStatus(ctx);
-			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its completion record.`, "info");
-			// Kick off the next queued task only after the settled run has fully torn
-			// down; starting a turn inside the settle window races runtime disposal.
-			// One-shot print mode exits when the outer prompt resolves, so it cannot
-			// auto-continue. Print-mode finish_task records without compaction, so
-			// subsequent invocations resume from the durable finish record.
-			const next = currentItemAfter(active, finish.taskId);
-			const continuation =
-				next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish.taskId, next);
+			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
+			const projected = projectOutcome(active, finish);
+			const next = currentItem(projected);
 			if (ctx.mode !== "print") {
-				scheduleContinuation(pi, continuation);
+				scheduleContinuation(
+					pi,
+					next === undefined ? finalSummaryPrompt(projected) : nextTaskPrompt(projected, finish, next),
+				);
 			}
 		},
 	});
 
 	pi.on("session_before_tree", (event, ctx) => {
-		// Rewinding to the current task checkpoint replaces the whole task trace,
-		// including any mid-task compactions, with its durable completion record.
 		const active = getActiveQueue(ctx);
 		const finish = pendingCompaction(active);
 		if (active === undefined || finish === undefined || event.preparation.targetId !== active.checkpointEntryId)
 			return undefined;
-		const completion = toCompletion(active, finish);
 		return {
 			summary: {
-				summary: `${formatCompletion(completion)}\n\n${formatQueueProgress(active)}`,
-				details: completion,
+				summary: `${formatOutcome(active, finish)}\n\n${formatQueueProgress(projectOutcome(active, finish))}`,
+				details: finish,
 			},
 			label: `task: ${titleOf(active, finish.taskId)}`,
 		};
@@ -759,9 +503,6 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("turn_end", (_event, ctx) => {
-		// A queue can be created during this run, after agent_start has already
-		// checked for an active queue. Start the spinner once its tool result is
-		// persisted and the queue is visible in the session tree.
 		startSpinner(ctx);
 		refreshStatus(ctx);
 	});
@@ -786,9 +527,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 }
 
-// Commands and queue transitions
-
-function pendingCompaction(active: ActiveQueue | undefined): TaskFinishDetails | undefined {
+function pendingCompaction(active: ActiveQueue | undefined): TaskOutcome | undefined {
 	return active?.pendingCompaction;
 }
 
@@ -826,321 +565,6 @@ function updateTaskStatus(ctx: TaskStatusContext, agentActive: boolean, spinnerI
 	);
 }
 
-function parseTaskCommand(args: string): TaskUpdate | undefined {
-	const match = /^(\S+)(?:\s+([\s\S]*))?$/u.exec(args.trim());
-	if (match === null) return undefined;
-
-	const command = match[1]!.toLowerCase();
-	const rest = match[2] === undefined ? "" : match[2].trim();
-	if (command === "insert") {
-		return rest.length === 0 ? undefined : { action: "insert", title: rest };
-	}
-	if (command === "insert-after") {
-		const target = takeCommandToken(rest);
-		if (target === undefined || target[1].length === 0) return undefined;
-		return { action: "insert", afterTaskId: target[0], title: target[1] };
-	}
-	if (command === "rename") {
-		const target = takeCommandToken(rest);
-		if (target === undefined || target[1].length === 0) return undefined;
-		return { action: "rename", taskId: target[0], title: target[1] };
-	}
-	if (command === "skip") {
-		const target = takeCommandToken(rest);
-		if (target === undefined || target[1].length === 0) return undefined;
-		return { action: "skip", taskId: target[0], reason: target[1] };
-	}
-	if (command === "cancel") {
-		return rest.length === 0 ? undefined : { action: "cancel", reason: rest };
-	}
-	return undefined;
-}
-
-function takeCommandToken(value: string): [string, string] | undefined {
-	const match = /^(\S+)(?:\s+([\s\S]*))?$/u.exec(value.trim());
-	if (match === null || match[2] === undefined) return undefined;
-	return [match[1]!, match[2].trim()];
-}
-
-function taskCommandUsage(): string {
-	return "Usage: /tasks [status|on|off|commit|insert <title>|insert-after <task-id> <title>|rename <task-id> <title>|skip <task-id> <reason>|cancel <reason>]";
-}
-
-function applyCommandUpdate(
-	pi: ExtensionAPI,
-	ctx: ExtensionCommandContext,
-	update: TaskUpdate,
-	refresh?: () => void,
-): void {
-	if (!tasksEnabled(ctx)) {
-		ctx.ui.notify("Tasks are disabled. Use /tasks on to re-enable.", "warning");
-		return;
-	}
-	const active = getActiveQueue(ctx);
-	if (active === undefined) {
-		ctx.ui.notify("No task queue is active. Call create_tasks first.", "warning");
-		return;
-	}
-	if (pendingCompaction(active) !== undefined) {
-		ctx.ui.notify("A task outcome is waiting to compact. Let it finish before amending the queue.", "warning");
-		return;
-	}
-
-	try {
-		const queue = Result.getOrThrow(amendQueue(active, update));
-		active.queue = queue;
-		const details = taskUpdateDetails(queue, update);
-		pi.sendMessage(
-			{
-				customType: TASK_UPDATE_DETAILS_TYPE,
-				content: formatTaskUpdate(details, active),
-				display: false,
-				details,
-			},
-			{ triggerTurn: false },
-		);
-		refresh?.();
-		ctx.ui.notify(formatTaskUpdate(details, active), "info");
-	} catch (error) {
-		ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
-	}
-}
-
-function normalizeTaskUpdate(params: TaskUpdateInput): Result.Result<TaskUpdate, TaskQueueError> {
-	switch (params.action) {
-		case "insert": {
-			const title = requireText(params.title, "Insert requires a task title.");
-			if (Result.isFailure(title)) return Result.fail(title.failure);
-			const afterTaskId = optionalText(params.afterTaskId);
-			return Result.succeed({
-				action: "insert",
-				title: title.success,
-				...(afterTaskId === undefined ? {} : { afterTaskId }),
-			});
-		}
-		case "rename": {
-			const taskId = requireTaskId(params.taskId);
-			if (Result.isFailure(taskId)) return Result.fail(taskId.failure);
-			const title = requireText(params.title, "Rename requires a new task title.");
-			if (Result.isFailure(title)) return Result.fail(title.failure);
-			return Result.succeed({ action: "rename", taskId: taskId.success, title: title.success });
-		}
-		case "skip": {
-			const taskId = requireTaskId(params.taskId);
-			if (Result.isFailure(taskId)) return Result.fail(taskId.failure);
-			const reason = requireText(params.reason, "Skip requires a reason.");
-			if (Result.isFailure(reason)) return Result.fail(reason.failure);
-			return Result.succeed({ action: "skip", taskId: taskId.success, reason: reason.success });
-		}
-		case "cancel": {
-			const reason = requireText(params.reason, "Cancel requires a reason.");
-			if (Result.isFailure(reason)) return Result.fail(reason.failure);
-			return Result.succeed({ action: "cancel", reason: reason.success });
-		}
-		default:
-			return Result.fail(taskError("unknown_action", "Unknown task update action."));
-	}
-}
-
-function optionalText(value: string | undefined): string | undefined {
-	const text = value?.trim();
-	return text === undefined || text.length === 0 ? undefined : text;
-}
-
-function requireTaskId(value: string | undefined): Result.Result<string, TaskQueueError> {
-	const taskId = optionalText(value);
-	return taskId === undefined
-		? Result.fail(taskError("missing_task", "This queue update requires a pending task ID."))
-		: Result.succeed(taskId);
-}
-
-function normalizeReadFilter(value: string | undefined): string | undefined {
-	const normalized = value?.trim();
-	return normalized === undefined || normalized === TASK_READ_ALL_FILTER ? undefined : normalized;
-}
-
-/** Why a queue amendment was refused; `message` is the text the model sees. */
-export const TaskQueueReason = Schema.Literals([
-	"cancelled",
-	"finished",
-	"capacity",
-	"unknown_task",
-	"unknown_action",
-	"missing_task",
-	"finished_task",
-	"missing_text",
-	"print_mode",
-	"active_queue",
-	"no_queue",
-	"pending_compaction",
-	"already_recorded",
-	"no_pending_outcome",
-	"tasks_disabled",
-	"not_isolated",
-]);
-export type TaskQueueReason = Schema.Schema.Type<typeof TaskQueueReason>;
-
-/** A refused queue amendment. Tool boundaries throw it; the message is user-facing. */
-export class TaskQueueError extends Schema.TaggedError<TaskQueueError>()("TaskQueueError", {
-	reason: TaskQueueReason,
-	message: Schema.String,
-}) {}
-
-function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
-	return new TaskQueueError({ reason, message });
-}
-
-function amendQueue(
-	active: ActiveQueue,
-	update: TaskUpdate,
-	insertedId?: string,
-): Result.Result<TaskQueueDetails, TaskQueueError> {
-	if (active.queue.cancelled) return Result.fail(taskError("cancelled", "The task queue is already canceled."));
-	if (currentItem(active) === undefined)
-		return Result.fail(taskError("finished", "No pending tasks remain in the queue."));
-
-	const queue = cloneQueue(active.queue);
-	switch (update.action) {
-		case "insert": {
-			if (queue.tasks.length >= MAX_TASKS) {
-				return Result.fail(taskError("capacity", `A task queue can contain at most ${MAX_TASKS} tasks.`));
-			}
-			const insertionIndex =
-				update.afterTaskId === undefined
-					? queue.tasks.length
-					: queue.tasks.findIndex((task) => task.id === update.afterTaskId) + 1;
-			if (insertionIndex === 0) {
-				return Result.fail(taskError("unknown_task", `Unknown task ID: ${update.afterTaskId}.`));
-			}
-			if (insertedId !== undefined && queue.tasks.some((task) => task.id === insertedId)) {
-				return Result.fail(taskError("unknown_task", `Task ID already exists: ${insertedId}.`));
-			}
-			const taskId = insertedId === undefined ? insertedTaskId(queue) : insertedId;
-			queue.tasks.splice(insertionIndex, 0, {
-				id: taskId,
-				title: update.title,
-				state: "pending",
-				skipReason: "",
-			});
-			return Result.succeed(queue);
-		}
-		case "rename": {
-			const task = pendingTask(active, queue, update.taskId);
-			if (Result.isFailure(task)) return Result.fail(task.failure);
-			task.success.title = update.title;
-			return Result.succeed(queue);
-		}
-		case "skip": {
-			const task = pendingTask(active, queue, update.taskId);
-			if (Result.isFailure(task)) return Result.fail(task.failure);
-			task.success.state = "skipped";
-			task.success.skipReason = update.reason;
-			return Result.succeed(queue);
-		}
-		case "cancel":
-			queue.cancelled = true;
-			queue.cancelReason = update.reason;
-			return Result.succeed(queue);
-		default:
-			return Result.fail(taskError("unknown_action", "Unknown task update action."));
-	}
-}
-
-function pendingTask(
-	active: ActiveQueue,
-	queue: TaskQueueDetails,
-	taskId: string,
-): Result.Result<TaskQueueItem, TaskQueueError> {
-	const task = queue.tasks.find((candidate) => candidate.id === taskId);
-	if (task === undefined) return Result.fail(taskError("unknown_task", `Unknown task ID: ${taskId}.`));
-	if (task.state === "skipped" || active.outcomes.has(task.id)) {
-		return Result.fail(taskError("finished_task", `Task ${taskId} is already finished and cannot be amended.`));
-	}
-	return Result.succeed(task);
-}
-
-function requireText(value: string | undefined, message: string): Result.Result<string, TaskQueueError> {
-	return value === undefined || value.trim().length === 0
-		? Result.fail(taskError("missing_text", message))
-		: Result.succeed(value.trim());
-}
-
-function cloneTaskItems(tasks: readonly TaskQueueItem[]): TaskQueueItem[] {
-	return tasks.map((task) => ({ ...task }));
-}
-
-function cloneQueue(
-	queue: Omit<TaskQueueDetails, "tasks"> & {
-		tasks: readonly TaskQueueItem[];
-	},
-): TaskQueueDetails {
-	return {
-		kind: TASK_QUEUE_DETAILS_TYPE,
-		queueId: queue.queueId,
-		tasks: cloneTaskItems(queue.tasks),
-		origin: queue.origin,
-		cancelled: queue.cancelled,
-		cancelReason: queue.cancelReason,
-	};
-}
-
-function insertedTaskId(queue: TaskQueueDetails): string {
-	return uniqueTaskId(new Set(queue.tasks.map((task) => task.id)));
-}
-
-function uniqueTaskId(seen: Set<string>): string {
-	let next = 1;
-	for (const id of seen) {
-		const match = /^t([1-9]\d*)$/u.exec(id);
-		if (match !== null) next = Math.max(next, Number(match[1]) + 1);
-	}
-
-	let id = `t${next}`;
-	while (seen.has(id)) id = `t${++next}`;
-	seen.add(id);
-	return id;
-}
-
-function taskUpdateDetails(queue: TaskQueueDetails, update: TaskUpdate): TaskUpdateDetails {
-	if (update.action !== "insert") {
-		return {
-			kind: TASK_UPDATE_DETAILS_TYPE,
-			queueId: queue.queueId,
-			...update,
-		};
-	}
-	const insertionIndex =
-		update.afterTaskId === undefined
-			? queue.tasks.length - 1
-			: queue.tasks.findIndex((task) => task.id === update.afterTaskId) + 1;
-	const insertedId = queue.tasks[insertionIndex]!.id;
-	return {
-		kind: TASK_UPDATE_DETAILS_TYPE,
-		queueId: queue.queueId,
-		...update,
-		insertedTaskId: insertedId,
-	};
-}
-
-function formatTaskUpdate(details: TaskUpdateDetails, active: ActiveQueue): string {
-	const counts = formatTaskCounts(readTasks(active).counts);
-	switch (details.action) {
-		case "insert":
-			return `Inserted ${details.title}. Queue: ${counts}.`;
-		case "rename":
-			return `Renamed ${details.taskId} to ${details.title}. Queue: ${counts}.`;
-		case "skip": {
-			const task = active.queue.tasks.find((item) => item.id === details.taskId);
-			const subject = task === undefined ? details.taskId : `${task.title} (${task.id})`;
-			return `Skipped ${subject}. Reason: ${details.reason} Queue: ${counts}.`;
-		}
-		case "cancel":
-			return `Canceled the remaining queue. Reason: ${details.reason} Queue: ${counts}.`;
-		default:
-			return `Updated task queue. Queue: ${counts}.`;
-	}
-}
-
 function formatTaskLabel(
 	taskNumber: number,
 	total: number,
@@ -1152,83 +576,155 @@ function formatTaskLabel(
 	return `${spinner}Task ${taskNumber}/${total} · ${title}`;
 }
 
+function addedTasksForOutcome(active: ActiveQueue, additions: readonly string[] | undefined): TaskAddedItem[] {
+	if (additions === undefined || additions.length === 0) return [];
+	if (active.queue.tasks.length + additions.length > MAX_TASKS) {
+		throw taskError("capacity", `A task queue can contain at most ${MAX_TASKS} tasks.`);
+	}
+	const seen = new Set(active.queue.tasks.map((task) => task.id));
+	return additions.map((title) => ({
+		id: uniqueTaskId(seen),
+		title: title.trim(),
+	}));
+}
+
+function appendAddedTasks(tasks: readonly TaskQueueItem[], additions: readonly TaskAddedItem[]): TaskQueueItem[] {
+	return [...tasks, ...additions.map((task) => ({ ...task }))];
+}
+
 function currentItem(active: ActiveQueue): TaskQueueItem | undefined {
-	if (active.queue.cancelled) return undefined;
-	return active.queue.tasks.find((task) => !isTaskFinished(active, task.id) && task.state !== "skipped");
+	if (active.cancelled !== undefined) return undefined;
+	return active.queue.tasks.find((task) => !active.outcomes.has(task.id));
 }
 
-function currentItemAfter(active: ActiveQueue, completedId: string): TaskQueueItem | undefined {
-	if (active.queue.cancelled) return undefined;
-	return active.queue.tasks.find(
-		(task) => task.id !== completedId && !isTaskFinished(active, task.id) && task.state !== "skipped",
-	);
-}
-
-function progress(active: ActiveQueue): string {
-	return `${finishedCount(active)}/${active.queue.tasks.length}`;
+function projectOutcome(active: ActiveQueue, outcome: TaskOutcome): ActiveQueue {
+	return {
+		queue: {
+			kind: TASK_QUEUE_DETAILS_TYPE,
+			queueId: active.queue.queueId,
+			tasks: appendAddedTasks(active.queue.tasks, outcome.addedTasks),
+			origin: active.queue.origin,
+		},
+		checkpointEntryId: active.checkpointEntryId,
+		outcomes: new Map([...active.outcomes, [outcome.taskId, outcome]]),
+		...(active.cancelled === undefined ? {} : { cancelled: active.cancelled }),
+	};
 }
 
 function finishedCount(active: ActiveQueue): number {
-	return active.queue.tasks.filter((task) => isTaskFinished(active, task.id)).length;
+	return active.queue.tasks.filter((task) => active.outcomes.has(task.id)).length;
 }
 
-function isTaskFinished(active: ActiveQueue, taskId: string): boolean {
-	return (
-		active.outcomes.has(taskId) || active.queue.tasks.some((task) => task.id === taskId && task.state === "skipped")
-	);
+function positionOf(active: ActiveQueue, taskId: string): number {
+	return active.queue.tasks.findIndex((task) => task.id === taskId) + 1;
 }
 
-function hasTaskIssues(counts: Record<TaskReadStatus, number>): boolean {
-	return counts.failed > 0 || counts.blocked > 0 || counts.skipped > 0 || counts.cancelled > 0;
+function titleOf(active: ActiveQueue, taskId: string): string {
+	const task = active.queue.tasks.find((candidate) => candidate.id === taskId);
+	return task === undefined ? taskId : task.title;
 }
 
-function finishQueueMessage(active: ActiveQueue, status: TaskStatus): string {
-	const counts = readTasks(active).counts;
-	if (status !== "completed" || hasTaskIssues(counts)) {
+function formatQueueStatus(active: ActiveQueue): string {
+	const counts = taskCounts(active);
+	if (active.cancelled !== undefined) return `! Tasks canceled · ${formatTaskCounts(counts)}`;
+	if (hasTaskIssues(counts)) return `! Tasks finished with issues · ${formatTaskCounts(counts)}`;
+	return `✓ Tasks ${finishedCount(active)}/${active.queue.tasks.length} complete`;
+}
+
+function finishQueueMessage(active: ActiveQueue, result: TaskOutcomeResult): string {
+	const counts = taskCounts(active);
+	if (result !== "completed" || hasTaskIssues(counts)) {
 		return " Queue finished with issues; the final summary must distinguish completed, failed, blocked, and skipped tasks.";
 	}
 	return " Queue complete.";
 }
 
-function formatQueueStatus(active: ActiveQueue): string {
-	const details = readTasks(active);
-	const counts = formatTaskCounts(details.counts);
-	if (details.cancelled) return `! Tasks canceled · ${counts}`;
-	if (hasTaskIssues(details.counts)) return `! Tasks finished with issues · ${counts}`;
-	return `✓ Tasks ${progress(active)} complete`;
-}
-
 function finalSummaryPrompt(active: ActiveQueue): string {
-	const details = readTasks(active);
-	if (details.cancelled) {
-		return `The task queue was canceled (${formatTaskCounts(details.counts)}). Summarize completed, failed, blocked, skipped, and canceled tasks, include the cancellation reason and remaining work, and do not claim the queue succeeded.`;
+	const counts = taskCounts(active);
+	if (active.cancelled !== undefined) {
+		return `The task queue was canceled (${formatTaskCounts(counts)}). Summarize completed, failed, blocked, skipped, and canceled tasks, include the cancellation reason, and do not claim the queue succeeded.`;
 	}
-	if (hasTaskIssues(details.counts)) {
-		return `The task queue finished with ${formatTaskCounts(details.counts)}. Summarize the overall outcome for the user, clearly distinguishing completed, failed, blocked, and skipped tasks. Do not claim full success.`;
+	if (hasTaskIssues(counts)) {
+		return `The task queue finished with ${formatTaskCounts(counts)}. Summarize the overall outcome for the user, clearly distinguishing completed, failed, blocked, and skipped tasks. Do not claim full success.`;
 	}
 	return "All queued tasks are complete. Summarize the overall outcome for the user.";
 }
 
-function nextTaskPrompt(active: ActiveQueue, completedId: string, next: TaskQueueItem): string {
-	return `Task ${positionOf(active, completedId)} completed. Continue with: ${next.title} (${next.id}).`;
+function nextTaskPrompt(active: ActiveQueue, outcome: TaskOutcome, next: TaskQueueItem): string {
+	return `Task ${positionOf(active, outcome.taskId)} recorded as ${outcome.result}. Continue with: ${next.id}: ${next.title}.`;
 }
 
-// Recovery and observed file changes
-
 function formatTaskRecovery(active: ActiveQueue): string {
-	const details = readTasks(active);
 	const current = currentItem(active);
-	const currentTitle = current === undefined ? "No pending task" : `${current.title} (${current.id})`;
-	const origin =
-		active.queue.origin.length === 0 ? "No prior conversation context was available." : active.queue.origin;
+	const currentTitle = current === undefined ? "No pending task" : `${current.id}: ${current.title}`;
+	const counts = taskCounts(active);
 	return [
-		"Task recovery checkpoint after automatic context compaction.",
-		`Continue working on the current task: ${currentTitle}.`,
-		`Queue progress: ${formatTaskCounts(details.counts)}.`,
-		"Task origin captured automatically before create_tasks:",
-		origin,
-		"Use read_tasks({}) if the queue state or prior task outcomes are unclear.",
+		"Task checkpoint:",
+		`Continue with the current task: ${currentTitle}.`,
+		`Queue progress: ${formatTaskCounts(counts)}.`,
+		"Previous task summaries remain in the conversation history.",
 	].join("\n");
+}
+
+function taskCounts(active: ActiveQueue): TaskCounts {
+	const counts: TaskCounts = {
+		pending: 0,
+		completed: 0,
+		failed: 0,
+		blocked: 0,
+		skipped: 0,
+		cancelled: 0,
+	};
+	for (const task of active.queue.tasks) {
+		const outcome = active.outcomes.get(task.id);
+		if (outcome !== undefined) counts[outcome.result] += 1;
+		else if (active.cancelled !== undefined) counts.cancelled += 1;
+		else counts.pending += 1;
+	}
+	return counts;
+}
+
+function hasTaskIssues(counts: TaskCounts): boolean {
+	return counts.failed > 0 || counts.blocked > 0 || counts.skipped > 0 || counts.cancelled > 0;
+}
+
+function formatTaskCounts(counts: TaskCounts): string {
+	const order: TaskStatus[] = ["completed", "failed", "blocked", "skipped", "cancelled", "pending"];
+	return order
+		.filter((status) => counts[status] > 0)
+		.map((status) => `${counts[status]} ${status}`)
+		.join(", ");
+}
+
+function formatQueueProgress(active: ActiveQueue): string {
+	const next = currentItem(active);
+	if (next === undefined) {
+		if (active.cancelled !== undefined) {
+			return `## Queue progress\nQueue canceled: ${formatTaskCounts(taskCounts(active))}. No further tasks will run.`;
+		}
+		if (hasTaskIssues(taskCounts(active))) {
+			return `## Queue progress\nQueue finished with issues: ${formatTaskCounts(taskCounts(active))}. Do not report the queue as fully successful; distinguish skipped tasks from failed or blocked tasks.`;
+		}
+		return `## Queue progress\n${finishedCount(active)}/${active.queue.tasks.length} complete. The queue is finished.`;
+	}
+	return `## Queue progress\n${finishedCount(active)}/${active.queue.tasks.length} complete. Continue with: ${next.id}: ${next.title}`;
+}
+
+function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {
+	const lines = [
+		`## Task: ${outcome.taskId}: ${titleOf(active, outcome.taskId)}`,
+		`Result: ${outcome.result}`,
+		"",
+		"## Summary",
+		outcome.summary,
+	];
+	if (outcome.addedTasks.length > 0) {
+		lines.push("", "## Added tasks", ...outcome.addedTasks.map((task) => `- ${task.id}: ${task.title}`));
+	}
+	if (outcome.changedFiles.length > 0) {
+		lines.push("", "## Observed changed files", ...outcome.changedFiles.map((path) => `- \`${path}\``));
+	}
+	return lines.join("\n");
 }
 
 function captureTaskOrigin(ctx: ExtensionContext, toolCallId: string): string {
@@ -1254,15 +750,12 @@ function captureTaskOrigin(ctx: ExtensionContext, toolCallId: string): string {
 function formatTaskOriginEntry(entry: SessionEntry): string | undefined {
 	if (entry.type !== "message") return undefined;
 	const message = entry.message;
-	if (message.role === "user" || message.role === "assistant") {
-		const content = message.content;
-		if (typeof content !== "string" && !Array.isArray(content)) return undefined;
-		const text = formatTaskOriginContent(content);
-		if (text.length === 0) return undefined;
-		const label = message.role === "user" ? "User" : "Agent";
-		return `${label}: ${text}`;
-	}
-	return undefined;
+	if (message.role !== "user" && message.role !== "assistant") return undefined;
+	const content = message.content;
+	if (typeof content !== "string" && !Array.isArray(content)) return undefined;
+	const text = formatTaskOriginContent(content);
+	if (text.length === 0) return undefined;
+	return `${message.role === "user" ? "User" : "Agent"}: ${text}`;
 }
 
 function formatTaskOriginContent(content: string | readonly object[]): string {
@@ -1294,8 +787,7 @@ function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string
 	for (const entry of branch.slice(checkpointIndex + 1)) {
 		if (entry.type === "message" && entry.message.role === "assistant") {
 			for (const block of entry.message.content) {
-				if (block.type !== "toolCall") continue;
-				if (!Predicate.isObject(block.arguments)) continue;
+				if (block.type !== "toolCall" || !Predicate.isObject(block.arguments)) continue;
 				const paths = observedMutationPaths(block.name, block.arguments, ctx.cwd);
 				if (paths.length > 0) mutationPaths.set(block.id, paths);
 			}
@@ -1305,16 +797,12 @@ function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string
 		if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.isError) continue;
 		const callId = entry.message.toolCallId;
 		if (typeof callId !== "string") continue;
-		const paths = mutationPaths.get(callId);
-		if (paths !== undefined) {
-			for (const path of paths) changed.add(path);
-		}
+		for (const path of mutationPaths.get(callId) ?? []) changed.add(path);
 	}
 	return [...changed];
 }
 
-function observedMutationPaths(toolName: string, input: object, cwd: string): string[] {
-	if (!Predicate.isObject(input)) return [];
+function observedMutationPaths(toolName: string, input: Record<string, unknown>, cwd: string): string[] {
 	if ((toolName === "edit" || toolName === "write") && typeof input.path === "string") {
 		const path = normalizeObservedPath(input.path, cwd);
 		return path === undefined ? [] : [path];
@@ -1350,180 +838,13 @@ function normalizeObservedPath(value: string, cwd: string): string | undefined {
 	if (!isAbsolute(input)) return normalized;
 
 	const relativePath = relative(cwd, input).replaceAll("\\", "/");
-	if (relativePath.length > 0 && relativePath !== ".." && !relativePath.startsWith("../")) {
-		return relativePath;
-	}
+	if (relativePath.length > 0 && relativePath !== ".." && !relativePath.startsWith("../")) return relativePath;
 	return normalized;
 }
 
-function positionOf(active: ActiveQueue, taskId: string): number {
-	return active.queue.tasks.findIndex((task) => task.id === taskId) + 1;
+function formatTaskCountsForStatus(active: ActiveQueue): string {
+	return formatTaskCounts(taskCounts(active));
 }
-
-function titleOf(active: ActiveQueue, taskId: string): string {
-	const task = active.queue.tasks.find((candidate) => candidate.id === taskId);
-	return task === undefined ? taskId : task.title;
-}
-
-function recordOutcome(active: ActiveQueue, outcome: TaskOutcome): void {
-	if (!active.outcomes.has(outcome.taskId)) active.outcomes.set(outcome.taskId, outcome);
-}
-
-// Read model and presentation
-
-function readTasks(active: ActiveQueue | undefined, taskId?: string, path?: string): TaskReadDetails {
-	if (active === undefined) {
-		return {
-			kind: TASK_READ_DETAILS_TYPE,
-			cancelled: false,
-			tasks: [],
-			counts: emptyTaskCounts(),
-		};
-	}
-
-	const tasks = active.queue.tasks
-		.map((item) => {
-			const outcome = active.outcomes.get(item.id);
-			const status = statusOf(active, item, outcome);
-			const task: TaskReadItem = { id: item.id, title: item.title, status };
-			if (outcome !== undefined) {
-				task.summary = outcome.summary;
-				task.evidence = outcome.evidence;
-				task.decisions = outcome.decisions;
-				task.remaining = outcome.remaining;
-				task.changedFiles = outcome.changedFiles;
-			} else if (item.state === "skipped") {
-				task.skipReason = item.skipReason;
-			}
-			return task;
-		})
-		.filter((item) => {
-			if (taskId !== undefined && item.id !== taskId) return false;
-			if (path !== undefined && !taskMatchesPath(item, path)) return false;
-			return true;
-		});
-
-	const details: TaskReadDetails = {
-		kind: TASK_READ_DETAILS_TYPE,
-		queueId: active.queue.queueId,
-		cancelled: active.queue.cancelled,
-		...(active.queue.cancelReason.length === 0 ? {} : { cancelReason: active.queue.cancelReason }),
-		tasks,
-		counts: emptyTaskCounts(),
-	};
-	const current = currentItem(active);
-	if (current !== undefined) details.currentTaskId = current.id;
-	for (const item of active.queue.tasks) {
-		const outcome = active.outcomes.get(item.id);
-		details.counts[statusOf(active, item, outcome)] += 1;
-	}
-	return details;
-}
-
-function statusOf(active: ActiveQueue, item: TaskQueueItem, outcome?: TaskOutcome): TaskReadStatus {
-	if (outcome !== undefined) return outcome.status;
-	if (item.state === "skipped") return "skipped";
-	if (active.queue.cancelled) return "cancelled";
-	return "pending";
-}
-
-function taskMatchesPath(item: TaskReadItem, path: string): boolean {
-	const needle = path.trim();
-	const candidates = [
-		...(item.changedFiles === undefined ? [] : item.changedFiles),
-		...(item.evidence === undefined
-			? []
-			: item.evidence.flatMap((evidence) => (evidence.path === undefined ? [] : [evidence.path]))),
-	];
-	return candidates.some((candidate) => {
-		const file = candidate.trim();
-		return file === needle || file.endsWith(`/${needle}`) || needle.endsWith(`/${file}`);
-	});
-}
-
-function emptyTaskCounts(): Record<TaskReadStatus, number> {
-	return {
-		pending: 0,
-		completed: 0,
-		failed: 0,
-		blocked: 0,
-		skipped: 0,
-		cancelled: 0,
-	};
-}
-
-function formatTaskRead(details: TaskReadDetails, filtered: boolean): string {
-	if (details.queueId === undefined) return "No task queue is active.";
-	if (details.tasks.length === 0) {
-		return filtered ? "No task matched the requested task ID or file path." : "No task queue is active.";
-	}
-
-	const state = details.cancelled ? "canceled" : details.counts.pending === 0 ? "finished" : "active";
-	const lines = [`Task queue ${state} (${formatTaskCounts(details.counts)}).`];
-	for (const [index, task] of details.tasks.entries()) {
-		lines.push(`${index + 1}. [${task.status}] ${task.title} (${task.id})`);
-		if (task.summary !== undefined) lines.push(`   Summary: ${truncate(task.summary, 800)}`);
-		if (task.changedFiles !== undefined && task.changedFiles.length > 0) {
-			lines.push(`   Changed files: ${task.changedFiles.join(", ")}`);
-		}
-		if (task.decisions !== undefined && task.decisions.length > 0) {
-			lines.push(`   Decisions: ${task.decisions.map((decision) => truncate(decision, 300)).join(" | ")}`);
-		}
-		if (task.remaining !== undefined && task.remaining.length > 0) {
-			lines.push(`   Remaining: ${task.remaining.map((remaining) => truncate(remaining, 300)).join(" | ")}`);
-		}
-		if (task.skipReason !== undefined) lines.push(`   Skip reason: ${truncate(task.skipReason, 500)}`);
-		if (task.evidence !== undefined && task.evidence.length > 0) {
-			lines.push(
-				`   Evidence: ${task.evidence
-					.slice(0, 5)
-					.map((evidence) => `${evidence.kind}: ${truncate(evidenceSummary(evidence), 300)}`)
-					.join(" | ")}`,
-			);
-			if (task.evidence.length > 5) lines.push(`   Evidence: ... ${task.evidence.length - 5} more`);
-		}
-	}
-	if (details.currentTaskId !== undefined) {
-		lines.push(`Current task: ${details.currentTaskId}`);
-	}
-	const output = lines.join("\n");
-	if (output.length <= MAX_TASK_READ_LENGTH) return output;
-	const hint = "\nOutput truncated; use taskId or path to narrow the lookup.";
-	return `${truncate(output, MAX_TASK_READ_LENGTH - hint.length)}${hint}`;
-}
-
-function formatTaskCounts(counts: Record<TaskReadStatus, number>): string {
-	const order: TaskReadStatus[] = ["completed", "failed", "blocked", "skipped", "cancelled", "pending"];
-	return order
-		.filter((status) => counts[status] > 0)
-		.map((status) => `${counts[status]} ${status}`)
-		.join(", ");
-}
-
-function truncate(value: string, maxLength: number): string {
-	return value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
-}
-
-function toCompletion(active: ActiveQueue, finish: TaskFinishDetails): TaskCompletionDetails {
-	return {
-		kind: TASK_COMPLETION_DETAILS_TYPE,
-		taskId: finish.taskId,
-		status: finish.status,
-		summary: finish.summary,
-		evidence: finish.evidence,
-		decisions: finish.decisions,
-		remaining: finish.remaining,
-		changedFiles: finish.changedFiles,
-		title: titleOf(active, finish.taskId),
-		queue: queueSnapshot(active.queue),
-	};
-}
-
-function queueSnapshot(queue: TaskQueueDetails): TaskQueueDetails {
-	return cloneQueue(queue);
-}
-
-// Tool visibility and session controls
 
 function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boolean, refresh?: () => void): void {
 	if (tasksEnabled(ctx) === enabled) {
@@ -1549,7 +870,85 @@ function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boo
 	if (!enabled) ctx.ui.setStatus(TASK_STATUS_KEY, "Tasks off");
 }
 
-function ensureTasksEnabled(ctx: ExtensionContext): void {
+function cancelQueue(pi: ExtensionAPI, ctx: ExtensionCommandContext, reason: string, refresh?: () => void): void {
+	if (!tasksEnabled(ctx)) {
+		ctx.ui.notify("Tasks are disabled. Use /tasks on to re-enable.", "warning");
+		return;
+	}
+	const active = getActiveQueue(ctx);
+	if (active === undefined) {
+		ctx.ui.notify("No task queue is active. Call create_tasks first.", "warning");
+		return;
+	}
+	if (active.cancelled !== undefined) {
+		ctx.ui.notify("The task queue is already canceled.", "warning");
+		return;
+	}
+	if (pendingCompaction(active) !== undefined) {
+		ctx.ui.notify("A task outcome is waiting to compact. Let it finish before canceling the queue.", "warning");
+		return;
+	}
+	if (currentItem(active) === undefined) {
+		ctx.ui.notify("No pending tasks remain in the queue.", "warning");
+		return;
+	}
+	const details: TaskCancelledDetails = {
+		kind: TASK_CANCEL_DETAILS_TYPE,
+		queueId: active.queue.queueId,
+		reason: reason.trim(),
+	};
+	pi.sendMessage(
+		{
+			customType: TASK_CANCEL_DETAILS_TYPE,
+			content: `Canceled the remaining task queue. Reason: ${details.reason}`,
+			display: false,
+			details,
+		},
+		{ triggerTurn: false },
+	);
+	ctx.ui.notify(`Task queue canceled. Reason: ${details.reason}`, "info");
+	refresh?.();
+}
+
+function showTaskStatus(ctx: ExtensionCommandContext): void {
+	if (!tasksEnabled(ctx)) {
+		ctx.ui.notify("Tasks are disabled. Use /tasks on to re-enable.", "info");
+		return;
+	}
+	const active = getActiveQueue(ctx);
+	if (active === undefined) {
+		ctx.ui.notify("No task queue.", "info");
+		return;
+	}
+	const finish = pendingCompaction(active);
+	if (finish !== undefined) {
+		ctx.ui.notify(
+			`Task outcome recorded: ${titleOf(active, finish.taskId)} (${formatTaskCountsForStatus(active)}).`,
+			"info",
+		);
+		return;
+	}
+	const item = currentItem(active);
+	if (item === undefined) {
+		ctx.ui.notify(
+			active.cancelled !== undefined
+				? `Task queue canceled (${formatTaskCountsForStatus(active)}).`
+				: hasTaskIssues(taskCounts(active))
+					? `Task queue finished with issues (${formatTaskCountsForStatus(active)}).`
+					: `Task queue complete (${finishedCount(active)}/${active.queue.tasks.length}).`,
+			"info",
+		);
+		return;
+	}
+	ctx.ui.notify(
+		hasTaskIssues(taskCounts(active))
+			? `Task queue: ${formatTaskCountsForStatus(active)}. Current: ${item.title}`
+			: `Task queue: ${finishedCount(active)}/${active.queue.tasks.length} complete. Current: ${item.title}`,
+		"info",
+	);
+}
+
+function ensureTasksEnabled(ctx: BranchContext): void {
 	if (tasksEnabled(ctx)) return;
 	throw taskError("tasks_disabled", "Tasks are disabled for this session. A user can re-enable them with /tasks on.");
 }
@@ -1562,14 +961,9 @@ function scheduleContinuation(pi: ExtensionAPI, text: string): void {
 
 function syncTaskToolVisibility(pi: ExtensionAPI, ctx: BranchContext, enabled = tasksEnabled(ctx)): void {
 	if (!conversationStarted(ctx)) {
-		// Hard-hiding rewrites the system prompt's guidelines, so only do it before
-		// the first model request; afterwards fall back to rejecting task tool calls.
 		applyToolVisibility(pi, enabled);
 		return;
 	}
-	// Session switches can leave only the loader active while the branch already
-	// contains a queue. Restore management tools additively, without invalidating
-	// the cached prefix or exposing tools for a closed queue.
 	const active = getActiveQueue(ctx);
 	if (enabled && active !== undefined && !queueIsClosed(active)) activateTaskTools(pi);
 }
@@ -1582,7 +976,7 @@ function applyToolVisibility(pi: ExtensionAPI, enabled: boolean): void {
 	pi.setActiveTools(next);
 }
 
-/** Add task tools after the queue loader succeeds so Pi can defer their definitions. */
+/** Add the finish tool after the queue loader succeeds so Pi can defer its definition. */
 function activateTaskTools(pi: ExtensionAPI): void {
 	const active = pi.getActiveTools();
 	const added = TASK_TOOL_NAMES.filter((name) => !active.includes(name));
@@ -1601,56 +995,17 @@ function conversationStarted(ctx: BranchContext): boolean {
 	return ctx.sessionManager.getBranch().some((entry) => entry.type === "message");
 }
 
-function showTaskStatus(ctx: ExtensionCommandContext): void {
-	if (!tasksEnabled(ctx)) {
-		ctx.ui.notify("Tasks are disabled. Use /tasks on to re-enable.", "info");
-		return;
-	}
-	const active = getActiveQueue(ctx);
-	if (active === undefined) {
-		ctx.ui.notify("No task queue.", "info");
-		return;
-	}
-	const details = readTasks(active);
-	const finish = pendingCompaction(active);
-	if (finish !== undefined) {
-		ctx.ui.notify(
-			`Task outcome recorded: ${titleOf(active, finish.taskId)} (${formatTaskCounts(details.counts)}).`,
-			"info",
-		);
-		return;
-	}
-	const item = currentItem(active);
-	if (item === undefined) {
-		ctx.ui.notify(
-			details.cancelled
-				? `Task queue canceled (${formatTaskCounts(details.counts)}).`
-				: hasTaskIssues(details.counts)
-					? `Task queue finished with issues (${formatTaskCounts(details.counts)}).`
-					: `Task queue complete (${progress(active)}).`,
-			"info",
-		);
-		return;
-	}
-	ctx.ui.notify(
-		hasTaskIssues(details.counts)
-			? `Task queue: ${formatTaskCounts(details.counts)}. Current: ${item.title}`
-			: `Task queue: ${progress(active)} complete. Current: ${item.title}`,
-		"info",
-	);
-}
-
 function requireIsolatedTaskCall(
-	ctx: ExtensionContext,
+	ctx: BranchContext,
 	toolCallId: string,
-	toolName: "create_tasks" | "finish_task" | "update_tasks",
+	toolName: "create_tasks" | "finish_task",
 ): void {
 	const toolCalls = getCurrentToolCalls(ctx);
 	if (toolCalls.length === 1 && toolCalls[0]?.id === toolCallId && toolCalls[0].name === toolName) return;
 	throw taskError("not_isolated", `${toolName} must be the only tool call in its assistant turn.`);
 }
 
-function getCurrentToolCalls(ctx: ExtensionContext): Array<{ id: string; name: string }> {
+function getCurrentToolCalls(ctx: BranchContext): Array<{ id: string; name: string }> {
 	for (const entry of ctx.sessionManager.getBranch().toReversed()) {
 		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
 		return entry.message.content.flatMap((block) =>
@@ -1659,8 +1014,6 @@ function getCurrentToolCalls(ctx: ExtensionContext): Array<{ id: string; name: s
 	}
 	return [];
 }
-
-// Session replay
 
 function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 	let active: ActiveQueue | undefined;
@@ -1679,36 +1032,31 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 		}
 		if (active === undefined) continue;
 
-		const update = readTaskUpdate(entry);
-		if (update !== undefined && update.queueId === active.queue.queueId) {
-			applyQueueUpdate(active, update);
+		const cancelled = readTaskCancellation(entry);
+		if (cancelled !== undefined && cancelled.queueId === active.queue.queueId) {
+			if (active.cancelled === undefined) active.cancelled = cancelled;
+			retired = false;
 			continue;
 		}
 
-		const completion = readTaskCompletion(entry);
-		if (completion !== undefined && hasTask(active.queue, completion.taskId)) {
-			if (completion.queue.queueId === active.queue.queueId) {
-				if (!applyQueueSnapshot(active, completion.queue)) continue;
-			}
-			if (active.pendingCompaction?.taskId !== completion.taskId && active.outcomes.has(completion.taskId)) continue;
-			recordOutcome(active, completion);
+		const outcome = readTaskOutcome(entry);
+		if (outcome === undefined) continue;
+		if (active.pendingCompaction !== undefined) {
+			if (entry.type !== "branch_summary" || !sameOutcome(active.pendingCompaction, outcome)) continue;
 			active.checkpointEntryId = entry.id;
 			delete active.pendingCompaction;
 			retired = shouldRetireQueue(active);
 			continue;
 		}
-
-		const finish = readTaskFinish(entry);
-		if (finish !== undefined && hasTask(active.queue, finish.taskId)) {
-			if (active.outcomes.has(finish.taskId)) continue;
-			recordOutcome(active, finish);
-			if (finish.compact) {
-				active.pendingCompaction = finish;
-			} else {
-				delete active.pendingCompaction;
-				active.checkpointEntryId = entry.id;
-				retired = shouldRetireQueue(active);
-			}
+		if (!applyOutcome(active, outcome)) continue;
+		if (entry.type === "branch_summary") {
+			active.checkpointEntryId = entry.id;
+			retired = shouldRetireQueue(active);
+		} else if (outcome.checkpoint === "rewrite") {
+			active.pendingCompaction = outcome;
+		} else {
+			active.checkpointEntryId = entry.id;
+			retired = shouldRetireQueue(active);
 		}
 	}
 	return retired ? undefined : active;
@@ -1719,214 +1067,114 @@ function queueIsClosed(active: ActiveQueue): boolean {
 }
 
 function shouldRetireQueue(active: ActiveQueue): boolean {
-	return currentItem(active) === undefined && !hasTaskIssues(readTasks(active).counts);
+	return active.cancelled === undefined && currentItem(active) === undefined && !hasTaskIssues(taskCounts(active));
 }
 
-function applyQueueUpdate(active: ActiveQueue, update: TaskUpdateDetails): boolean {
-	if (update.action === "insert" && update.insertedTaskId === undefined) return false;
-	const insertedId = update.action === "insert" ? update.insertedTaskId : undefined;
-	const amended = amendQueue(active, update, insertedId);
-	if (Result.isFailure(amended)) return false;
-	active.queue = amended.success;
+function applyOutcome(active: ActiveQueue, outcome: TaskOutcome): boolean {
+	if (active.cancelled !== undefined || active.outcomes.has(outcome.taskId)) return false;
+	if (!active.queue.tasks.some((task) => task.id === outcome.taskId)) return false;
+	if (active.queue.tasks.find((task) => !active.outcomes.has(task.id))?.id !== outcome.taskId) return false;
+	if (outcome.addedTasks.some((task) => active.queue.tasks.some((existing) => existing.id === task.id))) return false;
+	if (active.queue.tasks.length + outcome.addedTasks.length > MAX_TASKS) return false;
+	active.queue = {
+		kind: TASK_QUEUE_DETAILS_TYPE,
+		queueId: active.queue.queueId,
+		tasks: appendAddedTasks(active.queue.tasks, outcome.addedTasks),
+		origin: active.queue.origin,
+	};
+	active.outcomes.set(outcome.taskId, {
+		...outcome,
+		addedTasks: outcome.addedTasks.map((task) => ({ ...task })),
+		changedFiles: [...outcome.changedFiles],
+	});
 	return true;
 }
 
-function applyQueueSnapshot(active: ActiveQueue, next: TaskQueueDetails): boolean {
-	if (!isValidQueueSnapshot(active, next)) return false;
-	active.queue = cloneQueue(next);
-	return true;
-}
-
-function isValidQueueSnapshot(active: ActiveQueue, next: TaskQueueDetails): boolean {
-	const current = active.queue;
-	if (
-		next.queueId !== current.queueId ||
-		(current.cancelled && !next.cancelled) ||
-		(!next.cancelled && next.cancelReason.length > 0)
-	) {
-		return false;
-	}
-
-	const currentById = new Map(current.tasks.map((task, index) => [task.id, { task, index }]));
-	const nextIds = new Set(next.tasks.map((task) => task.id));
-	if (current.tasks.some((task) => !nextIds.has(task.id))) return false;
-
-	let previousIndex = -1;
-	for (const nextTask of next.tasks) {
-		const existing = currentById.get(nextTask.id);
-		if (existing === undefined) {
-			if (nextTask.state !== "pending" || nextTask.skipReason.length > 0) return false;
-			continue;
-		}
-		if (existing.index <= previousIndex) return false;
-		previousIndex = existing.index;
-		if (isTaskFinished(active, existing.task.id) && !sameTaskItem(existing.task, nextTask)) return false;
-	}
-	return true;
-}
-
-function sameTaskItem(left: TaskQueueItem, right: TaskQueueItem): boolean {
+function sameOutcome(left: TaskOutcome, right: TaskOutcome): boolean {
 	return (
-		left.id === right.id &&
-		left.title === right.title &&
-		left.state === right.state &&
-		left.skipReason === right.skipReason
+		left.taskId === right.taskId &&
+		left.result === right.result &&
+		left.summary === right.summary &&
+		left.checkpoint === right.checkpoint &&
+		sameAddedTasks(left.addedTasks, right.addedTasks) &&
+		left.changedFiles.length === right.changedFiles.length &&
+		left.changedFiles.every((path, index) => path === right.changedFiles[index])
 	);
 }
 
-function hasTask(queue: TaskQueueDetails, taskId: string): boolean {
-	return queue.tasks.some((task) => task.id === taskId);
-}
-
-// Durable entry decoding
-
-function readTaskFinish(entry: SessionEntry): TaskFinishDetails | undefined {
-	const details = successfulToolResultDetails(entry);
-	return details === undefined ? undefined : parseTaskFinish(details);
-}
-
-function readTaskUpdate(entry: SessionEntry): TaskUpdateDetails | undefined {
-	const toolDetails = successfulToolResultDetails(entry);
-	if (toolDetails !== undefined) return parseTaskUpdate(toolDetails);
-	if (entry.type !== "custom_message" || entry.customType !== TASK_UPDATE_DETAILS_TYPE) return undefined;
-	return Predicate.isObject(entry.details) ? parseTaskUpdate(entry.details) : undefined;
+function sameAddedTasks(left: readonly TaskAddedItem[], right: readonly TaskAddedItem[]): boolean {
+	return (
+		left.length === right.length &&
+		left.every((task, index) => task.id === right[index]?.id && task.title === right[index]?.title)
+	);
 }
 
 function readTaskQueue(entry: SessionEntry): TaskQueueDetails | undefined {
 	return parseTaskQueue(successfulToolResultDetails(entry));
 }
 
+function readTaskOutcome(entry: SessionEntry): TaskOutcome | undefined {
+	const details = entry.type === "branch_summary" ? entry.details : successfulToolResultDetails(entry);
+	return details === undefined ? undefined : parseTaskOutcome(details);
+}
+
+function readTaskCancellation(entry: SessionEntry): TaskCancelledDetails | undefined {
+	if (entry.type !== "custom_message" || entry.customType !== TASK_CANCEL_DETAILS_TYPE) return undefined;
+	return parseTaskCancellation(entry.details);
+}
+
 function successfulToolResultDetails(entry: SessionEntry): object | undefined {
-	if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.isError) {
-		return undefined;
-	}
+	if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.isError) return undefined;
 	return entry.message.details;
 }
 
-function readTaskCompletion(entry: SessionEntry): TaskCompletionDetails | undefined {
-	if (entry.type !== "branch_summary") return undefined;
-	const decoded = Schema.decodeUnknownResult(TaskCompletionSchema)(entry.details);
-	if (Result.isFailure(decoded)) return undefined;
-	const completion = decoded.success;
-	return {
-		...copyTaskOutcome(completion),
-		kind: TASK_COMPLETION_DETAILS_TYPE,
-		title: completion.title,
-		queue: cloneQueue(completion.queue),
-	};
-}
-
-function parseTaskQueue(value: object | undefined): TaskQueueDetails | undefined {
+function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {
 	const decoded = Schema.decodeUnknownResult(TaskQueueSchema)(value);
-	return Result.isFailure(decoded) ? undefined : cloneQueue(decoded.success);
-}
-
-function parseTaskUpdate(details: object): TaskUpdateDetails | undefined {
-	const decoded = Schema.decodeUnknownResult(TaskUpdateSchema)(details);
 	if (Result.isFailure(decoded)) return undefined;
-	const update = decoded.success;
-	switch (update.action) {
-		case "insert": {
-			if (update.title === undefined || update.insertedTaskId === undefined) return undefined;
-			return {
-				kind: TASK_UPDATE_DETAILS_TYPE,
-				queueId: update.queueId,
-				action: "insert",
-				title: update.title.trim(),
-				...(update.afterTaskId === undefined ? {} : { afterTaskId: update.afterTaskId.trim() }),
-				insertedTaskId: update.insertedTaskId.trim(),
-			};
-		}
-		case "rename":
-			if (update.taskId === undefined || update.title === undefined) return undefined;
-			return {
-				kind: TASK_UPDATE_DETAILS_TYPE,
-				queueId: update.queueId,
-				action: "rename",
-				taskId: update.taskId.trim(),
-				title: update.title.trim(),
-			};
-		case "skip":
-			if (update.taskId === undefined || update.reason === undefined) return undefined;
-			return {
-				kind: TASK_UPDATE_DETAILS_TYPE,
-				queueId: update.queueId,
-				action: "skip",
-				taskId: update.taskId.trim(),
-				reason: update.reason.trim(),
-			};
-		case "cancel":
-			if (update.reason === undefined) return undefined;
-			return {
-				kind: TASK_UPDATE_DETAILS_TYPE,
-				queueId: update.queueId,
-				action: "cancel",
-				reason: update.reason.trim(),
-			};
-		default:
-			return undefined;
-	}
-}
-
-function parseTaskFinish(details: object): TaskFinishDetails | undefined {
-	const decoded = Schema.decodeUnknownResult(TaskFinishSchema)(details);
-	if (Result.isFailure(decoded)) return undefined;
-	const finish = decoded.success;
 	return {
-		...copyTaskOutcome(finish),
-		kind: TASK_FINISH_DETAILS_TYPE,
-		compact: finish.compact,
+		kind: TASK_QUEUE_DETAILS_TYPE,
+		queueId: decoded.success.queueId.trim(),
+		tasks: decoded.success.tasks.map((task) => ({ id: task.id.trim(), title: task.title.trim() })),
+		origin: decoded.success.origin,
 	};
 }
 
-/** One-line reading of an evidence entry when its list has to stay short. */
-function evidenceSummary(evidence: Evidence): string {
-	if (evidence.description !== undefined) return evidence.description;
-	if (evidence.path !== undefined) return evidence.path;
-	if (evidence.command !== undefined) return evidence.command;
-	if (evidence.hash !== undefined) return evidence.hash;
-	return evidence.result === undefined ? "" : evidence.result;
+function parseTaskOutcome(value: unknown): TaskOutcome | undefined {
+	const decoded = Schema.decodeUnknownResult(TaskOutcomeSchema)(value);
+	if (Result.isFailure(decoded)) return undefined;
+	return {
+		kind: TASK_OUTCOME_DETAILS_TYPE,
+		taskId: decoded.success.taskId.trim(),
+		result: decoded.success.result,
+		summary: decoded.success.summary.trim(),
+		addedTasks: decoded.success.addedTasks.map((task) => ({ id: task.id.trim(), title: task.title.trim() })),
+		changedFiles: decoded.success.changedFiles.map((path) => path.trim()),
+		checkpoint: decoded.success.checkpoint,
+	};
 }
 
-// Compaction summaries
-
-function formatCompletion(task: TaskCompletionDetails): string {
-	const lines = [`## Task: ${task.title}`, `Status: ${task.status}`, "", "## Summary", task.summary, "", "## Evidence"];
-	for (const evidence of task.evidence) {
-		const reference =
-			evidence.path !== undefined ? evidence.path : evidence.command !== undefined ? evidence.command : evidence.hash;
-		const detail = evidence.description !== undefined ? evidence.description : evidence.result;
-		lines.push(
-			`- **${evidence.kind}**${reference === undefined ? "" : ` \`${reference}\``}${detail === undefined ? "" : `: ${detail}`}`,
-		);
-		if (evidence.result !== undefined && evidence.result !== detail) lines.push(`  Result: ${evidence.result}`);
-	}
-	if (task.decisions.length > 0) {
-		lines.push("", "## Decisions", ...task.decisions.map((decision) => `- ${decision}`));
-	}
-	if (task.remaining.length > 0) {
-		lines.push("", "## Remaining", ...task.remaining.map((item) => `- ${item}`));
-	}
-	if (task.changedFiles.length > 0) {
-		lines.push("", "## Observed changed files", ...task.changedFiles.map((path) => `- \`${path}\``));
-	}
-	return lines.join("\n");
+function parseTaskCancellation(value: unknown): TaskCancelledDetails | undefined {
+	const decoded = Schema.decodeUnknownResult(TaskCancelledSchema)(value);
+	if (Result.isFailure(decoded)) return undefined;
+	return {
+		kind: TASK_CANCEL_DETAILS_TYPE,
+		queueId: decoded.success.queueId.trim(),
+		reason: decoded.success.reason.trim(),
+	};
 }
 
-function formatQueueProgress(active: ActiveQueue): string {
-	const details = readTasks(active);
-	const next = currentItem(active);
-	if (next === undefined) {
-		if (details.cancelled) {
-			return `## Queue progress\nQueue canceled: ${formatTaskCounts(details.counts)}. No further tasks will run.`;
-		}
-		if (hasTaskIssues(details.counts)) {
-			return `## Queue progress\nQueue finished with issues: ${formatTaskCounts(details.counts)}. Do not report the queue as fully successful.`;
-		}
-		return `## Queue progress\n${progress(active)} complete. The queue is finished.`;
+function uniqueTaskId(seen: Set<string>): string {
+	let next = 1;
+	for (const id of seen) {
+		const match = /^t([1-9]\d*)$/u.exec(id);
+		if (match !== null) next = Math.max(next, Number(match[1]) + 1);
 	}
-	if (hasTaskIssues(details.counts)) {
-		return `## Queue progress\n${formatTaskCounts(details.counts)}. Continue with: ${next.title}`;
-	}
-	return `## Queue progress\n${progress(active)} complete. Continue with: ${next.title}`;
+	let id = `t${next}`;
+	while (seen.has(id)) id = `t${++next}`;
+	seen.add(id);
+	return id;
+}
+
+function truncate(value: string, maxLength: number): string {
+	return value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }

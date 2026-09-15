@@ -29,9 +29,8 @@ test("shared guidance preserves evidence, alternatives, and safe no-op outcomes"
 
 test("checkpoint and thinking guidance retain attribution and defaults", () => {
 	const tasks = promptSource("tasks/index.ts");
-	assert.match(tasks, /since the previous checkpoint, not shell or external changes/);
-	// The queue-direction contract lives with the status it describes, not in a prompt guideline.
-	assert.match(tasks, /Every status is a terminal checkpoint and advances the queue; put unresolved work in remaining/);
+	assert.match(tasks, /Previous task summaries remain in the conversation history/);
+	assert.match(tasks, /Call finish_task alone after reaching an outcome for the current task/);
 	assert.match(promptSource("subagents/schemas.ts"), /omit for its default/);
 });
 
@@ -54,7 +53,7 @@ test("subagent role prompts preserve ownership, leaf, and bounded-work contracts
 test("prompt guidance retains lifecycle, safety, and approval boundaries", () => {
 	const tasks = promptSource("tasks/index.ts");
 	assert.match(tasks, /only for genuinely complex work/);
-	assert.match(tasks, /Every status is a terminal checkpoint and advances the queue/);
+	assert.match(tasks, /add their titles in followups/);
 	assert.match(tasks, /do not claim the queue succeeded/);
 
 	const spawn = promptSource("subagents/tools/spawn-agent.ts");

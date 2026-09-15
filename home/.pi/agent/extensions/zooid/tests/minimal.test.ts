@@ -199,22 +199,11 @@ test("a turn re-assert keeps the task tools the tasks extension activated", asyn
 	assert.deepEqual(harness.activeTools(), ["bash", "read", "edit", "create_tasks"]);
 
 	// create_tasks activates the management tools mid-turn; the next turn's re-assert must carry them.
-	harness.setActiveTools(["bash", "read", "edit", "create_tasks", "finish_task", "read_tasks", "update_tasks"]);
+	harness.setActiveTools(["bash", "read", "edit", "create_tasks", "finish_task"]);
 	await harness.runBeforeAgentStart();
 
-	assert.deepEqual(harness.activeTools(), [
-		"bash",
-		"read",
-		"edit",
-		"create_tasks",
-		"finish_task",
-		"read_tasks",
-		"update_tasks",
-	]);
-	assert.equal(
-		harness.statuses.get("minimal"),
-		"minimal: bash, read, edit, create_tasks, finish_task, read_tasks, update_tasks",
-	);
+	assert.deepEqual(harness.activeTools(), ["bash", "read", "edit", "create_tasks", "finish_task"]);
+	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, create_tasks, finish_task");
 });
 
 test("the startup re-assert reclaims the selection from tools the host adds afterwards", async () => {
