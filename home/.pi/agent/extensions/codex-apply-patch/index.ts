@@ -1,59 +1,25 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Readable } from "node:stream";
-import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-	APPLY_PATCH_OPENAI_LARK_GRAMMAR,
-	APPLY_PATCH_TOOL_DESCRIPTION,
-	APPLY_PATCH_TOOL_GUIDELINES,
 	APPLY_PATCH_TOOL_NAME,
-	APPLY_PATCH_TOOL_SNIPPET,
+	type ApplyPatchToolOptions,
+	type CapturedProcess,
+	type SpawnApplyPatchProcess,
 } from "./types.ts";
+import { createApplyPatchToolDefinition } from "./tools.ts";
 
-const APPLY_PATCH_PARAMETERS = Type.Object(
-	{
-		patch: Type.String({
-			description: "Raw *** Begin Patch ... *** End Patch text.",
-		}),
-	},
-	{ additionalProperties: false },
-);
+export type {
+	ApplyPatchSpawnOptions,
+	ApplyPatchToolDetails,
+	ApplyPatchToolOptions,
+	CapturedProcess,
+	SpawnApplyPatchProcess,
+} from "./types.ts";
 
 /** Each stream is bounded so a failed child cannot flood the model context. */
 export const MAX_CAPTURED_OUTPUT_BYTES = 24 * 1024;
 const FORCE_KILL_DELAY_MS = 1_000;
-
-export interface ApplyPatchToolDetails {
-	readonly exitCode: 0;
-}
-
-export interface ApplyPatchSpawnOptions {
-	readonly argv0: "apply_patch";
-	readonly cwd: string;
-	readonly shell: false;
-	readonly stdio: ["pipe", "pipe", "pipe"];
-	readonly windowsHide: true;
-}
-
-export type SpawnApplyPatchProcess = (
-	executable: string,
-	args: readonly string[],
-	options: ApplyPatchSpawnOptions,
-) => ChildProcessWithoutNullStreams;
-
-export interface ApplyPatchToolOptions {
-	/** Test seam for a fake executable. Production resolves `codex` through PATH. */
-	readonly executable?: string;
-	/** Test seam for process lifecycle failures. Production uses node:child_process.spawn. */
-	readonly spawnProcess?: SpawnApplyPatchProcess;
-}
-
-interface CapturedProcess {
-	readonly stdout: string;
-	readonly stderr: string;
-	readonly code: number | null;
-	readonly signal: NodeJS.Signals | null;
-}
 
 class BoundedOutput {
 	readonly #chunks: Buffer[] = [];
@@ -240,30 +206,8 @@ export async function runApplyPatchProcess(
 
 export function createApplyPatchTool(
 	options: ApplyPatchToolOptions = {},
-): ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails> {
-	return {
-		name: APPLY_PATCH_TOOL_NAME,
-		label: "Apply Patch",
-		description: APPLY_PATCH_TOOL_DESCRIPTION,
-		promptSnippet: APPLY_PATCH_TOOL_SNIPPET,
-		promptGuidelines: APPLY_PATCH_TOOL_GUIDELINES,
-		parameters: APPLY_PATCH_PARAMETERS,
-		// Codex registers apply_patch as an OpenAI custom/freeform tool. Keep
-		// that transport while leaving complete syntax validation to Codex.
-		constrainedSampling: {
-			type: "grammar",
-			variants: { openai_lark: APPLY_PATCH_OPENAI_LARK_GRAMMAR },
-		},
-		executionMode: "sequential",
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			const executable = options.executable ?? "codex";
-			const result = await runApplyPatchProcess(executable, params.patch, ctx.cwd, signal, options.spawnProcess);
-			return {
-				content: [{ type: "text", text: result.stdout }],
-				details: { exitCode: 0 },
-			};
-		},
-	};
+): ReturnType<typeof createApplyPatchToolDefinition> {
+	return createApplyPatchToolDefinition(options, runApplyPatchProcess);
 }
 
 /**

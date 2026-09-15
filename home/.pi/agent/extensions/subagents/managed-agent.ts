@@ -3,7 +3,6 @@ import { randomBytes } from "node:crypto";
 import {
 	createAgentSession,
 	DefaultResourceLoader,
-	defineTool,
 	SessionManager,
 	type AgentSession,
 	type SessionEntry,
@@ -12,7 +11,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Cause, Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { makeDirectory } from "../_shared/fs.ts";
-import { Type } from "typebox";
 import { toError } from "../_shared/errors.ts";
 import { runFork, runPromise } from "../_shared/effect-runtime.ts";
 import { getProcessReaper } from "../zooid/process-reaper.ts";
@@ -27,6 +25,7 @@ import {
 	type AgentView,
 } from "./agent-types.ts";
 import type { ResolvedRun } from "./profiles.ts";
+import { createChildAskQuestionTool } from "./tools.ts";
 import {
 	assistantText,
 	resultPreview,
@@ -461,40 +460,19 @@ export class ManagedAgent {
 	}
 
 	private async open(): Promise<void> {
-		const askQuestion = defineTool({
-			name: "ask_question",
-			label: "Ask Question",
-			description: "Ask the parent a multiple-choice question and wait for its answer.",
-			executionMode: "sequential",
-			parameters: Type.Object(
-				{
-					question: Type.String({ minLength: 1 }),
-					alternatives: Type.Array(Type.String({ minLength: 1 }), { minItems: 2, maxItems: 5 }),
-				},
-				{ additionalProperties: false },
-			),
-			execute: async (_id, params, signal) => {
-				signal?.throwIfAborted();
-				const generation = this.current;
-				if (!generation || generationSettled(generation)) {
-					throw agentError("no_active_generation", "No active subagent generation.");
-				}
-				if (generation.question) {
-					throw agentError("question_already_pending", "The subagent already has a pending question.");
-				}
-				const question: AgentQuestion = {
-					question_id: randomBytes(16).toString("hex"),
-					question: params.question,
-					options: [...params.alternatives],
-				};
-				const answer = Deferred.makeUnsafe<string, Error>();
+		const askQuestion = createChildAskQuestionTool({
+			getGeneration: () => this.current,
+			isGenerationSettled: (generation) => generationSettled(generation),
+			hasPendingQuestion: (generation) => Boolean(generation.question),
+			setQuestion: (generation, question, answer) => {
 				generation.question = { question, answer };
-				Deferred.doneUnsafe(generation.arrival, Effect.void);
-				this.emit();
-				this.options.onQuestion?.(this.summary(), question);
-				const text = await runPromise(this.awaitAnswer(generation, question, answer, signal));
-				return { content: [{ type: "text", text }], details: { answer: text } };
 			},
+			signalArrival: (generation) => Deferred.doneUnsafe(generation.arrival, Effect.void),
+			emit: () => this.emit(),
+			summary: () => this.summary(),
+			...(this.options.onQuestion === undefined ? {} : { onQuestion: this.options.onQuestion }),
+			awaitAnswer: (generation, question, answer, signal) =>
+				runPromise(this.awaitAnswer(generation, question, answer, signal)),
 		});
 		const tools = this.options.agent.tools ? [...this.options.agent.tools] : [];
 		const customTools = tools.includes("ask_question") ? [askQuestion] : [];

@@ -6,14 +6,16 @@ import { buildCapabilityHint } from "./capability-hint.ts";
 import { showAgentDashboard } from "./dashboard.ts";
 import { runPromise } from "../_shared/effect-runtime.ts";
 import type { AgentSummary } from "./agent-types.ts";
-import { createAgentsStatusTool } from "./tools/agents-status.ts";
-import { createAnswerAgentTool } from "./tools/answer-agent.ts";
-import { createCloseAgentTool } from "./tools/close-agent.ts";
-import { createFollowupAgentTool } from "./tools/followup-agent.ts";
-import { createReadAgentResultTool } from "./tools/read-agent-result.ts";
-import { createSpawnAgentTool } from "./tools/spawn-agent.ts";
-import { createSteerAgentTool } from "./tools/steer-agent.ts";
-import { createWaitAgentsTool } from "./tools/wait-agents.ts";
+import {
+	createAgentsStatusTool,
+	createAnswerAgentTool,
+	createCloseAgentTool,
+	createFollowupAgentTool,
+	createReadAgentResultTool,
+	createSpawnAgentTool,
+	createSteerAgentTool,
+	createWaitAgentsTool,
+} from "./tools.ts";
 import { missingSubagentTools, SubagentToolController } from "./tool-activation.ts";
 
 export { isCompletionSuperseded } from "./bootstrap.ts";

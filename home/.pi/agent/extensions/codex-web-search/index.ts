@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
 
 import { Predicate } from "effect";
 import { runPromise } from "../_shared/effect-runtime.ts";
@@ -10,13 +9,13 @@ import { applyHostedWebSearch, usesHostedWebSearch } from "./hosted-search.ts";
 import {
 	advertisedEntryIds,
 	formatRecallDigest,
-	formatSearchLog,
 	hiddenSearchRecords,
 	RECALL_MESSAGE_TYPE,
 	RECALL_TOOL_NAME,
 	SEARCH_ENTRY_TYPE,
 	searchRecords,
 } from "./recall.ts";
+import { registerRecallTool } from "./tools.ts";
 import { installCodexFrameObserver } from "./websocket-observer.ts";
 
 /**
@@ -48,15 +47,6 @@ import { installCodexFrameObserver } from "./websocket-observer.ts";
  * back; the tool stays out of the tool list until then.
  */
 const STATUS_KEY = "codex-web-search";
-
-/** The recall tool takes one optional filter; its description carries the rest. */
-const RECALL_PARAMETERS = Type.Object({
-	query: Type.Optional(
-		Type.String({
-			description: "Only list recorded searches whose queries, sources, or opened URLs contain this text.",
-		}),
-	),
-});
 
 export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise<void> {
 	const { config, diagnostics } = await runPromise(loadConfig());
@@ -161,21 +151,7 @@ export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise
 		};
 	});
 
-	pi.registerTool({
-		name: RECALL_TOOL_NAME,
-		label: "Web Search Log",
-		description:
-			"List the web searches recorded earlier in this session, with their source URLs. Use it when you need a source from before a compaction, or before repeating a search.",
-		parameters: RECALL_PARAMETERS,
-		executionMode: "sequential",
-		async execute(_toolCallId, params, _signal, _onUpdate, toolContext) {
-			const records = searchRecords(toolContext.sessionManager.getBranch());
-			return {
-				content: [{ type: "text", text: formatSearchLog(records, params.query) }],
-				details: { searches: records.length },
-			};
-		},
-	});
+	registerRecallTool(pi);
 
 	pi.on("agent_end", () => setStatus(ctx, undefined));
 

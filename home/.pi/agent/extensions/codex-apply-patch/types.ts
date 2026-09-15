@@ -10,6 +10,46 @@ export const APPLY_PATCH_TOOL_GUIDELINES = [
 	"Use `apply_patch` for local file edits. Do not create or edit files with `cat` or other shell write tricks. Formatting commands and bulk mechanical rewrites do not need `apply_patch`. Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.",
 ];
 
+export interface ApplyPatchToolDetails {
+	readonly exitCode: 0;
+}
+
+export interface ApplyPatchSpawnOptions {
+	readonly argv0: "apply_patch";
+	readonly cwd: string;
+	readonly shell: false;
+	readonly stdio: ["pipe", "pipe", "pipe"];
+	readonly windowsHide: true;
+}
+
+export type SpawnApplyPatchProcess = (
+	executable: string,
+	args: readonly string[],
+	options: ApplyPatchSpawnOptions,
+) => import("node:child_process").ChildProcessWithoutNullStreams;
+
+export interface ApplyPatchToolOptions {
+	/** Test seam for a fake executable. Production resolves `codex` through PATH. */
+	readonly executable?: string;
+	/** Test seam for process lifecycle failures. Production uses node:child_process.spawn. */
+	readonly spawnProcess?: SpawnApplyPatchProcess;
+}
+
+export interface CapturedProcess {
+	readonly stdout: string;
+	readonly stderr: string;
+	readonly code: number | null;
+	readonly signal: NodeJS.Signals | null;
+}
+
+export type ApplyPatchRunner = (
+	executable: string,
+	patch: string,
+	cwd: string,
+	signal: AbortSignal | undefined,
+	spawnProcess?: SpawnApplyPatchProcess,
+) => Promise<CapturedProcess>;
+
 /**
  * Codex's `apply_patch` grammar, copied verbatim from
  * `codex-rs/core/assets/tools/apply_patch.lark` (openai/codex 713caa89). Codex appends

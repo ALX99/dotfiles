@@ -1,4 +1,3 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -7,9 +6,19 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, relative } from "node:path";
-import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { Predicate, Result, Schema } from "effect";
+import {
+	MAX_ADDED_TASKS,
+	MAX_TASKS,
+	MIN_TASKS,
+	registerTaskTools,
+	TASK_OUTCOME_STATUSES,
+	TASK_TOOL_NAMES,
+	FinishTaskParams,
+} from "./tools.ts";
+
+export { TASK_TOOL_NAMES };
 
 const TASK_QUEUE_DETAILS_TYPE = "tasks:queue";
 const TASK_OUTCOME_DETAILS_TYPE = "tasks:outcome";
@@ -18,16 +27,10 @@ const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
 
-/** Shared with minimal mode so its tool restriction can keep an active queue workable. */
-export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
 const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
-const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const;
 const TASK_SPINNER_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"] as const;
 const TASK_COMPACTION_MARKER = "⟳";
-const MIN_TASKS = 4;
-const MAX_TASKS = 100;
-const MAX_ADDED_TASKS = 20;
 const MAX_TASK_ORIGIN_LENGTH = 32_000;
 
 type TaskOutcomeStatus = (typeof TASK_OUTCOME_STATUSES)[number];
@@ -169,69 +172,6 @@ const TaskCancelledSchema = Schema.Struct({
 	reason: requiredText(1000),
 });
 
-const CreateTasksParams = Type.Object(
-	{
-		tasks: Type.Array(
-			Type.String({
-				minLength: 1,
-				maxLength: 200,
-				description: "Outcome-oriented title for one clearly separable step",
-			}),
-			{
-				minItems: MIN_TASKS,
-				maxItems: MAX_TASKS,
-				description: "At least four substantial related phases; do not pad simple work with generic steps",
-			},
-		),
-	},
-	{ additionalProperties: false },
-);
-
-const FinishTaskParams = Type.Object(
-	{
-		status: StringEnum(TASK_OUTCOME_STATUSES, {
-			description:
-				"completed when the task succeeded, failed when it could not be completed, or blocked when an external dependency prevents progress",
-		}),
-		summary: Type.String({
-			minLength: 1,
-			maxLength: 6000,
-			description: "Concise outcome and continuation context required to continue correctly",
-		}),
-		addTasks: Type.Optional(
-			Type.Array(
-				Type.Object(
-					{
-						title: Type.String({
-							minLength: 1,
-							maxLength: 200,
-							description: "Outcome-oriented title for newly discovered work",
-						}),
-						after: Type.Optional(
-							Type.Union([
-								Type.Literal("current"),
-								Type.Literal("end"),
-								Type.String({
-									minLength: 1,
-									maxLength: 200,
-									description: "ID of an existing pending task",
-								}),
-							]),
-						),
-					},
-					{ additionalProperties: false },
-				),
-				{
-					maxItems: MAX_ADDED_TASKS,
-					description:
-						"Optional newly discovered tasks. Omit after to insert after the current task; use end to append or a pending task ID to insert after that task.",
-				},
-			),
-		),
-	},
-	{ additionalProperties: false },
-);
-
 /** Why a task operation was refused; `message` is the text shown at the boundary. */
 export const TaskQueueReason = Schema.Literals([
 	"cancelled",
@@ -286,18 +226,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		spinnerTimer = undefined;
 	};
 
-	pi.registerTool({
-		name: "create_tasks",
-		label: "Create Tasks",
-		description:
-			"Create a task queue for genuinely complex multi-phase work, then work the tasks in order with finish_task.",
-		promptSnippet: "Create a task queue for genuinely complex multi-phase work",
-		promptGuidelines: [
-			"Use create_tasks rarely, only for genuinely complex work with at least four substantial, independently useful phases that need separate checkpoints. Never pad to four items or split routine reading, coding, testing, review, or verification; complete small or straightforward edits directly.",
-		],
-		parameters: CreateTasksParams,
-		executionMode: "sequential",
-		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
+	registerTaskTools(pi, {
+		async create(toolCallId, params, ctx) {
 			ensureTasksEnabled(ctx);
 			if (ctx.mode === "print" && printTaskFinished) {
 				throw taskError(
@@ -342,20 +272,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				details,
 			};
 		},
-	});
-
-	pi.registerTool({
-		name: "finish_task",
-		label: "Finish Task",
-		description:
-			"Finish the current queued task with its outcome and concise continuation context. If the work revealed additional necessary tasks, add them at precise positions in the existing queue.",
-		promptSnippet: "Finish the current queued task with its outcome and summary",
-		promptGuidelines: [
-			"Call finish_task alone after reaching an outcome for the current task. Use completed, failed, or blocked status and a concise summary. If the work revealed additional necessary tasks, add their titles in addTasks: omit after to place them after the current task, use end to append, or use a pending task ID to place them after that task.",
-		],
-		parameters: FinishTaskParams,
-		executionMode: "sequential",
-		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
+		async finish(toolCallId, params, ctx) {
 			ensureTasksEnabled(ctx);
 			if (ctx.mode === "print" && printTaskFinished) {
 				throw taskError(
