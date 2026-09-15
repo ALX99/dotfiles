@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export interface AgentActivity {
+interface AgentActivity {
 	startAgent(): void;
 	stopAgent(): void;
 	startPrompt(): void;
@@ -8,13 +8,13 @@ export interface AgentActivity {
 	reset(): void;
 }
 
-export interface AgentActivityOptions {
+interface AgentActivityOptions {
 	readonly settleEvent: "agent_end" | "agent_settled";
 	readonly onActiveChange: (active: boolean) => void;
 }
 
 /** Track agent work while suspending activity indicators during UI prompts. */
-export function createAgentActivity(onActiveChange: (active: boolean) => void): AgentActivity {
+function createAgentActivity(onActiveChange: (active: boolean) => void): AgentActivity {
 	let agentActive = false;
 	let promptActive = false;
 	let active = false;

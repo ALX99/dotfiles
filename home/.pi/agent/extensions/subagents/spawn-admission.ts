@@ -1,11 +1,5 @@
 import type { AgentRegistry } from "./agent-registry.ts";
 import { isAgentActive } from "./agent-types.ts";
-import type { ProfilesConfig } from "./profiles.ts";
-
-export interface SpawnAdmissionRequest {
-	readonly agent: string;
-	readonly profile: string;
-}
 
 export interface CapacitySnapshot {
 	readonly root: {
@@ -18,11 +12,11 @@ export interface CapacitySnapshot {
 }
 
 export class SpawnAdmissionController {
-	private readonly config: ProfilesConfig;
+	private readonly limit: number;
 	private readonly registry: AgentRegistry;
 
-	constructor(config: ProfilesConfig, registry: AgentRegistry) {
-		this.config = config;
+	constructor(limit: number, registry: AgentRegistry) {
+		this.limit = limit;
 		this.registry = registry;
 	}
 
@@ -32,22 +26,12 @@ export class SpawnAdmissionController {
 			root: Object.freeze({
 				live: occupied.filter((summary) => isAgentActive(summary.status)).length,
 				occupied: occupied.length,
-				limit: this.config.rootPolicy.maxConcurrentRootAgents,
+				limit: this.limit,
 			}),
 		});
 	}
 
-	admit(request: SpawnAdmissionRequest): void {
-		const policy = this.config.agentPolicies[request.agent];
-		const profile = this.config.profiles[request.profile];
-		if (!policy) throw new Error(`No agent policy is configured for '${request.agent}'.`);
-		if (!profile) throw new Error(`No profile policy is configured for '${request.profile}'.`);
-		if (!policy.allowedProfiles.includes(request.profile)) {
-			throw new Error(
-				`Profile '${request.profile}' is not allowed for agent '${request.agent}'. Allowed: ${policy.allowedProfiles.join(", ")}.`,
-			);
-		}
-
+	admit(): void {
 		const capacity = this.capacity();
 		if (capacity.root.occupied >= capacity.root.limit) {
 			throw new Error(

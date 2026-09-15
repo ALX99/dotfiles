@@ -173,7 +173,7 @@ const TaskCancelledSchema = Schema.Struct({
 });
 
 /** Why a task operation was refused; `message` is the text shown at the boundary. */
-export const TaskQueueReason = Schema.Literals([
+const TaskQueueReason = Schema.Literals([
 	"cancelled",
 	"finished",
 	"capacity",
@@ -187,10 +187,10 @@ export const TaskQueueReason = Schema.Literals([
 	"tasks_disabled",
 	"not_isolated",
 ]);
-export type TaskQueueReason = Schema.Schema.Type<typeof TaskQueueReason>;
+type TaskQueueReason = Schema.Schema.Type<typeof TaskQueueReason>;
 
 /** A refused task operation. Tool boundaries throw it; the message is user-facing. */
-export class TaskQueueError extends Schema.TaggedError<TaskQueueError>()("TaskQueueError", {
+class TaskQueueError extends Schema.TaggedError<TaskQueueError>()("TaskQueueError", {
 	reason: TaskQueueReason,
 	message: Schema.String,
 }) {}

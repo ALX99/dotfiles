@@ -122,10 +122,7 @@ export function createSpawnAgentTool(
 			}
 			// Keep this adjacent to registry.add below: the capacity check reads the registry
 			// snapshot, so any suspension between the two would let concurrent spawns overfill it.
-			dependencies.admission.admit({
-				agent: resolvedRun.agent,
-				profile: resolvedRun.profile,
-			});
+			dependencies.admission.admit();
 			const background = params.background === true;
 			const taskName = dependencies.registry.claimTaskName(trimOptional(params.task_name), message);
 			let managed: ManagedAgent | undefined;

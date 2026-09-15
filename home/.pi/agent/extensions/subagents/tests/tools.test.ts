@@ -14,16 +14,18 @@ import {
 	WaitAgentsParamsSchema,
 } from "../schemas.ts";
 import { textResult } from "../tool-results.ts";
-import { createAgentsStatusTool } from "../tools/agents-status.ts";
-import { createAnswerAgentTool } from "../tools/answer-agent.ts";
-import { createCloseAgentTool } from "../tools/close-agent.ts";
-import { createFollowupAgentTool } from "../tools/followup-agent.ts";
-import { createReadAgentResultTool } from "../tools/read-agent-result.ts";
-import { createSteerAgentTool } from "../tools/steer-agent.ts";
-import { thinkingLevelsForProfiles } from "../tools/spawn-agent.ts";
+import {
+	createAgentsStatusTool,
+	createAnswerAgentTool,
+	createCloseAgentTool,
+	createFollowupAgentTool,
+	createReadAgentResultTool,
+	createSteerAgentTool,
+	thinkingLevelsForProfiles,
+} from "../tools.ts";
 import type { ProfilesConfig } from "../profiles.ts";
 import { SpawnAdmissionController } from "../spawn-admission.ts";
-import { executeWaitAgents, createWaitAgentsTool } from "../tools/wait-agents.ts";
+import { executeWaitAgents, createWaitAgentsTool } from "../tools.ts";
 import { RESULT_READ_DEFAULT_BYTES } from "../result-store.ts";
 
 const summary: AgentSummary = {
@@ -153,27 +155,14 @@ test("generic tool truncation does not offer unrelated result reconstruction", (
 });
 
 test("admission reports running lifecycle separately from occupied retained-session capacity", () => {
-	const config = {
-		rootPolicy: { maxConcurrentRootAgents: 2 },
-		profiles: {
-			fast: {
-				description: "Fast",
-				modelPriority: [{ id: "provider/model", defaultThinking: "low", maxThinking: "low" }],
-			},
-		},
-		agentPolicies: { scout: { defaultProfile: "fast", allowedProfiles: ["fast"] } },
-	} as ProfilesConfig;
-	const admission = new SpawnAdmissionController(config, {
+	const admission = new SpawnAdmissionController(2, {
 		capacity: () => [
 			{ ...summary, status: "running" },
 			{ ...summary, agent_id: "scout-2", retained: true },
 		],
 	} as never);
 	assert.deepEqual(admission.capacity(), { root: { live: 1, occupied: 2, limit: 2 } });
-	assert.throws(
-		() => admission.admit({ agent: "scout", profile: "fast" }),
-		/2 admission slots are occupied \(1 currently running\)/,
-	);
+	assert.throws(() => admission.admit(), /2 admission slots are occupied \(1 currently running\)/);
 });
 
 const waitingRunDetails: ReadonlyRunDetails = {

@@ -40,7 +40,7 @@ export class SubagentRuntime {
 		this.agentDir = agentDir;
 		this.toolActivation = toolActivation;
 		this.registry = new AgentRegistry(agentDir);
-		this.admission = new SpawnAdmissionController(profiles, this.registry);
+		this.admission = new SpawnAdmissionController(profiles.rootPolicy.maxConcurrentRootAgents, this.registry);
 	}
 
 	startSession(ctx: ExtensionContext): void {
