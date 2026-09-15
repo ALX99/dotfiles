@@ -175,9 +175,9 @@ type QueueDetails = Record<string, unknown> & {
 type OutcomeDetails = Record<string, unknown> & {
 	kind: string;
 	taskId: string;
-	result: string;
+	status: string;
 	summary: string;
-	addedTasks: Array<{ id: string; title: string }>;
+	addedTasks: Array<{ id: string; title: string; after: string }>;
 	changedFiles: string[];
 	checkpoint: "rewrite" | "inline";
 };
@@ -256,34 +256,40 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	const finish = h.tools.get("finish_task")!;
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES }), true);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
-	assert.equal(Check(finish.parameters!, { result: "completed", summary: "Verified." }), true);
+	assert.equal(Check(finish.parameters!, { status: "completed", summary: "Verified." }), true);
+	assert.equal(Check(finish.parameters!, { status: "skipped", summary: "Not supported." }), false);
+	assert.equal(Check(finish.parameters!, { result: "completed", summary: "Not supported." }), false);
 	assert.equal(
 		Check(finish.parameters!, {
-			result: "completed",
+			status: "completed",
 			summary: "Verified.",
-			followups: ["Current follow-up", "End follow-up", "Pending follow-up"],
+			addTasks: [
+				{ title: "Current follow-up" },
+				{ title: "End follow-up", after: "end" },
+				{ title: "Pending follow-up", after: "t3" },
+			],
 		}),
 		true,
 	);
 	assert.equal(
 		Check(finish.parameters!, {
-			result: "completed",
+			status: "completed",
 			summary: "Verified.",
-			followups: [{ title: "Not a string" }],
+			addTasks: ["Not an object"],
 		}),
 		false,
 	);
 	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
-	assert.deepEqual(Object.keys(finishProperties), ["result", "summary", "followups"]);
+	assert.deepEqual(Object.keys(finishProperties), ["status", "summary", "addTasks"]);
 	assert.equal("taskId" in finishProperties, false);
 	assert.equal("evidence" in finishProperties, false);
 	assert.equal("decisions" in finishProperties, false);
 	assert.equal("remaining" in finishProperties, false);
-	assert.equal("addTasks" in finishProperties, false);
+	assert.equal("followups" in finishProperties, false);
 
 	const prompt = [finish.description, ...(finish.promptGuidelines ?? [])].join("\n");
 	assert.doesNotMatch(prompt, /evidence|interactive|print mode|compaction|recovery|skip|cancel/u);
-	assert.match(prompt, /followups/u);
+	assert.match(prompt, /addTasks/u);
 });
 
 test("generates short stable task IDs for precise queue additions", async () => {
@@ -310,7 +316,7 @@ test("generates short stable task IDs for precise queue additions", async () => 
 	assert.match(created.content, /t1: Add schema/u);
 });
 
-test("generates task IDs for appended follow-ups", async () => {
+test("generates task IDs for additions and defaults them after the current task", async () => {
 	const h = createHarness();
 	const created = await createQueueResult(h);
 	const queue = created.details;
@@ -323,43 +329,52 @@ test("generates task IDs for appended follow-ups", async () => {
 	const finish = await finishTask(
 		h,
 		{
-			result: "completed",
+			status: "completed",
 			summary: "Schema added and verified.",
-			followups: ["Investigate the unrelated parser warning."],
+			addTasks: [{ title: "Investigate the unrelated parser warning." }],
 		},
 		"finish-1",
 	);
-	assert.deepEqual(finish.details.addedTasks, [{ id: "t5", title: "Investigate the unrelated parser warning." }]);
-	assert.match(finish.content, /Next: t2: Implement handler/u);
+	assert.deepEqual(finish.details.addedTasks, [
+		{ id: "t5", title: "Investigate the unrelated parser warning.", after: "current" },
+	]);
+	assert.match(finish.content, /Next: t5: Investigate the unrelated parser warning/u);
 	assert.match(finish.content, /t5: Investigate the unrelated parser warning/u);
 	assert.equal(queue.tasks[0]?.id, "t1");
 });
 
-test("appends follow-ups in supplied order", async () => {
+test("inserts additions after precise positions and preserves same-position order", async () => {
 	const h = createHarness();
 	await createQueue(h);
 
-	const followups = ["First follow-up", "Second follow-up", "Third follow-up", "Fourth follow-up"];
-	const expectedOrder = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"];
+	const additions = [
+		{ title: "After current 1" },
+		{ title: "After current 2" },
+		{ title: "After t3 1", after: "t3" },
+		{ title: "After t3 2", after: "t3" },
+		{ title: "At end", after: "end" },
+	];
+	const expectedOrder = ["t1", "t5", "t6", "t2", "t3", "t7", "t8", "t4", "t9"];
 	let nextCallId = 1;
 	for (const [index, expectedTaskId] of expectedOrder.entries()) {
 		const callId = `finish-${nextCallId++}`;
 		const finish = await finishTask(
 			h,
 			{
-				result: "completed",
+				status: "completed",
 				summary: `Finished ${expectedTaskId}.`,
-				...(index === 0 ? { followups } : {}),
+				...(index === 0 ? { addTasks: additions } : {}),
 			},
 			callId,
 		);
 		assert.equal(finish.details.taskId, expectedTaskId);
 		if (index === 0) {
 			assert.deepEqual(finish.details.addedTasks, [
-				{ id: "t5", title: "First follow-up" },
-				{ id: "t6", title: "Second follow-up" },
-				{ id: "t7", title: "Third follow-up" },
-				{ id: "t8", title: "Fourth follow-up" },
+				{ id: "t5", title: "After current 1", after: "current" },
+				{ id: "t6", title: "After current 2", after: "current" },
+				{ id: "t7", title: "After t3 1", after: "t3" },
+				{ id: "t8", title: "After t3 2", after: "t3" },
+				{ id: "t9", title: "At end", after: "end" },
 			]);
 		}
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
@@ -367,7 +382,64 @@ test("appends follow-ups in supplied order", async () => {
 	}
 });
 
-test("keeps follow-up additions atomic when capacity would be exceeded", async () => {
+test("rejects invalid or finished insertion targets without recording an outcome", async () => {
+	const h = createHarness();
+	await createQueue(h);
+
+	await assert.rejects(
+		finishTask(
+			h,
+			{
+				status: "completed",
+				summary: "Should not be recorded.",
+				addTasks: [{ title: "Invalid target", after: "missing" }],
+			},
+			"invalid-target",
+		),
+		/Task missing is not a pending task/u,
+	);
+
+	const first = await finishTask(h, { status: "completed", summary: "First task done." }, "finish-1");
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+	h.pushEntry(branchSummary("summary-1", first.details));
+
+	await assert.rejects(
+		finishTask(
+			h,
+			{
+				status: "completed",
+				summary: "Should not be recorded.",
+				addTasks: [{ title: "Finished target", after: "t1" }],
+			},
+			"finished-target",
+		),
+		/Task t1 is not a pending task/u,
+	);
+
+	const next = await finishTask(h, { status: "completed", summary: "Second task still current." }, "finish-2");
+	assert.equal(next.details.taskId, "t2");
+});
+
+test("ignores malformed persisted additions without changing the existing queue", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	h.pushEntry(
+		branchSummary("malformed-addition", {
+			kind: "tasks:outcome",
+			taskId: "t1",
+			status: "completed",
+			summary: "Tampered outcome.",
+			addedTasks: [{ id: "t5", title: "Should not be inserted", after: "missing" }],
+			changedFiles: [],
+			checkpoint: "inline",
+		}),
+	);
+
+	await h.commands.get("tasks")!.handler("status", h.ctx as never);
+	assert.equal(h.notifications.at(-1), "Task queue: 0/4 complete. Current: Add schema");
+});
+
+test("keeps additions atomic when capacity would be exceeded", async () => {
 	const h = createHarness();
 	await createQueue(h, [...QUEUE_TITLES, ...Array.from({ length: 96 }, (_, index) => `Existing ${index + 5}`)]);
 
@@ -375,9 +447,9 @@ test("keeps follow-up additions atomic when capacity would be exceeded", async (
 		finishTask(
 			h,
 			{
-				result: "completed",
+				status: "completed",
 				summary: "Should not be recorded.",
-				followups: ["One too many", "Another too many"],
+				addTasks: [{ title: "One too many" }, { title: "Another too many" }],
 			},
 			"over-capacity",
 		),
@@ -405,7 +477,7 @@ test("tracks successful mutation paths for the current task only", async () => {
 	);
 	h.pushEntry(mutationToolResult("patch-result", "patch", "apply_patch"));
 
-	const first = await finishTask(h, { result: "completed", summary: "Files changed." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", summary: "Files changed." }, "finish-1");
 	assert.deepEqual(first.details.changedFiles, [
 		"src/new.ts",
 		"src/handler.ts",
@@ -417,14 +489,14 @@ test("tracks successful mutation paths for the current task only", async () => {
 
 	h.pushEntry(assistantToolCall("second-write", "write", { path: "src/second.ts" }));
 	h.pushEntry(mutationToolResult("second-write-result", "second-write", "write"));
-	const second = await finishTask(h, { result: "completed", summary: "Second task changed one file." }, "finish-2");
+	const second = await finishTask(h, { status: "completed", summary: "Second task changed one file." }, "finish-2");
 	assert.deepEqual(second.details.changedFiles, ["src/second.ts"]);
 });
 
 test("chains one outcome through the tool result and branch summary", async () => {
 	const h = createHarness();
 	const queue = await createQueue(h);
-	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
 	assert.equal(first.details.checkpoint, "rewrite");
 	assert.equal(first.terminate, true);
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
@@ -434,7 +506,7 @@ test("chains one outcome through the tool result and branch summary", async () =
 	assert.match(committed.summary, /1\/4 complete\. Continue with: t2: Implement handler/u);
 	assert.deepEqual(committed.details, first.details);
 
-	const second = await finishTask(h, { result: "completed", summary: "Handler added." }, "finish-2");
+	const second = await finishTask(h, { status: "completed", summary: "Handler added." }, "finish-2");
 	assert.equal(second.details.taskId, queue.tasks[1]?.id);
 	assert.equal(h.statuses.get("tasks"), "⟳ Task 2/4 · compacting");
 	h.pushEntry(toolResult("finish-2-result", "finish-2", "finish_task", second.details));
@@ -448,7 +520,7 @@ test("chains one outcome through the tool result and branch summary", async () =
 test("fails closed for mismatched or out-of-order persisted outcomes", async () => {
 	const h = createHarness();
 	await createQueue(h);
-	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 	h.pushEntry(
 		branchSummary("mismatch", {
@@ -465,7 +537,7 @@ test("fails closed for mismatched or out-of-order persisted outcomes", async () 
 		branchSummary("out-of-order", {
 			kind: "tasks:outcome",
 			taskId: "t2",
-			result: "completed",
+			status: "completed",
 			summary: "Wrong task.",
 			addedTasks: [],
 			changedFiles: [],
@@ -483,7 +555,7 @@ test("compacts each interactive task and retires a successful queue", async () =
 	let checkpoint = "queue-call-result";
 	for (const [index, title] of QUEUE_TITLES.entries()) {
 		const callId = `finish-${index + 1}`;
-		const finish = await finishTask(h, { result: "completed", summary: `${title} done.` }, callId);
+		const finish = await finishTask(h, { status: "completed", summary: `${title} done.` }, callId);
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		const committed = await commit(h, checkpoint);
 		assert.equal(committed.details.taskId, queue.tasks[index]?.id);
@@ -516,7 +588,7 @@ test("records print-mode outcomes inline and allows one task per invocation", as
 		"print",
 	);
 
-	const first = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
 	assert.equal(first.details.checkpoint, "inline");
 	assert.equal(first.terminate, false);
 	assert.match(first.content, /Next: t2: Implement handler/u);
@@ -527,32 +599,29 @@ test("records print-mode outcomes inline and allows one task per invocation", as
 	await assert.rejects(
 		h.tools
 			.get("finish_task")!
-			.execute("finish-2", { result: "completed", summary: "Handler added." }, undefined, undefined, h.ctx),
+			.execute("finish-2", { status: "completed", summary: "Handler added." }, undefined, undefined, h.ctx),
 		/current task outcome has already been recorded/u,
 	);
 
 	h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
-	const second = await finishTask(h, { result: "completed", summary: "Handler added." }, "finish-2b");
+	const second = await finishTask(h, { status: "completed", summary: "Handler added." }, "finish-2b");
 	assert.equal(second.details.taskId, "t2");
 	assert.equal(second.details.checkpoint, "inline");
 });
 
-test("derives failed, blocked, and skipped outcomes without a second task state", async () => {
+test("derives failed and blocked outcomes without a second task state", async () => {
 	const h = createHarness();
 	await createQueue(h);
-	for (const [index, result] of ["failed", "blocked", "skipped", "completed"].entries()) {
+	for (const [index, status] of ["failed", "blocked", "completed", "completed"].entries()) {
 		const callId = `finish-${index + 1}`;
-		const finish = await finishTask(h, { result, summary: `${result} outcome.` }, callId);
+		const finish = await finishTask(h, { status, summary: `${status} outcome.` }, callId);
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		h.pushEntry(branchSummary(`summary-${index + 1}`, finish.details));
 		h.handlers.get("session_tree")!({} as never, h.ctx as never);
 	}
-	assert.equal(h.statuses.get("tasks"), "! Tasks finished with issues · 1 completed, 1 failed, 1 blocked, 1 skipped");
+	assert.equal(h.statuses.get("tasks"), "! Tasks finished with issues · 2 completed, 1 failed, 1 blocked");
 	await h.commands.get("tasks")!.handler("status", h.ctx as never);
-	assert.equal(
-		h.notifications.at(-1),
-		"Task queue finished with issues (1 completed, 1 failed, 1 blocked, 1 skipped).",
-	);
+	assert.equal(h.notifications.at(-1), "Task queue finished with issues (2 completed, 1 failed, 1 blocked).");
 });
 
 test("keeps cancellation human-only", async () => {
@@ -574,7 +643,7 @@ test("keeps cancellation human-only", async () => {
 	await assert.rejects(
 		h.tools
 			.get("finish_task")!
-			.execute("finish-after-cancel", { result: "completed", summary: "Should not run." }, undefined, undefined, {
+			.execute("finish-after-cancel", { status: "completed", summary: "Should not run." }, undefined, undefined, {
 				...h.ctx,
 				sessionManager: { getBranch: h.ctx.sessionManager.getBranch },
 			}),
@@ -641,7 +710,7 @@ test("updates status while a queue is active", async () => {
 	await createQueue(h);
 	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
 
-	const finish = await finishTask(h, { result: "completed", summary: "Schema added." }, "finish-1");
+	const finish = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
 	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
 });

@@ -22,7 +22,7 @@ const TASK_STATUS_KEY = "tasks";
 export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
 const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
-const TASK_OUTCOME_RESULTS = ["completed", "failed", "blocked", "skipped"] as const;
+const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const;
 const TASK_SPINNER_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"] as const;
 const TASK_COMPACTION_MARKER = "⟳";
 const MIN_TASKS = 4;
@@ -30,9 +30,9 @@ const MAX_TASKS = 100;
 const MAX_ADDED_TASKS = 20;
 const MAX_TASK_ORIGIN_LENGTH = 32_000;
 
-type TaskOutcomeResult = (typeof TASK_OUTCOME_RESULTS)[number];
+type TaskOutcomeStatus = (typeof TASK_OUTCOME_STATUSES)[number];
 type TaskCheckpoint = "rewrite" | "inline";
-type TaskStatus = TaskOutcomeResult | "pending" | "cancelled";
+type TaskStatus = TaskOutcomeStatus | "pending" | "cancelled";
 type TaskCounts = Record<TaskStatus, number>;
 
 interface TaskQueueItem {
@@ -48,7 +48,12 @@ interface TaskQueueDetails {
 	origin: string;
 }
 
-type TaskAddedItem = TaskQueueItem;
+type TaskAdditionPoint = string;
+
+interface TaskAddedItem extends TaskQueueItem {
+	/** The insertion point supplied to finish_task, defaulting to current. */
+	after: TaskAdditionPoint;
+}
 
 /**
  * The only task outcome persisted by the extension. The same payload is stored
@@ -57,7 +62,7 @@ type TaskAddedItem = TaskQueueItem;
 interface TaskOutcome {
 	kind: typeof TASK_OUTCOME_DETAILS_TYPE;
 	taskId: string;
-	result: TaskOutcomeResult;
+	status: TaskOutcomeStatus;
 	summary: string;
 	addedTasks: TaskAddedItem[];
 	/** Files targeted by successful edit/write/apply_patch calls observed in this task. */
@@ -130,6 +135,7 @@ const TaskQueueItemsSchema = Schema.Array(TaskQueueItemSchema).check(
 const TaskAddedItemSchema = Schema.Struct({
 	id: requiredText(200),
 	title: requiredText(200),
+	after: requiredText(200),
 });
 
 const AddedTaskItemsSchema = Schema.Array(TaskAddedItemSchema).check(
@@ -150,7 +156,7 @@ const TaskQueueSchema = Schema.Struct({
 const TaskOutcomeSchema = Schema.Struct({
 	kind: Schema.Literals([TASK_OUTCOME_DETAILS_TYPE]),
 	taskId: requiredText(200),
-	result: Schema.Literals(TASK_OUTCOME_RESULTS),
+	status: Schema.Literals(TASK_OUTCOME_STATUSES),
 	summary: requiredText(6000),
 	addedTasks: AddedTaskItemsSchema,
 	changedFiles: Schema.Array(boundedString(2000)),
@@ -183,25 +189,42 @@ const CreateTasksParams = Type.Object(
 
 const FinishTaskParams = Type.Object(
 	{
-		result: StringEnum(TASK_OUTCOME_RESULTS, {
+		status: StringEnum(TASK_OUTCOME_STATUSES, {
 			description:
-				"completed when the task succeeded, failed when it could not be completed, blocked when an external dependency prevents progress, or skipped when the task is no longer necessary",
+				"completed when the task succeeded, failed when it could not be completed, or blocked when an external dependency prevents progress",
 		}),
 		summary: Type.String({
 			minLength: 1,
 			maxLength: 6000,
-			description: "Concise outcome and the critical context required to continue correctly",
+			description: "Concise outcome and continuation context required to continue correctly",
 		}),
-		followups: Type.Optional(
+		addTasks: Type.Optional(
 			Type.Array(
-				Type.String({
-					minLength: 1,
-					maxLength: 200,
-					description: "Outcome-oriented title for newly discovered work",
-				}),
+				Type.Object(
+					{
+						title: Type.String({
+							minLength: 1,
+							maxLength: 200,
+							description: "Outcome-oriented title for newly discovered work",
+						}),
+						after: Type.Optional(
+							Type.Union([
+								Type.Literal("current"),
+								Type.Literal("end"),
+								Type.String({
+									minLength: 1,
+									maxLength: 200,
+									description: "ID of an existing pending task",
+								}),
+							]),
+						),
+					},
+					{ additionalProperties: false },
+				),
 				{
 					maxItems: MAX_ADDED_TASKS,
-					description: "Optional newly discovered tasks to append to the queue.",
+					description:
+						"Optional newly discovered tasks. Omit after to insert after the current task; use end to append or a pending task ID to insert after that task.",
 				},
 			),
 		),
@@ -325,10 +348,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		name: "finish_task",
 		label: "Finish Task",
 		description:
-			"Finish the current queued task with its result and concise continuation context. Optionally append newly discovered follow-up work.",
+			"Finish the current queued task with its outcome and concise continuation context. If the work revealed additional necessary tasks, add them at precise positions in the existing queue.",
 		promptSnippet: "Finish the current queued task with its outcome and summary",
 		promptGuidelines: [
-			"Call finish_task alone after reaching an outcome for the current task. Include verification, decisions, blockers, and remaining work in the summary when relevant. If the work revealed additional necessary tasks, add their titles in followups.",
+			"Call finish_task alone after reaching an outcome for the current task. Use completed, failed, or blocked status and a concise summary. If the work revealed additional necessary tasks, add their titles in addTasks: omit after to place them after the current task, use end to append, or use a pending task ID to place them after that task.",
 		],
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
@@ -355,13 +378,14 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (item === undefined)
 				throw taskError("no_pending_outcome", "Every queued task already has a recorded outcome.");
 
+			if (params.summary.trim().length === 0) throw new Error("Invalid finish_task parameters.");
 			const checkpoint = ctx.mode === "print" ? "inline" : "rewrite";
-			const addedTasks = addedTasksForOutcome(active, params.followups);
+			const addedTasks = addedTasksForOutcome(active, params.addTasks);
 			const details: TaskOutcome = {
 				kind: TASK_OUTCOME_DETAILS_TYPE,
 				taskId: item.id,
-				result: params.result,
-				summary: params.summary,
+				status: params.status,
+				summary: params.summary.trim(),
 				addedTasks,
 				changedFiles: changedFilesForTask(ctx, active),
 				checkpoint,
@@ -385,10 +409,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 						type: "text",
 						text: [
 							`Task outcome recorded (${completedCount}/${total}).`,
-							...(addedTasks.length === 0
-								? []
-								: [`Added: ${addedTasks.map((task) => `${task.id}: ${task.title}`).join("; ")}`]),
-							next === undefined ? finishQueueMessage(projected, params.result) : `Next: ${next.id}: ${next.title}.`,
+							...(addedTasks.length === 0 ? [] : [`Added: ${addedTasks.map(formatAddedTask).join("; ")}`]),
+							next === undefined ? finishQueueMessage(projected, params.status) : `Next: ${next.id}: ${next.title}.`,
 						].join(" "),
 					},
 				],
@@ -442,12 +464,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			}
 			refreshStatus(ctx);
 			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
-			const projected = projectOutcome(active, finish);
-			const next = currentItem(projected);
+			const next = currentItem(active);
 			if (ctx.mode !== "print") {
 				scheduleContinuation(
 					pi,
-					next === undefined ? finalSummaryPrompt(projected) : nextTaskPrompt(projected, finish, next),
+					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish, next),
 				);
 			}
 		},
@@ -460,7 +481,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			return undefined;
 		return {
 			summary: {
-				summary: `${formatOutcome(active, finish)}\n\n${formatQueueProgress(projectOutcome(active, finish))}`,
+				summary: `${formatOutcome(active, finish)}\n\n${formatQueueProgress(active)}`,
 				details: finish,
 			},
 			label: `task: ${titleOf(active, finish.taskId)}`,
@@ -576,20 +597,40 @@ function formatTaskLabel(
 	return `${spinner}Task ${taskNumber}/${total} · ${title}`;
 }
 
-function addedTasksForOutcome(active: ActiveQueue, additions: readonly string[] | undefined): TaskAddedItem[] {
+function formatAddedTask(task: TaskAddedItem): string {
+	const position =
+		task.after === "current" ? "after current" : task.after === "end" ? "at the end" : `after ${task.after}`;
+	return `${task.id}: ${task.title} (${position})`;
+}
+
+function addedTasksForOutcome(
+	active: ActiveQueue,
+	additions: readonly { title: string; after?: string }[] | undefined,
+): TaskAddedItem[] {
 	if (additions === undefined || additions.length === 0) return [];
 	if (active.queue.tasks.length + additions.length > MAX_TASKS) {
 		throw taskError("capacity", `A task queue can contain at most ${MAX_TASKS} tasks.`);
 	}
 	const seen = new Set(active.queue.tasks.map((task) => task.id));
-	return additions.map((title) => ({
-		id: uniqueTaskId(seen),
-		title: title.trim(),
-	}));
-}
+	return additions.map((addition) => {
+		const title = addition.title.trim();
+		if (title.length === 0) throw new Error("Invalid finish_task parameters.");
 
-function appendAddedTasks(tasks: readonly TaskQueueItem[], additions: readonly TaskAddedItem[]): TaskQueueItem[] {
-	return [...tasks, ...additions.map((task) => ({ ...task }))];
+		const after = addition.after === undefined ? "current" : addition.after.trim();
+		if (after.length === 0) throw new Error("Invalid finish_task parameters.");
+		if (after !== "current" && after !== "end") {
+			const target = active.queue.tasks.find((task) => task.id === after);
+			if (target === undefined || active.outcomes.has(target.id)) {
+				throw taskError("invalid_task", `Task ${after} is not a pending task.`);
+			}
+		}
+
+		return {
+			id: uniqueTaskId(seen),
+			title,
+			after,
+		};
+	});
 }
 
 function currentItem(active: ActiveQueue): TaskQueueItem | undefined {
@@ -597,12 +638,44 @@ function currentItem(active: ActiveQueue): TaskQueueItem | undefined {
 	return active.queue.tasks.find((task) => !active.outcomes.has(task.id));
 }
 
+function insertAddedTasks(active: ActiveQueue, outcome: TaskOutcome): TaskQueueItem[] | undefined {
+	if (active.queue.tasks.length + outcome.addedTasks.length > MAX_TASKS) return undefined;
+
+	const existingIds = new Set(active.queue.tasks.map((task) => task.id));
+	for (const task of outcome.addedTasks) {
+		if (existingIds.has(task.id)) return undefined;
+		existingIds.add(task.id);
+	}
+
+	const tasks = active.queue.tasks.map((task) => ({ ...task }));
+	const insertedAfter = new Map<string, number>();
+	for (const addition of outcome.addedTasks) {
+		if (addition.after === "end") {
+			tasks.push({ id: addition.id, title: addition.title });
+			continue;
+		}
+
+		const anchorId = addition.after === "current" ? outcome.taskId : addition.after;
+		const anchor = active.queue.tasks.find((task) => task.id === anchorId);
+		if (anchor === undefined || (addition.after !== "current" && active.outcomes.has(anchor.id))) return undefined;
+
+		const anchorIndex = tasks.findIndex((task) => task.id === anchor.id);
+		if (anchorIndex === -1) return undefined;
+		const offset = insertedAfter.get(anchor.id) ?? 0;
+		tasks.splice(anchorIndex + 1 + offset, 0, { id: addition.id, title: addition.title });
+		insertedAfter.set(anchor.id, offset + 1);
+	}
+	return tasks;
+}
+
 function projectOutcome(active: ActiveQueue, outcome: TaskOutcome): ActiveQueue {
+	const tasks = insertAddedTasks(active, outcome);
+	if (tasks === undefined) throw new Error("Invalid task outcome.");
 	return {
 		queue: {
 			kind: TASK_QUEUE_DETAILS_TYPE,
 			queueId: active.queue.queueId,
-			tasks: appendAddedTasks(active.queue.tasks, outcome.addedTasks),
+			tasks,
 			origin: active.queue.origin,
 		},
 		checkpointEntryId: active.checkpointEntryId,
@@ -631,10 +704,10 @@ function formatQueueStatus(active: ActiveQueue): string {
 	return `✓ Tasks ${finishedCount(active)}/${active.queue.tasks.length} complete`;
 }
 
-function finishQueueMessage(active: ActiveQueue, result: TaskOutcomeResult): string {
+function finishQueueMessage(active: ActiveQueue, status: TaskOutcomeStatus): string {
 	const counts = taskCounts(active);
-	if (result !== "completed" || hasTaskIssues(counts)) {
-		return " Queue finished with issues; the final summary must distinguish completed, failed, blocked, and skipped tasks.";
+	if (status !== "completed" || hasTaskIssues(counts)) {
+		return " Queue finished with issues; the final summary must distinguish completed, failed, and blocked tasks.";
 	}
 	return " Queue complete.";
 }
@@ -642,16 +715,16 @@ function finishQueueMessage(active: ActiveQueue, result: TaskOutcomeResult): str
 function finalSummaryPrompt(active: ActiveQueue): string {
 	const counts = taskCounts(active);
 	if (active.cancelled !== undefined) {
-		return `The task queue was canceled (${formatTaskCounts(counts)}). Summarize completed, failed, blocked, skipped, and canceled tasks, include the cancellation reason, and do not claim the queue succeeded.`;
+		return `The task queue was canceled (${formatTaskCounts(counts)}). Summarize completed, failed, blocked, and canceled tasks, include the cancellation reason, and do not claim the queue succeeded.`;
 	}
 	if (hasTaskIssues(counts)) {
-		return `The task queue finished with ${formatTaskCounts(counts)}. Summarize the overall outcome for the user, clearly distinguishing completed, failed, blocked, and skipped tasks. Do not claim full success.`;
+		return `The task queue finished with ${formatTaskCounts(counts)}. Summarize the overall outcome for the user, clearly distinguishing completed, failed, and blocked tasks. Do not claim full success.`;
 	}
 	return "All queued tasks are complete. Summarize the overall outcome for the user.";
 }
 
 function nextTaskPrompt(active: ActiveQueue, outcome: TaskOutcome, next: TaskQueueItem): string {
-	return `Task ${positionOf(active, outcome.taskId)} recorded as ${outcome.result}. Continue with: ${next.id}: ${next.title}.`;
+	return `Task ${positionOf(active, outcome.taskId)} recorded as ${outcome.status}. Continue with: ${next.id}: ${next.title}.`;
 }
 
 function formatTaskRecovery(active: ActiveQueue): string {
@@ -672,12 +745,11 @@ function taskCounts(active: ActiveQueue): TaskCounts {
 		completed: 0,
 		failed: 0,
 		blocked: 0,
-		skipped: 0,
 		cancelled: 0,
 	};
 	for (const task of active.queue.tasks) {
 		const outcome = active.outcomes.get(task.id);
-		if (outcome !== undefined) counts[outcome.result] += 1;
+		if (outcome !== undefined) counts[outcome.status] += 1;
 		else if (active.cancelled !== undefined) counts.cancelled += 1;
 		else counts.pending += 1;
 	}
@@ -685,11 +757,11 @@ function taskCounts(active: ActiveQueue): TaskCounts {
 }
 
 function hasTaskIssues(counts: TaskCounts): boolean {
-	return counts.failed > 0 || counts.blocked > 0 || counts.skipped > 0 || counts.cancelled > 0;
+	return counts.failed > 0 || counts.blocked > 0 || counts.cancelled > 0;
 }
 
 function formatTaskCounts(counts: TaskCounts): string {
-	const order: TaskStatus[] = ["completed", "failed", "blocked", "skipped", "cancelled", "pending"];
+	const order: TaskStatus[] = ["completed", "failed", "blocked", "cancelled", "pending"];
 	return order
 		.filter((status) => counts[status] > 0)
 		.map((status) => `${counts[status]} ${status}`)
@@ -703,7 +775,7 @@ function formatQueueProgress(active: ActiveQueue): string {
 			return `## Queue progress\nQueue canceled: ${formatTaskCounts(taskCounts(active))}. No further tasks will run.`;
 		}
 		if (hasTaskIssues(taskCounts(active))) {
-			return `## Queue progress\nQueue finished with issues: ${formatTaskCounts(taskCounts(active))}. Do not report the queue as fully successful; distinguish skipped tasks from failed or blocked tasks.`;
+			return `## Queue progress\nQueue finished with issues: ${formatTaskCounts(taskCounts(active))}. Do not report the queue as fully successful; distinguish failed tasks from blocked tasks.`;
 		}
 		return `## Queue progress\n${finishedCount(active)}/${active.queue.tasks.length} complete. The queue is finished.`;
 	}
@@ -713,13 +785,13 @@ function formatQueueProgress(active: ActiveQueue): string {
 function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {
 	const lines = [
 		`## Task: ${outcome.taskId}: ${titleOf(active, outcome.taskId)}`,
-		`Result: ${outcome.result}`,
+		`Status: ${outcome.status}`,
 		"",
 		"## Summary",
 		outcome.summary,
 	];
 	if (outcome.addedTasks.length > 0) {
-		lines.push("", "## Added tasks", ...outcome.addedTasks.map((task) => `- ${task.id}: ${task.title}`));
+		lines.push("", "## Added tasks", ...outcome.addedTasks.map((task) => `- ${formatAddedTask(task)}`));
 	}
 	if (outcome.changedFiles.length > 0) {
 		lines.push("", "## Observed changed files", ...outcome.changedFiles.map((path) => `- \`${path}\``));
@@ -1074,12 +1146,12 @@ function applyOutcome(active: ActiveQueue, outcome: TaskOutcome): boolean {
 	if (active.cancelled !== undefined || active.outcomes.has(outcome.taskId)) return false;
 	if (!active.queue.tasks.some((task) => task.id === outcome.taskId)) return false;
 	if (active.queue.tasks.find((task) => !active.outcomes.has(task.id))?.id !== outcome.taskId) return false;
-	if (outcome.addedTasks.some((task) => active.queue.tasks.some((existing) => existing.id === task.id))) return false;
-	if (active.queue.tasks.length + outcome.addedTasks.length > MAX_TASKS) return false;
+	const tasks = insertAddedTasks(active, outcome);
+	if (tasks === undefined) return false;
 	active.queue = {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: active.queue.queueId,
-		tasks: appendAddedTasks(active.queue.tasks, outcome.addedTasks),
+		tasks,
 		origin: active.queue.origin,
 	};
 	active.outcomes.set(outcome.taskId, {
@@ -1093,7 +1165,7 @@ function applyOutcome(active: ActiveQueue, outcome: TaskOutcome): boolean {
 function sameOutcome(left: TaskOutcome, right: TaskOutcome): boolean {
 	return (
 		left.taskId === right.taskId &&
-		left.result === right.result &&
+		left.status === right.status &&
 		left.summary === right.summary &&
 		left.checkpoint === right.checkpoint &&
 		sameAddedTasks(left.addedTasks, right.addedTasks) &&
@@ -1105,7 +1177,10 @@ function sameOutcome(left: TaskOutcome, right: TaskOutcome): boolean {
 function sameAddedTasks(left: readonly TaskAddedItem[], right: readonly TaskAddedItem[]): boolean {
 	return (
 		left.length === right.length &&
-		left.every((task, index) => task.id === right[index]?.id && task.title === right[index]?.title)
+		left.every(
+			(task, index) =>
+				task.id === right[index]?.id && task.title === right[index]?.title && task.after === right[index]?.after,
+		)
 	);
 }
 
@@ -1145,9 +1220,13 @@ function parseTaskOutcome(value: unknown): TaskOutcome | undefined {
 	return {
 		kind: TASK_OUTCOME_DETAILS_TYPE,
 		taskId: decoded.success.taskId.trim(),
-		result: decoded.success.result,
+		status: decoded.success.status,
 		summary: decoded.success.summary.trim(),
-		addedTasks: decoded.success.addedTasks.map((task) => ({ id: task.id.trim(), title: task.title.trim() })),
+		addedTasks: decoded.success.addedTasks.map((task) => ({
+			id: task.id.trim(),
+			title: task.title.trim(),
+			after: task.after.trim(),
+		})),
 		changedFiles: decoded.success.changedFiles.map((path) => path.trim()),
 		checkpoint: decoded.success.checkpoint,
 	};
