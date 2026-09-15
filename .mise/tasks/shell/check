@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#MISE description="Check shell scripts with ShellCheck and shfmt"
+set -euo pipefail
+
+git ls-files --cached --others --exclude-standard -z |
+  while IFS= read -r -d '' file; do
+    [[ -L $file ]] && continue
+
+    first_line=$(head -n 1 "$file")
+    [[ $first_line == '#!'* ]] || continue
+
+    interpreter=${first_line#\#!}
+    interpreter=${interpreter##*env }
+    interpreter=${interpreter#-S }
+    interpreter=${interpreter##*/}
+    interpreter=${interpreter%% *}
+
+    case $interpreter in
+    ash | bash | dash | ksh | mksh | sh | yash | zsh)
+      shellcheck "$file"
+      shfmt -d -i 2 -s "$file"
+      ;;
+    esac
+  done

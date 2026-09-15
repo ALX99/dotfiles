@@ -32,7 +32,7 @@ clone_repo() {
     return
   fi
 
-  if [[ -e "$target" ]]; then
+  if [[ -e $target ]]; then
     printf 'Refusing to clone over existing non-repository path: %s\n' "$target" >&2
     return 1
   fi

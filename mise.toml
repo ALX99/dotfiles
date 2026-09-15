@@ -29,12 +29,22 @@
 [tools]
 "aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # gen:karabiner, karabiner:check
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
+"aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
+"aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
 
-# Automation lives in .mise/tasks/: flat entry points (install, linux-system),
-# <area>/<action> subsystem tasks (pi:check, karabiner:check), and gen:<area>
-# generators. `gen` sits here rather than in .mise/tasks/gen, which is the task
-# directory holding its subcommands; the wildcard dependency means a new generator
-# is picked up without registering it.
+# Task files live in .mise/tasks/: flat entry points (install, linux-system),
+# subsystem tasks (pi:check, shell:check, shell:fmt, cue:fmt, karabiner:check),
+# and generator subcommands (gen:<area>). Aggregate tasks (check, fmt) and `gen`
+# are defined here;
+# `gen` depends on every `gen:*` task, so new generators need no registration.
+[tasks.check]
+description = "Run all repository checks"
+depends = ["karabiner:check", "pi:check", "shell:check", "theme:check"]
+
+[tasks.fmt]
+description = "Run all repository formatters"
+depends = ["cue:fmt", "pi:fmt", "shell:fmt"]
+
 [tasks.gen]
 description = "Run every generator (gen:<area>) task"
 depends = ["gen:*"]

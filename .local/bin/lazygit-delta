@@ -15,12 +15,21 @@ dark_light_flag() {
 
   if command -v gsettings >/dev/null 2>&1; then
     case "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || true)" in
-    *prefer-dark*) printf '%s\n' --dark; return ;;
-    *prefer-light*) printf '%s\n' --light; return ;;
+    *prefer-dark*)
+      printf '%s\n' --dark
+      return
+      ;;
+    *prefer-light*)
+      printf '%s\n' --light
+      return
+      ;;
     esac
 
     case "$(gsettings get org.gnome.desktop.interface gtk-theme 2>/dev/null || true)" in
-    *-dark* | *Dark*) printf '%s\n' --dark; return ;;
+    *-dark* | *Dark*)
+      printf '%s\n' --dark
+      return
+      ;;
     esac
   fi
 

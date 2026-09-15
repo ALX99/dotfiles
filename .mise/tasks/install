@@ -22,16 +22,16 @@ is_prunable_name() {
 
 is_repo_managed_link() {
   local link="$1" target repo_name
-  [[ -L "$link" ]] || return 1
+  [[ -L $link ]] || return 1
   target=$(readlink "$link")
   repo_name=${repo_dir##*/}
-  [[ "$target" == "$repo_dir/"* || "$target" == "$repo_name/"* || "$target" == *"/$repo_name/"* ]]
+  [[ $target == "$repo_dir/"* || $target == "$repo_name/"* || $target == *"/$repo_name/"* ]]
 }
 
 # Skills owned by this repository (directory names under home/.agents/skills).
 repo_skill_list=""
 for skill_dir in "$repo_dir"/home/.agents/skills/*/; do
-  [[ -d "$skill_dir" ]] || continue
+  [[ -d $skill_dir ]] || continue
   repo_skill_list="$repo_skill_list $(basename "$skill_dir")"
 done
 
@@ -41,7 +41,7 @@ done
 retired_skill_list=""
 if retired_names=$(git -C "$repo_dir" log --format= --name-only -- 'home/.agents/skills/*' 2>/dev/null | awk -F/ 'NF>4 {print $4}' | grep -v '^$' | sort -u); then
   while IFS= read -r name; do
-    if [[ -n "$name" ]] && ! in_list "$name" "$repo_skill_list"; then
+    if [[ -n $name ]] && ! in_list "$name" "$repo_skill_list"; then
       retired_skill_list="$retired_skill_list $name"
     fi
   done <<<"$retired_names"
@@ -76,13 +76,13 @@ sync_agents_skills() {
   # Every repo skill must be a directory symlink into the repo, so dotfile
   # edits take effect. Anything else at that path is replaced.
   for skill_dir in "$repo_dir"/home/.agents/skills/*/; do
-    [[ -d "$skill_dir" ]] || continue
+    [[ -d $skill_dir ]] || continue
     skill_name=$(basename "$skill_dir")
     link_path="$agents_dir/$skill_name"
-    if [[ -L "$link_path" && $(readlink "$link_path") == "$skill_dir" ]]; then
+    if [[ -L $link_path && $(readlink "$link_path") == "$skill_dir" ]]; then
       continue
     fi
-    if [[ -e "$link_path" || -L "$link_path" ]]; then
+    if [[ -e $link_path || -L $link_path ]]; then
       printf 'Replacing with repo symlink: %s\n' "$link_path"
       rm -rf "$link_path"
     fi
@@ -98,7 +98,7 @@ sync_agents_skills() {
     in_list "$entry_name" "$repo_skill_list" && continue
     if in_list "$entry_name" "$retired_skill_list"; then
       # A foreign link reusing a retired name is still the owner's; keep it.
-      if [[ -L "$entry" ]] && ! is_repo_managed_link "$entry"; then
+      if [[ -L $entry ]] && ! is_repo_managed_link "$entry"; then
         record_kept "$entry_name"
         continue
       fi
@@ -127,7 +127,7 @@ sync_claude_skills() {
         record_pruned "$name"
         rm -f "$link"
       fi
-    elif [[ "$target" == "../../.agents/skills/"* ]]; then
+    elif [[ $target == "../../.agents/skills/"* ]]; then
       target_name=$(basename "$target")
       if ! is_prunable_name "$target_name" || [[ ! -e "$agents_dir/$target_name" ]]; then
         printf 'Removing orphaned Claude skill link: %s -> %s\n' "$link" "$target"
@@ -139,15 +139,15 @@ sync_claude_skills() {
 
   # Mirror every agents skill; never replace real entries owned by other tools.
   for src in "$agents_dir"/*; do
-    [[ -d "$src" ]] || continue
+    [[ -d $src ]] || continue
     src_name=$(basename "$src")
     is_prunable_name "$src_name" || continue
     link_path="$claude_dir/$src_name"
     link_target="../../.agents/skills/$src_name"
-    if [[ -L "$link_path" && $(readlink "$link_path") == "$link_target" ]]; then
+    if [[ -L $link_path && $(readlink "$link_path") == "$link_target" ]]; then
       continue
     fi
-    if [[ -e "$link_path" || -L "$link_path" ]]; then
+    if [[ -e $link_path || -L $link_path ]]; then
       printf 'Skipping existing Claude path (not a stale link): %s\n' "$link_path"
       continue
     fi
