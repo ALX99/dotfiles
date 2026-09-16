@@ -6,7 +6,6 @@ import interruptOnEmptyEnter from "./interrupt-on-empty-enter.ts";
 import minimal from "./minimal.ts";
 import modelShortcuts from "./model-shortcuts.ts";
 import nestedContext from "./nested-context.ts";
-import newSessionReload from "./new-session-reload.ts";
 import registerProcessReaper from "./process-reaper.ts";
 import statusbar from "./statusbar.ts";
 import systemPrompt from "./systemprompt.ts";
@@ -26,7 +25,6 @@ export default function zooid(pi: ExtensionAPI): void {
 	minimal(pi);
 	modelShortcuts(pi);
 	nestedContext(pi);
-	newSessionReload(pi);
 	statusbar(pi);
 	systemPrompt(pi);
 	title(pi);
