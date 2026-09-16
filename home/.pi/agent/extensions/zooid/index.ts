@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import caffeinate from "./caffeinate.ts";
+import compactBash from "./compact.ts";
 import copyCode from "./copy-code.ts";
 import interruptOnEmptyEnter from "./interrupt-on-empty-enter.ts";
 import minimal from "./minimal.ts";
@@ -20,6 +21,7 @@ import title from "./title.ts";
 export default function zooid(pi: ExtensionAPI): void {
 	registerProcessReaper(pi);
 	caffeinate(pi);
+	compactBash(pi);
 	copyCode(pi);
 	interruptOnEmptyEnter(pi);
 	minimal(pi);

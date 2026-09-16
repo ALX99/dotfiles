@@ -1,5 +1,7 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { patchRenderers } from "./render.ts";
+import { renderToolStatus } from "../_shared/tool-status.ts";
 
 import {
 	APPLY_PATCH_OPENAI_LARK_GRAMMAR,
@@ -24,8 +26,10 @@ const APPLY_PATCH_PARAMETERS = Type.Object(
 export function createApplyPatchToolDefinition(
 	options: ApplyPatchToolOptions,
 	runApplyPatchProcess: ApplyPatchRunner,
+	statusFor = renderToolStatus,
 ): ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails> {
 	return {
+		...patchRenderers(statusFor),
 		name: APPLY_PATCH_TOOL_NAME,
 		label: "Apply Patch",
 		description: APPLY_PATCH_TOOL_DESCRIPTION,

@@ -8,6 +8,7 @@ import {
 	type SpawnApplyPatchProcess,
 } from "./types.ts";
 import { createApplyPatchToolDefinition } from "./tools.ts";
+import { createToolStatus } from "../_shared/tool-status.ts";
 
 export type {
 	ApplyPatchSpawnOptions,
@@ -223,7 +224,7 @@ export function supportsApplyPatchTransport(model: { compat?: unknown } | undefi
 }
 
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
-	pi.registerTool(createApplyPatchTool(options));
+	pi.registerTool(createApplyPatchToolDefinition(options, runApplyPatchProcess, createToolStatus(pi)));
 
 	const suppressedBuiltinTools: string[] = [];
 	const setCodexCompatToolsActive = (enabled: boolean): void => {
