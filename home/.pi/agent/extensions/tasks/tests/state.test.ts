@@ -37,7 +37,7 @@ const queueEntry = (id: string, queueId: string, titles: readonly string[]): Tas
 
 interface OutcomeOptions {
 	status?: "completed" | "failed" | "blocked";
-	summary?: string;
+	outcome?: string;
 	addedTasks?: Array<{ id: string; title: string; after: string }>;
 	changedFiles?: string[];
 	checkpoint?: "rewrite" | "inline";
@@ -47,7 +47,7 @@ const outcomeDetails = (taskId: string, options: OutcomeOptions = {}) => ({
 	kind: "tasks:outcome" as const,
 	taskId,
 	status: options.status ?? "completed",
-	summary: options.summary ?? `${taskId} summary`,
+	outcome: options.outcome ?? `${taskId} outcome`,
 	addedTasks: options.addedTasks ?? [],
 	changedFiles: options.changedFiles ?? [],
 	checkpoint: options.checkpoint ?? "inline",
@@ -59,7 +59,7 @@ const outcomeEntry = (id: string, taskId: string, options: OutcomeOptions = {}):
 	message: { role: "toolResult", details: outcomeDetails(taskId, options) },
 });
 
-const summaryEntry = (id: string, taskId: string, options: OutcomeOptions = {}): TaskLogEntry => ({
+const branchSummaryEntry = (id: string, taskId: string, options: OutcomeOptions = {}): TaskLogEntry => ({
 	id,
 	type: "branch_summary",
 	details: outcomeDetails(taskId, options),
@@ -104,7 +104,7 @@ test("replay reconstructs the state a live projection produced", () => {
 	const live = stateOf([base]);
 	const outcome = buildOutcome(live, {
 		status: "completed",
-		summary: "  One is done.  ",
+		outcome: "  One is done.  ",
 		additions: [{ title: "Follow-up" }],
 		changedFiles: ["src/a.ts"],
 		checkpoint: "inline",
@@ -113,7 +113,7 @@ test("replay reconstructs the state a live projection produced", () => {
 	assert.deepEqual(replayed.queue, projectOutcome(live, outcome).queue);
 	assert.deepEqual(replayed.outcomes, projectOutcome(live, outcome).outcomes);
 	assert.equal(replayed.checkpointEntryId, "e2");
-	assert.equal(replayed.outcomes.get("t1")?.summary, "One is done.");
+	assert.equal(replayed.outcomes.get("t1")?.outcome, "One is done.");
 	assert.deepEqual(taskIds(replayed), ["t1", "t4", "t2", "t3"]);
 });
 
@@ -128,7 +128,7 @@ test("assigns stable sequential task IDs", () => {
 	const live = stateOf([base]);
 	const outcome = buildOutcome(live, {
 		status: "completed",
-		summary: "One.",
+		outcome: "One.",
 		additions: [{ title: "Third" }, { title: "Fourth" }],
 		changedFiles: [],
 		checkpoint: "inline",
@@ -147,9 +147,9 @@ test("ignores outcomes that arrive out of order, twice, or for unknown tasks", (
 	assert.deepEqual([...afterFirst.outcomes.keys()], ["t1"]);
 	assert.equal(currentItem(afterFirst)?.id, "t2");
 
-	const duplicated = stateOf([base, outcomeEntry("e2", "t1"), outcomeEntry("e3", "t1", { summary: "Rewritten." })]);
+	const duplicated = stateOf([base, outcomeEntry("e2", "t1"), outcomeEntry("e3", "t1", { outcome: "Rewritten." })]);
 	assert.equal(duplicated.outcomes.size, 1);
-	assert.equal(duplicated.outcomes.get("t1")?.summary, "t1 summary");
+	assert.equal(duplicated.outcomes.get("t1")?.outcome, "t1 outcome");
 });
 
 test("applies an outcome only once its preconditions hold", () => {
@@ -158,7 +158,7 @@ test("applies an outcome only once its preconditions hold", () => {
 		outcomeEntry("e2", "t1", { checkpoint: "rewrite" }),
 	]);
 	assert.throws(
-		() => buildOutcome(pending, { status: "completed", summary: "Again.", changedFiles: [], checkpoint: "inline" }),
+		() => buildOutcome(pending, { status: "completed", outcome: "Again.", changedFiles: [], checkpoint: "inline" }),
 		(error) => error instanceof TaskQueueError && error.reason === "already_recorded",
 	);
 
@@ -168,13 +168,13 @@ test("applies an outcome only once its preconditions hold", () => {
 		outcomeEntry("e3", "t2"),
 	]);
 	assert.throws(
-		() => buildOutcome(finished, { status: "completed", summary: "Again.", changedFiles: [], checkpoint: "inline" }),
+		() => buildOutcome(finished, { status: "completed", outcome: "Again.", changedFiles: [], checkpoint: "inline" }),
 		(error) => error instanceof TaskQueueError && error.reason === "no_pending_outcome",
 	);
 
 	const cancelled = stateOf([queueEntry("e1", "q1", ["One", "Two"]), cancelEntry("e2", "q1", "stopped")]);
 	assert.throws(
-		() => buildOutcome(cancelled, { status: "completed", summary: "Still.", changedFiles: [], checkpoint: "inline" }),
+		() => buildOutcome(cancelled, { status: "completed", outcome: "Still.", changedFiles: [], checkpoint: "inline" }),
 		(error) => error instanceof TaskQueueError && error.reason === "no_pending_outcome",
 	);
 });
@@ -185,7 +185,7 @@ test("rejects additions that do not resolve, without mutating state", () => {
 		() =>
 			buildOutcome(live, {
 				status: "completed",
-				summary: "Two.",
+				outcome: "Two.",
 				additions: [{ title: "After the unknown", after: "t9" }],
 				changedFiles: [],
 				checkpoint: "inline",
@@ -196,7 +196,7 @@ test("rejects additions that do not resolve, without mutating state", () => {
 		() =>
 			buildOutcome(live, {
 				status: "completed",
-				summary: "Two.",
+				outcome: "Two.",
 				additions: [{ title: "After a finished task", after: "t1" }],
 				changedFiles: [],
 				checkpoint: "inline",
@@ -206,7 +206,7 @@ test("rejects additions that do not resolve, without mutating state", () => {
 
 	const projected = buildOutcome(live, {
 		status: "completed",
-		summary: "Two.",
+		outcome: "Two.",
 		additions: [{ title: "Depends on the later third task", after: "t3" }],
 		changedFiles: [],
 		checkpoint: "inline",
@@ -253,7 +253,7 @@ test("inserts additions deterministically relative to their anchors", () => {
 
 test("keeps a rewrite outcome pending until its own branch summary lands", () => {
 	const base = queueEntry("e1", "q1", ["One", "Two"]);
-	const recorded = outcomeEntry("e2", "t1", { checkpoint: "rewrite", summary: "One done." });
+	const recorded = outcomeEntry("e2", "t1", { checkpoint: "rewrite", outcome: "One done." });
 
 	const pending = stateOf([base, recorded]);
 	assert.equal(pending.checkpointEntryId, "e1");
@@ -265,11 +265,19 @@ test("keeps a rewrite outcome pending until its own branch summary lands", () =>
 	assert.equal(replayedTwice.checkpointEntryId, "e1");
 	assert.equal(replayedTwice.outcomes.size, 1);
 
-	const mismatched = stateOf([base, recorded, summaryEntry("e3", "t1", { checkpoint: "rewrite", summary: "Else." })]);
+	const mismatched = stateOf([
+		base,
+		recorded,
+		branchSummaryEntry("e3", "t1", { checkpoint: "rewrite", outcome: "Else." }),
+	]);
 	assert.equal(mismatched.checkpointEntryId, "e1");
-	assert.equal(pendingCompaction(mismatched)?.summary, "One done.");
+	assert.equal(pendingCompaction(mismatched)?.outcome, "One done.");
 
-	const matched = stateOf([base, recorded, summaryEntry("e3", "t1", { checkpoint: "rewrite", summary: "One done." })]);
+	const matched = stateOf([
+		base,
+		recorded,
+		branchSummaryEntry("e3", "t1", { checkpoint: "rewrite", outcome: "One done." }),
+	]);
 	assert.equal(matched.checkpointEntryId, "e3");
 	assert.equal(pendingCompaction(matched), undefined);
 	assert.equal(matched.outcomes.size, 1);
@@ -278,8 +286,8 @@ test("keeps a rewrite outcome pending until its own branch summary lands", () =>
 	const afterSummary = stateOf([
 		base,
 		recorded,
-		summaryEntry("e3", "t1", { checkpoint: "rewrite", summary: "One done." }),
-		summaryEntry("e4", "t1", { checkpoint: "rewrite", summary: "One done." }),
+		branchSummaryEntry("e3", "t1", { checkpoint: "rewrite", outcome: "One done." }),
+		branchSummaryEntry("e4", "t1", { checkpoint: "rewrite", outcome: "One done." }),
 	]);
 	assert.equal(afterSummary.checkpointEntryId, "e3");
 	assert.equal(afterSummary.outcomes.size, 1);

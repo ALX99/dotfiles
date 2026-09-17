@@ -101,7 +101,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 						text: [
 							`Queued ${tasks.length} tasks.`,
 							...tasks.map((task, index) => `${index + 1}. ${task.id}: ${task.title}`),
-							"Work them in order and call finish_task alone after each task with an outcome summary.",
+							"Work them in order and call finish_task alone after each task to record its outcome.",
 						].join("\n"),
 					},
 				],
@@ -124,7 +124,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			}
 			const details = buildOutcome(active, {
 				status: params.status,
-				summary: params.summary,
+				outcome: params.outcome,
 				additions: params.addTasks,
 				changedFiles: changedFilesForTask(ctx, active),
 				checkpoint: ctx.mode === "print" ? "inline" : "rewrite",

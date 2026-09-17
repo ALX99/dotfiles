@@ -37,7 +37,8 @@ export interface TaskOutcome {
 	kind: typeof TASK_OUTCOME_DETAILS_TYPE;
 	taskId: string;
 	status: TaskOutcomeStatus;
-	summary: string;
+	/** Durable result and context later tasks need after this task compacts. */
+	outcome: string;
 	addedTasks: TaskAddedItem[];
 	/** Files targeted by successful edit/write/apply_patch calls observed in this task. */
 	changedFiles: string[];
@@ -128,7 +129,7 @@ const TaskOutcomeSchema = Schema.Struct({
 	kind: Schema.Literals([TASK_OUTCOME_DETAILS_TYPE]),
 	taskId: requiredText(200),
 	status: Schema.Literals(TASK_OUTCOME_STATUSES),
-	summary: requiredText(6000),
+	outcome: requiredText(6000),
 	addedTasks: AddedTaskItemsSchema,
 	changedFiles: Schema.Array(boundedString(2000)),
 	checkpoint: Schema.Literals(["rewrite", "inline"]),
@@ -231,7 +232,7 @@ export function createQueue(titles: readonly string[]): TaskQueueDetails {
 
 export interface TaskOutcomeInput {
 	status: TaskOutcomeStatus;
-	summary: string;
+	outcome: string;
 	additions?: readonly { title: string; after?: string | undefined }[] | undefined;
 	changedFiles: readonly string[];
 	checkpoint: TaskCheckpoint;
@@ -243,13 +244,13 @@ export function buildOutcome(active: ActiveQueue, input: TaskOutcomeInput): Task
 		throw taskError("already_recorded", "The current task already has a recorded outcome.");
 	const item = currentItem(active);
 	if (item === undefined) throw taskError("no_pending_outcome", "Every queued task already has a recorded outcome.");
-	const summary = input.summary.trim();
-	if (summary.length === 0) throw new Error("Invalid finish_task parameters.");
+	const outcome = input.outcome.trim();
+	if (outcome.length === 0) throw new Error("Invalid finish_task parameters.");
 	return {
 		kind: TASK_OUTCOME_DETAILS_TYPE,
 		taskId: item.id,
 		status: input.status,
-		summary,
+		outcome,
 		addedTasks: addedTasksForOutcome(active, input.additions),
 		changedFiles: [...input.changedFiles],
 		checkpoint: input.checkpoint,
@@ -372,7 +373,7 @@ export function formatTaskRecovery(active: ActiveQueue): string {
 		"Task checkpoint:",
 		`Continue with the current task: ${currentTitle}.`,
 		`Queue progress: ${formatTaskCounts(counts)}.`,
-		"Previous task summaries remain in the conversation history.",
+		"Previous task outcomes remain in the conversation history.",
 	].join("\n");
 }
 
@@ -395,8 +396,8 @@ export function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string
 		`## Task: ${outcome.taskId}: ${titleOf(active, outcome.taskId)}`,
 		`Status: ${outcome.status}`,
 		"",
-		"## Summary",
-		outcome.summary,
+		"## Outcome",
+		outcome.outcome,
 	];
 	if (outcome.addedTasks.length > 0) {
 		lines.push("", "## Added tasks", ...outcome.addedTasks.map((task) => `- ${formatAddedTask(task)}`));
@@ -506,7 +507,7 @@ function sameOutcome(left: TaskOutcome, right: TaskOutcome): boolean {
 	return (
 		left.taskId === right.taskId &&
 		left.status === right.status &&
-		left.summary === right.summary &&
+		left.outcome === right.outcome &&
 		left.checkpoint === right.checkpoint &&
 		sameAddedTasks(left.addedTasks, right.addedTasks) &&
 		left.changedFiles.length === right.changedFiles.length &&
@@ -562,7 +563,7 @@ function parseTaskOutcome(value: unknown): TaskOutcome | undefined {
 		kind: TASK_OUTCOME_DETAILS_TYPE,
 		taskId: decoded.success.taskId.trim(),
 		status: decoded.success.status,
-		summary: decoded.success.summary.trim(),
+		outcome: decoded.success.outcome.trim(),
 		addedTasks: decoded.success.addedTasks.map((task) => ({
 			id: task.id.trim(),
 			title: task.title.trim(),

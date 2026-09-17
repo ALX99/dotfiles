@@ -29,8 +29,8 @@ export function toDashboardQueue(active: ActiveQueue): TaskDashboardQueue {
 							? "Current task. No outcome recorded yet."
 							: "Waiting for earlier tasks."
 					: [
-							"Recorded model summary",
-							outcome.summary,
+							"Outcome",
+							outcome.outcome,
 							...(outcome.changedFiles.length ? ["", "Changed files", ...outcome.changedFiles] : []),
 							...(outcome.addedTasks.length
 								? ["", "Discovered tasks", ...outcome.addedTasks.map(formatAddedTask)]

@@ -165,7 +165,7 @@ type OutcomeDetails = Record<string, unknown> & {
 	kind: string;
 	taskId: string;
 	status: string;
-	summary: string;
+	outcome: string;
 	addedTasks: Array<{ id: string; title: string; after: string }>;
 	changedFiles: string[];
 	checkpoint: "rewrite" | "inline";
@@ -248,13 +248,14 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["One"] }), false);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
-	assert.equal(Check(finish.parameters!, { status: "completed", summary: "Verified." }), true);
-	assert.equal(Check(finish.parameters!, { status: "skipped", summary: "Not supported." }), false);
-	assert.equal(Check(finish.parameters!, { result: "completed", summary: "Not supported." }), false);
+	assert.equal(Check(finish.parameters!, { status: "completed", outcome: "Verified." }), true);
+	assert.equal(Check(finish.parameters!, { status: "completed" }), false);
+	assert.equal(Check(finish.parameters!, { status: "skipped", outcome: "Not supported." }), false);
+	assert.equal(Check(finish.parameters!, { result: "completed", outcome: "Not supported." }), false);
 	assert.equal(
 		Check(finish.parameters!, {
 			status: "completed",
-			summary: "Verified.",
+			outcome: "Verified.",
 			addTasks: [
 				{ title: "Current follow-up" },
 				{ title: "End follow-up", after: "end" },
@@ -266,13 +267,13 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal(
 		Check(finish.parameters!, {
 			status: "completed",
-			summary: "Verified.",
+			outcome: "Verified.",
 			addTasks: ["Not an object"],
 		}),
 		false,
 	);
 	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
-	assert.deepEqual(Object.keys(finishProperties), ["status", "summary", "addTasks"]);
+	assert.deepEqual(Object.keys(finishProperties), ["status", "outcome", "addTasks"]);
 	assert.equal("taskId" in finishProperties, false);
 	assert.equal("evidence" in finishProperties, false);
 	assert.equal("decisions" in finishProperties, false);
@@ -310,7 +311,7 @@ test("generates task IDs for additions and defaults them after the current task"
 		h,
 		{
 			status: "completed",
-			summary: "Schema added and verified.",
+			outcome: "Schema added and verified.",
 			addTasks: [{ title: "Investigate the unrelated parser warning." }],
 		},
 		"finish-1",
@@ -341,7 +342,7 @@ test("inserts additions after precise positions and preserves same-position orde
 			h,
 			{
 				status: "completed",
-				summary: `Finished ${expectedTaskId}.`,
+				outcome: `Finished ${expectedTaskId}.`,
 				...(index === 0 ? { addTasks: additions } : {}),
 			},
 			callId,
@@ -372,7 +373,7 @@ test("continues with a hidden title-only instruction after each task compacts", 
 			h,
 			{
 				status: "completed",
-				summary: `Finished ${taskId}.`,
+				outcome: `Finished ${taskId}.`,
 				...(index === 0 ? { addTasks: [{ title: "Follow-up A" }, { title: "Follow-up B" }] } : {}),
 			},
 			callId,
@@ -409,7 +410,7 @@ test("rejects invalid or finished insertion targets without recording an outcome
 			h,
 			{
 				status: "completed",
-				summary: "Should not be recorded.",
+				outcome: "Should not be recorded.",
 				addTasks: [{ title: "Invalid target", after: "missing" }],
 			},
 			"invalid-target",
@@ -417,7 +418,7 @@ test("rejects invalid or finished insertion targets without recording an outcome
 		/Task missing is not a pending task/u,
 	);
 
-	const first = await finishTask(h, { status: "completed", summary: "First task done." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", outcome: "First task done." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 	h.pushEntry(branchSummary("summary-1", first.details));
 
@@ -426,7 +427,7 @@ test("rejects invalid or finished insertion targets without recording an outcome
 			h,
 			{
 				status: "completed",
-				summary: "Should not be recorded.",
+				outcome: "Should not be recorded.",
 				addTasks: [{ title: "Finished target", after: "t1" }],
 			},
 			"finished-target",
@@ -434,7 +435,7 @@ test("rejects invalid or finished insertion targets without recording an outcome
 		/Task t1 is not a pending task/u,
 	);
 
-	const next = await finishTask(h, { status: "completed", summary: "Second task still current." }, "finish-2");
+	const next = await finishTask(h, { status: "completed", outcome: "Second task still current." }, "finish-2");
 	assert.equal(next.details.taskId, "t2");
 });
 
@@ -446,7 +447,7 @@ test("ignores malformed persisted additions without changing the existing queue"
 			kind: "tasks:outcome",
 			taskId: "t1",
 			status: "completed",
-			summary: "Tampered outcome.",
+			outcome: "Tampered outcome.",
 			addedTasks: [{ id: "t5", title: "Should not be inserted", after: "missing" }],
 			changedFiles: [],
 			checkpoint: "inline",
@@ -466,7 +467,7 @@ test("keeps additions atomic when capacity would be exceeded", async () => {
 			h,
 			{
 				status: "completed",
-				summary: "Should not be recorded.",
+				outcome: "Should not be recorded.",
 				addTasks: [{ title: "One too many" }, { title: "Another too many" }],
 			},
 			"over-capacity",
@@ -495,7 +496,7 @@ test("tracks successful mutation paths for the current task only", async () => {
 	);
 	h.pushEntry(mutationToolResult("patch-result", "patch", "apply_patch"));
 
-	const first = await finishTask(h, { status: "completed", summary: "Files changed." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", outcome: "Files changed." }, "finish-1");
 	assert.deepEqual(first.details.changedFiles, [
 		"src/new.ts",
 		"src/handler.ts",
@@ -507,14 +508,14 @@ test("tracks successful mutation paths for the current task only", async () => {
 
 	h.pushEntry(assistantToolCall("second-write", "write", { path: "src/second.ts" }));
 	h.pushEntry(mutationToolResult("second-write-result", "second-write", "write"));
-	const second = await finishTask(h, { status: "completed", summary: "Second task changed one file." }, "finish-2");
+	const second = await finishTask(h, { status: "completed", outcome: "Second task changed one file." }, "finish-2");
 	assert.deepEqual(second.details.changedFiles, ["src/second.ts"]);
 });
 
 test("chains one outcome through the tool result and branch summary", async () => {
 	const h = createHarness();
 	const queue = await createQueue(h);
-	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 	assert.equal(first.details.checkpoint, "rewrite");
 	assert.equal(first.terminate, true);
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
@@ -524,7 +525,7 @@ test("chains one outcome through the tool result and branch summary", async () =
 	assert.match(committed.summary, /1\/4 complete\. Continue with: t2: Implement handler/u);
 	assert.deepEqual(committed.details, first.details);
 
-	const second = await finishTask(h, { status: "completed", summary: "Handler added." }, "finish-2");
+	const second = await finishTask(h, { status: "completed", outcome: "Handler added." }, "finish-2");
 	assert.equal(second.details.taskId, queue.tasks[1]?.id);
 	assert.equal(h.statuses.get("tasks"), "⟳ Task 2/4 · compacting");
 	h.pushEntry(toolResult("finish-2-result", "finish-2", "finish_task", second.details));
@@ -538,12 +539,12 @@ test("chains one outcome through the tool result and branch summary", async () =
 test("fails closed for mismatched or out-of-order persisted outcomes", async () => {
 	const h = createHarness();
 	await createQueue(h);
-	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 	h.pushEntry(
 		branchSummary("mismatch", {
 			...first.details,
-			summary: "Tampered summary.",
+			outcome: "Tampered outcome.",
 		}),
 	);
 	h.handlers.get("session_tree")!({} as never, h.ctx as never);
@@ -556,7 +557,7 @@ test("fails closed for mismatched or out-of-order persisted outcomes", async () 
 			kind: "tasks:outcome",
 			taskId: "t2",
 			status: "completed",
-			summary: "Wrong task.",
+			outcome: "Wrong task.",
 			addedTasks: [],
 			changedFiles: [],
 			checkpoint: "rewrite",
@@ -573,7 +574,7 @@ test("compacts each interactive task and retires a successful queue", async () =
 	let checkpoint = "queue-call-result";
 	for (const [index, title] of QUEUE_TITLES.entries()) {
 		const callId = `finish-${index + 1}`;
-		const finish = await finishTask(h, { status: "completed", summary: `${title} done.` }, callId);
+		const finish = await finishTask(h, { status: "completed", outcome: `${title} done.` }, callId);
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		const committed = await commit(h, checkpoint);
 		assert.equal(committed.details.taskId, queue.tasks[index]?.id);
@@ -615,7 +616,7 @@ test("records print-mode outcomes inline and allows one task per invocation", as
 		"print",
 	);
 
-	const first = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
+	const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 	assert.equal(first.details.checkpoint, "inline");
 	assert.equal(first.terminate, false);
 	assert.match(first.content, /Next: t2: Implement handler/u);
@@ -626,12 +627,12 @@ test("records print-mode outcomes inline and allows one task per invocation", as
 	await assert.rejects(
 		h.tools
 			.get("finish_task")!
-			.execute("finish-2", { status: "completed", summary: "Handler added." }, undefined, undefined, h.ctx),
+			.execute("finish-2", { status: "completed", outcome: "Handler added." }, undefined, undefined, h.ctx),
 		/current task outcome has already been recorded/u,
 	);
 
 	h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
-	const second = await finishTask(h, { status: "completed", summary: "Handler added." }, "finish-2b");
+	const second = await finishTask(h, { status: "completed", outcome: "Handler added." }, "finish-2b");
 	assert.equal(second.details.taskId, "t2");
 	assert.equal(second.details.checkpoint, "inline");
 });
@@ -641,7 +642,7 @@ test("derives failed and blocked outcomes without a second task state", async ()
 	await createQueue(h);
 	for (const [index, status] of ["failed", "blocked", "completed", "completed"].entries()) {
 		const callId = `finish-${index + 1}`;
-		const finish = await finishTask(h, { status, summary: `${status} outcome.` }, callId);
+		const finish = await finishTask(h, { status, outcome: `${status} outcome.` }, callId);
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		h.pushEntry(branchSummary(`summary-${index + 1}`, finish.details));
 		h.handlers.get("session_tree")!({} as never, h.ctx as never);
@@ -670,7 +671,7 @@ test("keeps cancellation human-only", async () => {
 	await assert.rejects(
 		h.tools
 			.get("finish_task")!
-			.execute("finish-after-cancel", { status: "completed", summary: "Should not run." }, undefined, undefined, {
+			.execute("finish-after-cancel", { status: "completed", outcome: "Should not run." }, undefined, undefined, {
 				...h.ctx,
 				sessionManager: { getBranch: h.ctx.sessionManager.getBranch },
 			}),
@@ -711,7 +712,7 @@ test("injects compact recovery guidance after automatic compaction", async () =>
 	assert.equal(recovery?.message.customType, "tasks:recovery");
 	assert.match(recovery?.message.content ?? "", /Continue with the current task: t1: Add schema\./u);
 	assert.match(recovery?.message.content ?? "", /Queue progress: 4 pending\./u);
-	assert.match(recovery?.message.content ?? "", /Previous task summaries remain in the conversation history\./u);
+	assert.match(recovery?.message.content ?? "", /Previous task outcomes remain in the conversation history\./u);
 	assert.deepEqual(recovery?.options, { deliverAs: "steer" });
 });
 
@@ -734,7 +735,7 @@ test("updates status while a queue is active", async () => {
 	await createQueue(h);
 	assert.equal(h.statuses.get("tasks"), "0/4 complete · Add schema");
 
-	const finish = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
+	const finish = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
 	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
 });
@@ -743,7 +744,7 @@ test("dashboard restores completed queues and outcomes without changing executio
 	const h = createHarness([], "tui");
 	await createQueue(h, ["Investigate", "Run tests", "Review"]);
 	for (let index = 1; index <= 3; index++) {
-		const finish = await finishTask(h, { status: "completed", summary: `Outcome ${index}` }, `done-${index}`);
+		const finish = await finishTask(h, { status: "completed", outcome: `Outcome ${index}` }, `done-${index}`);
 		h.pushEntry(branchSummary(`checkpoint-${index}`, finish.details));
 	}
 	await h.commands.get("tasks")!.handler("", h.ctx);

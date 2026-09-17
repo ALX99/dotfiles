@@ -31,12 +31,13 @@ export type CreateTasksParams = Static<typeof CreateTasksParams>;
 export const FinishTaskParams = Type.Object(
 	{
 		status: StringEnum(TASK_OUTCOME_STATUSES, {
-			description: "Task outcome",
+			description: "Task status",
 		}),
-		summary: Type.String({
+		outcome: Type.String({
 			minLength: 1,
 			maxLength: 6000,
-			description: "Outcome and context needed to continue",
+			description:
+				"Durable result and context future tasks need: important changes, decisions, deviations, unresolved constraints, and verification. Avoid narrating the work.",
 		}),
 		addTasks: Type.Optional(
 			Type.Array(
