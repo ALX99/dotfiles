@@ -34,6 +34,18 @@ Follow `.md` cross-references and read the examples they cite. No `src/` ships, 
 node -e 'const {readFileSync}=require("node:fs");const m=JSON.parse(readFileSync(process.argv[1],"utf8"));console.log(m.sources[0],"\n"+m.sourcesContent[0])' "$PI_PACKAGE/dist/core/system-prompt.js.map"
 ```
 
+## Custom models and per-model overrides
+
+- `~/.pi/agent/models.json` is the user-level registry for custom providers/models and overrides.
+- Add new models under `providers.<name>.models`.
+- Override a built-in or extension-registered model under `providers.<name>.modelOverrides["<model-id>"]`.
+- Model metadata overrides include `reasoning`, `thinkingLevelMap`, `compat`, `samplingParams`, context limits, costs, and related fields.
+- `~/.pi/agent/settings.json` controls startup defaults and the `enabledModels` cycling list; it is not the model metadata override location.
+- `~/.pi/agent/models-store.json` is a generated catalog cache; do not edit it as the source of a custom override.
+- Extension-registered providers live in `~/.pi/agent/extensions/` or installed packages under `~/.pi/agent/npm/node_modules/`; inspect the provider source when the model is registered dynamically.
+
+For an existing model whose provider is registered by an extension, check `models.json` before changing the extension's own profile or routing configuration. `models.json` reloads when `/model` is opened.
+
 ## Extensions and installed packages
 
 - Custom extensions live in the agent directory: `~/.pi/agent/extensions/` (`PI_CODING_AGENT_DIR` overrides). The standalone features are grouped into one `zooid/` package through its `index.ts` entry point; other feature directories expose `*/index.ts` entry points, and `**/tests/` holds coverage.

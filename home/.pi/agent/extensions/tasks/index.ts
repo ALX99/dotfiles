@@ -18,20 +18,21 @@ import {
 	FinishTaskParams,
 } from "./tools.ts";
 
+import { showTaskDashboard, type TaskDashboardQueue } from "./dashboard.ts";
+
 export { TASK_TOOL_NAMES };
 
 const TASK_QUEUE_DETAILS_TYPE = "tasks:queue";
 const TASK_OUTCOME_DETAILS_TYPE = "tasks:outcome";
 const TASK_CANCEL_DETAILS_TYPE = "tasks:cancel";
 const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
+const TASK_CONTINUE_TYPE = "tasks:continue";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
 
 const TASK_BOOTSTRAP_TOOL_NAMES = ["create_tasks"] as const;
 const TASK_TOOL_SET = new Set<string>(TASK_TOOL_NAMES);
-const TASK_SPINNER_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"] as const;
 const TASK_COMPACTION_MARKER = "⟳";
-const MAX_TASK_ORIGIN_LENGTH = 32_000;
 
 type TaskOutcomeStatus = (typeof TASK_OUTCOME_STATUSES)[number];
 type TaskCheckpoint = "rewrite" | "inline";
@@ -47,8 +48,6 @@ interface TaskQueueDetails {
 	kind: typeof TASK_QUEUE_DETAILS_TYPE;
 	queueId: string;
 	tasks: TaskQueueItem[];
-	/** Conversation context captured automatically before create_tasks was called. */
-	origin: string;
 }
 
 type TaskAdditionPoint = string;
@@ -93,9 +92,7 @@ interface ActiveQueue {
 interface TaskStatusContext {
 	sessionManager: {
 		getBranch(): SessionEntry[];
-		buildContextEntries?: () => SessionEntry[];
 	};
-	mode?: string;
 	ui: {
 		setStatus(key: string, text: string | undefined): void;
 	};
@@ -104,7 +101,6 @@ interface TaskStatusContext {
 interface BranchContext {
 	sessionManager: {
 		getBranch(): SessionEntry[];
-		buildContextEntries?: () => SessionEntry[];
 	};
 }
 
@@ -153,7 +149,6 @@ const TaskQueueSchema = Schema.Struct({
 	kind: Schema.Literals([TASK_QUEUE_DETAILS_TYPE]),
 	queueId: requiredText(200),
 	tasks: TaskQueueItemsSchema,
-	origin: boundedString(MAX_TASK_ORIGIN_LENGTH),
 });
 
 const TaskOutcomeSchema = Schema.Struct({
@@ -200,30 +195,12 @@ function taskError(reason: TaskQueueReason, message: string): TaskQueueError {
 }
 
 export default function tasksExtension(pi: ExtensionAPI): void {
-	let agentActive = false;
 	let printTaskFinished = false;
-	let spinnerIndex = 0;
-	let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 
+	let refreshDashboard: (() => void) | undefined;
 	const refreshStatus = (ctx: TaskStatusContext): void => {
-		updateTaskStatus(ctx, agentActive, spinnerIndex);
-	};
-
-	const startSpinner = (ctx: TaskStatusContext): void => {
-		if (ctx.mode !== "tui" || spinnerTimer !== undefined || !tasksEnabled(ctx)) return;
-		const active = getActiveQueue(ctx);
-		if (active === undefined || pendingCompaction(active) !== undefined || currentItem(active) === undefined) return;
-		spinnerIndex = 0;
-		spinnerTimer = setInterval(() => {
-			spinnerIndex = (spinnerIndex + 1) % TASK_SPINNER_FRAMES.length;
-			refreshStatus(ctx);
-		}, 100);
-	};
-
-	const stopSpinner = (): void => {
-		if (spinnerTimer === undefined) return;
-		clearInterval(spinnerTimer);
-		spinnerTimer = undefined;
+		updateTaskStatus(ctx);
+		refreshDashboard?.();
 	};
 
 	registerTaskTools(pi, {
@@ -254,10 +231,9 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				kind: TASK_QUEUE_DETAILS_TYPE,
 				queueId,
 				tasks,
-				origin: captureTaskOrigin(ctx, toolCallId),
 			};
 			activateTaskTools(pi);
-			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(1, tasks.length, tasks[0]!.title, agentActive, spinnerIndex));
+			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(0, tasks.length, tasks[0]!.title));
 			return {
 				content: [
 					{
@@ -284,7 +260,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			if (!Check(FinishTaskParams, params)) throw new Error("Invalid finish_task parameters.");
 			const active = getActiveQueue(ctx);
 			if (active === undefined) {
-				throw taskError("no_queue", "No task queue is active. Call create_tasks with at least three tasks first.");
+				throw taskError("no_queue", "No task queue is active. Call create_tasks first.");
 			}
 			if (pendingCompaction(active) !== undefined)
 				throw taskError("already_recorded", "The current task already has a recorded outcome.");
@@ -335,10 +311,20 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("tasks", {
-		description: "Inspect or control tasks (/tasks [status|on|off|commit|cancel <reason>]).",
+		description: "Open the task dashboard (/tasks), or control tasks ([status|on|off|commit|cancel <reason>]).",
 		handler: async (args, ctx) => {
 			const trimmed = args.trim();
 			const action = trimmed.toLowerCase();
+			if (action === "" && ctx.mode === "tui") {
+				await showTaskDashboard(
+					ctx,
+					() => readTaskQueues(ctx).map(dashboardQueue),
+					(refresh) => {
+						refreshDashboard = refresh;
+					},
+				);
+				return;
+			}
 			if (action === "" || action === "status") {
 				showTaskStatus(ctx);
 				return;
@@ -380,10 +366,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
 			const next = currentItem(active);
 			if (ctx.mode !== "print") {
-				scheduleContinuation(
-					pi,
-					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(active, finish, next),
-				);
+				scheduleContinuation(pi, next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next));
 			}
 		},
 	});
@@ -425,21 +408,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
-		agentActive = false;
-		stopSpinner();
 		refreshStatus(ctx);
 	});
 
-	pi.on("agent_start", (_event, ctx) => {
+	pi.on("agent_start", () => {
 		printTaskFinished = false;
-		agentActive = true;
-		startSpinner(ctx);
-		refreshStatus(ctx);
-	});
-
-	pi.on("turn_end", (_event, ctx) => {
-		startSpinner(ctx);
-		refreshStatus(ctx);
 	});
 
 	pi.on("session_tree", (_event, ctx) => {
@@ -447,8 +420,6 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("agent_settled", (_event, ctx) => {
-		agentActive = false;
-		stopSpinner();
 		refreshStatus(ctx);
 		if (ctx.mode === "print" || !tasksEnabled(ctx) || pendingCompaction(getActiveQueue(ctx)) === undefined) return;
 		pi.sendUserMessage("/tasks commit", { expandPromptTemplates: true });
@@ -456,8 +427,6 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 	pi.on("session_shutdown", (_event, ctx) => {
 		printTaskFinished = false;
-		agentActive = false;
-		stopSpinner();
 		ctx.ui.setStatus(TASK_STATUS_KEY, undefined);
 	});
 }
@@ -466,7 +435,7 @@ function pendingCompaction(active: ActiveQueue | undefined): TaskOutcome | undef
 	return active?.pendingCompaction;
 }
 
-function updateTaskStatus(ctx: TaskStatusContext, agentActive: boolean, spinnerIndex: number): void {
+function updateTaskStatus(ctx: TaskStatusContext): void {
 	if (!tasksEnabled(ctx)) {
 		ctx.ui.setStatus(TASK_STATUS_KEY, "Tasks off");
 		return;
@@ -494,21 +463,11 @@ function updateTaskStatus(ctx: TaskStatusContext, agentActive: boolean, spinnerI
 		return;
 	}
 
-	ctx.ui.setStatus(
-		TASK_STATUS_KEY,
-		formatTaskLabel(positionOf(active, item.id), active.queue.tasks.length, item.title, agentActive, spinnerIndex),
-	);
+	ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(finishedCount(active), active.queue.tasks.length, item.title));
 }
 
-function formatTaskLabel(
-	taskNumber: number,
-	total: number,
-	title: string,
-	agentActive: boolean,
-	spinnerIndex: number,
-): string {
-	const spinner = agentActive ? `${TASK_SPINNER_FRAMES[spinnerIndex % TASK_SPINNER_FRAMES.length]} ` : "";
-	return `${spinner}Task ${taskNumber}/${total} · ${title}`;
+function formatTaskLabel(completedCount: number, total: number, title: string): string {
+	return `${completedCount}/${total} complete · ${title}`;
 }
 
 function formatAddedTask(task: TaskAddedItem): string {
@@ -590,7 +549,6 @@ function projectOutcome(active: ActiveQueue, outcome: TaskOutcome): ActiveQueue 
 			kind: TASK_QUEUE_DETAILS_TYPE,
 			queueId: active.queue.queueId,
 			tasks,
-			origin: active.queue.origin,
 		},
 		checkpointEntryId: active.checkpointEntryId,
 		outcomes: new Map([...active.outcomes, [outcome.taskId, outcome]]),
@@ -637,8 +595,8 @@ function finalSummaryPrompt(active: ActiveQueue): string {
 	return "All queued tasks are complete. Summarize the overall outcome for the user.";
 }
 
-function nextTaskPrompt(active: ActiveQueue, outcome: TaskOutcome, next: TaskQueueItem): string {
-	return `Task ${positionOf(active, outcome.taskId)} recorded as ${outcome.status}. Continue with: ${next.id}: ${next.title}.`;
+function nextTaskPrompt(next: TaskQueueItem): string {
+	return `Continue with the next task: ${next.title}.`;
 }
 
 function formatTaskRecovery(active: ActiveQueue): string {
@@ -711,56 +669,6 @@ function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {
 		lines.push("", "## Observed changed files", ...outcome.changedFiles.map((path) => `- \`${path}\``));
 	}
 	return lines.join("\n");
-}
-
-function captureTaskOrigin(ctx: ExtensionContext, toolCallId: string): string {
-	const entries =
-		ctx.sessionManager.buildContextEntries === undefined
-			? ctx.sessionManager.getBranch()
-			: ctx.sessionManager.buildContextEntries();
-	const currentIndex = entries.findIndex(
-		(entry) =>
-			entry.type === "message" &&
-			entry.message.role === "assistant" &&
-			entry.message.content.some((block) => block.type === "toolCall" && block.id === toolCallId),
-	);
-	const priorEntries = currentIndex === -1 ? entries : entries.slice(0, currentIndex);
-	const sections = priorEntries.flatMap((entry) => {
-		const text = formatTaskOriginEntry(entry);
-		return text === undefined ? [] : [text];
-	});
-	if (sections.length === 0) return "";
-	return truncate(sections.join("\n\n"), MAX_TASK_ORIGIN_LENGTH);
-}
-
-function formatTaskOriginEntry(entry: SessionEntry): string | undefined {
-	if (entry.type !== "message") return undefined;
-	const message = entry.message;
-	if (message.role !== "user" && message.role !== "assistant") return undefined;
-	const content = message.content;
-	if (typeof content !== "string" && !Array.isArray(content)) return undefined;
-	const text = formatTaskOriginContent(content);
-	if (text.length === 0) return undefined;
-	return `${message.role === "user" ? "User" : "Agent"}: ${text}`;
-}
-
-function formatTaskOriginContent(content: string | readonly object[]): string {
-	if (typeof content === "string") return compactTaskOriginText(content);
-	const text = content.flatMap((block) => {
-		if (!Predicate.isObject(block)) return [];
-		if (block.type === "text" && typeof block.text === "string") return [block.text];
-		if (block.type === "image") return ["[image]"];
-		return [];
-	});
-	return compactTaskOriginText(text.join("\n"));
-}
-
-function compactTaskOriginText(text: string): string {
-	return text
-		.replace(/\r\n?/gu, "\n")
-		.replace(/[ \t]+\n/gu, "\n")
-		.replace(/\n{3,}/gu, "\n\n")
-		.trim();
 }
 
 function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string[] {
@@ -941,7 +849,14 @@ function ensureTasksEnabled(ctx: BranchContext): void {
 
 function scheduleContinuation(pi: ExtensionAPI, text: string): void {
 	setTimeout(() => {
-		pi.sendUserMessage(text);
+		pi.sendMessage(
+			{
+				customType: TASK_CONTINUE_TYPE,
+				content: text,
+				display: false,
+			},
+			{ triggerTurn: true, deliverAs: "followUp" },
+		);
 	}, 0);
 }
 
@@ -1002,8 +917,16 @@ function getCurrentToolCalls(ctx: BranchContext): Array<{ id: string; name: stri
 }
 
 function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
+	const latest = readTaskQueues(ctx).at(-1);
+	return latest === undefined || (latest.pendingCompaction === undefined && shouldRetireQueue(latest))
+		? undefined
+		: latest;
+}
+
+/** Replay the same validated outcomes for execution and read-only history on this branch. */
+function readTaskQueues(ctx: BranchContext): ActiveQueue[] {
+	const queues: ActiveQueue[] = [];
 	let active: ActiveQueue | undefined;
-	let retired = false;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		const queue = readTaskQueue(entry);
 		if (queue !== undefined) {
@@ -1013,7 +936,7 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 				checkpointEntryId: entry.id,
 				outcomes: new Map(),
 			};
-			retired = false;
+			queues.push(active);
 			continue;
 		}
 		if (active === undefined) continue;
@@ -1021,7 +944,6 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 		const cancelled = readTaskCancellation(entry);
 		if (cancelled !== undefined && cancelled.queueId === active.queue.queueId) {
 			if (active.cancelled === undefined) active.cancelled = cancelled;
-			retired = false;
 			continue;
 		}
 
@@ -1031,21 +953,49 @@ function getActiveQueue(ctx: BranchContext): ActiveQueue | undefined {
 			if (entry.type !== "branch_summary" || !sameOutcome(active.pendingCompaction, outcome)) continue;
 			active.checkpointEntryId = entry.id;
 			delete active.pendingCompaction;
-			retired = shouldRetireQueue(active);
 			continue;
 		}
 		if (!applyOutcome(active, outcome)) continue;
 		if (entry.type === "branch_summary") {
 			active.checkpointEntryId = entry.id;
-			retired = shouldRetireQueue(active);
 		} else if (outcome.checkpoint === "rewrite") {
 			active.pendingCompaction = outcome;
 		} else {
 			active.checkpointEntryId = entry.id;
-			retired = shouldRetireQueue(active);
 		}
 	}
-	return retired ? undefined : active;
+	return queues;
+}
+
+function dashboardQueue(active: ActiveQueue): TaskDashboardQueue {
+	const current = currentItem(active);
+	return {
+		id: active.queue.queueId,
+		progress: formatTaskCounts(taskCounts(active)),
+		tasks: active.queue.tasks.map((task) => {
+			const outcome = active.outcomes.get(task.id);
+			const status =
+				active.pendingCompaction?.taskId === task.id
+					? "compacting"
+					: (outcome?.status ?? (active.cancelled ? "cancelled" : task.id === current?.id ? "current" : "pending"));
+			const detail =
+				outcome === undefined
+					? active.cancelled
+						? `Cancellation reason\n${active.cancelled.reason}`
+						: task.id === current?.id
+							? "Current task. No outcome recorded yet."
+							: "Waiting for earlier tasks."
+					: [
+							"Recorded model summary",
+							outcome.summary,
+							...(outcome.changedFiles.length ? ["", "Changed files", ...outcome.changedFiles] : []),
+							...(outcome.addedTasks.length
+								? ["", "Discovered tasks", ...outcome.addedTasks.map(formatAddedTask)]
+								: []),
+						].join("\n");
+			return { ...task, status, detail };
+		}),
+	};
 }
 
 function queueIsClosed(active: ActiveQueue): boolean {
@@ -1066,7 +1016,6 @@ function applyOutcome(active: ActiveQueue, outcome: TaskOutcome): boolean {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: active.queue.queueId,
 		tasks,
-		origin: active.queue.origin,
 	};
 	active.outcomes.set(outcome.taskId, {
 		...outcome,
@@ -1124,7 +1073,6 @@ function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {
 		kind: TASK_QUEUE_DETAILS_TYPE,
 		queueId: decoded.success.queueId.trim(),
 		tasks: decoded.success.tasks.map((task) => ({ id: task.id.trim(), title: task.title.trim() })),
-		origin: decoded.success.origin,
 	};
 }
 
@@ -1166,8 +1114,4 @@ function uniqueTaskId(seen: Set<string>): string {
 	while (seen.has(id)) id = `t${++next}`;
 	seen.add(id);
 	return id;
-}
-
-function truncate(value: string, maxLength: number): string {
-	return value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }

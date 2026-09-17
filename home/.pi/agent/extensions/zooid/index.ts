@@ -8,6 +8,7 @@ import minimal from "./minimal.ts";
 import modelShortcuts from "./model-shortcuts.ts";
 import nestedContext from "./nested-context.ts";
 import registerProcessReaper from "./process-reaper.ts";
+import retry from "./retry.ts";
 import statusbar from "./statusbar.ts";
 import systemPrompt from "./systemprompt.ts";
 import title from "./title.ts";
@@ -27,6 +28,7 @@ export default function zooid(pi: ExtensionAPI): void {
 	minimal(pi);
 	modelShortcuts(pi);
 	nestedContext(pi);
+	retry(pi);
 	statusbar(pi);
 	systemPrompt(pi);
 	title(pi);

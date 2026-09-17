@@ -30,8 +30,8 @@ package themes
 	toolPendingBg:      "" // Tool rows read as plain text: no tinted band.
 	toolSuccessBg:      ""
 	toolErrorBg:        ""
-	toolTitle:          "body"
-	toolOutput:         "body"
+	toolTitle:          "periwinkle"
+	toolOutput:         "cyan"
 	mdHeading:          "amber"
 	mdLink:             "periwinkle"
 	mdLinkUrl:          "neutral"
@@ -48,11 +48,11 @@ package themes
 	syntaxComment:      "dim"
 	syntaxKeyword:      "orchid"
 	syntaxFunction:     "periwinkle"
-	syntaxVariable:     "neutral"
+	syntaxVariable:     "cyan"
 	syntaxString:       "amber"
 	syntaxNumber:       "cyan"
 	syntaxType:         "mint"
-	syntaxOperator:     "body"
+	syntaxOperator:     "orchid"
 	syntaxPunctuation:  "neutral"
 	thinkingOff:        "dim"
 	thinkingMinimal:    "cyan"
@@ -103,7 +103,7 @@ theme: {
 				brightCyan:      14
 				brightOrchid:    13
 				brightWhite:     15
-				neutral:         15
+				neutral:         "#a0a6c0"
 				body:            ""
 				dim:             "#7b8198"
 				selectedBg:      "#5a3b70"

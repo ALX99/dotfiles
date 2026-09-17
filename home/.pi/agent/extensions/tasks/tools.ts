@@ -4,7 +4,7 @@ import { Type, type Static } from "typebox";
 
 export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 export const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const;
-export const MIN_TASKS = 3;
+export const MIN_TASKS = 2;
 export const MAX_TASKS = 100;
 export const MAX_ADDED_TASKS = 20;
 

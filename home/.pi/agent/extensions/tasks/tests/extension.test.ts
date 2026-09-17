@@ -5,6 +5,9 @@ import type { TSchema } from "typebox";
 import { Check } from "typebox/value";
 
 import tasksExtension from "../index.ts";
+import type { TaskDashboard } from "../dashboard.ts";
+
+const plainTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
 
 interface RegisteredTool {
 	parameters?: TSchema;
@@ -37,6 +40,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		options: unknown;
 	}> = [];
 	const notifications: string[] = [];
+	const dashboards: TaskDashboard[] = [];
 	const statusWrites: Array<{ key: string; text: string | undefined }> = [];
 	const statuses = new Map<string, string>();
 	let activeTools = ["read", "bash"];
@@ -79,6 +83,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		sentUserMessages,
 		sentMessages,
 		notifications,
+		dashboards,
 		statusWrites,
 		activeToolsLog,
 		ctx: {
@@ -86,6 +91,9 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 			mode,
 			cwd: "/workspace/project",
 			ui: {
+				custom(factory: (tui: unknown, theme: unknown, keys: unknown, done: () => void) => TaskDashboard) {
+					dashboards.push(factory({ terminal: { rows: 35 }, requestRender() {} }, plainTheme, {}, () => {}));
+				},
 				notify: (message: string) => notifications.push(message),
 				setStatus(key: string, text: string | undefined) {
 					statusWrites.push({ key, text });
@@ -136,22 +144,6 @@ function mutationToolResult(id: string, toolCallId: string, toolName: string, is
 	};
 }
 
-function userMessage(text: string): Entry {
-	return {
-		id: `user-${text}`,
-		type: "message",
-		message: { role: "user", content: [{ type: "text", text }] },
-	};
-}
-
-function assistantMessage(text: string): Entry {
-	return {
-		id: `assistant-${text}`,
-		type: "message",
-		message: { role: "assistant", content: [{ type: "text", text }] },
-	};
-}
-
 function toggleEntry(id: string, enabled: boolean): Entry {
 	return {
 		id,
@@ -167,7 +159,6 @@ type QueueDetails = Record<string, unknown> & {
 	kind: string;
 	queueId: string;
 	tasks: Array<{ id: string; title: string }>;
-	origin: string;
 };
 
 type OutcomeDetails = Record<string, unknown> & {
@@ -254,7 +245,8 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	const finish = h.tools.get("finish_task")!;
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two", "Three"] }), true);
-	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), false);
+	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), true);
+	assert.equal(Check(create.parameters!, { tasks: ["One"] }), false);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
 	assert.equal(Check(finish.parameters!, { status: "completed", summary: "Verified." }), true);
 	assert.equal(Check(finish.parameters!, { status: "skipped", summary: "Not supported." }), false);
@@ -289,18 +281,11 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 });
 
 test("generates short stable task IDs for precise queue additions", async () => {
-	const h = createHarness([
-		userMessage("Preserve the existing API while adding the parser."),
-		assistantMessage("I will keep the public API stable."),
-	]);
+	const h = createHarness();
 	const created = await createQueueResult(h);
 	const queue = created.details;
 
 	assert.equal(queue.kind, "tasks:queue");
-	assert.equal(
-		queue.origin,
-		"User: Preserve the existing API while adding the parser.\n\nAgent: I will keep the public API stable.",
-	);
 	assert.deepEqual(
 		queue.tasks.map((task) => task.id),
 		["t1", "t2", "t3", "t4"],
@@ -374,6 +359,45 @@ test("inserts additions after precise positions and preserves same-position orde
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		h.pushEntry(branchSummary(`summary-${callId}`, finish.details));
 	}
+});
+
+test("continues with a hidden title-only instruction after each task compacts", async () => {
+	const h = createHarness();
+	await createQueue(h, ["Investigate", "Original second task", "Original third task"]);
+	let checkpointId = "queue-call-result";
+	const expectedOrder = ["t1", "t4", "t5", "t2"];
+	for (const [index, taskId] of expectedOrder.entries()) {
+		const callId = `finish-${taskId}`;
+		const finish = await finishTask(
+			h,
+			{
+				status: "completed",
+				summary: `Finished ${taskId}.`,
+				...(index === 0 ? { addTasks: [{ title: "Follow-up A" }, { title: "Follow-up B" }] } : {}),
+			},
+			callId,
+		);
+		assert.equal(finish.details.taskId, taskId);
+		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
+		await commit(h, checkpointId);
+		checkpointId = `summary-${checkpointId}`;
+	}
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(
+		h.sentMessages.map((sent) => sent.message),
+		[
+			{ customType: "tasks:continue", content: "Continue with the next task: Follow-up A.", display: false },
+			{ customType: "tasks:continue", content: "Continue with the next task: Follow-up B.", display: false },
+			{ customType: "tasks:continue", content: "Continue with the next task: Original second task.", display: false },
+			{ customType: "tasks:continue", content: "Continue with the next task: Original third task.", display: false },
+		],
+	);
+	assert.deepEqual(
+		h.sentMessages.map((sent) => sent.options),
+		Array.from({ length: 4 }, () => ({ triggerTurn: true, deliverAs: "followUp" })),
+	);
+	assert.deepEqual(h.sentUserMessages, []);
+	assert.equal(h.statuses.get("tasks"), "4/5 complete · Original third task");
 });
 
 test("rejects invalid or finished insertion targets without recording an outcome", async () => {
@@ -557,6 +581,16 @@ test("compacts each interactive task and retires a successful queue", async () =
 		checkpoint = `summary-${checkpoint}`;
 	}
 
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(h.sentMessages.at(-1), {
+		message: {
+			customType: "tasks:continue",
+			content: "All queued tasks are complete. Summarize the overall outcome for the user.",
+			display: false,
+		},
+		options: { triggerTurn: true, deliverAs: "followUp" },
+	});
+	assert.deepEqual(h.sentUserMessages, []);
 	assert.equal(h.statuses.get("tasks"), undefined);
 	await h.commands.get("tasks")!.handler("status", h.ctx as never);
 	assert.equal(h.notifications.at(-1), "No task queue.");
@@ -576,7 +610,6 @@ test("records print-mode outcomes inline and allows one task per invocation", as
 				kind: "tasks:queue",
 				queueId: "print-queue",
 				tasks: QUEUE_TITLES.map((title, index) => ({ id: `t${index + 1}`, title })),
-				origin: "",
 			}),
 		],
 		"print",
@@ -666,10 +699,7 @@ test("requires boundary tools to be isolated in their assistant turn", async () 
 });
 
 test("injects compact recovery guidance after automatic compaction", async () => {
-	const h = createHarness([
-		userMessage("Preserve the existing API while adding the parser."),
-		assistantMessage("I will keep the public API stable."),
-	]);
+	const h = createHarness();
 	await createQueue(h);
 	h.pushEntry({ id: "auto-compaction", type: "compaction" });
 	h.handlers.get("session_compact")!(
@@ -702,9 +732,45 @@ test("updates status while a queue is active", async () => {
 	const h = createHarness();
 	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
 	await createQueue(h);
-	assert.equal(h.statuses.get("tasks"), "Task 1/4 · Add schema");
+	assert.equal(h.statuses.get("tasks"), "0/4 complete · Add schema");
 
 	const finish = await finishTask(h, { status: "completed", summary: "Schema added." }, "finish-1");
 	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
 	assert.equal(h.statuses.get("tasks"), "⟳ Task 1/4 · compacting");
+});
+
+test("dashboard restores completed queues and outcomes without changing execution or model context", async () => {
+	const h = createHarness([], "tui");
+	await createQueue(h, ["Investigate", "Run tests", "Review"]);
+	for (let index = 1; index <= 3; index++) {
+		const finish = await finishTask(h, { status: "completed", summary: `Outcome ${index}` }, `done-${index}`);
+		h.pushEntry(branchSummary(`checkpoint-${index}`, finish.details));
+	}
+	await h.commands.get("tasks")!.handler("", h.ctx);
+	let screen = h.dashboards.at(-1)!.render(100).join("\n");
+	assert.match(screen, /3 completed/u);
+	assert.match(screen, /Outcome 1/u);
+	await createQueue(h, ["New investigation", "New implementation", "New tests"], "new-queue");
+	await h.commands.get("tasks")!.handler("", h.ctx);
+	const dashboard = h.dashboards.at(-1)!;
+	assert.match(dashboard.render(100).join("\n"), /Queue 2\/2/u);
+	dashboard.handleInput("\x1b[D");
+	screen = dashboard.render(100).join("\n");
+	assert.match(screen, /Queue 1\/2/u);
+	assert.match(screen, /Outcome 1/u);
+	dashboard.handleInput("\x1b[B");
+	assert.match(dashboard.render(100).join("\n"), /Outcome 2/u);
+	assert.deepEqual(h.sentMessages, []);
+	assert.deepEqual(h.sentUserMessages, []);
+	await h.commands.get("tasks")!.handler("status", h.ctx);
+	assert.equal(h.notifications.at(-1), "Task queue: 0/3 complete. Current: New investigation");
+	const restored = createHarness(h.ctx.sessionManager.getBranch(), "tui");
+	await restored.commands.get("tasks")!.handler("", restored.ctx);
+	assert.match(restored.dashboards[0]!.render(100).join("\n"), /Queue 2\/2/u);
+	restored.dashboards[0]!.handleInput("\x1b[D");
+	assert.match(restored.dashboards[0]!.render(100).join("\n"), /Outcome 1/u);
+	restored.dashboards[0]!.handleInput("\x1b[B");
+	assert.match(restored.dashboards[0]!.render(100).join("\n"), /Outcome 2/u);
+	restored.setBranch([]);
+	assert.match(restored.dashboards[0]!.render(100).join("\n"), /No task queues/u);
 });
