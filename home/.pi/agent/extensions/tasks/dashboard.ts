@@ -1,11 +1,44 @@
 import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { sanitizeTerminalBlock, sanitizeTerminalText } from "../_shared/terminal-text.ts";
+import { currentItem, formatAddedTask, formatTaskCounts, taskCounts, type ActiveQueue } from "./state.ts";
 
 export interface TaskDashboardQueue {
 	id: string;
 	progress: string;
 	tasks: Array<{ id: string; title: string; status: string; detail: string }>;
+}
+
+/** Project queue state into the read-only rows the dashboard renders. */
+export function toDashboardQueue(active: ActiveQueue): TaskDashboardQueue {
+	const current = currentItem(active);
+	return {
+		id: active.queue.queueId,
+		progress: formatTaskCounts(taskCounts(active)),
+		tasks: active.queue.tasks.map((task) => {
+			const outcome = active.outcomes.get(task.id);
+			const status =
+				active.pendingCompaction?.taskId === task.id
+					? "compacting"
+					: (outcome?.status ?? (active.cancelled ? "cancelled" : task.id === current?.id ? "current" : "pending"));
+			const detail =
+				outcome === undefined
+					? active.cancelled
+						? `Cancellation reason\n${active.cancelled.reason}`
+						: task.id === current?.id
+							? "Current task. No outcome recorded yet."
+							: "Waiting for earlier tasks."
+					: [
+							"Recorded model summary",
+							outcome.summary,
+							...(outcome.changedFiles.length ? ["", "Changed files", ...outcome.changedFiles] : []),
+							...(outcome.addedTasks.length
+								? ["", "Discovered tasks", ...outcome.addedTasks.map(formatAddedTask)]
+								: []),
+						].join("\n");
+			return { ...task, status, detail };
+		}),
+	};
 }
 
 /** Read-only: navigation never changes queue state or sends model messages. */

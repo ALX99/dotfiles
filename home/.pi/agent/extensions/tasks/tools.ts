@@ -49,7 +49,6 @@ export const FinishTaskParams = Type.Object(
 						}),
 						after: Type.Optional(
 							Type.Union([
-								Type.Literal("current"),
 								Type.Literal("end"),
 								Type.String({
 									minLength: 1,
@@ -64,7 +63,7 @@ export const FinishTaskParams = Type.Object(
 				{
 					maxItems: MAX_ADDED_TASKS,
 					description:
-						"Optional newly discovered tasks. Omit after to insert after the current task; use end to append or a pending task ID to insert after that task.",
+						"Optional newly discovered tasks. Omit after to insert immediately after the current task; use end to append, or a pending task ID to insert after that task.",
 				},
 			),
 		),
