@@ -8,7 +8,9 @@ import fc from "fast-check";
 import {
 	buildStatusbarViewModel,
 	calculateTokensPerSecond,
+	contextUsageColor,
 	formatTokenCount,
+	renderContextBorder,
 	renderContextPercentage,
 	renderExtensionStatuses,
 	renderReadPercentage,
@@ -22,7 +24,6 @@ import {
 
 const plainTheme = {
 	fg: (_color: string, text: string) => text,
-	getColorMode: () => "truecolor",
 } as Parameters<typeof renderSessionCounts>[1];
 
 test("calculates output tokens per second from a positive duration", () => {
@@ -197,6 +198,21 @@ test("renders the context percentage at its natural width", () => {
 	] as const) {
 		assert.equal(visibleWidth(renderContextPercentage({ tokens: 1, percent }, plainTheme)), width);
 	}
+});
+
+test("uses semantic theme states for context usage", () => {
+	assert.equal(contextUsageColor(54), "success");
+	assert.equal(contextUsageColor(55), "warning");
+	assert.equal(contextUsageColor(78), "error");
+
+	const theme = {
+		fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
+	} as Parameters<typeof renderSessionCounts>[1];
+
+	assert.equal(renderContextPercentage({ tokens: 1, percent: 54 }, theme), "<success>54%</success>");
+	assert.equal(renderContextPercentage({ tokens: 1, percent: 55 }, theme), "<warning>55%</warning>");
+	assert.equal(renderContextPercentage({ tokens: 1, percent: 78 }, theme), "<error>78%</error>");
+	assert.equal(renderContextBorder(55, 4, theme), "<warning>━━</warning><borderMuted>──</borderMuted>");
 });
 
 test("keeps the token field a fixed width as values grow", () => {

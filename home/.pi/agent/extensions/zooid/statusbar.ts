@@ -82,10 +82,9 @@ export interface StatusbarViewModel {
 
 const PART_SEPARATOR = " · ";
 const METRIC_SEPARATOR = "  ";
-const CONTEXT_GRADIENT_STEPS = 24;
 
 type StatusbarTheme = ExtensionContext["ui"]["theme"];
-type Rgb = readonly [red: number, green: number, blue: number];
+type ContextUsageColor = "success" | "warning" | "error";
 
 interface ContextUsage {
 	readonly tokens: number | null;
@@ -99,12 +98,8 @@ const UNKNOWN_CONTEXT_USAGE: ContextUsage = { tokens: null, percent: null };
 // the rest only change width at digit boundaries.
 const TOKEN_FIELD_WIDTH = 4;
 
-const CONTEXT_GRADIENT = [
-	{ percent: 0, color: [86, 211, 100] },
-	{ percent: 55, color: [227, 179, 65] },
-	{ percent: 78, color: [240, 136, 62] },
-	{ percent: 100, color: [248, 81, 73] },
-] as const satisfies readonly { readonly percent: number; readonly color: Rgb }[];
+const CONTEXT_WARNING_PERCENT = 55;
+const CONTEXT_ERROR_PERCENT = 78;
 
 function joinParts(parts: readonly string[], separator: string): string {
 	return parts.filter((part) => part !== "").join(separator);
@@ -333,72 +328,12 @@ function filledColumns(percent: number, width: number): number {
 	return Math.round((clampPercent(percent) / 100) * width);
 }
 
-function quantizeGradientPosition(percent: number): number {
-	return (Math.round((percent / 100) * (CONTEXT_GRADIENT_STEPS - 1)) / (CONTEXT_GRADIENT_STEPS - 1)) * 100;
-}
-
-/** Returns the green → yellow → orange → red color for a context percentage. */
-export function contextGradientColor(percent: number): Rgb {
+/** Maps context usage to semantic theme states rather than fixed terminal colors. */
+export function contextUsageColor(percent: number): ContextUsageColor {
 	const clamped = clampPercent(percent);
-	for (let index = 1; index < CONTEXT_GRADIENT.length; index++) {
-		const start = CONTEXT_GRADIENT[index - 1]!;
-		const end = CONTEXT_GRADIENT[index]!;
-		if (clamped > end.percent) continue;
-
-		const progress = (clamped - start.percent) / (end.percent - start.percent);
-		return [
-			Math.round(start.color[0] + (end.color[0] - start.color[0]) * progress),
-			Math.round(start.color[1] + (end.color[1] - start.color[1]) * progress),
-			Math.round(start.color[2] + (end.color[2] - start.color[2]) * progress),
-		];
-	}
-
-	return CONTEXT_GRADIENT.at(-1)!.color;
-}
-
-function sameRgb(left: Rgb | undefined, right: Rgb): boolean {
-	return left?.[0] === right[0] && left[1] === right[1] && left[2] === right[2];
-}
-
-function rgbToAnsi256(color: Rgb): number {
-	const [red, green, blue] = color;
-	const redIndex = Math.round((red / 255) * 5);
-	const greenIndex = Math.round((green / 255) * 5);
-	const blueIndex = Math.round((blue / 255) * 5);
-	return 16 + 36 * redIndex + 6 * greenIndex + blueIndex;
-}
-
-function colorizeRgb(text: string, color: Rgb, theme: StatusbarTheme): string {
-	const [red, green, blue] = color;
-	const ansi =
-		theme.getColorMode() === "truecolor" ? `\x1b[38;2;${red};${green};${blue}m` : `\x1b[38;5;${rgbToAnsi256(color)}m`;
-	return `${ansi}${text}\x1b[39m`;
-}
-
-function renderGradientFill(percent: number, width: number, filledCharacter: string, theme: StatusbarTheme): string {
-	const columns = columnCount(width);
-	const filled = filledColumns(percent, columns);
-	let result = "";
-	let segment = "";
-	let segmentColor: Rgb | undefined;
-
-	const flush = () => {
-		if (segmentColor && segment !== "") result += colorizeRgb(segment, segmentColor, theme);
-		segment = "";
-	};
-
-	for (let index = 0; index < filled; index++) {
-		const position = columns <= 1 ? clampPercent(percent) : (index / (columns - 1)) * 100;
-		const color = contextGradientColor(quantizeGradientPosition(position));
-		if (!sameRgb(segmentColor, color)) {
-			flush();
-			segmentColor = color;
-		}
-		segment += filledCharacter;
-	}
-	flush();
-
-	return result;
+	if (clamped >= CONTEXT_ERROR_PERCENT) return "error";
+	if (clamped >= CONTEXT_WARNING_PERCENT) return "warning";
+	return "success";
 }
 
 /* ─── statusbar layout ─── */
@@ -439,13 +374,13 @@ export function renderContextPercentage(usage: ContextUsage, theme: StatusbarThe
 	}
 
 	const normalizedPercent = clampPercent(usage.percent);
-	return colorizeRgb(`${Math.round(usage.percent)}%`, contextGradientColor(normalizedPercent), theme);
+	return theme.fg(contextUsageColor(normalizedPercent), `${Math.round(usage.percent)}%`);
 }
 
 /**
  * Draws a full-width editor border that fills from left to right as context
- * grows through a smooth green → yellow → orange → red ramp. The statusbar
- * remains the precise percentage readout.
+ * grows. The fill uses the current Pi theme's success, warning, and error
+ * colors; the statusbar remains the precise percentage readout.
  */
 export function renderContextBorder(percent: number | null | undefined, width: number, theme: StatusbarTheme): string {
 	const borderWidth = columnCount(width);
@@ -456,7 +391,7 @@ export function renderContextBorder(percent: number | null | undefined, width: n
 	const normalizedPercent = clampPercent(percent);
 	const filled = filledColumns(normalizedPercent, borderWidth);
 	return (
-		renderGradientFill(normalizedPercent, borderWidth, "━", theme) +
+		theme.fg(contextUsageColor(normalizedPercent), "━".repeat(filled)) +
 		theme.fg("borderMuted", "─".repeat(borderWidth - filled))
 	);
 }
