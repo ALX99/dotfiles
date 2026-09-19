@@ -33,7 +33,7 @@
     "commandcode/z-ai/glm-5.3-flash",
     "commandcode/xiaomi/mimo-v2.6-flash"
   ],
-  "theme": "terminal-light/terminal-dark",
+  "theme": "omarchy-system",
   "showCacheMissNotices": true,
   "enableInstallTelemetry": false,
   "terminal": {

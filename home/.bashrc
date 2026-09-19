@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Runs every time bash shell is launched
 
+# Keep Omarchy's session/tool shim available to interactive and non-interactive
+# shells, while retaining the repository's shell setup below.
+[[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] &&
+  source /usr/share/omarchy/default/bash/env-bootstrap
+
 # Private rc file
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"

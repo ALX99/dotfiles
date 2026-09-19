@@ -10,12 +10,9 @@ mouse-hide-while-typing = true
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 custom-shader-animation = true
 
-# Twilight Bloom is shared with Pi, Herdr, Bash, LS_COLORS, and tmux.
-# The dark plum base lets the vivid rose, mint, amber, periwinkle, and orchid
-# accents carry meaning without relying on muted gray-blue distinctions.
-# These two variants follow the desktop appearance setting and are hand-pinned;
-# themes/twilight-bloom{,-light} stay the generator's output (mise run gen:theme).
-theme = light:twilight-bloom-vibrant-light,dark:twilight-bloom-vibrant
+# Let Omarchy supply the active theme while keeping the repository's custom
+# font, shader, keybindings, and other terminal settings below.
+config-file = ?"~/.local/state/omarchy/current/theme/ghostty.conf"
 # background-opacity = 0.85
 # background-blur = true
 
