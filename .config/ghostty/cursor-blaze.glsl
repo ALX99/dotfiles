@@ -1,15 +1,18 @@
 // CURSOR BLAZE
 //
 // A single-pass cursor-only shader for Ghostty. The terminal texture remains
-// authoritative; this file adds only the cursor corona, motion trail, sparks,
-// and restrained cursor-local refraction and ripple.
+// authoritative; this file adds only the motion trail, sparks, and restrained
+// cursor-local refraction.
+//
+// Every contribution is gated on an in-flight cursor movement, so a stationary
+// cursor renders the terminal texture unchanged. The blaze exists only for the
+// roughly half second a trail takes to decay after the cursor moves.
 //
 // Keeping the shader cursor-only avoids the full-screen procedural space
 // scene and its per-pixel background work.
 
 #define PI 3.14159265358979323846
 
-const vec3 DEEP_PLUM = vec3(0.094, 0.071, 0.122);
 const vec3 ORCHID = vec3(0.906, 0.631, 1.000);
 const vec3 LILAC_WHITE = vec3(0.957, 0.918, 1.000);
 const vec3 AMBER = vec3(1.000, 0.882, 0.490);
@@ -45,14 +48,6 @@ float segmentDistance(vec2 point, vec2 start, vec2 end, out float along)
         dot(point - start, segment) / max(dot(segment, segment), 0.0001)
     );
     return length(point - (start + segment * along));
-}
-
-float roundedBoxDistance(vec2 point, vec2 center, vec2 halfSize, float radius)
-{
-    vec2 distanceToEdge = abs(point - center) - halfSize + radius;
-    return length(max(distanceToEdge, 0.0))
-        + min(max(distanceToEdge.x, distanceToEdge.y), 0.0)
-        - radius;
 }
 
 // Cursor Blaze stays in one pass, so the terminal texture is not passed
@@ -189,26 +184,8 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
         }
     }
 
-    // The corona occupies only a small rectangle around the cursor.
-    vec2 cursorHalfSize = max(iCurrentCursor.zw * 0.5, vec2(0.75));
-    if (all(lessThan(absCursorDelta, cursorHalfSize + vec2(20.0)))) {
-        float cursorDistance = roundedBoxDistance(
-            fragCoord,
-            current,
-            cursorHalfSize,
-            min(2.5, min(cursorHalfSize.x, cursorHalfSize.y))
-        );
-        float cursorOutside = step(0.0, cursorDistance);
-        float cursorAura = (1.0 - smoothstep(0.0, 18.0, cursorDistance))
-            * cursorOutside;
-        float cursorEdge = 1.0 - smoothstep(0.2, 1.8, abs(cursorDistance));
-        float heartbeat = 0.86 + 0.14 * sin(iTime * 4.0);
-        color += LILAC_WHITE * cursorAura * 0.11 * heartbeat;
-        color += mix(LILAC_WHITE, AMBER, 0.45)
-            * cursorEdge
-            * 0.30;
-    }
-
+    // The idle corona and ambient ripple are deliberately absent: at rest this
+    // shader must leave the terminal texture untouched.
     if (movementActive && max(absCursorDelta.x, absCursorDelta.y) < 150.0) {
         float radialDistance = length(cursorDelta);
         float prismMask = trailAlive
@@ -230,32 +207,6 @@ vec3 cursorBlaze(vec3 source, vec2 uv, vec2 fragCoord, vec2 resolution)
                 clamp(uv - prismOffset, 0.0, 1.0)
             ).b;
             color = mix(color, refracted + (color - source), prismMask);
-        }
-    }
-
-    if (max(absCursorDelta.x, absCursorDelta.y) < 330.0) {
-        vec3 backgroundDelta = source - iBackgroundColor;
-        float backgroundMask = 1.0 - smoothstep(
-            0.000625,
-            0.025600,
-            dot(backgroundDelta, backgroundDelta)
-        );
-        if (backgroundMask > 0.001) {
-            float radialDistance = length(cursorDelta);
-            if (radialDistance < 330.0) {
-                float angle = atan(cursorDelta.y, cursorDelta.x);
-                float ripple = 0.5
-                    + 0.5
-                        * sin(
-                            radialDistance * 0.055 - iTime * 2.2 + angle * 3.0
-                        );
-                float ambient = (1.0 - smoothstep(
-                    20.0,
-                    330.0,
-                    radialDistance
-                )) * ripple * backgroundMask;
-    color += mix(DEEP_PLUM, ORCHID, ripple) * ambient * 0.012;
-            }
         }
     }
 
