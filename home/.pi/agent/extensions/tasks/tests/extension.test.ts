@@ -729,6 +729,23 @@ test("loads only create_tasks initially and both task tools for an active queue"
 	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash"]);
 });
 
+test("restores both task tools after branch-summary navigation", async () => {
+	const h = createHarness();
+	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);
+	await createQueue(h);
+
+	const finish = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
+	h.pushEntry(branchSummary("checkpoint-1", finish.details));
+
+	// Tree navigation restores the checkpoint's tool loadout, which predates the
+	// dynamically added finish_task tool.
+	h.setActiveTools(["read", "bash", "create_tasks"]);
+	h.handlers.get("session_tree")!({} as never, h.ctx as never);
+
+	assert.deepEqual(h.activeToolsLog.at(-1), ["read", "bash", "create_tasks", "finish_task"]);
+});
+
 test("updates status while a queue is active", async () => {
 	const h = createHarness();
 	h.handlers.get("session_start")!({ reason: "startup" } as never, h.ctx as never);

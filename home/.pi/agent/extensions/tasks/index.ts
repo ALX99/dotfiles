@@ -267,6 +267,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_tree", (_event, ctx) => {
+		syncTaskToolVisibility(pi, ctx);
 		refreshStatus(ctx);
 	});
 
