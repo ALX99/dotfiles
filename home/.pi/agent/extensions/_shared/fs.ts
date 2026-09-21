@@ -10,21 +10,6 @@ export interface WriteFileOptions {
 	readonly mode?: number;
 }
 
-/** The directory-entry facts callers act on, without exposing Node's Dirent. */
-export interface DirectoryEntry {
-	readonly name: string;
-	readonly isFile: boolean;
-	readonly isSymbolicLink: boolean;
-}
-
-/** The link and ownership facts managed storage is validated against. */
-export interface FileStatus {
-	readonly isFile: boolean;
-	readonly isDirectory: boolean;
-	readonly isSymbolicLink: boolean;
-	readonly uid: number;
-}
-
 export const readFileString = (path: string): Effect.Effect<string, FsError> =>
 	attempt("read", path, () => nodeFs.readFile(path, "utf8"));
 
@@ -43,33 +28,6 @@ export const writeFileString = (
 			encoding: "utf8",
 			...(options?.mode === undefined ? {} : { mode: options.mode }),
 		});
-	});
-
-/** Directory entries in Node's order; callers sort when order is observable. */
-export const readDirectory = (path: string): Effect.Effect<readonly DirectoryEntry[], FsError> =>
-	attempt("readdir", path, async () => {
-		const entries = await nodeFs.readdir(path, { withFileTypes: true });
-		return entries.map(
-			(entry): DirectoryEntry => ({
-				name: entry.name,
-				isFile: entry.isFile(),
-				isSymbolicLink: entry.isSymbolicLink(),
-			}),
-		);
-	});
-
-export const realpath = (path: string): Effect.Effect<string, FsError> =>
-	attempt("realpath", path, () => nodeFs.realpath(path));
-
-export const lstat = (path: string): Effect.Effect<FileStatus, FsError> =>
-	attempt("lstat", path, async () => {
-		const stats = await nodeFs.lstat(path);
-		return {
-			isFile: stats.isFile(),
-			isDirectory: stats.isDirectory(),
-			isSymbolicLink: stats.isSymbolicLink(),
-			uid: stats.uid,
-		};
 	});
 
 export const makeDirectory = (path: string, mode?: number): Effect.Effect<void, FsError> =>

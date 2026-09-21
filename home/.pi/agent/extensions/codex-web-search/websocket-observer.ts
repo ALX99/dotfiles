@@ -34,8 +34,8 @@ function registry(): ObserverRegistry {
 
 /**
  * Observe Codex stream frames for one Pi session and return a disposer. Sockets are
- * attributed by the request's `prompt_cache_key`, so sibling sessions in one process (a
- * parent and its in-process subagents) never see each other's frames. Observers are
+ * attributed by the request's `prompt_cache_key`, so sibling sessions in one process
+ * never see each other's frames. Observers are
  * diagnostics: no failure here can affect the response stream.
  */
 export function installCodexFrameObserver(sessionId: string, onFrame: CodexFrameHandler): () => void {
