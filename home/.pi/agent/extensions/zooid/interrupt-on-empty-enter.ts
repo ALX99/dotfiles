@@ -194,8 +194,8 @@ export default function interruptOnEmptyEnter(pi: ExtensionAPI): void {
 			activeRuns -= 1;
 			patch.activeRuns -= 1;
 		}
-		// Let Pi finish its settle bookkeeping before a new run starts.
-		if (patch.restoredText !== undefined) setTimeout(() => deliverRestoredText(pi, patch), 0);
+		// Pi defers runs requested from agent_settled handlers until settlement dispatch completes.
+		if (patch.restoredText !== undefined) deliverRestoredText(pi, patch);
 	});
 
 	// Settling is the normal release path; this only catches teardown that
