@@ -1,5 +1,13 @@
 if vim.g.vscode then return end
 
+-- MDX is Markdown with embedded JSX, so use Neovim's Markdown filetype and
+-- parser until a dedicated MDX parser is available.
+vim.filetype.add({
+  extension = {
+    mdx = 'markdown',
+  },
+})
+
 local group = vim.api.nvim_create_augroup('treesitter_filetypes', { clear = true })
 
 local function enable_treesitter(buf, filetype)
