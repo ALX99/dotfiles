@@ -274,6 +274,10 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	);
 	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
 	assert.deepEqual(Object.keys(finishProperties), ["status", "outcome", "addTasks"]);
+	assert.match(
+		(finishProperties.outcome as { description: string }).description,
+		/handoff.*working context is removed/u,
+	);
 	assert.equal("taskId" in finishProperties, false);
 	assert.equal("evidence" in finishProperties, false);
 	assert.equal("decisions" in finishProperties, false);
@@ -296,6 +300,7 @@ test("generates short stable task IDs for precise queue additions", async () => 
 		QUEUE_TITLES,
 	);
 	assert.match(created.content, /t1: Add schema/u);
+	assert.match(created.content, /Write each outcome as a handoff/u);
 });
 
 test("generates task IDs for additions and defaults them after the current task", async () => {

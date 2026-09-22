@@ -35,9 +35,8 @@ export const FinishTaskParams = Type.Object(
 		}),
 		outcome: Type.String({
 			minLength: 1,
-			maxLength: 6000,
 			description:
-				"Durable result and context future tasks need: important changes, decisions, deviations, unresolved constraints, and verification. Avoid narrating the work.",
+				"Write a handoff for an agent continuing after this task's working context is removed. Include the concrete result, relevant files and symbols, decisions and why they matter, verification performed and its result, and anything the next task must preserve or resolve. Be concise, but do not omit details needed to continue. Do not narrate the work.",
 		}),
 		addTasks: Type.Optional(
 			Type.Array(

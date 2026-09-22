@@ -78,14 +78,14 @@ export interface TaskLogEntry {
 	};
 }
 
-const boundedString = (maxLength: number) =>
+const boundedString = (maxLength?: number) =>
 	Schema.String.check(
 		Schema.makeFilter((value: string) =>
-			value.length <= maxLength ? undefined : `must be at most ${maxLength} characters`,
+			maxLength === undefined || value.length <= maxLength ? undefined : `must be at most ${maxLength} characters`,
 		),
 	);
 
-const requiredText = (maxLength: number) =>
+const requiredText = (maxLength?: number) =>
 	boundedString(maxLength).check(
 		Schema.isMinLength(1),
 		Schema.makeFilter((value: string) => (value.trim().length > 0 ? undefined : "must not be blank")),
@@ -129,7 +129,7 @@ const TaskOutcomeSchema = Schema.Struct({
 	kind: Schema.Literals([TASK_OUTCOME_DETAILS_TYPE]),
 	taskId: requiredText(200),
 	status: Schema.Literals(TASK_OUTCOME_STATUSES),
-	outcome: requiredText(6000),
+	outcome: requiredText(),
 	addedTasks: AddedTaskItemsSchema,
 	changedFiles: Schema.Array(boundedString(2000)),
 	checkpoint: Schema.Literals(["rewrite", "inline"]),

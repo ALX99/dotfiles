@@ -102,6 +102,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 							`Queued ${tasks.length} tasks.`,
 							...tasks.map((task, index) => `${index + 1}. ${task.id}: ${task.title}`),
 							"Work them in order and call finish_task alone after each task to record its outcome.",
+							"Write each outcome as a handoff: preserve concrete results, decisions, verification, and details the next task needs after this task's working context is removed.",
 						].join("\n"),
 					},
 				],
