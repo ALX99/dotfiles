@@ -219,6 +219,72 @@ test("the provider hook injects the hosted tool for Codex and leaves other model
 	}
 });
 
+test("the provider hook loads Codex search settings into the hosted tool payload", async () => {
+	const harness = await createHarness({
+		mode: "indexed",
+		filters: { allowedDomains: ["example.com"] },
+		userLocation: { country: "US", region: "California", timezone: "America/Los_Angeles" },
+		searchContextSize: "low",
+	});
+	try {
+		const handler = harness.handlers.get("before_provider_request");
+		assert.ok(handler);
+		const context = { ...harness.ctx, model: { ...CODEX_MODEL, input: ["text", "image"] } };
+		const payload = {
+			tools: [
+				{ type: "function", name: "web_search" },
+				{ type: "function", name: "bash" },
+			],
+			include: ["reasoning.encrypted_content"],
+		};
+
+		assert.deepEqual(handler({ payload }, context), {
+			tools: [
+				{ type: "function", name: "bash" },
+				{
+					type: "web_search",
+					external_web_access: true,
+					indexed_web_access: true,
+					filters: { allowed_domains: ["example.com"] },
+					user_location: {
+						type: "approximate",
+						country: "US",
+						region: "California",
+						timezone: "America/Los_Angeles",
+					},
+					search_context_size: "low",
+					search_content_types: ["text", "image"],
+				},
+			],
+			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test("the provider hook requests search sources when a hosted tool already exists", async () => {
+	const harness = await createHarness({ searchContextSize: "high" });
+	try {
+		const handler = harness.handlers.get("before_provider_request");
+		assert.ok(handler);
+		const payload = {
+			tools: [
+				{ type: "web_search", external_web_access: false },
+				{ type: "function", name: "bash" },
+			],
+			include: ["reasoning.encrypted_content"],
+		};
+
+		assert.deepEqual(handler({ payload }, harness.ctx), {
+			...payload,
+			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
 test("a disabled extension neither injects nor observes", async () => {
 	const harness = await createHarness({ enabled: false });
 	try {

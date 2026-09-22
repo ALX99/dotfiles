@@ -8,8 +8,21 @@ import { parseJson } from "../_shared/json.ts";
 
 /** Access level of the hosted search tool, mirroring Codex's `web_search` setting. */
 export type WebSearchMode = "cached" | "live" | "indexed";
+export type WebSearchContextSize = "low" | "medium" | "high";
+
+export interface WebSearchFilters {
+	readonly allowedDomains?: readonly string[];
+}
+
+export interface WebSearchUserLocation {
+	readonly country?: string;
+	readonly region?: string;
+	readonly city?: string;
+	readonly timezone?: string;
+}
 
 const WEB_SEARCH_MODES = ["cached", "live", "indexed"] as const;
+const WEB_SEARCH_CONTEXT_SIZES = ["low", "medium", "high"] as const;
 
 export interface CodexWebSearchConfig {
 	/** Inject the hosted web search tool at all. */
@@ -24,6 +37,12 @@ export interface CodexWebSearchConfig {
 	 * uses the backend search instead of a same-named client implementation.
 	 */
 	readonly suppressClientTools: readonly string[];
+	/** Optional hosted-search restrictions, matching Codex's Responses tool settings. */
+	readonly filters?: WebSearchFilters;
+	/** Approximate location used to localize hosted search results. */
+	readonly userLocation?: WebSearchUserLocation;
+	/** Amount of context the hosted search tool should return. */
+	readonly searchContextSize?: WebSearchContextSize;
 }
 
 export const DEFAULT_CONFIG: CodexWebSearchConfig = {
@@ -58,12 +77,21 @@ export function loadConfig(path: string = configPath()): Effect.Effect<LoadedCon
 		if (!raw.ok) return { config: DEFAULT_CONFIG, diagnostics: raw.diagnostics };
 
 		const diagnostics: string[] = [];
+		const enabled = readBoolean(raw.value.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled;
+		const mode = readMode(raw.value.mode, path, diagnostics) ?? DEFAULT_CONFIG.mode;
+		const suppressClientTools =
+			readStringArray(raw.value.suppressClientTools, "suppressClientTools", path, diagnostics) ??
+			DEFAULT_CONFIG.suppressClientTools;
+		const filters = readFilters(raw.value.filters, path, diagnostics);
+		const userLocation = readUserLocation(raw.value.userLocation, path, diagnostics);
+		const searchContextSize = readSearchContextSize(raw.value.searchContextSize, path, diagnostics);
 		const config: CodexWebSearchConfig = {
-			enabled: readBoolean(raw.value.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled,
-			mode: readMode(raw.value.mode, path, diagnostics) ?? DEFAULT_CONFIG.mode,
-			suppressClientTools:
-				readStringArray(raw.value.suppressClientTools, "suppressClientTools", path, diagnostics) ??
-				DEFAULT_CONFIG.suppressClientTools,
+			enabled,
+			mode,
+			suppressClientTools,
+			...(filters === undefined ? {} : { filters }),
+			...(userLocation === undefined ? {} : { userLocation }),
+			...(searchContextSize === undefined ? {} : { searchContextSize }),
 		};
 		return { config, diagnostics };
 	});
@@ -123,5 +151,51 @@ function readStringArray(value: unknown, field: string, path: string, diagnostic
 	if (value === undefined) return undefined;
 	if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) return [...value];
 	diagnostics.push(`${path}: "${field}" must be an array of strings`);
+	return undefined;
+}
+
+function readFilters(value: unknown, path: string, diagnostics: string[]): WebSearchFilters | undefined {
+	if (value === undefined) return undefined;
+	if (!Predicate.isObject(value)) {
+		diagnostics.push(`${path}: "filters" must be an object`);
+		return undefined;
+	}
+	const allowedDomains = readStringArray(value.allowedDomains, "filters.allowedDomains", path, diagnostics);
+	return allowedDomains === undefined ? undefined : { allowedDomains };
+}
+
+function readUserLocation(value: unknown, path: string, diagnostics: string[]): WebSearchUserLocation | undefined {
+	if (value === undefined) return undefined;
+	if (!Predicate.isObject(value)) {
+		diagnostics.push(`${path}: "userLocation" must be an object`);
+		return undefined;
+	}
+	const country = readOptionalString(value.country, "userLocation.country", path, diagnostics);
+	const region = readOptionalString(value.region, "userLocation.region", path, diagnostics);
+	const city = readOptionalString(value.city, "userLocation.city", path, diagnostics);
+	const timezone = readOptionalString(value.timezone, "userLocation.timezone", path, diagnostics);
+	if ([country, region, city, timezone].every((field) => field === undefined)) return undefined;
+	return {
+		...(country === undefined ? {} : { country }),
+		...(region === undefined ? {} : { region }),
+		...(city === undefined ? {} : { city }),
+		...(timezone === undefined ? {} : { timezone }),
+	};
+}
+
+function readOptionalString(value: unknown, field: string, path: string, diagnostics: string[]): string | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value === "string") return value;
+	diagnostics.push(`${path}: "${field}" must be a string`);
+	return undefined;
+}
+
+function readSearchContextSize(value: unknown, path: string, diagnostics: string[]): WebSearchContextSize | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value === "string") {
+		const match = WEB_SEARCH_CONTEXT_SIZES.find((size) => size === value);
+		if (match !== undefined) return match;
+	}
+	diagnostics.push(`${path}: "searchContextSize" must be one of ${WEB_SEARCH_CONTEXT_SIZES.join(", ")}`);
 	return undefined;
 }

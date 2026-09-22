@@ -31,15 +31,46 @@ test("optional fields override defaults", async () => {
 	assert.deepEqual(loaded.config, { enabled: false, mode: "cached", suppressClientTools: [] });
 });
 
+test("hosted search options load from config", async () => {
+	const loaded = await load(
+		writeConfig(
+			JSON.stringify({
+				filters: { allowedDomains: ["example.com", "docs.example.com"] },
+				userLocation: { country: "US", region: "California", city: "Los Angeles", timezone: "America/Los_Angeles" },
+				searchContextSize: "low",
+			}),
+		),
+	);
+	assert.deepEqual(loaded.diagnostics, []);
+	assert.deepEqual(loaded.config, {
+		...DEFAULT_CONFIG,
+		filters: { allowedDomains: ["example.com", "docs.example.com"] },
+		userLocation: { country: "US", region: "California", city: "Los Angeles", timezone: "America/Los_Angeles" },
+		searchContextSize: "low",
+	});
+});
+
 test("invalid fields fall back with diagnostics instead of disabling the extension", async () => {
 	const loaded = await load(
-		writeConfig(JSON.stringify({ enabled: "yes", mode: "everything", suppressClientTools: ["ok", 7] })),
+		writeConfig(
+			JSON.stringify({
+				enabled: "yes",
+				mode: "everything",
+				suppressClientTools: ["ok", 7],
+				filters: "not an object",
+				userLocation: { city: 7 },
+				searchContextSize: "huge",
+			}),
+		),
 	);
 	assert.deepEqual(loaded.config, DEFAULT_CONFIG);
-	assert.equal(loaded.diagnostics.length, 3);
+	assert.equal(loaded.diagnostics.length, 6);
 	assert.match(loaded.diagnostics[0] ?? "", /"enabled" must be a boolean$/);
 	assert.match(loaded.diagnostics[1] ?? "", /"mode" must be one of cached, live, indexed$/);
 	assert.match(loaded.diagnostics[2] ?? "", /"suppressClientTools" must be an array of strings$/);
+	assert.match(loaded.diagnostics[3] ?? "", /"filters" must be an object$/);
+	assert.match(loaded.diagnostics[4] ?? "", /"userLocation.city" must be a string$/);
+	assert.match(loaded.diagnostics[5] ?? "", /"searchContextSize" must be one of low, medium, high$/);
 });
 
 test("invalid JSON and non-object configs report a diagnostic", async () => {

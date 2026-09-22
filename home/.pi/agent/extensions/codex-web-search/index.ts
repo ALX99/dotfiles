@@ -34,7 +34,10 @@ import { installCodexFrameObserver } from "./websocket-observer.ts";
  * {
  *   "enabled": true,
  *   "mode": "live",
- *   "suppressClientTools": ["web_search"]
+ *   "suppressClientTools": ["web_search"],
+ *   "filters": { "allowedDomains": ["docs.example.com"] },
+ *   "userLocation": { "country": "US", "region": "California" },
+ *   "searchContextSize": "medium"
  * }
  * ```
  *

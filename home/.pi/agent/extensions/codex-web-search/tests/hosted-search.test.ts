@@ -53,6 +53,42 @@ test("the configured mode maps to the Codex access flags", () => {
 	assert.deepEqual(tool("indexed"), { type: "web_search", external_web_access: true, indexed_web_access: true });
 });
 
+test("Codex hosted search settings are serialized to the Responses tool", () => {
+	const configured = config({
+		filters: { allowedDomains: ["example.com"] },
+		userLocation: { country: "US", region: "California", timezone: "America/Los_Angeles" },
+		searchContextSize: "low",
+	});
+	const imageModel = { ...CODEX_MODEL, input: ["text", "image"] as const };
+	const textModel = { ...CODEX_MODEL, input: ["text"] as const };
+
+	assert.deepEqual(firstTool(applyHostedWebSearch({ tools: [] }, imageModel, configured)), {
+		type: "web_search",
+		external_web_access: true,
+		filters: { allowed_domains: ["example.com"] },
+		user_location: {
+			type: "approximate",
+			country: "US",
+			region: "California",
+			timezone: "America/Los_Angeles",
+		},
+		search_context_size: "low",
+		search_content_types: ["text", "image"],
+	});
+	assert.deepEqual(firstTool(applyHostedWebSearch({ tools: [] }, textModel, configured)), {
+		type: "web_search",
+		external_web_access: true,
+		filters: { allowed_domains: ["example.com"] },
+		user_location: {
+			type: "approximate",
+			country: "US",
+			region: "California",
+			timezone: "America/Los_Angeles",
+		},
+		search_context_size: "low",
+	});
+});
+
 test("a request keeps its other tools and drops the suppressed ones", () => {
 	const applied = applyHostedWebSearch(
 		{ tools: [functionTool("bash"), functionTool("web_search"), functionTool("read")] },
@@ -94,7 +130,10 @@ test("search sources are requested alongside the existing include entries", () =
 
 test("payloads that already carry a hosted search tool, or no tools array, are handled", () => {
 	const existing = { tools: [{ type: "web_search", external_web_access: false }, functionTool("bash")] };
-	assert.equal(applyHostedWebSearch(existing, CODEX_MODEL, config()), undefined);
+	assert.deepEqual(applyHostedWebSearch(existing, CODEX_MODEL, config()), {
+		...existing,
+		include: ["web_search_call.action.sources"],
+	});
 
 	const noTools = applyHostedWebSearch({ model: "gpt-5.6-luna" }, CODEX_MODEL, config());
 	assert.deepEqual(noTools?.tools, [{ type: "web_search", external_web_access: true }]);
