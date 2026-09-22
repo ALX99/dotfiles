@@ -140,7 +140,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			ctx.ui.setStatus(
 				TASK_STATUS_KEY,
 				details.checkpoint === "rewrite"
-					? `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${total} · compacting`
+					? formatCompactionStatus(taskNumber, total)
 					: `Task ${taskNumber}/${total} · recorded`,
 			);
 			return {
@@ -298,10 +298,9 @@ function updateTaskStatus(ctx: TaskStatusContext): void {
 
 	const finish = pendingCompaction(active);
 	if (finish !== undefined) {
-		const taskNumber = positionOf(active, finish.taskId);
 		ctx.ui.setStatus(
 			TASK_STATUS_KEY,
-			`${TASK_COMPACTION_MARKER} Task ${taskNumber}/${active.queue.tasks.length} · compacting`,
+			formatCompactionStatus(positionOf(active, finish.taskId), active.queue.tasks.length),
 		);
 		return;
 	}
@@ -317,6 +316,10 @@ function updateTaskStatus(ctx: TaskStatusContext): void {
 
 function formatTaskLabel(completedCount: number, total: number, title: string): string {
 	return `${completedCount}/${total} complete · ${title}`;
+}
+
+function formatCompactionStatus(taskNumber: number, total: number): string {
+	return `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${total} · compacting`;
 }
 
 function formatQueueStatus(active: ActiveQueue): string {
@@ -391,10 +394,6 @@ function normalizeObservedPath(value: string, cwd: string): string | undefined {
 	return normalized;
 }
 
-function formatTaskCountsForStatus(active: ActiveQueue): string {
-	return formatTaskCounts(taskCounts(active));
-}
-
 function setEnabled(pi: ExtensionAPI, ctx: ExtensionCommandContext, enabled: boolean, refresh?: () => void): void {
 	if (tasksEnabled(ctx) === enabled) {
 		ctx.ui.notify(`Tasks are already ${enabled ? "enabled" : "disabled"}.`, "info");
@@ -465,29 +464,28 @@ function showTaskStatus(ctx: ExtensionCommandContext): void {
 		ctx.ui.notify("No task queue.", "info");
 		return;
 	}
+	const counts = taskCounts(active);
+	const countText = formatTaskCounts(counts);
 	const finish = pendingCompaction(active);
 	if (finish !== undefined) {
-		ctx.ui.notify(
-			`Task outcome recorded: ${titleOf(active, finish.taskId)} (${formatTaskCountsForStatus(active)}).`,
-			"info",
-		);
+		ctx.ui.notify(`Task outcome recorded: ${titleOf(active, finish.taskId)} (${countText}).`, "info");
 		return;
 	}
 	const item = currentItem(active);
 	if (item === undefined) {
 		ctx.ui.notify(
 			active.cancelled !== undefined
-				? `Task queue canceled (${formatTaskCountsForStatus(active)}).`
-				: hasTaskIssues(taskCounts(active))
-					? `Task queue finished with issues (${formatTaskCountsForStatus(active)}).`
+				? `Task queue canceled (${countText}).`
+				: hasTaskIssues(counts)
+					? `Task queue finished with issues (${countText}).`
 					: `Task queue complete (${finishedCount(active)}/${active.queue.tasks.length}).`,
 			"info",
 		);
 		return;
 	}
 	ctx.ui.notify(
-		hasTaskIssues(taskCounts(active))
-			? `Task queue: ${formatTaskCountsForStatus(active)}. Current: ${item.title}`
+		hasTaskIssues(counts)
+			? `Task queue: ${countText}. Current: ${item.title}`
 			: `Task queue: ${finishedCount(active)}/${active.queue.tasks.length} complete. Current: ${item.title}`,
 		"info",
 	);

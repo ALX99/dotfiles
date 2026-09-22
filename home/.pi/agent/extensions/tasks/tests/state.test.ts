@@ -117,6 +117,15 @@ test("replay reconstructs the state a live projection produced", () => {
 	assert.deepEqual(taskIds(replayed), ["t1", "t4", "t2", "t3"]);
 });
 
+test("projection refuses an out-of-order outcome without changing the source", () => {
+	const live = stateOf([queueEntry("e1", "q1", ["One", "Two"])]);
+	const invalid = outcomeDetails("t2");
+	assert.throws(() => projectOutcome(live, invalid), /Invalid task outcome/u);
+	assert.deepEqual(taskIds(live), ["t1", "t2"]);
+	assert.equal(live.outcomes.size, 0);
+	assert.equal(currentItem(live)?.id, "t1");
+});
+
 test("assigns stable sequential task IDs", () => {
 	const queue = createQueue(["One", "Two"]);
 	assert.deepEqual(

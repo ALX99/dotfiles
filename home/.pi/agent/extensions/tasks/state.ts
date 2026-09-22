@@ -259,18 +259,9 @@ export function buildOutcome(active: ActiveQueue, input: TaskOutcomeInput): Task
 
 /** The queue state an outcome would produce, without recording it. */
 export function projectOutcome(active: ActiveQueue, outcome: TaskOutcome): ActiveQueue {
-	const tasks = insertAddedTasks(active, outcome);
-	if (tasks === undefined) throw new Error("Invalid task outcome.");
-	return {
-		queue: {
-			kind: TASK_QUEUE_DETAILS_TYPE,
-			queueId: active.queue.queueId,
-			tasks,
-		},
-		checkpointEntryId: active.checkpointEntryId,
-		outcomes: new Map([...active.outcomes, [outcome.taskId, outcome]]),
-		...(active.cancelled === undefined ? {} : { cancelled: active.cancelled }),
-	};
+	const projected: ActiveQueue = { ...active, outcomes: new Map(active.outcomes) };
+	if (!applyOutcome(projected, outcome)) throw new Error("Invalid task outcome.");
+	return projected;
 }
 
 export function cancelQueue(active: ActiveQueue, reason: string): TaskCancelledDetails {
