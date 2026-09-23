@@ -117,6 +117,23 @@ test("replay reconstructs the state a live projection produced", () => {
 	assert.deepEqual(taskIds(replayed), ["t1", "t4", "t2", "t3"]);
 });
 
+test("replays a single discovery task that completes without adding work", () => {
+	const queue = createQueue(["Investigate whether a fix is needed"]);
+	const base = persistedQueue("e1", queue);
+	const live = stateOf([base]);
+	assert.equal(currentItem(live)?.title, "Investigate whether a fix is needed");
+	const outcome = buildOutcome(live, {
+		status: "completed",
+		outcome: "No change needed.",
+		changedFiles: [],
+		checkpoint: "inline",
+	});
+	const finished = stateOf([base, persistedOutcome("e2", outcome)]);
+	assert.equal(queueIsClosed(finished), true);
+	assert.equal(latestActive(replay([base, persistedOutcome("e2", outcome)])), undefined);
+	assert.deepEqual(taskCounts(finished), { pending: 0, completed: 1, failed: 0, blocked: 0, cancelled: 0 });
+});
+
 test("projection refuses an out-of-order outcome without changing the source", () => {
 	const live = stateOf([queueEntry("e1", "q1", ["One", "Two"])]);
 	const invalid = outcomeDetails("t2");

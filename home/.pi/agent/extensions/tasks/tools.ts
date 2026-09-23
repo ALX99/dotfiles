@@ -4,7 +4,7 @@ import { Type, type Static } from "typebox";
 
 export const TASK_TOOL_NAMES = ["create_tasks", "finish_task"] as const;
 export const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const;
-export const MIN_TASKS = 2;
+export const MIN_TASKS = 1;
 export const MAX_TASKS = 100;
 export const MAX_ADDED_TASKS = 20;
 
@@ -63,7 +63,7 @@ export const FinishTaskParams = Type.Object(
 				{
 					maxItems: MAX_ADDED_TASKS,
 					description:
-						"Optional newly discovered tasks. Omit after to insert immediately after the current task; use end to append, or a pending task ID to insert after that task.",
+						"Add follow-up tasks discovered during this task; they need not be known when the queue is created. Omit after to run them next, use end to append, or a pending task ID to insert after that task.",
 				},
 			),
 		),
@@ -90,7 +90,8 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 	pi.registerTool({
 		name: "create_tasks",
 		label: "Create Tasks",
-		description: "Create an ordered task queue for multi-step work.",
+		description:
+			"Create an ordered task queue of 1–100 titles. Start with one discovery task if follow-ups are unknown; add them with finish_task.addTasks as you learn what is needed.",
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {
@@ -101,7 +102,7 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 	pi.registerTool({
 		name: "finish_task",
 		label: "Finish Task",
-		description: "Record the outcome of the current task and optionally add newly discovered tasks.",
+		description: "Record the outcome of the current task and optionally add newly discovered follow-up tasks.",
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {

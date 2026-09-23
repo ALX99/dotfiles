@@ -10,6 +10,7 @@ import type { TaskDashboard } from "../dashboard.ts";
 const plainTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
 
 interface RegisteredTool {
+	description: string;
 	parameters?: TSchema;
 	execute(
 		toolCallId: string,
@@ -246,7 +247,8 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two", "Three"] }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), true);
-	assert.equal(Check(create.parameters!, { tasks: ["One"] }), false);
+	assert.equal(Check(create.parameters!, { tasks: ["Investigate and discover follow-ups"] }), true);
+	assert.equal(Check(create.parameters!, { tasks: [] }), false);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
 	assert.equal(Check(finish.parameters!, { status: "completed", outcome: "Verified." }), true);
 	assert.equal(Check(finish.parameters!, { status: "completed" }), false);
@@ -283,6 +285,37 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal("decisions" in finishProperties, false);
 	assert.equal("remaining" in finishProperties, false);
 	assert.equal("followups" in finishProperties, false);
+	assert.match(create.description, /one discovery task.*finish_task\.addTasks/u);
+});
+
+test("starts with one discovery task and runs the tasks it discovers", async () => {
+	const h = createHarness();
+	const created = await createQueueResult(h, ["Investigate the problem and identify the work"]);
+	assert.deepEqual(
+		created.details.tasks.map((task) => task.id),
+		["t1"],
+	);
+	assert.match(created.content, /finish_task\.addTasks.*run next/u);
+
+	const discovered = await finishTask(
+		h,
+		{
+			status: "completed",
+			outcome: "Identified two concrete fixes.",
+			addTasks: [{ title: "Fix the parser" }, { title: "Verify the fix" }],
+		},
+		"finish-discovery",
+	);
+	assert.deepEqual(
+		discovered.details.addedTasks.map((task) => task.id),
+		["t2", "t3"],
+	);
+	assert.match(discovered.content, /Next: t2: Fix the parser/u);
+	h.pushEntry(toolResult("finish-discovery-result", "finish-discovery", "finish_task", discovered.details));
+	await commit(h, "queue-call-result");
+
+	const next = await finishTask(h, { status: "completed", outcome: "Parser fixed." }, "finish-fix");
+	assert.equal(next.details.taskId, "t2");
 });
 
 test("generates short stable task IDs for precise queue additions", async () => {
