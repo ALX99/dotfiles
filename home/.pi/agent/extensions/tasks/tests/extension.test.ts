@@ -35,7 +35,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 	const tools = new Map<string, RegisteredTool>();
 	const commands = new Map<string, RegisteredCommand>();
 	const handlers = new Map<string, (event: never, ctx: never) => unknown>();
-	const sentUserMessages: Array<{ content: string; options: unknown }> = [];
+	const sentUserMessages: Array<{ content: unknown; options: unknown }> = [];
 	const sentMessages: Array<{
 		message: { customType: string; content?: string; details?: Record<string, unknown> };
 		options: unknown;
@@ -58,7 +58,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 		on(name: string, handler: (event: never, ctx: never) => unknown) {
 			handlers.set(name, handler);
 		},
-		sendUserMessage(content: string, options: unknown) {
+		sendUserMessage(content: unknown, options: unknown) {
 			sentUserMessages.push({ content, options });
 		},
 		sendMessage(
@@ -639,6 +639,123 @@ test("compacts each interactive task and retires a successful queue", async () =
 		.get("create_tasks")!
 		.execute("new-queue", { tasks: QUEUE_TITLES }, undefined, undefined, h.ctx);
 	assert.equal(next.details.kind, "tasks:queue");
+});
+
+test("replays queued user inputs after task compaction and before task continuation", async () => {
+	const h = createHarness();
+	await createQueue(h);
+
+	const onInput = h.handlers.get("input")!;
+	assert.equal(
+		onInput(
+			{
+				text: "This should remain a normal steer.",
+				source: "interactive",
+				streamingBehavior: "steer",
+			} as never,
+			h.ctx as never,
+		),
+		undefined,
+	);
+
+	const finishCallId = "finish-race";
+	h.pushEntry(assistantToolCall(finishCallId, "finish_task"));
+	const image = { type: "image" as const, mimeType: "image/png", data: "cG5n" };
+	assert.deepEqual(
+		onInput(
+			{
+				text: "Check the result so far.",
+				source: "interactive",
+			} as never,
+			h.ctx as never,
+		),
+		{ action: "handled" },
+	);
+
+	const finish = await h.tools
+		.get("finish_task")!
+		.execute(finishCallId, { status: "completed", outcome: "First task is done." }, undefined, undefined, h.ctx);
+	h.pushEntry(toolResult(`${finishCallId}-result`, finishCallId, "finish_task", finish.details));
+	assert.deepEqual(
+		onInput(
+			{
+				text: "Also inspect this image.",
+				images: [image],
+				source: "interactive",
+			} as never,
+			h.ctx as never,
+		),
+		{ action: "handled" },
+	);
+
+	await commit(h, "queue-call-result");
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(h.sentUserMessages, [
+		{
+			content: "Check the result so far.",
+			options: { expandPromptTemplates: true },
+		},
+	]);
+	assert.equal(
+		h.sentMessages.some(({ message }) => message.customType === "tasks:continue"),
+		false,
+	);
+
+	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(h.sentUserMessages[1], {
+		content: [{ type: "text", text: "Also inspect this image." }, image],
+		options: { expandPromptTemplates: true },
+	});
+	assert.equal(
+		h.sentMessages.some(({ message }) => message.customType === "tasks:continue"),
+		false,
+	);
+
+	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.equal(h.sentMessages.at(-1)?.message.customType, "tasks:continue");
+	assert.match(h.sentMessages.at(-1)?.message.content ?? "", /Implement handler/u);
+});
+
+test("releases deferred input if finish_task fails before recording an outcome", async () => {
+	const h = createHarness();
+	await createQueue(h);
+
+	const callId = "failed-finish";
+	h.pushEntry(assistantToolCall(callId, "finish_task"));
+	assert.deepEqual(
+		h.handlers.get("input")!(
+			{
+				text: "Please handle this after the failed finish call.",
+				source: "interactive",
+			} as never,
+			h.ctx as never,
+		),
+		{ action: "handled" },
+	);
+	h.pushEntry({
+		...toolResult("failed-finish-result", callId, "finish_task", {}),
+		message: {
+			role: "toolResult",
+			toolCallId: callId,
+			toolName: "finish_task",
+			isError: true,
+		},
+	});
+
+	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(h.sentUserMessages, [
+		{
+			content: "Please handle this after the failed finish call.",
+			options: { expandPromptTemplates: true },
+		},
+	]);
+	assert.equal(
+		h.sentMessages.some(({ message }) => message.customType === "tasks:continue"),
+		false,
+	);
 });
 
 test("records print-mode outcomes inline and allows one task per invocation", async () => {

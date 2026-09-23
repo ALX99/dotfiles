@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
+	InputEvent,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { isAbsolute, relative } from "node:path";
@@ -63,8 +64,19 @@ interface BranchContext {
 	};
 }
 
+interface DeferredInputState {
+	inputs: Array<Pick<InputEvent, "text" | "images">>;
+	replaying: boolean;
+	continuation: string | undefined;
+}
+
 export default function tasksExtension(pi: ExtensionAPI): void {
 	let printTaskFinished = false;
+	const deferredInputs: DeferredInputState = {
+		inputs: [],
+		replaying: false,
+		continuation: undefined,
+	};
 
 	let refreshDashboard: (() => void) | undefined;
 	const refreshStatus = (ctx: TaskStatusContext): void => {
@@ -163,6 +175,26 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.on("input", (event, ctx) => {
+		if (
+			event.source === "extension" ||
+			ctx.mode === "print" ||
+			!tasksEnabled(ctx) ||
+			(!hasPendingTaskCompaction(ctx) && !hasFinishingTaskCall(ctx))
+		) {
+			return undefined;
+		}
+
+		deferredInputs.inputs.push({
+			text: event.text,
+			...(event.images === undefined ? {} : { images: event.images }),
+		});
+		if (deferredInputs.inputs.length === 1 && !deferredInputs.replaying) {
+			ctx.ui.notify("Holding your message until the task checkpoint is compacted.", "info");
+		}
+		return { action: "handled" };
+	});
+
 	pi.registerCommand("tasks", {
 		description: "Open the task dashboard (/tasks), or control tasks ([status|on|off|commit|cancel <reason>]).",
 		handler: async (args, ctx) => {
@@ -219,7 +251,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
 			const next = currentItem(active);
 			if (ctx.mode !== "print") {
-				scheduleContinuation(pi, next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next));
+				continueAfterTaskCompaction(
+					pi,
+					deferredInputs,
+					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next),
+				);
 			}
 		},
 	});
@@ -261,6 +297,9 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
+		deferredInputs.inputs.length = 0;
+		deferredInputs.replaying = false;
+		deferredInputs.continuation = undefined;
 		refreshStatus(ctx);
 	});
 
@@ -275,14 +314,99 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 	pi.on("agent_settled", (_event, ctx) => {
 		refreshStatus(ctx);
-		if (ctx.mode === "print" || !tasksEnabled(ctx) || pendingCompaction(getActiveQueue(ctx)) === undefined) return;
-		pi.sendUserMessage("/tasks commit", { expandPromptTemplates: true });
+		if (ctx.mode === "print") return;
+		if (hasPendingTaskCompaction(ctx)) {
+			if (tasksEnabled(ctx)) pi.sendUserMessage("/tasks commit", { expandPromptTemplates: true });
+			return;
+		}
+		if (deferredInputs.replaying) {
+			finishDeferredInputReplay(pi, deferredInputs);
+			return;
+		}
+		if (!tasksEnabled(ctx) || deferredInputs.inputs.length === 0) return;
+		deferredInputs.replaying = true;
+		scheduleDeferredUserInput(pi, deferredInputs);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
 		printTaskFinished = false;
+		deferredInputs.inputs.length = 0;
+		deferredInputs.replaying = false;
+		deferredInputs.continuation = undefined;
 		ctx.ui.setStatus(TASK_STATUS_KEY, undefined);
 	});
+}
+
+function hasPendingTaskCompaction(ctx: BranchContext): boolean {
+	return pendingCompaction(getActiveQueue(ctx)) !== undefined;
+}
+
+function hasFinishingTaskCall(ctx: BranchContext): boolean {
+	const branch = ctx.sessionManager.getBranch();
+	let assistantIndex = -1;
+	for (let index = branch.length - 1; index >= 0; index--) {
+		const entry = branch[index];
+		if (entry?.type === "message" && entry.message.role === "assistant") {
+			assistantIndex = index;
+			break;
+		}
+	}
+	if (assistantIndex === -1) return false;
+
+	const entry = branch[assistantIndex];
+	if (entry?.type !== "message" || entry.message.role !== "assistant") return false;
+	const finishCalls = entry.message.content.flatMap((block) =>
+		block.type === "toolCall" && block.name === "finish_task" ? [block] : [],
+	);
+	if (finishCalls.length === 0) return false;
+
+	return finishCalls.some(
+		(call) =>
+			!branch
+				.slice(assistantIndex + 1)
+				.some(
+					(result) =>
+						result.type === "message" && result.message.role === "toolResult" && result.message.toolCallId === call.id,
+				),
+	);
+}
+
+function continueAfterTaskCompaction(pi: ExtensionAPI, state: DeferredInputState, prompt: string): void {
+	if (state.inputs.length === 0 && !state.replaying) {
+		scheduleContinuation(pi, prompt);
+		return;
+	}
+
+	state.replaying = true;
+	state.continuation = prompt;
+	scheduleDeferredUserInput(pi, state);
+}
+
+function scheduleDeferredUserInput(pi: ExtensionAPI, state: DeferredInputState): void {
+	setTimeout(() => {
+		const input = state.inputs.shift();
+		if (input === undefined) {
+			finishDeferredInputReplay(pi, state);
+			return;
+		}
+
+		const content =
+			input.images === undefined ? input.text : [{ type: "text" as const, text: input.text }, ...input.images];
+		pi.sendUserMessage(content, { expandPromptTemplates: true });
+	}, 0);
+}
+
+function finishDeferredInputReplay(pi: ExtensionAPI, state: DeferredInputState): void {
+	if (!state.replaying) return;
+	if (state.inputs.length > 0) {
+		scheduleDeferredUserInput(pi, state);
+		return;
+	}
+
+	state.replaying = false;
+	const prompt = state.continuation;
+	state.continuation = undefined;
+	if (prompt !== undefined) scheduleContinuation(pi, prompt);
 }
 
 function updateTaskStatus(ctx: TaskStatusContext): void {
