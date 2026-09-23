@@ -87,7 +87,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	registerTaskTools(pi, {
 		async create(toolCallId, params, ctx) {
 			ensureTasksEnabled(ctx);
-			if (ctx.mode === "print" && printTaskFinished) {
+			if (isHeadlessMode(ctx) && printTaskFinished) {
 				throw taskError(
 					"print_mode",
 					"The current task outcome has already been recorded. Continue with the next task.",
@@ -124,7 +124,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		},
 		async finish(toolCallId, params, ctx) {
 			ensureTasksEnabled(ctx);
-			if (ctx.mode === "print" && printTaskFinished) {
+			if (isHeadlessMode(ctx) && printTaskFinished) {
 				throw taskError(
 					"print_mode",
 					"The current task outcome has already been recorded. Continue with the next task.",
@@ -141,9 +141,9 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				outcome: params.outcome,
 				additions: params.addTasks,
 				changedFiles: changedFilesForTask(ctx, active),
-				checkpoint: ctx.mode === "print" ? "inline" : "rewrite",
+				checkpoint: isHeadlessMode(ctx) ? "inline" : "rewrite",
 			});
-			if (ctx.mode === "print") printTaskFinished = true;
+			if (isHeadlessMode(ctx)) printTaskFinished = true;
 
 			const projected = projectOutcome(active, details);
 			const next = currentItem(projected);
@@ -178,7 +178,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	pi.on("input", (event, ctx) => {
 		if (
 			event.source === "extension" ||
-			ctx.mode === "print" ||
+			isHeadlessMode(ctx) ||
 			!tasksEnabled(ctx) ||
 			(!hasPendingTaskCompaction(ctx) && !hasFinishingTaskCall(ctx))
 		) {
@@ -250,7 +250,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			refreshStatus(ctx);
 			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
 			const next = currentItem(active);
-			if (ctx.mode !== "print") {
+			if (!isHeadlessMode(ctx)) {
 				continueAfterTaskCompaction(
 					pi,
 					deferredInputs,
@@ -314,7 +314,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 	pi.on("agent_settled", (_event, ctx) => {
 		refreshStatus(ctx);
-		if (ctx.mode === "print") return;
+		if (isHeadlessMode(ctx)) return;
 		if (hasPendingTaskCompaction(ctx)) {
 			if (tasksEnabled(ctx)) pi.sendUserMessage("/tasks commit", { expandPromptTemplates: true });
 			return;
@@ -335,6 +335,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		deferredInputs.continuation = undefined;
 		ctx.ui.setStatus(TASK_STATUS_KEY, undefined);
 	});
+}
+
+function isHeadlessMode(ctx: Pick<ExtensionContext, "mode">): boolean {
+	return ctx.mode === "json" || ctx.mode === "print";
 }
 
 function hasPendingTaskCompaction(ctx: BranchContext): boolean {

@@ -758,38 +758,57 @@ test("releases deferred input if finish_task fails before recording an outcome",
 	);
 });
 
-test("records print-mode outcomes inline and allows one task per invocation", async () => {
-	const h = createHarness(
-		[
-			assistantToolCall("queue-call", "create_tasks"),
-			toolResult("queue-call-result", "queue-call", "create_tasks", {
-				kind: "tasks:queue",
-				queueId: "print-queue",
-				tasks: QUEUE_TITLES.map((title, index) => ({ id: `t${index + 1}`, title })),
-			}),
-		],
-		"print",
+for (const mode of ["print", "json"]) {
+	test(`records ${mode}-mode outcomes inline and allows one task per invocation`, async () => {
+		const h = createHarness(
+			[
+				assistantToolCall("queue-call", "create_tasks"),
+				toolResult("queue-call-result", "queue-call", "create_tasks", {
+					kind: "tasks:queue",
+					queueId: `${mode}-queue`,
+					tasks: QUEUE_TITLES.map((title, index) => ({ id: `t${index + 1}`, title })),
+				}),
+			],
+			mode,
+		);
+
+		const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
+		assert.equal(first.details.checkpoint, "inline");
+		assert.equal(first.terminate, false);
+		assert.match(first.content, /Next: t2: Implement handler/u);
+		assert.doesNotMatch(first.content, /print|compaction|invocation/u);
+		h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
+
+		h.pushEntry(assistantToolCall("finish-2", "finish_task"));
+		await assert.rejects(
+			h.tools
+				.get("finish_task")!
+				.execute("finish-2", { status: "completed", outcome: "Handler added." }, undefined, undefined, h.ctx),
+			/current task outcome has already been recorded/u,
+		);
+
+		h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
+		const second = await finishTask(h, { status: "completed", outcome: "Handler added." }, "finish-2b");
+		assert.equal(second.details.taskId, "t2");
+		assert.equal(second.details.checkpoint, "inline");
+	});
+}
+
+test("does not schedule a stale continuation after JSON-mode task compaction", async () => {
+	const h = createHarness([], "json");
+	await createQueue(h);
+
+	const finish = await finishTask(h, { status: "completed", outcome: "First task done." }, "finish-1");
+	h.pushEntry(
+		toolResult("finish-1-result", "finish-1", "finish_task", {
+			...finish.details,
+			checkpoint: "rewrite",
+		}),
 	);
+	await commit(h, "queue-call-result");
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-	const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
-	assert.equal(first.details.checkpoint, "inline");
-	assert.equal(first.terminate, false);
-	assert.match(first.content, /Next: t2: Implement handler/u);
-	assert.doesNotMatch(first.content, /print|compaction|invocation/u);
-	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
-
-	h.pushEntry(assistantToolCall("finish-2", "finish_task"));
-	await assert.rejects(
-		h.tools
-			.get("finish_task")!
-			.execute("finish-2", { status: "completed", outcome: "Handler added." }, undefined, undefined, h.ctx),
-		/current task outcome has already been recorded/u,
-	);
-
-	h.handlers.get("session_start")!({ reason: "next invocation" } as never, h.ctx as never);
-	const second = await finishTask(h, { status: "completed", outcome: "Handler added." }, "finish-2b");
-	assert.equal(second.details.taskId, "t2");
-	assert.equal(second.details.checkpoint, "inline");
+	assert.deepEqual(h.sentMessages, []);
 });
 
 test("derives failed and blocked outcomes without a second task state", async () => {
