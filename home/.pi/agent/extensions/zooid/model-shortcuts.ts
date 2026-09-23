@@ -2,9 +2,9 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { toError } from "../_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
-	{ command: "luna", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "xhigh" },
-	{ command: "terra", provider: "openai-codex", model: "gpt-5.6-terra", thinkingLevel: "medium" },
-	{ command: "sol", provider: "openai-codex", model: "gpt-5.6-sol", thinkingLevel: "medium" },
+	{ command: "luna", provider: "openai-codex", model: "gpt-6-luna", thinkingLevel: "xhigh" },
+	{ command: "astra", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium" },
+	{ command: "sol", provider: "openai-codex", model: "gpt-6-sol", thinkingLevel: "medium" },
 ] as const;
 
 export default function modelShortcuts(pi: ExtensionAPI) {

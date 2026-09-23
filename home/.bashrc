@@ -132,7 +132,7 @@ __prompt_render() {
   local host segments=()
   local reset='\[\e[0m\]'
   local bold='\[\e[1m\]'
-  local dim='\[\e[2m\]'
+  local bright='\[\e[97m\]'
   # Terminal palette slots, not RGB values, so the prompt follows whichever
   # Ghostty theme is active instead of pinning one palette's truecolor values.
   # The slots match LS_COLORS in home/.profile, so a directory, a branch, and a
@@ -158,7 +158,7 @@ __prompt_render() {
   [[ $exit_status -ne 0 ]] && segments+=("${alert}✗$exit_status${reset}")
 
   local IFS=' '
-  PS1="${segments[*]} ${dim}${plain}>${reset} "
+  PS1="${segments[*]} ${bright}><>${reset} "
 }
 
 # Use direnv when installed; otherwise provide the lightweight .env loader.
