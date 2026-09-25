@@ -1,4 +1,5 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ScopedModel } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
 import { toError } from "../_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
@@ -58,28 +59,45 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 	}
 }
 
-async function applyShortcut(
-	pi: Pick<ExtensionAPI, "getThinkingLevel" | "setModel" | "setThinkingLevel">,
-	shortcut: (typeof MODEL_SHORTCUTS)[number],
-	ctx: ExtensionContext,
-	isCurrent: () => boolean,
-): Promise<void> {
+type Shortcut = (typeof MODEL_SHORTCUTS)[number];
+
+/**
+ * Resolves a shortcut's model, preferring the session scope so an explicit
+ * `model:level` scope pattern wins, then falling back to the full catalogue.
+ * Scoping (enabledModels) only gates the model picker and Ctrl+P cycling, not
+ * setModel, so a shortcut does not have to be listed in the scope to work.
+ */
+export function resolveShortcutModel(
+	shortcut: Shortcut,
+	ctx: Pick<ExtensionContext, "modelRegistry" | "scopedModels">,
+): { model: Model<any>; thinkingLevel: NonNullable<ScopedModel["thinkingLevel"]> } | undefined {
 	const scoped = ctx.scopedModels.find(
 		({ model }) => model.provider === shortcut.provider && model.id === shortcut.model,
 	);
-	const model = ctx.scopedModels.length > 0 ? scoped?.model : ctx.modelRegistry.find(shortcut.provider, shortcut.model);
-	if (!model) {
+	const model = scoped?.model ?? ctx.modelRegistry.find(shortcut.provider, shortcut.model);
+	if (!model) return undefined;
+	return { model, thinkingLevel: scoped?.thinkingLevel ?? shortcut.thinkingLevel };
+}
+
+async function applyShortcut(
+	pi: Pick<ExtensionAPI, "getThinkingLevel" | "setModel" | "setThinkingLevel">,
+	shortcut: Shortcut,
+	ctx: ExtensionContext,
+	isCurrent: () => boolean,
+): Promise<void> {
+	const resolved = resolveShortcutModel(shortcut, ctx);
+	if (!resolved) {
 		if (ctx.hasUI) ctx.ui.notify(`Model not found: ${shortcut.provider}/${shortcut.model}`, "warning");
 		return;
 	}
 
-	const switched = await pi.setModel(model);
+	const switched = await pi.setModel(resolved.model);
 	if (!isCurrent()) return;
 	if (!switched) {
 		if (ctx.hasUI) ctx.ui.notify(`No API key for ${shortcut.provider}/${shortcut.model}`, "warning");
 		return;
 	}
-	pi.setThinkingLevel(scoped?.thinkingLevel ?? shortcut.thinkingLevel);
+	pi.setThinkingLevel(resolved.thinkingLevel);
 	if (ctx.hasUI) {
 		ctx.ui.notify(`Switched to ${shortcut.provider}/${shortcut.model} (${pi.getThinkingLevel()} thinking)`, "info");
 	}
