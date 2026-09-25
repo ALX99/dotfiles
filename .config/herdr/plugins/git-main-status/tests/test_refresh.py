@@ -171,14 +171,49 @@ class PullCheckoutTest(unittest.TestCase):
         self.assertEqual((self.work / "file.txt").read_text(), "remote\n")
         self.assertEqual((self.work / "local.txt").read_text(), "local\n")
 
-    def test_leaves_a_dirty_checkout_untouched(self) -> None:
+    def test_fast_forwards_a_dirty_checkout_that_does_not_overlap(self) -> None:
+        self.advance_origin()
+        (self.work / "unrelated.txt").write_text("dirty\n")
+        before = self.head()
+
+        self.assertIsNone(refresh.pull_checkout(self.work))
+        self.assertNotEqual(self.head(), before)
+        self.assertEqual((self.work / "file.txt").read_text(), "remote\n")
+        self.assertEqual((self.work / "unrelated.txt").read_text(), "dirty\n")
+
+    def test_reports_a_dirty_checkout_the_fast_forward_would_overwrite(self) -> None:
         self.advance_origin()
         (self.work / "file.txt").write_text("dirty\n")
         before = self.head()
 
-        self.assertEqual(refresh.pull_checkout(self.work), "uncommitted changes")
+        with self.assertRaises(refresh.PluginError) as raised:
+            refresh.pull_checkout(self.work)
+        self.assertIn("overwritten", str(raised.exception))
         self.assertEqual(self.head(), before)
         self.assertEqual((self.work / "file.txt").read_text(), "dirty\n")
+
+    def test_reports_a_conflicting_autostash_reapply(self) -> None:
+        # A local commit rebases cleanly, but the uncommitted edit to the
+        # same file cannot be reapplied on top of upstream.
+        (self.work / "local.txt").write_text("local\n")
+        git("add", ".", cwd=self.work)
+        git("commit", "-m", "local", cwd=self.work)
+        (self.work / "file.txt").write_text("mine\n")
+        self.advance_origin("theirs\n")
+
+        reason = refresh.pull_checkout(self.work)
+
+        assert reason is not None
+        self.assertIn("autostash reapply conflicted", reason)
+        self.assertIn("file.txt", reason)
+        # The rebase itself succeeded, so it must not be rolled back; the
+        # local edits stay in the stash for the human to finish.
+        self.assertIsNone(refresh.operation_in_progress(self.work))
+        self.assertEqual(refresh.unmerged_paths(self.work), ["file.txt"])
+        self.assertTrue(
+            refresh.git_text(self.work, ["stash", "list"]),
+            "conflicting local changes should be preserved in the stash",
+        )
 
     def test_rolls_back_a_conflicting_rebase(self) -> None:
         self.advance_origin("remote\n")

@@ -4,9 +4,12 @@
 The plugin refreshes the focused workspace whenever focus changes, and every
 open workspace once at startup. A repository is fetched once, then its
 checkout advances onto the tracking branch: fast-forward when possible,
-otherwise a rebase of the local commits. A checkout only moves when the
-update applies cleanly; dirty worktrees, conflicting rebases, and
-in-progress operations are left alone and reported as skipped.
+otherwise a rebase of the local commits. Git enforces safety per operation
+rather than the plugin pre-checking the worktree, so uncommitted work rides
+along: a fast-forward refuses when it would overwrite a local change, and a
+rebase carries it in an autostash. A checkout only moves when the update
+applies cleanly; conflicting rebases, autostash conflicts, and in-progress
+operations are left alone and reported as skipped.
 """
 
 from __future__ import annotations
@@ -113,16 +116,6 @@ def fetch_repo(repo: Path, remote: str) -> None:
         raise PluginError(message)
 
 
-def has_tracked_changes(repo: Path) -> bool:
-    """Return True when staged, unstaged, or unmerged changes exist."""
-    result = git_run(
-        repo, ["status", "--porcelain", "--untracked-files=no"], timeout=5
-    )
-    if result.returncode != 0:
-        return True
-    return bool(result.stdout.strip())
-
-
 def operation_in_progress(repo: Path) -> str | None:
     """Name an in-progress merge-like operation, if the checkout has one."""
     for ref in ("MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
@@ -172,6 +165,12 @@ def abort_rebase(repo: Path) -> None:
     git_run(repo, ["rebase", "--abort"], timeout=10)
 
 
+def unmerged_paths(repo: Path) -> list[str]:
+    """Return the paths Git still reports as unmerged."""
+    text = git_text(repo, ["diff", "--name-only", "--diff-filter=U"])
+    return text.split() if text else []
+
+
 def pull_checkout(repo: Path) -> str | None:
     """Advance one checkout onto its tracking branch when it is safe.
 
@@ -190,8 +189,6 @@ def pull_checkout(repo: Path) -> str | None:
     busy = operation_in_progress(repo)
     if busy is not None:
         return busy
-    if has_tracked_changes(repo):
-        return "uncommitted changes"
     if git_text(repo, ["rev-parse", "--verify", "HEAD"]) is None:
         return None
 
@@ -221,6 +218,16 @@ def pull_checkout(repo: Path) -> str | None:
         timeout=PULL_TIMEOUT_SECONDS,
     )
     if rebased.returncode == 0:
+        # `rebase --autostash` exits 0 when replaying the commits succeeds
+        # but reapplying the stashed work does not, which leaves conflict
+        # markers in the worktree and the changes in the stash. The rebase
+        # itself is done, so report instead of aborting it away.
+        conflicted = unmerged_paths(repo)
+        if conflicted:
+            return (
+                "autostash reapply conflicted, local changes are in the stash "
+                f"({', '.join(conflicted)})"
+            )
         return None
     abort_rebase(repo)
     message = rebased.stderr.strip() or rebased.stdout.strip()
