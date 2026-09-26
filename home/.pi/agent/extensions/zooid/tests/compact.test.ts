@@ -9,6 +9,7 @@ import {
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
+import type { ToolStatusState } from "../../_shared/tool-status.ts";
 import compactBash from "../compact.ts";
 
 initTheme("dark");
@@ -16,6 +17,7 @@ initTheme("dark");
 function setup(command = "printf hello", requestRender = () => {}) {
 	let definition: ToolDefinition | undefined;
 	let renderTheme: Theme | undefined;
+	let renderState: ToolStatusState | undefined;
 	const handlers = new Map<string, () => void>();
 	compactBash({
 		on(event: string, handler: () => void) {
@@ -27,6 +29,7 @@ function setup(command = "printf hello", requestRender = () => {}) {
 				...tool,
 				renderCall(args, theme, context) {
 					renderTheme = theme;
+					renderState = context.state;
 					return renderCall(args, theme, context);
 				},
 			};
@@ -51,6 +54,10 @@ function setup(command = "printf hello", requestRender = () => {}) {
 		get theme() {
 			assert.ok(renderTheme);
 			return renderTheme;
+		},
+		get state() {
+			assert.ok(renderState);
+			return renderState;
 		},
 	};
 }
@@ -165,6 +172,28 @@ test("the four-row spinner advances through a complete loop without repeating th
 	await t.waitFor(() => assert.ok(frames.length >= 10), { interval: 10, timeout: 3000 });
 	row.updateResult(result("done"));
 	assert.deepEqual(frames.slice(0, 10), ["⠛", "⠹", "⢸", "⣰", "⣤", "⣆", "⡇", "⠏", "⠛", "⠹"]);
+});
+
+test("a running command reports its elapsed time in seconds, then in minutes", async (t) => {
+	const { row, render, state, handlers } = setup("sleep 60");
+	t.after(() => handlers.get("session_shutdown")?.());
+	row.markExecutionStarted();
+	row.updateResult(result(""), true); // streaming output while the command is still running
+	render(); // the spinner only starts, and so records the start, on the first paint
+	const age = (ms: number) => {
+		assert.ok(state.startedAt !== undefined);
+		state.startedAt = performance.now() - ms;
+	};
+	age(9_999);
+	assert.deepEqual(render(), ["", "⠛ $ sleep 60 · running"]);
+	age(10_000);
+	assert.match(render()[1]!, /· running 10s$/);
+	age(65_400);
+	assert.match(render()[1]!, /· running 1m 5s$/);
+	age(3_600_000);
+	assert.match(render()[1]!, /· running 60m 0s$/);
+	row.updateResult(result("done"));
+	assert.equal(render()[1], "✓ $ sleep 60 · 1 line");
 });
 
 test("quiet commands animate before any output, and stop on settlement or session teardown", async (suite) => {

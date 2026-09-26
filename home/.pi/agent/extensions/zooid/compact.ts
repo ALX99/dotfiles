@@ -12,7 +12,7 @@ import {
 import { Container, Text, stripTerminalSequences, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { Effect } from "effect";
 import { runPromise } from "../_shared/effect-runtime.ts";
-import { createToolStatus, renderToolStatus, type ToolStatusState } from "../_shared/tool-status.ts";
+import { createToolStatus, renderToolStatus, runningSince, type ToolStatusState } from "../_shared/tool-status.ts";
 import { changeFailure, changeHeader, colorChange } from "../_shared/change-render.ts";
 
 interface EditState extends ToolStatusState {
@@ -148,7 +148,9 @@ export default function compactBash(pi: ExtensionAPI): void {
 				invalidate() {},
 				render(width) {
 					// Pi calls renderCall before renderResult; read the shared summary at paint time.
-					const suffix = state.summary ? theme.fg("dim", ` · ${state.summary}`) : "";
+					const elapsed = context.isPartial ? runningSince(state) : undefined;
+					const summary = state.summary ? `${state.summary}${elapsed === undefined ? "" : ` ${elapsed}`}` : undefined;
+					const suffix = summary ? theme.fg("dim", ` · ${summary}`) : "";
 					const title = (text: string) => theme.fg("toolTitle", theme.bold(text));
 					if (context.expanded) {
 						return new Text(`${status} ${title(`$ ${command}`)}${suffix}`, 0, 0).render(width);
