@@ -23,12 +23,17 @@ function toolApi(initial: readonly string[], available = [...MINIMAL_CORE_TOOL_N
 	};
 }
 
-test("the minimal selection is the core tools plus the session's editing tool", () => {
-	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write", "spawn_agent"]), ["bash", "read", "edit"]);
+test("minimal mode keeps the default writer with builtin edit", () => {
+	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write", "spawn_agent"]), [
+		"bash",
+		"read",
+		"edit",
+		"write",
+	]);
 	assert.deepEqual(minimalToolNames(["read", "bash", "apply_patch", "spawn_agent"]), ["bash", "read", "apply_patch"]);
-	// apply_patch wins when a session has both editing tools.
-	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "apply_patch"]), ["bash", "read", "apply_patch"]);
-	// A session with no editing tool selected falls back to builtin edit.
+	// apply_patch replaces both builtin file-editing tools when all are active.
+	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write", "apply_patch"]), ["bash", "read", "apply_patch"]);
+	// A session with no editor selected falls back to builtin edit.
 	assert.deepEqual(minimalToolNames(["read", "bash"]), ["bash", "read", "edit"]);
 });
 
@@ -48,7 +53,7 @@ test("the minimal selection carries over the task tools the tasks extension has 
 		...TASK_TOOLS,
 	]);
 	// A session whose tasks extension is off exposes no task tools to carry over.
-	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write"]), ["bash", "read", "edit"]);
+	assert.deepEqual(minimalToolNames(["read", "bash", "edit", "write"]), ["bash", "read", "edit", "write"]);
 });
 
 test("the minimal selection carries over FFF tools in both naming modes", () => {

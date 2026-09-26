@@ -20,10 +20,10 @@ const MINIMAL_FFF_TOOL_NAMES = ["fffind", "ffgrep", "fff-multi-grep", "find", "g
 const FALLBACK_EDITOR_TOOL_NAME = "edit";
 
 /**
- * The file-editing tools a session can have active, most preferred first. Minimal mode keeps the one
- * the session uses rather than forcing a choice, so `codex-apply-patch`'s swap of builtin `edit` for
- * `apply_patch` survives the restriction. Pi runs sibling tool calls from one turn concurrently, so
- * batching them needs no tool of its own.
+ * The file-editing tools a session can have active, most preferred first. When
+ * `codex-apply-patch` activates `apply_patch`, it replaces both builtin `edit` and `write`;
+ * otherwise minimal mode keeps the builtin editor and the default writer when active. Pi runs
+ * sibling tool calls from one turn concurrently, so batching them needs no tool of its own.
  */
 const MINIMAL_EDITOR_TOOL_NAMES = ["apply_patch", FALLBACK_EDITOR_TOOL_NAME] as const;
 
@@ -39,9 +39,11 @@ type ToolRegistryAPI = Pick<ExtensionAPI, "getAllTools">;
  */
 export function minimalToolNames(active: readonly string[]): string[] {
 	const editor = MINIMAL_EDITOR_TOOL_NAMES.find((name) => active.includes(name)) ?? FALLBACK_EDITOR_TOOL_NAME;
+	const writer = editor === "apply_patch" || !active.includes("write") ? [] : ["write"];
 	return [
 		...MINIMAL_CORE_TOOL_NAMES,
 		editor,
+		...writer,
 		...TASK_TOOL_NAMES.filter((name) => active.includes(name)),
 		...MINIMAL_FFF_TOOL_NAMES.filter((name) => active.includes(name)),
 	];
@@ -159,7 +161,7 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 	}
 
 	pi.registerCommand("minimal", {
-		description: `Toggle minimal mode: keep ${MINIMAL_CORE_TOOL_NAMES.join(", ")}, its editing tool, active task tools, and active FFF search tools`,
+		description: `Toggle minimal mode: keep ${MINIMAL_CORE_TOOL_NAMES.join(", ")}, its editing tool, the default writer when active, active task tools, and active FFF search tools`,
 		handler: async (args, ctx) => {
 			switch (args.trim().toLowerCase()) {
 				case "":
