@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext, ScopedModel } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ScopedModel } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { toError } from "../_shared/errors.ts";
 
@@ -10,9 +10,10 @@ export const MODEL_SHORTCUTS = [
 ] as const;
 
 export default function modelShortcuts(pi: ExtensionAPI) {
-	let pending: { shortcut: (typeof MODEL_SHORTCUTS)[number]; ctx: ExtensionContext; epoch: number } | undefined;
+	let pending: { shortcut: (typeof MODEL_SHORTCUTS)[number]; ctx: ExtensionCommandContext; epoch: number } | undefined;
 	let applying = false;
 	let epoch = 0;
+	let idleWait: Promise<unknown> | undefined;
 
 	const applyPending = async (): Promise<void> => {
 		if (applying) return;
@@ -34,9 +35,26 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 		}
 	};
 
+	/**
+	 * Compaction and branch summarization keep the session busy without ever firing
+	 * `agent_settled`, so a queued shortcut also waits on the session's own idle
+	 * promise. The waiter re-arms while a shortcut is still queued, because a new
+	 * turn or compaction can start before the queue drains.
+	 */
+	const applyWhenIdle = (ctx: ExtensionCommandContext): void => {
+		if (idleWait) return;
+		const arm = async (): Promise<void> => {
+			idleWait = undefined;
+			await applyPending();
+			if (pending) applyWhenIdle(ctx);
+		};
+		idleWait = ctx.waitForIdle().then(arm, arm);
+	};
+
 	const reset = (): void => {
 		epoch++;
 		pending = undefined;
+		idleWait = undefined;
 	};
 	pi.on("session_start", reset);
 	pi.on("session_shutdown", reset);
@@ -49,8 +67,12 @@ export default function modelShortcuts(pi: ExtensionAPI) {
 				pending = { shortcut, ctx, epoch };
 				if (!ctx.isIdle() || applying) {
 					if (ctx.hasUI) {
-						ctx.ui.notify(`Queued ${shortcut.model}; it will switch after the current turn settles.`, "info");
+						ctx.ui.notify(
+							`Queued ${shortcut.model}; it will switch once the current turn or compaction settles.`,
+							"info",
+						);
 					}
+					applyWhenIdle(ctx);
 					return;
 				}
 				await applyPending();
@@ -69,7 +91,7 @@ type Shortcut = (typeof MODEL_SHORTCUTS)[number];
  */
 export function resolveShortcutModel(
 	shortcut: Shortcut,
-	ctx: Pick<ExtensionContext, "modelRegistry" | "scopedModels">,
+	ctx: Pick<ExtensionCommandContext, "modelRegistry" | "scopedModels">,
 ): { model: Model<any>; thinkingLevel: NonNullable<ScopedModel["thinkingLevel"]> } | undefined {
 	const scoped = ctx.scopedModels.find(
 		({ model }) => model.provider === shortcut.provider && model.id === shortcut.model,
@@ -82,7 +104,7 @@ export function resolveShortcutModel(
 async function applyShortcut(
 	pi: Pick<ExtensionAPI, "getThinkingLevel" | "setModel" | "setThinkingLevel">,
 	shortcut: Shortcut,
-	ctx: ExtensionContext,
+	ctx: ExtensionCommandContext,
 	isCurrent: () => boolean,
 ): Promise<void> {
 	const resolved = resolveShortcutModel(shortcut, ctx);
