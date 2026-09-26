@@ -31,6 +31,7 @@ import {
 	TASK_CANCEL_DETAILS_TYPE,
 	taskCounts,
 	taskError,
+	taskReminderPrompt,
 	titleOf,
 	type ActiveQueue,
 } from "./state.ts";
@@ -39,6 +40,7 @@ export { TASK_TOOL_NAMES };
 
 const TASK_RECOVERY_MESSAGE_TYPE = "tasks:recovery";
 const TASK_CONTINUE_TYPE = "tasks:continue";
+const TASK_REMINDER_TYPE = "tasks:reminder";
 const TASK_TOGGLE_TYPE = "tasks:toggle";
 const TASK_STATUS_KEY = "tasks";
 
@@ -323,9 +325,13 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			finishDeferredInputReplay(pi, deferredInputs);
 			return;
 		}
-		if (!tasksEnabled(ctx) || deferredInputs.inputs.length === 0) return;
-		deferredInputs.replaying = true;
-		scheduleDeferredUserInput(pi, deferredInputs);
+		if (!tasksEnabled(ctx)) return;
+		if (deferredInputs.inputs.length > 0) {
+			deferredInputs.replaying = true;
+			scheduleDeferredUserInput(pi, deferredInputs);
+			return;
+		}
+		scheduleTaskReminder(pi, ctx);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
@@ -623,6 +629,55 @@ function showTaskStatus(ctx: ExtensionCommandContext): void {
 function ensureTasksEnabled(ctx: BranchContext): void {
 	if (tasksEnabled(ctx)) return;
 	throw taskError("tasks_disabled", "Tasks are disabled for this session. A user can re-enable them with /tasks on.");
+}
+
+/**
+ * Ask for the current task's outcome once the model stops with it unfinished. The
+ * reminder is recorded in the branch, so a task the model already declined to
+ * finish is nudged once rather than every time it settles.
+ */
+function scheduleTaskReminder(pi: ExtensionAPI, ctx: BranchContext): void {
+	const active = getActiveQueue(ctx);
+	const current = active === undefined ? undefined : currentItem(active);
+	if (active === undefined || current === undefined) return;
+	const { queueId } = active.queue;
+	if (wasReminded(ctx, queueId, current.id) || stoppedByUserOrError(ctx)) return;
+
+	setTimeout(() => {
+		pi.sendMessage(
+			{
+				customType: TASK_REMINDER_TYPE,
+				content: taskReminderPrompt(current),
+				display: false,
+				details: { queueId, taskId: current.id },
+			},
+			{ triggerTurn: true, deliverAs: "followUp" },
+		);
+	}, 0);
+}
+
+function wasReminded(ctx: BranchContext, queueId: string, taskId: string): boolean {
+	return ctx.sessionManager
+		.getBranch()
+		.some(
+			(entry) =>
+				entry.type === "custom_message" &&
+				entry.customType === TASK_REMINDER_TYPE &&
+				Predicate.isObject(entry.details) &&
+				entry.details.queueId === queueId &&
+				entry.details.taskId === taskId,
+		);
+}
+
+/** An interrupt or a failed request is a deliberate stop, not a pause to nudge. */
+function stoppedByUserOrError(ctx: BranchContext): boolean {
+	const branch = ctx.sessionManager.getBranch();
+	for (let index = branch.length - 1; index >= 0; index--) {
+		const entry = branch[index];
+		if (entry?.type !== "message" || entry.message.role !== "assistant") continue;
+		return entry.message.stopReason === "aborted" || entry.message.stopReason === "error";
+	}
+	return false;
 }
 
 function scheduleContinuation(pi: ExtensionAPI, text: string): void {

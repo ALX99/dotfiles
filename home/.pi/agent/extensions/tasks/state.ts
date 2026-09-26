@@ -347,10 +347,16 @@ export function finalSummaryPrompt(active: ActiveQueue): string {
 /**
  * The one instruction that starts a task: the post-checkpoint continuation, the
  * steer that re-anchors the model after an automatic compaction, and the text
- * the finish tool result ends with in inline (headless) mode.
+ * the finish tool result ends with in inline (headless) mode. It names the task
+ * only; recording the outcome is left to the settle-time reminder.
  */
 export function nextTaskPrompt(next: TaskQueueItem): string {
-	return `Continue with ${next.id}: ${next.title}. When done, call finish_task.`;
+	return `Continue with ${next.id}: ${next.title}.`;
+}
+
+/** The reminder that asks for the current task's outcome once the model stops. */
+export function taskReminderPrompt(current: TaskQueueItem): string {
+	return `If you have completed the task "${current.title}" make sure to call the finish_task tool, otherwise keep working.`;
 }
 
 export function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {

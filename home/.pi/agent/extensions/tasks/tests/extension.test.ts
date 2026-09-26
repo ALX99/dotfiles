@@ -212,6 +212,16 @@ function branchSummary(id: string, details: OutcomeDetails): Entry {
 	return { id, type: "branch_summary", details };
 }
 
+/** Fire `agent_settled` and let the extension's scheduled turn flush. */
+async function settle(h: ReturnType<typeof createHarness>): Promise<void> {
+	h.handlers.get("agent_settled")!({} as never, h.ctx as never);
+	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+function reminders(h: ReturnType<typeof createHarness>) {
+	return h.sentMessages.filter(({ message }) => message.customType === "tasks:reminder");
+}
+
 async function commit(
 	h: ReturnType<typeof createHarness>,
 	baseId: string,
@@ -312,7 +322,7 @@ test("starts with one discovery task and runs the tasks it discovers", async () 
 		["t2", "t3"],
 	);
 	assert.match(discovered.content, /Task t1 completed \(1\/3\)/u);
-	assert.match(discovered.content, /Continue with t2: Fix the parser\. When done, call finish_task\./u);
+	assert.match(discovered.content, /Continue with t2: Fix the parser\.$/u);
 	h.pushEntry(toolResult("finish-discovery-result", "finish-discovery", "finish_task", discovered.details));
 	await commit(h, "queue-call-result");
 
@@ -429,22 +439,22 @@ test("continues with a hidden title-only instruction after each task compacts", 
 		[
 			{
 				customType: "tasks:continue",
-				content: "Continue with t4: Follow-up A. When done, call finish_task.",
+				content: "Continue with t4: Follow-up A.",
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t5: Follow-up B. When done, call finish_task.",
+				content: "Continue with t5: Follow-up B.",
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t2: Original second task. When done, call finish_task.",
+				content: "Continue with t2: Original second task.",
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t3: Original third task. When done, call finish_task.",
+				content: "Continue with t3: Original third task.",
 				display: false,
 			},
 		],
@@ -783,6 +793,104 @@ test("releases deferred input if finish_task fails before recording an outcome",
 	);
 });
 
+test("reminds the model once per unfinished task after the agent settles", async () => {
+	const h = createHarness();
+	const queue = await createQueue(h);
+
+	await settle(h);
+	assert.deepEqual(h.sentMessages, [
+		{
+			message: {
+				customType: "tasks:reminder",
+				content:
+					'If you have completed the task "Add schema" make sure to call the finish_task tool, otherwise keep working.',
+				display: false,
+				details: { queueId: queue.queueId, taskId: "t1" },
+			},
+			options: { triggerTurn: true, deliverAs: "followUp" },
+		},
+	]);
+
+	h.pushEntry({
+		id: "reminder-t1",
+		type: "custom_message",
+		customType: "tasks:reminder",
+		content: h.sentMessages[0]!.message.content,
+		display: false,
+		details: h.sentMessages[0]!.message.details,
+	});
+	await settle(h);
+	assert.equal(h.sentMessages.length, 1);
+
+	const finish = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
+	h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
+	await commit(h, "queue-call-result");
+	await settle(h);
+
+	assert.equal(reminders(h).length, 2);
+	assert.equal(
+		reminders(h)[1]?.message.content,
+		'If you have completed the task "Implement handler" make sure to call the finish_task tool, otherwise keep working.',
+	);
+	assert.deepEqual(reminders(h)[1]?.message.details, { queueId: queue.queueId, taskId: "t2" });
+});
+
+test("does not resume a turn the user interrupted or that failed", async () => {
+	for (const stopReason of ["aborted", "error"] as const) {
+		const h = createHarness();
+		await createQueue(h);
+		h.pushEntry({
+			id: `${stopReason}-assistant`,
+			type: "message",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "Working on it." }],
+				stopReason,
+			},
+		});
+
+		await settle(h);
+		assert.deepEqual(reminders(h), []);
+	}
+
+	const stopped = createHarness();
+	await createQueue(stopped);
+	stopped.pushEntry({
+		id: "stopped-assistant",
+		type: "message",
+		message: { role: "assistant", content: [{ type: "text", text: "Done." }], stopReason: "stop" },
+	});
+	await settle(stopped);
+	assert.equal(reminders(stopped).length, 1);
+});
+
+test("does not remind when the queue is closed, canceled, or the mode is headless", async () => {
+	const canceled = createHarness();
+	await createQueue(canceled, ["Only task"]);
+	await canceled.commands.get("tasks")!.handler("cancel Not needed", canceled.ctx as never);
+	canceled.pushEntry({
+		id: "cancelled",
+		type: "custom_message",
+		customType: "tasks:cancel",
+		details: canceled.sentMessages.at(-1)!.message.details,
+	});
+	await settle(canceled);
+	assert.deepEqual(reminders(canceled), []);
+
+	const headless = createHarness([], "print");
+	await createQueue(headless);
+	await settle(headless);
+	assert.deepEqual(reminders(headless), []);
+
+	const done = createHarness();
+	await createQueue(done, ["Only task"]);
+	const finish = await finishTask(done, { status: "completed", outcome: "Only task done." }, "finish-1");
+	done.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", finish.details));
+	await commit(done, "queue-call-result");
+	await settle(done);
+	assert.deepEqual(reminders(done), []);
+});
+
 for (const mode of ["print", "json"]) {
 	test(`records ${mode}-mode outcomes inline and allows one task per invocation`, async () => {
 		const h = createHarness(
@@ -800,7 +908,7 @@ for (const mode of ["print", "json"]) {
 		const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 		assert.equal(first.details.checkpoint, "inline");
 		assert.equal(first.terminate, false);
-		assert.match(first.content, /Continue with t2: Implement handler\. When done, call finish_task\./u);
+		assert.match(first.content, /Continue with t2: Implement handler\.$/u);
 		assert.doesNotMatch(first.content, /print|compaction|invocation/u);
 		h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 
@@ -910,7 +1018,7 @@ test("re-anchors on the current task with the shared continuation after automati
 	const recovery = h.sentMessages.at(-1);
 	assert.equal(recovery?.message.customType, "tasks:recovery");
 	assert.equal(recovery?.message.content, nextTaskPrompt(queue.tasks[0]!));
-	assert.equal(recovery?.message.content, "Continue with t1: Add schema. When done, call finish_task.");
+	assert.equal(recovery?.message.content, "Continue with t1: Add schema.");
 	assert.deepEqual(recovery?.message.details, {
 		queueId: queue.queueId,
 		taskId: "t1",
