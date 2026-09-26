@@ -48,7 +48,6 @@ function createHarness(options: { initialBranch?: Entry[]; available?: string[];
 				if (text === undefined) statuses.delete(key);
 				else statuses.set(key, text);
 			},
-			theme: { fg: (_color: string, text: string) => text },
 		},
 	};
 
@@ -91,26 +90,36 @@ function createHarness(options: { initialBranch?: Entry[]; available?: string[];
 	};
 }
 
-test("enabling minimal mode restricts tools, records state, and reports status", async () => {
+test("enabling minimal mode restricts tools and records state", async () => {
 	const harness = createHarness();
 
 	await harness.runCommand("on");
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write");
 	assert.deepEqual(harness.entries, [
 		{ customType: "minimal-mode-state", data: { version: 1, enabled: true, previousTools: DEFAULT_TOOLS } },
 	]);
 });
 
-test("disabling minimal mode restores the recorded selection and clears status", async () => {
+test("the mode publishes no footer status of its own", async () => {
+	const harness = createHarness();
+
+	await harness.runSessionEvent("session_start");
+	await harness.runBeforeAgentStart();
+	await harness.runCommand("off");
+	await harness.runCommand("on");
+	await harness.runResourcesDiscover();
+
+	assert.deepEqual([...harness.statuses], []);
+});
+
+test("disabling minimal mode restores the recorded selection", async () => {
 	const harness = createHarness();
 
 	await harness.runCommand("on");
 	await harness.runCommand("off");
 
 	assert.deepEqual(harness.activeTools(), DEFAULT_TOOLS);
-	assert.equal(harness.statuses.has("minimal"), false);
 	// The off entry keeps the baseline, so enabling again restores the same selection.
 	assert.deepEqual(harness.entries.at(-1)?.data, {
 		version: 1,
@@ -165,7 +174,6 @@ test("a restored branch re-applies the tool restriction without losing its snaps
 	await harness.runSessionEvent("session_start");
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write");
 
 	// The restored snapshot must survive for the eventual exit.
 	await harness.runCommand("off");
@@ -203,7 +211,6 @@ test("a turn re-assert keeps the task tools the tasks extension activated", asyn
 	await harness.runBeforeAgentStart();
 
 	assert.deepEqual(harness.activeTools(), ["bash", "read", "edit", "write", "create_tasks", "finish_task"]);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write, create_tasks, finish_task");
 });
 
 test("the startup re-assert reclaims the selection from tools the host adds afterwards", async () => {
@@ -216,7 +223,6 @@ test("the startup re-assert reclaims the selection from tools the host adds afte
 	const result = await harness.runResourcesDiscover();
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write");
 	assert.equal(result, undefined, "the hook contributes no resources");
 	assert.equal(harness.entries.length, 1, "re-asserting must not re-record branch state");
 });
@@ -227,7 +233,6 @@ test("a fresh session starts in minimal mode and the baseline still restores", a
 	await harness.runSessionEvent("session_start");
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write");
 	assert.deepEqual(harness.entries, [
 		{ customType: "minimal-mode-state", data: { version: 1, enabled: true, previousTools: DEFAULT_TOOLS } },
 	]);
@@ -250,7 +255,6 @@ test("a session that recorded the mode off stays unrestricted", async () => {
 	await harness.runSessionEvent("session_start");
 
 	assert.deepEqual(harness.activeTools(), DEFAULT_TOOLS);
-	assert.equal(harness.statuses.has("minimal"), false);
 	assert.deepEqual(harness.entries, [], "a recorded choice is not written again");
 });
 
@@ -260,7 +264,6 @@ test("a branch with no recorded state adopts the default and records it", async 
 	await harness.runSessionEvent("session_tree");
 
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write");
 	assert.deepEqual(harness.entries, [
 		{ customType: "minimal-mode-state", data: { version: 1, enabled: true, previousTools: DEFAULT_TOOLS } },
 	]);
@@ -324,7 +327,6 @@ test("an off branch without a recorded baseline does not adopt the restriction a
 		data: { version: 1, enabled: false, previousTools: [] },
 	});
 	await harness.runSessionEvent("session_tree");
-	assert.equal(harness.statuses.has("minimal"), false);
 
 	await harness.runCommand("on");
 	await harness.runCommand("off");
@@ -351,7 +353,6 @@ test("a session using apply_patch excludes builtin edit and write", async () => 
 	await harness.runCommand("on");
 
 	assert.deepEqual(harness.activeTools(), ["bash", "read", "apply_patch"]);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, apply_patch");
 });
 
 test("a session using FFF search keeps its active FFF tools", async () => {
@@ -362,7 +363,6 @@ test("a session using FFF search keeps its active FFF tools", async () => {
 	await harness.runCommand("on");
 
 	assert.deepEqual(harness.activeTools(), ["bash", "read", "edit", "write", ...fffTools]);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, edit, write, find, grep");
 
 	await harness.runCommand("off");
 	assert.deepEqual(harness.activeTools(), active);
@@ -379,7 +379,6 @@ test("a model switch that swaps the editing tool is followed at the next turn", 
 	await harness.runBeforeAgentStart();
 
 	assert.deepEqual(harness.activeTools(), ["bash", "read", "apply_patch"]);
-	assert.equal(harness.statuses.get("minimal"), "minimal: bash, read, apply_patch");
 });
 
 test("enabling fails cleanly when a core tool is unavailable", async () => {
@@ -399,7 +398,6 @@ test("a session without a core tool keeps the default mode off", async () => {
 	await harness.runSessionEvent("session_start");
 
 	assert.deepEqual(harness.activeTools(), ["bash", "edit"]);
-	assert.equal(harness.statuses.has("minimal"), false);
 	assert.deepEqual(harness.entries, [], "a mode that cannot run records no choice");
 	assert.equal(harness.notifications.at(-1)?.type, "error");
 	assert.match(harness.notifications.at(-1)?.message ?? "", /read is unavailable/);
@@ -434,7 +432,6 @@ test("turning off without a recorded baseline keeps the toolset and points at a 
 	// The host rebuilds a session's selection from its configured defaults, and /reload carries the
 	// current one forward, so only a new session is a truthful recovery step here.
 	assert.deepEqual(harness.activeTools(), MINIMAL_TOOLS);
-	assert.equal(harness.statuses.has("minimal"), false);
 	const warning = harness.notifications.at(-1);
 	assert.equal(warning?.type, "warning");
 	assert.match(warning?.message ?? "", /no earlier tool selection was recorded/);
@@ -482,5 +479,4 @@ test("the newest recorded state wins when the branch has several", async () => {
 	await harness.runSessionEvent("session_start");
 
 	assert.deepEqual(harness.activeTools(), DEFAULT_TOOLS);
-	assert.equal(harness.statuses.has("minimal"), false);
 });

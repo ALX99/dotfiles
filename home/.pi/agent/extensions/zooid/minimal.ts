@@ -89,14 +89,6 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 		pi.appendEntry(SESSION_STATE_TYPE, { version: STATE_VERSION, ...state });
 	}
 
-	function updateUi(ctx: ExtensionContext): void {
-		if (!state.enabled) {
-			ctx.ui.setStatus("minimal", undefined);
-			return;
-		}
-		ctx.ui.setStatus("minimal", ctx.ui.theme.fg("accent", `minimal: ${pi.getActiveTools().join(", ")}`));
-	}
-
 	/** Reduce the live selection to the minimal toolset. */
 	function restrictTools(): void {
 		applyTools(pi, minimalToolNames(pi.getActiveTools()));
@@ -110,7 +102,6 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 		const missing = missingMinimalTools(pi);
 		if (missing.length > 0) {
 			const verb = missing.length === 1 ? "is" : "are";
-			updateUi(ctx);
 			ctx.ui.notify(`Cannot enable minimal mode: ${missing.join(", ")} ${verb} unavailable.`, "error");
 			return;
 		}
@@ -118,7 +109,6 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 		state.enabled = true;
 		persistState();
 		restrictTools();
-		updateUi(ctx);
 		if (announce) ctx.ui.notify(`Minimal mode on: ${pi.getActiveTools().join(", ")} only.`, "info");
 	}
 
@@ -127,7 +117,6 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 		const restore = state.previousTools;
 		state = { enabled: false, previousTools: restore };
 		persistState();
-		updateUi(ctx);
 		if (restore.length > 0) {
 			applyTools(pi, restore);
 			ctx.ui.notify("Minimal mode off.", "info");
@@ -157,7 +146,6 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 			previousTools: recorded.previousTools.length > 0 ? recorded.previousTools : state.previousTools,
 		};
 		if (state.enabled) restrictTools();
-		updateUi(ctx);
 	}
 
 	pi.registerCommand("minimal", {
@@ -193,22 +181,22 @@ export default function minimalExtension(pi: ExtensionAPI): void {
 	/**
 	 * The mode's selection is an invariant of the live session, not just of a turn: other extensions
 	 * add their deferred loader tools while the session starts, and each addition lands after the last
-	 * restriction. Re-asserting keeps every view of the selection — status line, `/minimal status`,
-	 * and the prompt `/systemprompt` renders — equal to the mode's choice.
+	 * restriction. Re-asserting keeps every view of the selection — `/minimal status` and the prompt
+	 * `/systemprompt` renders — equal to the mode's choice. The mode publishes no footer status of
+	 * its own, so it never crowds the bar.
 	 */
-	function reassert(ctx: ExtensionContext): void {
+	function reassert(): void {
 		if (state.enabled) restrictTools();
-		updateUi(ctx);
 	}
 
-	pi.on("before_agent_start", (_event, ctx) => reassert(ctx));
+	pi.on("before_agent_start", () => reassert());
 
 	/**
 	 * Pi emits this after every `session_start` handler has run — startup, `/new`, `/resume`,
 	 * `/fork`, and `/reload` — so it is the first moment the tools other extensions contribute at
 	 * session start are all known.
 	 */
-	pi.on("resources_discover", (_event, ctx) => reassert(ctx));
+	pi.on("resources_discover", () => reassert());
 
 	pi.on("session_start", (_event, ctx) => applyBranchState(ctx));
 	pi.on("session_tree", (_event, ctx) => applyBranchState(ctx));
