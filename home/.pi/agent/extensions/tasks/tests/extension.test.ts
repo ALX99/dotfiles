@@ -297,6 +297,10 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal("remaining" in finishProperties, false);
 	assert.equal("followups" in finishProperties, false);
 	assert.match(create.description, /one discovery task.*finish_task\.addTasks/u);
+	assert.match(
+		create.description,
+		/plan work before doing it.*one planning task.*add the tasks the planning produced/u,
+	);
 });
 
 test("starts with one discovery task and runs the tasks it discovers", async () => {

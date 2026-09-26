@@ -91,7 +91,7 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 		name: "create_tasks",
 		label: "Create Tasks",
 		description:
-			"Create an ordered task queue of 1–100 titles. Start with one discovery task if follow-ups are unknown; add them with finish_task.addTasks as you learn what is needed.",
+			"Create an ordered task queue of 1–100 titles. Use it to plan work before doing it and to track that work: create one planning task to work out the approach, then add the tasks the planning produced. Start with one discovery task if follow-ups are unknown, and add them with finish_task.addTasks as you learn what is needed.",
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {
