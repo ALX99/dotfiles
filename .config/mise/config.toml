@@ -10,9 +10,9 @@ zig = "latest"
 "npm:typescript" = "latest"
 
 # Harnesses
-"aqua:openai/codex" = "latest"
-# pi releases are time-sensitive, so it takes a 1h holdback instead of the
+# Harness releases are time-sensitive, so they take a 1h holdback instead of the
 # global 24h (`minimum_release_age` here overrides the `[settings]` default).
+"aqua:openai/codex" = { version = "latest", minimum_release_age = "1h" }
 "npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h" }
 
 # AI stuff
