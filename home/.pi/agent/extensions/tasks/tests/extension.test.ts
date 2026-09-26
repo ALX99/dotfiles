@@ -6,6 +6,7 @@ import { Check } from "typebox/value";
 
 import tasksExtension from "../index.ts";
 import type { TaskDashboard } from "../dashboard.ts";
+import { nextTaskPrompt } from "../state.ts";
 
 const plainTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
 
@@ -310,7 +311,8 @@ test("starts with one discovery task and runs the tasks it discovers", async () 
 		discovered.details.addedTasks.map((task) => task.id),
 		["t2", "t3"],
 	);
-	assert.match(discovered.content, /Next: t2: Fix the parser/u);
+	assert.match(discovered.content, /Task t1 completed \(1\/3\)/u);
+	assert.match(discovered.content, /Continue with t2: Fix the parser\. When done, call finish_task\./u);
 	h.pushEntry(toolResult("finish-discovery-result", "finish-discovery", "finish_task", discovered.details));
 	await commit(h, "queue-call-result");
 
@@ -357,7 +359,7 @@ test("generates task IDs for additions and defaults them after the current task"
 	assert.deepEqual(finish.details.addedTasks, [
 		{ id: "t5", title: "Investigate the unrelated parser warning.", after: "current" },
 	]);
-	assert.match(finish.content, /Next: t5: Investigate the unrelated parser warning/u);
+	assert.match(finish.content, /Continue with t5: Investigate the unrelated parser warning\./u);
 	assert.equal(queue.tasks[0]?.id, "t1");
 });
 
@@ -425,10 +427,26 @@ test("continues with a hidden title-only instruction after each task compacts", 
 	assert.deepEqual(
 		h.sentMessages.map((sent) => sent.message),
 		[
-			{ customType: "tasks:continue", content: "Continue with the next task: Follow-up A.", display: false },
-			{ customType: "tasks:continue", content: "Continue with the next task: Follow-up B.", display: false },
-			{ customType: "tasks:continue", content: "Continue with the next task: Original second task.", display: false },
-			{ customType: "tasks:continue", content: "Continue with the next task: Original third task.", display: false },
+			{
+				customType: "tasks:continue",
+				content: "Continue with t4: Follow-up A. When done, call finish_task.",
+				display: false,
+			},
+			{
+				customType: "tasks:continue",
+				content: "Continue with t5: Follow-up B. When done, call finish_task.",
+				display: false,
+			},
+			{
+				customType: "tasks:continue",
+				content: "Continue with t2: Original second task. When done, call finish_task.",
+				display: false,
+			},
+			{
+				customType: "tasks:continue",
+				content: "Continue with t3: Original third task. When done, call finish_task.",
+				display: false,
+			},
 		],
 	);
 	assert.deepEqual(
@@ -560,7 +578,7 @@ test("chains one outcome through the tool result and branch summary", async () =
 
 	const committed = await commit(h, "queue-call-result");
 	assert.equal(committed.label, "task: Add schema");
-	assert.match(committed.summary, /1\/4 complete\. Continue with: t2: Implement handler/u);
+	assert.equal(committed.summary, "## Task: t1: Add schema\nStatus: completed\n\n## Outcome\nSchema added.");
 	assert.deepEqual(committed.details, first.details);
 
 	const second = await finishTask(h, { status: "completed", outcome: "Handler added." }, "finish-2");
@@ -616,7 +634,7 @@ test("compacts each interactive task and retires a successful queue", async () =
 		h.pushEntry(toolResult(`${callId}-result`, callId, "finish_task", finish.details));
 		const committed = await commit(h, checkpoint);
 		assert.equal(committed.details.taskId, queue.tasks[index]?.id);
-		assert.match(committed.summary, new RegExp(`${index + 1}/${QUEUE_TITLES.length}`, "u"));
+		assert.match(committed.summary, new RegExp(`## Task: t${index + 1}: ${title}`, "u"));
 		checkpoint = `summary-${checkpoint}`;
 	}
 
@@ -775,7 +793,7 @@ for (const mode of ["print", "json"]) {
 		const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 		assert.equal(first.details.checkpoint, "inline");
 		assert.equal(first.terminate, false);
-		assert.match(first.content, /Next: t2: Implement handler/u);
+		assert.match(first.content, /Continue with t2: Implement handler\. When done, call finish_task\./u);
 		assert.doesNotMatch(first.content, /print|compaction|invocation/u);
 		h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 
@@ -873,9 +891,9 @@ test("requires boundary tools to be isolated in their assistant turn", async () 
 	);
 });
 
-test("injects compact recovery guidance after automatic compaction", async () => {
+test("re-anchors on the current task with the shared continuation after automatic compaction", async () => {
 	const h = createHarness();
-	await createQueue(h);
+	const queue = await createQueue(h);
 	h.pushEntry({ id: "auto-compaction", type: "compaction" });
 	h.handlers.get("session_compact")!(
 		{ reason: "threshold", compactionEntry: { id: "auto-compaction" } } as never,
@@ -884,9 +902,13 @@ test("injects compact recovery guidance after automatic compaction", async () =>
 
 	const recovery = h.sentMessages.at(-1);
 	assert.equal(recovery?.message.customType, "tasks:recovery");
-	assert.match(recovery?.message.content ?? "", /Continue with the current task: t1: Add schema\./u);
-	assert.match(recovery?.message.content ?? "", /Queue progress: 4 pending\./u);
-	assert.match(recovery?.message.content ?? "", /Previous task outcomes remain in the conversation history\./u);
+	assert.equal(recovery?.message.content, nextTaskPrompt(queue.tasks[0]!));
+	assert.equal(recovery?.message.content, "Continue with t1: Add schema. When done, call finish_task.");
+	assert.deepEqual(recovery?.message.details, {
+		queueId: queue.queueId,
+		taskId: "t1",
+		compactionEntryId: "auto-compaction",
+	});
 	assert.deepEqual(recovery?.options, { deliverAs: "steer" });
 });
 

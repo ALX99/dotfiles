@@ -333,14 +333,6 @@ export function formatAddedTask(task: TaskAddedItem): string {
 	return `${task.id}: ${task.title} (${position})`;
 }
 
-export function finishQueueMessage(active: ActiveQueue, status: TaskOutcomeStatus): string {
-	const counts = taskCounts(active);
-	if (status !== "completed" || hasTaskIssues(counts)) {
-		return " Queue finished with issues; the final summary must distinguish completed, failed, and blocked tasks.";
-	}
-	return " Queue complete.";
-}
-
 export function finalSummaryPrompt(active: ActiveQueue): string {
 	const counts = taskCounts(active);
 	if (active.cancelled !== undefined) {
@@ -352,34 +344,13 @@ export function finalSummaryPrompt(active: ActiveQueue): string {
 	return "All queued tasks are complete. Summarize the overall outcome for the user.";
 }
 
+/**
+ * The one instruction that starts a task: the post-checkpoint continuation, the
+ * steer that re-anchors the model after an automatic compaction, and the text
+ * the finish tool result ends with in inline (headless) mode.
+ */
 export function nextTaskPrompt(next: TaskQueueItem): string {
-	return `Continue with the next task: ${next.title}.`;
-}
-
-export function formatTaskRecovery(active: ActiveQueue): string {
-	const current = currentItem(active);
-	const currentTitle = current === undefined ? "No pending task" : `${current.id}: ${current.title}`;
-	const counts = taskCounts(active);
-	return [
-		"Task checkpoint:",
-		`Continue with the current task: ${currentTitle}.`,
-		`Queue progress: ${formatTaskCounts(counts)}.`,
-		"Previous task outcomes remain in the conversation history.",
-	].join("\n");
-}
-
-export function formatQueueProgress(active: ActiveQueue): string {
-	const next = currentItem(active);
-	if (next === undefined) {
-		if (active.cancelled !== undefined) {
-			return `## Queue progress\nQueue canceled: ${formatTaskCounts(taskCounts(active))}. No further tasks will run.`;
-		}
-		if (hasTaskIssues(taskCounts(active))) {
-			return `## Queue progress\nQueue finished with issues: ${formatTaskCounts(taskCounts(active))}. Do not report the queue as fully successful; distinguish failed tasks from blocked tasks.`;
-		}
-		return `## Queue progress\n${finishedCount(active)}/${active.queue.tasks.length} complete. The queue is finished.`;
-	}
-	return `## Queue progress\n${finishedCount(active)}/${active.queue.tasks.length} complete. Continue with: ${next.id}: ${next.title}`;
+	return `Continue with ${next.id}: ${next.title}. When done, call finish_task.`;
 }
 
 export function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {

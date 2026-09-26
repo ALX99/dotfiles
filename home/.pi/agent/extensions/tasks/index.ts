@@ -16,13 +16,10 @@ import {
 	createQueue,
 	currentItem,
 	finalSummaryPrompt,
-	finishQueueMessage,
 	finishedCount,
 	formatAddedTask,
 	formatOutcome,
-	formatQueueProgress,
 	formatTaskCounts,
-	formatTaskRecovery,
 	hasTaskIssues,
 	latestActive,
 	nextTaskPrompt,
@@ -161,11 +158,11 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 					{
 						type: "text",
 						text: [
-							`Task outcome recorded (${completedCount}/${total}).`,
+							`Task ${details.taskId} ${details.status} (${completedCount}/${total}).`,
 							...(details.addedTasks.length === 0
 								? []
 								: [`Added: ${details.addedTasks.map(formatAddedTask).join("; ")}`]),
-							next === undefined ? finishQueueMessage(projected, params.status) : `Next: ${next.id}: ${next.title}.`,
+							next === undefined ? finalSummaryPrompt(projected) : nextTaskPrompt(next),
 						].join(" "),
 					},
 				],
@@ -267,7 +264,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			return undefined;
 		return {
 			summary: {
-				summary: `${formatOutcome(active, finish)}\n\n${formatQueueProgress(active)}`,
+				summary: formatOutcome(active, finish),
 				details: finish,
 			},
 			label: `task: ${titleOf(active, finish.taskId)}`,
@@ -282,7 +279,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		pi.sendMessage(
 			{
 				customType: TASK_RECOVERY_MESSAGE_TYPE,
-				content: formatTaskRecovery(active),
+				content: nextTaskPrompt(current),
 				display: false,
 				details: {
 					queueId: active.queue.queueId,
@@ -316,6 +313,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 		refreshStatus(ctx);
 		if (isHeadlessMode(ctx)) return;
 		if (hasPendingTaskCompaction(ctx)) {
+			// Disposing the task means rewinding the tree, and `navigateTree` exists only on
+			// the command context: event handlers get a context without it. Dispatching the
+			// command is therefore the only way to compact from `agent_settled`, and it keeps
+			// `/tasks commit` as the same code path a user retries by hand.
 			if (tasksEnabled(ctx)) pi.sendUserMessage("/tasks commit", { expandPromptTemplates: true });
 			return;
 		}
