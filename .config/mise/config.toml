@@ -21,7 +21,6 @@ zig = "latest"
 
 # Dev
 "aqua:mvdan/sh" = "latest"
-"aqua:casey/just" = "latest"
 "aqua:astral-sh/uv" = "latest"
 "pipx:black" = "latest"
 "aqua:golangci/golangci-lint" = "latest"

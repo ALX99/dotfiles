@@ -3,19 +3,12 @@
 # [tools] merges additively; entries here never affect the default env.
 [tools]
 # Core things
-"aqua:gleam-lang/gleam" = "latest"
 rust = "stable"
-
-# Harnesses
-"github:vercel-labs/fx" = "latest"
 
 # AI stuff
 # npm backend: `skills get` reads the package's version-matched skill-data/ tree,
 # which the aqua release asset (bare binary) does not ship.
 "npm:agent-browser" = "latest"
-
-# Dev
-"aqua:casey/just" = "latest"
 
 # CLIs
 "aqua:sharkdp/hyperfine" = "latest"
