@@ -9,6 +9,7 @@ import modelShortcuts from "./model-shortcuts.ts";
 import nestedContext from "./nested-context.ts";
 import registerProcessReaper from "./process-reaper.ts";
 import retry from "./retry.ts";
+import schedule from "./schedule.ts";
 import statusbar from "./statusbar.ts";
 import systemPrompt from "./systemprompt.ts";
 import title from "./title.ts";
@@ -29,6 +30,7 @@ export default function zooid(pi: ExtensionAPI): void {
 	modelShortcuts(pi);
 	nestedContext(pi);
 	retry(pi);
+	schedule(pi);
 	statusbar(pi);
 	systemPrompt(pi);
 	title(pi);
