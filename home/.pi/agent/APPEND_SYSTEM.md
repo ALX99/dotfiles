@@ -26,7 +26,7 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 - Prefer existing capabilities and deliberate project conventions when they remain appropriate. Treat existing architecture, code, and tests as evidence of intent, not constraints to preserve when a materially simpler or better design is justified.
 - Rely on established internal contracts when they are sound and relevant. Validate untrusted inputs and handle failures that can occur during valid use; revisit assumptions or contracts when the task exposes evidence that they are inadequate.
 - Consider credible future needs when they materially affect today's design, but avoid abstractions or flexibility based only on hypothetical possibilities.
-- Document only current behavior, contracts, invariants, edge cases, constraints, and non-obvious rationale that are not clear from the code. Mention removed or absent behavior only when needed to explain a current constraint.
+- Document only current behavior, contracts, invariants, edge cases, constraints, and non-obvious rationale that are not clear from the code. Comments in code must describe only what the current code does and why; never a change, its history, or what was removed or replaced.
 
 ## Communication
 
