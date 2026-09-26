@@ -635,6 +635,13 @@ test("compacts each interactive task and retires a successful queue", async () =
 		const committed = await commit(h, checkpoint);
 		assert.equal(committed.details.taskId, queue.tasks[index]?.id);
 		assert.match(committed.summary, new RegExp(`## Task: t${index + 1}: ${title}`, "u"));
+		// The notification reports the instruction verbatim, so it can never drift from the
+		// `tasks:continue` the model is about to receive.
+		const continuation =
+			index + 1 < QUEUE_TITLES.length
+				? nextTaskPrompt(queue.tasks[index + 1]!)
+				: "All queued tasks are complete. Summarize the overall outcome for the user.";
+		assert.equal(h.notifications.at(-1), `Task compacted: ${title}. Model sees: ${continuation}`);
 		checkpoint = `summary-${checkpoint}`;
 	}
 

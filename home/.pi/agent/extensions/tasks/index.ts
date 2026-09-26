@@ -245,14 +245,13 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			refreshStatus(ctx);
-			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Continue from its outcome.`, "info");
 			const next = currentItem(active);
+			const continuation = next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next);
+			// Report the continuation verbatim: it is the instruction the model is about to
+			// receive, so the notification cannot drift from what the model actually sees.
+			ctx.ui.notify(`Task compacted: ${titleOf(active, finish.taskId)}. Model sees: ${continuation}`, "info");
 			if (!isHeadlessMode(ctx)) {
-				continueAfterTaskCompaction(
-					pi,
-					deferredInputs,
-					next === undefined ? finalSummaryPrompt(active) : nextTaskPrompt(next),
-				);
+				continueAfterTaskCompaction(pi, deferredInputs, continuation);
 			}
 		},
 	});
