@@ -10,9 +10,9 @@ import {
 	calculateTokensPerSecond,
 	formatTokenCount,
 	renderContextPercentage,
+	renderExtensionStatuses,
 	renderReadPercentage,
 	renderSessionCounts,
-	renderReasoningTokens,
 	renderTokenMix,
 	renderTokensPerSecond,
 	renderTotalTokens,
@@ -59,6 +59,35 @@ test("supports multiple right-aligned statusbar parts", () => {
 	assert.equal(view.line, "~/dotfiles · model         tps:42.3  50%");
 });
 
+test("renders the statuses extensions set through setStatus", () => {
+	assert.deepEqual(
+		renderExtensionStatuses(
+			new Map([
+				["tasks", "2/5 complete · wire the parser"],
+				["other", ""],
+			]),
+			plainTheme,
+		),
+		["2/5 complete · wire the parser"],
+	);
+	assert.deepEqual(renderExtensionStatuses(new Map(), plainTheme), []);
+});
+
+test("keeps a status visible when the left side runs out of room", () => {
+	const view = buildStatusbarViewModel({
+		width: 30,
+		leftParts: [
+			"~/dotfiles",
+			"some-model/high",
+			...renderExtensionStatuses(new Map([["tasks", "2/5 complete · wire the parser"]]), plainTheme),
+		],
+		rightParts: ["50%"],
+	});
+
+	assert.match(view.left, /2\/5 complete/u);
+	assert.ok(view.line.endsWith("50%"));
+});
+
 interface UsageParts {
 	readonly input: number;
 	readonly output: number;
@@ -74,7 +103,6 @@ function totals(overrides: Partial<SessionTotals> = {}): SessionTotals {
 		totalTokens: 0,
 		readTokens: 0,
 		writeTokens: 0,
-		reasoningTokens: 0,
 		cachedTokens: 0,
 		...overrides,
 	};
@@ -113,7 +141,6 @@ test("counts turns, compactions, and token usage across session entries", () => 
 		totalTokens: 1000 + 250 + 15 + 2,
 		readTokens: 800 + 200 + 10 + 1,
 		writeTokens: 200 + 50 + 5 + 1,
-		reasoningTokens: 80 + 10 + 2 + 1,
 		cachedTokens: 700 + 150,
 	});
 });
@@ -147,11 +174,6 @@ test("renders turn and compaction counts", () => {
 test("renders the compact total token count", () => {
 	assert.equal(renderTotalTokens(totals({ totalTokens: 1_234_567 }), plainTheme), "tok:1.2M");
 	assert.equal(renderTotalTokens(totals({ totalTokens: 950 }), plainTheme), "tok: 950");
-});
-
-test("renders the compact reasoning token count", () => {
-	assert.equal(renderReasoningTokens(totals({ reasoningTokens: 1_234 }), plainTheme), "cot:1.2K");
-	assert.equal(renderReasoningTokens(totals(), plainTheme), "cot:   0");
 });
 
 test("renders the read and cache mix", () => {

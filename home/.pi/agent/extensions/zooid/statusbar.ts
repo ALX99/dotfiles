@@ -1,18 +1,21 @@
 /**
  * Statusbar Extension — Full custom statusbar replacement.
  *
- * Shows the active model and working directory on the left and compact
- * generation speed, turns, compactions, token totals and mix, reasoning
- * tokens, and context usage on the right. Token totals span every reply
- * recorded in the session file, including branches that were later
- * summarized, and count recorded summary-generation usage. Right-side
- * metrics are separated by whitespace and drawn as dim labels over muted
- * values, so the numbers lead and the labels recede. Fast-changing fields
- * keep fixed widths, and whole metrics drop before any value is cut, so the
- * bar does not reflow while numbers grow. When space is tight, the directory
- * yields to the model so the important state stays visible. The input border
- * mirrors context growth while idle and becomes an activity wave while the
- * agent runs.
+ * Shows the active model, working directory and the statuses extensions set
+ * through `ui.setStatus` on the left, and compact generation speed, turns,
+ * compactions, token totals and mix, and context usage on
+ * the right. Token totals span every reply recorded in the session file,
+ * including branches that were later summarized, and count recorded
+ * summary-generation usage. Reasoning tokens are a subset of generated tokens,
+ * so they are left out of the totals rather than counted twice. Right-side
+ * metrics are separated by whitespace
+ * and drawn as dim labels over muted values, so the numbers lead and the
+ * labels recede. Fast-changing fields keep fixed widths, and whole metrics
+ * drop before any value is cut, so the bar does not reflow while numbers
+ * grow. When space is tight, right-side metrics drop first, then the
+ * directory yields to the model, and a status truncates last so its leading
+ * progress count stays readable. The input border mirrors context growth
+ * while idle and becomes an activity wave while the agent runs.
  *
  * Right-side metrics are right-aligned with space padding.
  */
@@ -29,6 +32,13 @@ import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import { registerAgentActivity } from "../_shared/agent-activity.ts";
+
+/** Renders the extension statuses set through `ui.setStatus` as left-side parts. */
+export function renderExtensionStatuses(statuses: ReadonlyMap<string, string>, theme: StatusbarTheme): string[] {
+	return [...statuses.values()]
+		.filter((text) => text !== "")
+		.map((text) => theme.fg("text", sanitizeTerminalText(text)));
+}
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -157,8 +167,6 @@ export interface SessionTotals {
 	readonly readTokens: number;
 	/** Generated tokens. */
 	readonly writeTokens: number;
-	/** Reasoning/thinking tokens, reported as a subset of generated tokens. */
-	readonly reasoningTokens: number;
 	/** Prompt tokens served from cache. */
 	readonly cachedTokens: number;
 }
@@ -169,7 +177,6 @@ const EMPTY_SESSION_TOTALS: SessionTotals = {
 	totalTokens: 0,
 	readTokens: 0,
 	writeTokens: 0,
-	reasoningTokens: 0,
 	cachedTokens: 0,
 };
 
@@ -179,7 +186,6 @@ function addUsage(totals: SessionTotals, usage: Usage): SessionTotals {
 		totalTokens: totals.totalTokens + usage.totalTokens,
 		readTokens: totals.readTokens + usage.input + usage.cacheRead + usage.cacheWrite,
 		writeTokens: totals.writeTokens + usage.output,
-		reasoningTokens: totals.reasoningTokens + (usage.reasoning ?? 0),
 		cachedTokens: totals.cachedTokens + usage.cacheRead,
 	};
 }
@@ -218,10 +224,6 @@ export function renderSessionCounts(totals: SessionTotals, theme: StatusbarTheme
 
 export function renderTotalTokens(totals: SessionTotals, theme: StatusbarTheme): string {
 	return metricText(theme, "tok:", metricField(totals.totalTokens, formatTokenCount, TOKEN_FIELD_WIDTH));
-}
-
-export function renderReasoningTokens(totals: SessionTotals, theme: StatusbarTheme): string {
-	return metricText(theme, "cot:", metricField(totals.reasoningTokens, formatTokenCount, TOKEN_FIELD_WIDTH));
 }
 
 function percentOf(part: number, whole: number): number {
@@ -591,7 +593,7 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 		requestRender?.();
 	});
 
-	ctx.ui.setFooter((tui, theme) => {
+	ctx.ui.setFooter((tui, theme, footerData) => {
 		const statusbarRequestRender = () => tui.requestRender();
 		requestRender = statusbarRequestRender;
 
@@ -613,6 +615,8 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					leftParts.push(modelText);
 				}
 
+				leftParts.push(...renderExtensionStatuses(footerData.getExtensionStatuses(), theme));
+
 				const ctxUsage = ctx.getContextUsage();
 				const totals = metrics.totals();
 				const viewInput: StatusbarViewInput = {
@@ -622,7 +626,6 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 						renderTokensPerSecond(metrics.tps(), theme),
 						...renderSessionCounts(totals, theme),
 						renderReadPercentage(totals, theme),
-						renderReasoningTokens(totals, theme),
 						renderCachePercentage(totals, theme),
 						renderTotalTokens(totals, theme),
 						renderContextPercentage(ctxUsage ?? UNKNOWN_CONTEXT_USAGE, theme),
