@@ -96,7 +96,6 @@ GH_PAGER="delta"
 DOCKER_BUILDKIT="1"
 NPM_CONFIG_IGNORE_SCRIPTS=true
 DISABLE_TELEMETRY=1  # Disable claude code telemetry
-PI_FFF_MODE=override # Replace pi's built-in find/grep with FFF (pi-fff ext)
 
 # Twilight Bloom LS_COLORS uses Ghostty's ANSI palette, so all terminal apps
 # get the same vivid semantic colors without a separate xterm-256 palette.
