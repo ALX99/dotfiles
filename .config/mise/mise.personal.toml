@@ -11,7 +11,11 @@ rust = "stable"
 "npm:agent-browser" = "latest"
 
 # CLIs
+"aqua:syncthing/syncthing" = "latest"
 "aqua:sharkdp/hyperfine" = "latest"
 "aqua:koalaman/shellcheck" = "latest"
+# npm backend: the aqua/npm binaries skip the postinstall build steps that
+# esbuild, sharp, and workerd need.
+wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 "npm:@kitlangton/terminal-control-darwin-arm64" = "latest"
 "cargo:tokei" = "latest"

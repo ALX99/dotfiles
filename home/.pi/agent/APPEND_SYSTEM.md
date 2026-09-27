@@ -8,6 +8,11 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 - When an approach is not producing useful progress, try a materially different path rather than repeating similar attempts.
 - Implement the smallest coherent change that satisfies the request.
 - Run the most relevant checks, review the result, and stop when the requested outcome is satisfied.
+- Parallelize independent work: batch related shell commands into one call and issue independent tool calls together. Apply this to steps already known to be needed, and keep dependent steps sequential.
+
+## Environment
+
+- You have access to various shell tools, including: rg, fd, jq, yq, awk, sed
 
 ## Scope and evidence
 

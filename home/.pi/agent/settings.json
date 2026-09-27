@@ -15,7 +15,7 @@
     {
       "source": "npm:pi-web-access",
       "extensions": [
-        "+index.ts"
+        "-dist/index.js"
       ]
     },
     "npm:@ff-labs/pi-fff",
