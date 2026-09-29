@@ -7,8 +7,8 @@ import {
 	createEditToolDefinition,
 	initTheme,
 	ToolExecutionComponent,
-	type ExtensionContext,
 	type ExtensionAPI,
+	type ExtensionToolContext,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
@@ -93,7 +93,7 @@ test("compact edit delegates native execution, including ctx.cwd, and renders it
 		},
 		undefined,
 		undefined,
-		{ cwd } as ExtensionContext,
+		{ cwd } as ExtensionToolContext,
 	);
 	assert.equal(await readFile(join(cwd, "config.ts"), "utf8"), "const timeout = 5000;\n");
 	assert.ok(result.details?.patch);

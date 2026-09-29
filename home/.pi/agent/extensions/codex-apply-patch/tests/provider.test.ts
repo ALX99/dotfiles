@@ -9,7 +9,7 @@ import { PassThrough, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
 	createApplyPatchTool,
 	MAX_CAPTURED_OUTPUT_BYTES,
@@ -105,7 +105,7 @@ test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", asy
 			{ patch },
 			undefined,
 			undefined,
-			{ cwd } as ExtensionContext,
+			{ cwd } as ExtensionToolContext,
 		);
 		const upstream = toolText(result);
 		assert.equal(upstream.endsWith("\n"), false, "successful stdout must not be trimmed or rewritten");

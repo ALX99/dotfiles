@@ -16,7 +16,6 @@ import {
 	searchRecords,
 } from "./recall.ts";
 import { registerRecallTool } from "./tools.ts";
-import { installCodexFrameObserver } from "./websocket-observer.ts";
 
 /**
  * Hosted Codex web search for Pi.
@@ -41,8 +40,8 @@ import { installCodexFrameObserver } from "./websocket-observer.ts";
  * }
  * ```
  *
- * Activity reporting reads WebSocket frames, the transport Pi uses by default; with
- * `"transport": "sse"` the search still runs, only the transcript summary is skipped.
+ * Activity reporting reads the `provider_stream_event` Pi emits for every parsed provider
+ * event, so it covers both the WebSocket and SSE transports and both carry the same frames.
  *
  * Those summaries are recorded as TUI-only entries, so the server-side response chain is the
  * model's only copy of a search until compaction summarizes it away. When that happens the
@@ -55,7 +54,6 @@ export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise
 	const { config, diagnostics } = await runPromise(loadConfig());
 	const tracker = createActivityTracker();
 	let ctx: ExtensionContext | undefined;
-	let disposeObserver: (() => void) | undefined;
 	/**
 	 * Record ids whose search results this process can no longer reach. Reachability is a property
 	 * of the live request chain, not of the record, so it is tracked here rather than derived from
@@ -67,10 +65,6 @@ export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise
 		setStatus(context, undefined);
 		for (const diagnostic of diagnostics) context.ui.notify(`codex-web-search: ${diagnostic}`, "warning");
 		unreachable.clear();
-		disposeObserver?.();
-		disposeObserver = config.enabled
-			? installCodexFrameObserver(context.sessionManager.getSessionId(), handleFrame)
-			: undefined;
 	});
 
 	/** Every record currently on the branch is now beyond the model's reach. */
@@ -78,29 +72,31 @@ export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise
 		for (const record of searchRecords(context.sessionManager.getBranch())) unreachable.add(record.entryId);
 	}
 
-	pi.on("session_shutdown", () => {
-		disposeObserver?.();
-		disposeObserver = undefined;
-		setStatus(ctx, undefined);
-	});
+	pi.on("session_shutdown", () => setStatus(ctx, undefined));
 
-	function handleFrame(frame: unknown): void {
-		const outcome = tracker.handle(frame);
+	/**
+	 * Every parsed provider event reaches the session that issued the request, so a Codex response
+	 * is attributed to its own session without the transport-level bookkeeping a shared connection
+	 * would need. The runner isolates handler failures, so a tracker error cannot break the stream.
+	 */
+	pi.on("provider_stream_event", (event, context) => {
+		if (!usesHostedWebSearch({ provider: event.provider, api: event.api }, config)) return;
+		const outcome = tracker.handle(event.data);
 		switch (outcome.kind) {
 			case "response-started":
-				setStatus(ctx, undefined);
+				setStatus(context, undefined);
 				break;
 			case "search-started":
-				setStatus(ctx, ctx?.ui.theme.fg("accent", "web search…"));
+				setStatus(context, context.ui.theme.fg("accent", "web search…"));
 				break;
 			case "response-completed":
-				setStatus(ctx, undefined);
+				setStatus(context, undefined);
 				if (outcome.summary.callCount > 0) pi.appendEntry<SearchSummary>(SEARCH_ENTRY_TYPE, outcome.summary);
 				break;
 			case "ignored":
 				break;
 		}
-	}
+	});
 
 	pi.on("before_provider_request", (event, context) => {
 		ctx = context;

@@ -39,28 +39,7 @@ interface BeforeAgentStartResult {
 
 const STATUS_KEY = "codex-web-search";
 const CODEX_MODEL = { provider: "openai-codex", id: "gpt-5.6-luna", api: "openai-codex-responses" };
-const CODEX_URL = "wss://chatgpt.com/backend-api/codex/responses";
-const NATIVE_WEBSOCKET = globalThis.WebSocket;
 const THEME = { fg: (_color: string, text: string) => text, bg: (_color: string, text: string) => text };
-
-/** Stand-in for the runtime's WebSocket, which the extension's observer subclasses. */
-class FakeWebSocket {
-	private readonly listeners = new Map<string, Array<(event: { data: unknown }) => void>>();
-
-	addEventListener(type: string, listener: (event: { data: unknown }) => void): void {
-		const entries = this.listeners.get(type) ?? [];
-		entries.push(listener);
-		this.listeners.set(type, entries);
-	}
-
-	send(_data: string | ArrayBufferLike | Blob | ArrayBufferView): void {}
-
-	close(): void {}
-
-	emitMessage(data: unknown): void {
-		for (const listener of this.listeners.get("message") ?? []) listener({ data });
-	}
-}
 
 const configDir = mkdtempSync(join(tmpdir(), "codex-web-search-extension-"));
 const configFile = join(configDir, "config.json");
@@ -80,7 +59,6 @@ async function createHarness(config: Record<string, unknown> = {}) {
 	const entries: Array<{ customType: string; data: unknown }> = [];
 	const notifications: Array<{ message: string; type?: string }> = [];
 	const statuses = new Map<string, string>();
-	let sessionId = "session-under-test";
 	let activeTools: string[] = ["bash", "read"];
 	let branch: SessionEntry[] = [];
 
@@ -112,7 +90,6 @@ async function createHarness(config: Record<string, unknown> = {}) {
 	const ctx = {
 		model: CODEX_MODEL,
 		sessionManager: {
-			getSessionId: () => sessionId,
 			getBranch: () => branch,
 		},
 		ui: {
@@ -127,8 +104,6 @@ async function createHarness(config: Record<string, unknown> = {}) {
 		},
 	};
 
-	globalThis.piCodexWebSearchObservers = undefined;
-	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
 	await codexWebSearchExtension(pi);
 
 	return {
@@ -155,19 +130,9 @@ async function createHarness(config: Record<string, unknown> = {}) {
 		start(reason = "new"): void {
 			handlers.get("session_start")?.({ reason }, ctx);
 		},
-		switchSession(next: string, reason = "new"): void {
-			sessionId = next;
-			handlers.get("session_start")?.({ reason }, ctx);
-		},
-		/** A Codex socket whose request already identified the current session. */
-		socket(): FakeWebSocket {
-			const socket = new globalThis.WebSocket(CODEX_URL) as unknown as FakeWebSocket;
-			socket.send(JSON.stringify({ type: "response.create", prompt_cache_key: sessionId }));
-			return socket;
-		},
-		restore(): void {
-			globalThis.WebSocket = NATIVE_WEBSOCKET;
-			globalThis.piCodexWebSearchObservers = undefined;
+		/** Deliver a parsed provider event as the session that issued the request would. */
+		stream(data: unknown, model: { provider: string; api: string } = CODEX_MODEL): void {
+			handlers.get("provider_stream_event")?.({ ...model, data }, ctx);
 		},
 	};
 }
@@ -192,31 +157,27 @@ function searchEntry(query: string): { customType: string; data: unknown } {
 
 test("the provider hook injects the hosted tool for Codex and leaves other models alone", async () => {
 	const harness = await createHarness();
-	try {
-		const handler = harness.handlers.get("before_provider_request");
-		assert.ok(handler);
+	const handler = harness.handlers.get("before_provider_request");
+	assert.ok(handler);
 
-		const payload = {
-			tools: [
-				{ type: "function", name: "web_search" },
-				{ type: "function", name: "bash" },
-			],
-		};
-		assert.deepEqual(handler({ payload }, harness.ctx), {
-			tools: [
-				{ type: "function", name: "bash" },
-				{ type: "web_search", external_web_access: true },
-			],
-			include: ["web_search_call.action.sources"],
-		});
+	const payload = {
+		tools: [
+			{ type: "function", name: "web_search" },
+			{ type: "function", name: "bash" },
+		],
+	};
+	assert.deepEqual(handler({ payload }, harness.ctx), {
+		tools: [
+			{ type: "function", name: "bash" },
+			{ type: "web_search", external_web_access: true },
+		],
+		include: ["web_search_call.action.sources"],
+	});
 
-		const other = { tools: [{ type: "function", name: "web_search" }] };
-		const otherCtx = { ...harness.ctx, model: { provider: "anthropic", id: "claude", api: "anthropic-messages" } };
-		assert.equal(handler({ payload: other }, otherCtx), undefined);
-		assert.equal(handler({ payload: "not a payload" }, harness.ctx), undefined);
-	} finally {
-		harness.restore();
-	}
+	const other = { tools: [{ type: "function", name: "web_search" }] };
+	const otherCtx = { ...harness.ctx, model: { provider: "anthropic", id: "claude", api: "anthropic-messages" } };
+	assert.equal(handler({ payload: other }, otherCtx), undefined);
+	assert.equal(handler({ payload: "not a payload" }, harness.ctx), undefined);
 });
 
 test("the provider hook loads Codex search settings into the hosted tool payload", async () => {
@@ -226,218 +187,171 @@ test("the provider hook loads Codex search settings into the hosted tool payload
 		userLocation: { country: "US", region: "California", timezone: "America/Los_Angeles" },
 		searchContextSize: "low",
 	});
-	try {
-		const handler = harness.handlers.get("before_provider_request");
-		assert.ok(handler);
-		const context = { ...harness.ctx, model: { ...CODEX_MODEL, input: ["text", "image"] } };
-		const payload = {
-			tools: [
-				{ type: "function", name: "web_search" },
-				{ type: "function", name: "bash" },
-			],
-			include: ["reasoning.encrypted_content"],
-		};
+	const handler = harness.handlers.get("before_provider_request");
+	assert.ok(handler);
+	const context = { ...harness.ctx, model: { ...CODEX_MODEL, input: ["text", "image"] } };
+	const payload = {
+		tools: [
+			{ type: "function", name: "web_search" },
+			{ type: "function", name: "bash" },
+		],
+		include: ["reasoning.encrypted_content"],
+	};
 
-		assert.deepEqual(handler({ payload }, context), {
-			tools: [
-				{ type: "function", name: "bash" },
-				{
-					type: "web_search",
-					external_web_access: true,
-					indexed_web_access: true,
-					filters: { allowed_domains: ["example.com"] },
-					user_location: {
-						type: "approximate",
-						country: "US",
-						region: "California",
-						timezone: "America/Los_Angeles",
-					},
-					search_context_size: "low",
-					search_content_types: ["text", "image"],
+	assert.deepEqual(handler({ payload }, context), {
+		tools: [
+			{ type: "function", name: "bash" },
+			{
+				type: "web_search",
+				external_web_access: true,
+				indexed_web_access: true,
+				filters: { allowed_domains: ["example.com"] },
+				user_location: {
+					type: "approximate",
+					country: "US",
+					region: "California",
+					timezone: "America/Los_Angeles",
 				},
-			],
-			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
-		});
-	} finally {
-		harness.restore();
-	}
+				search_context_size: "low",
+				search_content_types: ["text", "image"],
+			},
+		],
+		include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+	});
 });
 
 test("the provider hook requests search sources when a hosted tool already exists", async () => {
 	const harness = await createHarness({ searchContextSize: "high" });
-	try {
-		const handler = harness.handlers.get("before_provider_request");
-		assert.ok(handler);
-		const payload = {
-			tools: [
-				{ type: "web_search", external_web_access: false },
-				{ type: "function", name: "bash" },
-			],
-			include: ["reasoning.encrypted_content"],
-		};
+	const handler = harness.handlers.get("before_provider_request");
+	assert.ok(handler);
+	const payload = {
+		tools: [
+			{ type: "web_search", external_web_access: false },
+			{ type: "function", name: "bash" },
+		],
+		include: ["reasoning.encrypted_content"],
+	};
 
-		assert.deepEqual(handler({ payload }, harness.ctx), {
-			...payload,
-			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
-		});
-	} finally {
-		harness.restore();
-	}
+	assert.deepEqual(handler({ payload }, harness.ctx), {
+		...payload,
+		include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+	});
 });
 
-test("a disabled extension neither injects nor observes", async () => {
+test("a disabled extension neither injects nor records", async () => {
 	const harness = await createHarness({ enabled: false });
-	try {
-		assert.equal(harness.handlers.get("before_provider_request")?.({ payload: { tools: [] } }, harness.ctx), undefined);
-		harness.start();
-		assert.equal(globalThis.piCodexWebSearchObservers, undefined);
-	} finally {
-		harness.restore();
-	}
+	assert.equal(harness.handlers.get("before_provider_request")?.({ payload: { tools: [] } }, harness.ctx), undefined);
+	harness.start();
+	harness.stream({ type: "response.created" });
+	harness.stream(searchFrame("uv latest release"));
+	harness.stream({ type: "response.completed" });
+	assert.deepEqual(harness.entries, []);
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
 });
 
 test("configuration diagnostics are reported once per session", async () => {
 	const harness = await createHarness({ mode: "sideways" });
-	try {
-		harness.start();
-		assert.equal(harness.notifications.length, 1);
-		assert.match(harness.notifications[0]?.message ?? "", /mode/);
-	} finally {
-		harness.restore();
-	}
+	harness.start();
+	assert.equal(harness.notifications.length, 1);
+	assert.match(harness.notifications[0]?.message ?? "", /mode/);
 });
 
-test("search frames from this session drive the footer status and record a transcript entry", async () => {
+test("provider events from this session drive the footer status and record a transcript entry", async () => {
 	const harness = await createHarness();
-	try {
-		harness.start();
-		const socket = harness.socket();
+	harness.start();
 
-		socket.emitMessage(JSON.stringify({ type: "response.created" }));
-		assert.equal(harness.statuses.has(STATUS_KEY), false);
-		socket.emitMessage(JSON.stringify({ type: "response.web_search_call.searching" }));
-		assert.equal(harness.statuses.get(STATUS_KEY), "web search…");
+	harness.stream({ type: "response.created" });
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
+	harness.stream({ type: "response.web_search_call.searching" });
+	assert.equal(harness.statuses.get(STATUS_KEY), "web search…");
 
-		socket.emitMessage(JSON.stringify(searchFrame("uv latest release")));
-		socket.emitMessage(JSON.stringify({ type: "response.completed" }));
+	harness.stream(searchFrame("uv latest release"));
+	harness.stream({ type: "response.completed" });
 
-		assert.equal(harness.statuses.has(STATUS_KEY), false);
-		assert.deepEqual(harness.entries, [searchEntry("uv latest release")]);
-	} finally {
-		harness.restore();
-	}
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
+	assert.deepEqual(harness.entries, [searchEntry("uv latest release")]);
+});
+
+test("the SSE transport records the same summary as the WebSocket transport", async () => {
+	const harness = await createHarness();
+	harness.start();
+
+	// Codex normalizes `response.done` to `response.completed` after the callback runs, so the
+	// extension sees the pre-normalization name on both transports.
+	harness.stream({ type: "response.created" });
+	harness.stream(searchFrame("uv latest release"));
+	harness.stream({ type: "response.done" });
+
+	assert.deepEqual(harness.entries, [searchEntry("uv latest release")]);
 });
 
 test("a response without searches records nothing", async () => {
 	const harness = await createHarness();
-	try {
-		harness.start();
-		const socket = harness.socket();
-		socket.emitMessage(JSON.stringify({ type: "response.created" }));
-		socket.emitMessage(JSON.stringify({ type: "response.completed" }));
-		assert.deepEqual(harness.entries, []);
-		assert.equal(harness.statuses.has(STATUS_KEY), false);
-	} finally {
-		harness.restore();
-	}
+	harness.start();
+	harness.stream({ type: "response.created" });
+	harness.stream({ type: "response.completed" });
+	assert.deepEqual(harness.entries, []);
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
 });
 
-test("frames from other sessions are ignored", async () => {
+test("events from providers the hosted tool does not serve are ignored", async () => {
 	const harness = await createHarness();
-	try {
-		harness.start();
-		const foreign = new globalThis.WebSocket(CODEX_URL) as unknown as FakeWebSocket;
-		foreign.send(JSON.stringify({ type: "response.create", prompt_cache_key: "a-subagent-session" }));
-		foreign.emitMessage(JSON.stringify(searchFrame("other")));
-		foreign.emitMessage(JSON.stringify({ type: "response.completed" }));
-		assert.deepEqual(harness.entries, []);
-	} finally {
-		harness.restore();
-	}
+	harness.start();
+	const anthropic = { provider: "anthropic", api: "anthropic-messages" };
+
+	harness.stream({ type: "response.web_search_call.searching" }, anthropic);
+	harness.stream(searchFrame("other"), anthropic);
+	harness.stream({ type: "response.completed" }, anthropic);
+
+	assert.deepEqual(harness.entries, []);
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
 });
 
-test("switching sessions follows the new session key", async () => {
+test("session shutdown clears the status", async () => {
 	const harness = await createHarness();
-	try {
-		harness.start();
-		const previous = harness.socket();
+	harness.start();
+	harness.stream({ type: "response.web_search_call.searching" });
+	assert.equal(harness.statuses.get(STATUS_KEY), "web search…");
 
-		harness.switchSession("session-after-switch");
-		const current = harness.socket();
-		current.emitMessage(JSON.stringify(searchFrame("new session search")));
-		current.emitMessage(JSON.stringify({ type: "response.completed" }));
-
-		previous.emitMessage(JSON.stringify(searchFrame("old session search")));
-		previous.emitMessage(JSON.stringify({ type: "response.completed" }));
-
-		assert.deepEqual(harness.entries, [searchEntry("new session search")]);
-	} finally {
-		harness.restore();
-	}
-});
-
-test("session shutdown disposes the observer and clears the status", async () => {
-	const harness = await createHarness();
-	try {
-		harness.start();
-		const socket = harness.socket();
-		socket.emitMessage(JSON.stringify({ type: "response.web_search_call.searching" }));
-		assert.equal(harness.statuses.get(STATUS_KEY), "web search…");
-
-		harness.handlers.get("session_shutdown")?.({}, harness.ctx);
-		socket.emitMessage(JSON.stringify(searchFrame("after shutdown")));
-		socket.emitMessage(JSON.stringify({ type: "response.completed" }));
-
-		assert.equal(harness.statuses.has(STATUS_KEY), false);
-		assert.deepEqual(harness.entries, []);
-	} finally {
-		harness.restore();
-	}
+	harness.handlers.get("session_shutdown")?.({}, harness.ctx);
+	assert.equal(harness.statuses.has(STATUS_KEY), false);
 });
 
 test("the entry renderer summarizes searches and expands sources", async () => {
 	const harness = await createHarness();
-	try {
-		const renderer = harness.renderers.get("codex-web-search");
-		assert.ok(renderer);
-		const summary = {
-			queries: ["uv latest release"],
-			sources: ["https://a.example", "https://b.example", "https://c.example", "https://d.example"],
-			openedUrls: [],
-			callCount: 2,
-		};
+	const renderer = harness.renderers.get("codex-web-search");
+	assert.ok(renderer);
+	const summary = {
+		queries: ["uv latest release"],
+		sources: ["https://a.example", "https://b.example", "https://c.example", "https://d.example"],
+		openedUrls: [],
+		callCount: 2,
+	};
 
-		const collapsed = renderer({ data: summary }, { expanded: false }, THEME);
-		assert.ok(collapsed);
-		const collapsedText = collapsed.render(80).join("\n");
-		assert.match(collapsedText, /2 searches/);
-		assert.match(collapsedText, /4 sources/);
-		assert.match(collapsedText, /uv latest release/);
-		assert.match(collapsedText, /\+1 more sources/);
+	const collapsed = renderer({ data: summary }, { expanded: false }, THEME);
+	assert.ok(collapsed);
+	const collapsedText = collapsed.render(80).join("\n");
+	assert.match(collapsedText, /2 searches/);
+	assert.match(collapsedText, /4 sources/);
+	assert.match(collapsedText, /uv latest release/);
+	assert.match(collapsedText, /\+1 more sources/);
 
-		const expanded = renderer({ data: summary }, { expanded: true }, THEME);
-		assert.ok(expanded);
-		const expandedText = expanded.render(80).join("\n");
-		assert.match(expandedText, /https:\/\/d\.example/);
-		assert.doesNotMatch(expandedText, /more sources/);
-	} finally {
-		harness.restore();
-	}
+	const expanded = renderer({ data: summary }, { expanded: true }, THEME);
+	assert.ok(expanded);
+	const expandedText = expanded.render(80).join("\n");
+	assert.match(expandedText, /https:\/\/d\.example/);
+	assert.doesNotMatch(expandedText, /more sources/);
 });
 
 test("the status command reports the active model and config path", async () => {
 	const harness = await createHarness();
-	try {
-		const command = harness.commands.get("codex-web-search");
-		assert.ok(command);
-		const notifications: string[] = [];
-		await command.handler("", { model: CODEX_MODEL, ui: { notify: (message: string) => notifications.push(message) } });
-		assert.match(notifications[0] ?? "", /on for openai-codex\/gpt-5\.6-luna/);
-		assert.match(notifications[0] ?? "", /mode=live/);
-		assert.match(notifications[0] ?? "", new RegExp(configFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-	} finally {
-		harness.restore();
-	}
+	const command = harness.commands.get("codex-web-search");
+	assert.ok(command);
+	const notifications: string[] = [];
+	await command.handler("", { model: CODEX_MODEL, ui: { notify: (message: string) => notifications.push(message) } });
+	assert.match(notifications[0] ?? "", /on for openai-codex\/gpt-5\.6-luna/);
+	assert.match(notifications[0] ?? "", /mode=live/);
+	assert.match(notifications[0] ?? "", new RegExp(configFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 const TIMESTAMP = new Date(0).toISOString();
@@ -479,98 +393,74 @@ function pointerEntry(id: string, entryIds: string[]): SessionEntry {
 
 test("nothing is advertised before a search is recorded", async () => {
 	const harness = await createHarness();
-	try {
-		harness.setEntries([]);
-		assert.ok(harness.tools.has("web_search_log"));
-		assert.equal(harness.beforeAgentStart(), undefined);
-		assert.equal(harness.activeTools().includes("web_search_log"), false);
-	} finally {
-		harness.restore();
-	}
+	harness.setEntries([]);
+	assert.ok(harness.tools.has("web_search_log"));
+	assert.equal(harness.beforeAgentStart(), undefined);
+	assert.equal(harness.activeTools().includes("web_search_log"), false);
 });
 
 test("a recorded search is announced on the next prompt and announced only once", async () => {
 	const harness = await createHarness();
-	try {
-		// A search lands mid-turn, after that turn's before_agent_start already ran.
-		const search = branchSearchEntry("s1", "uv latest release");
-		harness.setEntries([search]);
+	// A search lands mid-turn, after that turn's before_agent_start already ran.
+	const search = branchSearchEntry("s1", "uv latest release");
+	harness.setEntries([search]);
 
-		const first = harness.beforeAgentStart();
-		assert.equal(first?.message?.customType, RECALL_MESSAGE_TYPE);
-		assert.match(first?.message?.content ?? "", /1 earlier web search recorded/);
-		assert.deepEqual(first?.message?.details, { entryIds: ["s1"] });
-		assert.equal(harness.activeTools().includes("web_search_log"), true);
+	const first = harness.beforeAgentStart();
+	assert.equal(first?.message?.customType, RECALL_MESSAGE_TYPE);
+	assert.match(first?.message?.content ?? "", /1 earlier web search recorded/);
+	assert.deepEqual(first?.message?.details, { entryIds: ["s1"] });
+	assert.equal(harness.activeTools().includes("web_search_log"), true);
 
-		// The pointer is part of the branch now, so later prompts stay quiet.
-		harness.setEntries([search, pointerEntry("p1", ["s1"])]);
-		assert.equal(harness.beforeAgentStart(), undefined);
+	// The pointer is part of the branch now, so later prompts stay quiet.
+	harness.setEntries([search, pointerEntry("p1", ["s1"])]);
+	assert.equal(harness.beforeAgentStart(), undefined);
 
-		// A later search is announced on its own.
-		const later = branchSearchEntry("s2", "mise tasks");
-		harness.setEntries([search, pointerEntry("p1", ["s1"]), later]);
-		assert.deepEqual(harness.beforeAgentStart()?.message?.details, { entryIds: ["s2"] });
-	} finally {
-		harness.restore();
-	}
+	// A later search is announced on its own.
+	const later = branchSearchEntry("s2", "mise tasks");
+	harness.setEntries([search, pointerEntry("p1", ["s1"]), later]);
+	assert.deepEqual(harness.beforeAgentStart()?.message?.details, { entryIds: ["s2"] });
 });
 
 test("a record this process never carried is announced on the first prompt", async () => {
 	const harness = await createHarness();
-	try {
-		// Resuming a session: the record is on disk, and this process has no chain for it.
-		const search = branchSearchEntry("s1", "uv latest release");
-		harness.setEntries([search]);
-		harness.start("resume");
-		assert.deepEqual(harness.beforeAgentStart()?.message?.details, { entryIds: ["s1"] });
-	} finally {
-		harness.restore();
-	}
+	// Resuming a session: the record is on disk, and this process has no chain for it.
+	const search = branchSearchEntry("s1", "uv latest release");
+	harness.setEntries([search]);
+	harness.start("resume");
+	assert.deepEqual(harness.beforeAgentStart()?.message?.details, { entryIds: ["s1"] });
 });
 
 test("a compaction mid-turn also marks the records it hid", async () => {
 	const harness = await createHarness();
-	try {
-		const search = branchSearchEntry("s1", "uv latest release");
-		harness.setEntries([search, compactionEntry("c1", "s1")]);
-		harness.compact();
-		assert.equal(harness.activeTools().includes("web_search_log"), true);
-	} finally {
-		harness.restore();
-	}
+	const search = branchSearchEntry("s1", "uv latest release");
+	harness.setEntries([search, compactionEntry("c1", "s1")]);
+	harness.compact();
+	assert.equal(harness.activeTools().includes("web_search_log"), true);
 });
 
 test("the recall tool lists every search the session recorded", async () => {
 	const harness = await createHarness();
-	try {
-		const before = branchSearchEntry("s1", "uv latest release");
-		const later = branchSearchEntry("s2", "mise tasks", { openedUrls: ["https://example.com/docs"] });
-		harness.setEntries([before, later]);
+	const before = branchSearchEntry("s1", "uv latest release");
+	const later = branchSearchEntry("s2", "mise tasks", { openedUrls: ["https://example.com/docs"] });
+	harness.setEntries([before, later]);
 
-		const tool = harness.tools.get("web_search_log");
-		assert.ok(tool);
+	const tool = harness.tools.get("web_search_log");
+	assert.ok(tool);
 
-		const all = await tool.execute("call", {}, undefined, undefined, harness.ctx);
-		assert.match(all.content[0]?.text ?? "", /uv latest release/);
-		assert.match(all.content[0]?.text ?? "", /mise tasks/);
+	const all = await tool.execute("call", {}, undefined, undefined, harness.ctx);
+	assert.match(all.content[0]?.text ?? "", /uv latest release/);
+	assert.match(all.content[0]?.text ?? "", /mise tasks/);
 
-		const filtered = await tool.execute("call", { query: "docs" }, undefined, undefined, harness.ctx);
-		assert.match(filtered.content[0]?.text ?? "", /mise tasks/);
-		assert.doesNotMatch(filtered.content[0]?.text ?? "", /uv latest release/);
-	} finally {
-		harness.restore();
-	}
+	const filtered = await tool.execute("call", { query: "docs" }, undefined, undefined, harness.ctx);
+	assert.match(filtered.content[0]?.text ?? "", /mise tasks/);
+	assert.doesNotMatch(filtered.content[0]?.text ?? "", /uv latest release/);
 });
 
 test("the recall pointer renders its record count", async () => {
 	const harness = await createHarness();
-	try {
-		const renderer = harness.messageRenderers.get(RECALL_MESSAGE_TYPE);
-		assert.ok(renderer);
-		const component = renderer({ details: { entryIds: ["s1", "s2"] } }, { outputPad: 0 }, THEME);
-		assert.ok(component);
-		assert.match(component.render(80).join("\n"), /2 earlier web searches re-sent with sources/);
-	} finally {
-		harness.restore();
-	}
+	const renderer = harness.messageRenderers.get(RECALL_MESSAGE_TYPE);
+	assert.ok(renderer);
+	const component = renderer({ details: { entryIds: ["s1", "s2"] } }, { outputPad: 0 }, THEME);
+	assert.ok(component);
+	assert.match(component.render(80).join("\n"), /2 earlier web searches re-sent with sources/);
 });
