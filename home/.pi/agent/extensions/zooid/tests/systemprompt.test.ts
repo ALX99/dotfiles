@@ -169,13 +169,16 @@ test("tools come from the injected snippets and skip tools without one", () => {
 	assert.equal(section(prompt, "Available tools:"), "- read: Read file contents\n- edit: Make file edits");
 });
 
-test("the bash snippet names rg and fd in place of Pi's grep and find", () => {
+test("the bash snippet names the host shell tools in place of Pi's grep and find", () => {
 	const prompt = build({
 		selectedTools: ["bash"],
 		toolSnippets: { bash: "Execute bash commands (ls, grep, find, etc.)" },
 	});
 
-	assert.equal(section(prompt, "Available tools:"), "- bash: Execute bash commands (ls, rg, fd, etc.)");
+	assert.equal(
+		section(prompt, "Available tools:"),
+		"- bash: Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
+	);
 });
 
 test("an empty tool set renders as none rather than a dangling heading", () => {
@@ -468,7 +471,10 @@ test("the extension uses live active tools rather than the event's possibly stal
 		}),
 	);
 
-	assert.equal(section(prompt ?? "", "Available tools:"), "- bash: Execute bash commands (ls, rg, fd, etc.)");
+	assert.equal(
+		section(prompt ?? "", "Available tools:"),
+		"- bash: Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
+	);
 });
 
 test("the prompt renders the live tools' guidelines, attributed to their owner", async () => {

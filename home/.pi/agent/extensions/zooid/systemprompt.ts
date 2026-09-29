@@ -55,11 +55,12 @@ const FIXED_GUIDELINE_OWNERS = new Map([
 
 /**
  * Pi's built-in bash snippet names the search tools the model would otherwise reach for in a shell.
- * This host installs ripgrep and fd, so the catalog names those instead. Keys win over the snippet
- * Pi derives from the live tool definition.
+ * This host installs ripgrep and fd, and its agent prompt documents the other shell tools it
+ * guarantees, so the catalog names those instead. Keys win over the snippet Pi derives from the
+ * live tool definition.
  */
 const TOOL_SNIPPET_OVERRIDES: Record<string, string> = {
-	bash: "Execute bash commands (ls, rg, fd, etc.)",
+	bash: "Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
 };
 
 function toolBlock(options: BuildSystemPromptOptions): string {
