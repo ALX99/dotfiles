@@ -3,9 +3,13 @@
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "xhigh",
   "defaultProjectTrust": "always",
+  "defaultTools": ["+codemode"],
+  "codemode": {
+    "mode": "only"
+  },
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "0.87.1",
+  "lastChangelogVersion": "0.99.1",
   "retry": {
     "maxRetries": 20,
     "enabled": true

@@ -63,13 +63,25 @@ const TOOL_SNIPPET_OVERRIDES: Record<string, string> = {
 	bash: "Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
 };
 
-function toolBlock(options: BuildSystemPromptOptions): string {
+const CODEMODE_ONLY_LABEL = "Tools reachable only through the `codemode` tool:";
+function toolLines(names: readonly string[], options: BuildSystemPromptOptions): string[] {
 	const snippets = options.toolSnippets ?? {};
-	const lines = (options.selectedTools ?? []).flatMap((name) => {
+	return names.flatMap((name) => {
 		const snippet = TOOL_SNIPPET_OVERRIDES[name] ?? snippets[name];
 		return snippet === undefined || snippet.length === 0 ? [] : [`- ${name}: ${snippet}`];
 	});
-	return `Available tools:\n${lines.length > 0 ? lines.join("\n") : "(none)"}`;
+}
+
+function toolBlock(options: BuildSystemPromptOptions, scripted: readonly string[] = []): string {
+	const behind = new Set(scripted);
+	const lines = toolLines(
+		(options.selectedTools ?? []).filter((name) => !behind.has(name)),
+		options,
+	);
+	const sections = [`Available tools:\n${lines.length > 0 ? lines.join("\n") : "(none)"}`];
+	const scriptedLines = toolLines(scripted, options);
+	if (scriptedLines.length > 0) sections.push(`${CODEMODE_ONLY_LABEL}\n${scriptedLines.join("\n")}`);
+	return sections.join("\n\n");
 }
 
 /**
@@ -80,10 +92,11 @@ const SUPPRESSED_GUIDELINES = new Set([
 	"You can inspect PI_* environment variables for current model and session details.",
 ]);
 
-/** The slice of the host tool registry that guideline attribution needs. */
-export interface GuidelineToolSource {
+/** The slice of the host tool registry that the prompt's tool and guideline sections need. */
+export interface PromptToolRegistry {
 	getActiveTools(): string[];
-	getAllTools(): Array<{ name: string; promptGuidelines?: readonly string[] }>;
+	getAllTools(): Array<{ name: string; promptGuidelines?: readonly string[]; exposure?: string }>;
+	getSettings?(): { codemode?: { mode?: string } };
 }
 
 /**
@@ -92,7 +105,7 @@ export interface GuidelineToolSource {
  * The insertion order also reproduces the list Pi builds for the same selection, so the map is the
  * live guideline list as well as the attribution source.
  */
-export function guidelineOwners(pi: GuidelineToolSource): ReadonlyMap<string, string> {
+export function guidelineOwners(pi: PromptToolRegistry): ReadonlyMap<string, string> {
 	const definitions = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
 	const owners = new Map<string, string>();
 	for (const name of pi.getActiveTools()) {
@@ -103,6 +116,32 @@ export function guidelineOwners(pi: GuidelineToolSource): ReadonlyMap<string, st
 		}
 	}
 	return owners;
+}
+
+/** The name Pi's built-in codemode extension registers, whose `prepareLoadout` does the hiding. */
+const CODEMODE_TOOL = "codemode";
+
+/**
+ * Splits the active tools into the ones the model calls itself and the ones it reaches through a
+ * `codemode` script. `codemode.mode: "only"` hides those declarations from the request but leaves
+ * the tools active in the registry, so the prompt has to subtract them itself. A tool the registry
+ * does not describe counts as direct, since that is what Pi declares.
+ *
+ * The mode only takes effect while the `codemode` tool is active, because its `prepareLoadout` hook
+ * runs with the tool. The setting outlives `-builtin:codemode` and a session that drops the tool, so
+ * it cannot stand alone as the condition.
+ */
+export function promptTools(pi: PromptToolRegistry): { direct: string[]; scripted: string[] } {
+	const active = pi.getActiveTools();
+	const exposures = new Map(pi.getAllTools().map((tool) => [tool.name, tool.exposure]));
+	const throughCodemode = active.includes(CODEMODE_TOOL) && pi.getSettings?.().codemode?.mode === "only";
+	const direct: string[] = [];
+	const scripted: string[] = [];
+	for (const name of active) {
+		if (throughCodemode && exposures.get(name) === "direct") scripted.push(name);
+		else direct.push(name);
+	}
+	return { direct, scripted };
 }
 
 /** Prefixes tool-owned guidelines so every tool rule has a stable, searchable owner. */
@@ -152,6 +191,14 @@ function skillBlock(options: BuildSystemPromptOptions, enabledNames?: ReadonlySe
 	return entries.length === 0 ? "" : `Skills:\n\n${SKILL_INSTRUCTIONS}\n\n${entries.join("\n")}`;
 }
 
+/** The registry-derived prompt state that `buildSystemPrompt` cannot read from the options alone. */
+export interface PromptTools {
+	/** Guideline text to the active tool that declared it. */
+	owners: ReadonlyMap<string, string>;
+	/** Active tools the model reaches through `codemode` rather than by calling them. */
+	scripted: readonly string[];
+}
+
 /**
  * Renders the replacement prompt. A user-supplied custom prompt replaces the role statement only:
  * the other sections carry the live tools, guidelines, and skills this renderer owns, so they stay
@@ -161,14 +208,14 @@ export function buildSystemPrompt(
 	options: BuildSystemPromptOptions,
 	host: HostInformation = hostInformation(),
 	enabledSkills?: ReadonlySet<string>,
-	owners?: ReadonlyMap<string, string>,
+	tools?: PromptTools,
 ): string {
 	const uname = [host.system, host.release, host.version, host.machine].join(" ");
 	return [
 		options.customPrompt?.trim() || ROLE_LINE,
 		options.appendSystemPrompt?.trim() ?? "",
-		toolBlock(options),
-		guidelineBlock(options, owners),
+		toolBlock(options, tools?.scripted),
+		guidelineBlock(options, tools?.owners),
 		skillBlock(options, enabledSkills),
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
 		contextBlock(options.contextFiles),
@@ -273,19 +320,23 @@ export class SystemPromptViewer {
  * The prompt the next turn will send, derived from live session state rather than the last turn.
  * Pi rebuilds its prompt options only when tools change, and it hands every handler the options it
  * captured before the chain ran, so a mode that narrows the selection during this event leaves them
- * naming tools the model cannot call. The selection and its guidelines are therefore read from the
- * live registry here. The rest of the options stay as given: the host exposes normalized tool
- * snippets only through them. `/skills` records its selection in session entries rather than in
- * those options, so it is read separately.
+ * naming tools the model cannot call. The selection, its guidelines, and the tools `codemode` moved
+ * behind its own tool are therefore read from the live registry here. The rest of the options stay
+ * as given: the host exposes normalized tool snippets only through them. `/skills` records its
+ * selection in session entries rather than in those options, so it is read separately.
  */
 function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSystemPromptOptions): string {
 	const owners = guidelineOwners(pi);
+	const { scripted } = promptTools(pi);
 	const live: BuildSystemPromptOptions = {
 		...options,
 		selectedTools: pi.getActiveTools(),
 		promptGuidelines: [...owners.keys()],
 	};
-	return buildSystemPrompt(live, hostInformation(), enabledModelSkillNames(ctx, live.skills ?? []), owners);
+	return buildSystemPrompt(live, hostInformation(), enabledModelSkillNames(ctx, live.skills ?? []), {
+		owners,
+		scripted,
+	});
 }
 
 /** Accepts a relative path, an absolute path, or a `~`-rooted path. */

@@ -13,6 +13,7 @@ import systemPromptExtension, {
 	cwdPath,
 	guidelineOwners,
 	hostInformation,
+	promptTools,
 	tildePath,
 	type HostInformation,
 } from "../systemprompt.ts";
@@ -185,6 +186,123 @@ test("an empty tool set renders as none rather than a dangling heading", () => {
 	const prompt = build({ selectedTools: [], toolSnippets: {} });
 
 	assert.equal(section(prompt, "Available tools:"), "(none)");
+});
+
+test("tools behind codemode render as their own block instead of as callable", () => {
+	const prompt = buildSystemPrompt(
+		options({
+			selectedTools: ["codemode", "read", "bash"],
+			toolSnippets: { codemode: "Run a script", read: "Read file contents", bash: "Execute bash commands" },
+		}),
+		HOST,
+		undefined,
+		{ owners: new Map(), scripted: ["read", "bash"] },
+	);
+
+	assert.equal(section(prompt, "Available tools:"), "- codemode: Run a script");
+	assert.equal(
+		section(prompt, "Tools reachable only through the `codemode` tool:"),
+		"- read: Read file contents\n- bash: Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
+	);
+});
+
+test("no second tool block renders when every tool is directly callable", () => {
+	const prompt = build({ selectedTools: ["read"] });
+
+	assert.equal(prompt.includes("Tools reachable only through the `codemode` tool:"), false);
+});
+
+test("codemode.mode only moves the active direct tools behind the codemode tool", () => {
+	const registry = {
+		getActiveTools: () => ["codemode", "read", "bash", "web_search"],
+		getAllTools: () => [
+			{ name: "codemode", exposure: "model-only" },
+			{ name: "read", exposure: "direct" },
+			{ name: "bash", exposure: "direct" },
+			{ name: "web_search", exposure: "codemode" },
+		],
+		getSettings: () => ({ codemode: { mode: "only" as const } }),
+	};
+
+	assert.deepEqual(promptTools(registry), { direct: ["codemode", "web_search"], scripted: ["read", "bash"] });
+});
+
+test("codemode.mode on leaves every active tool directly callable", () => {
+	const registry = {
+		getActiveTools: () => ["read", "bash"],
+		getAllTools: () => [
+			{ name: "read", exposure: "direct" },
+			{ name: "bash", exposure: "direct" },
+		],
+		getSettings: () => ({ codemode: { mode: "on" as const } }),
+	};
+
+	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [] });
+});
+
+test("a tool the registry does not describe stays directly callable", () => {
+	const registry = { getActiveTools: () => ["read"], getAllTools: () => [] };
+
+	assert.deepEqual(promptTools(registry), { direct: ["read"], scripted: [] });
+});
+
+test("codemode.mode only does nothing while the codemode tool is inactive", () => {
+	const registry = {
+		getActiveTools: () => ["read", "bash"],
+		getAllTools: () => [
+			{ name: "read", exposure: "direct" },
+			{ name: "bash", exposure: "direct" },
+		],
+		getSettings: () => ({ codemode: { mode: "only" as const } }),
+	};
+
+	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [] });
+});
+
+test("the extension renders the codemode split from the live registry", async () => {
+	const run = createHarness({
+		activeTools: ["codemode", "read"],
+		codemodeMode: "only",
+		tools: [
+			{ name: "codemode", exposure: "model-only" },
+			{ name: "read", exposure: "direct" },
+		],
+	});
+	const prompt = await run(options({ toolSnippets: { codemode: "Run a script", read: "Read file contents" } }));
+
+	assert.ok(prompt);
+	assert.equal(section(prompt, "Available tools:"), "- codemode: Run a script");
+	assert.equal(section(prompt, "Tools reachable only through the `codemode` tool:"), "- read: Read file contents");
+});
+
+test("the extension keeps every tool directly callable once codemode is dropped", async () => {
+	const run = createHarness({
+		activeTools: ["read"],
+		codemodeMode: "only",
+		tools: [{ name: "read", exposure: "direct" }],
+	});
+	const prompt = await run(options({ toolSnippets: { read: "Read file contents" } }));
+
+	assert.ok(prompt);
+	assert.equal(section(prompt, "Available tools:"), "- read: Read file contents");
+	assert.equal(prompt.includes("Tools reachable only through the `codemode` tool:"), false);
+});
+
+test("the extension leaves every tool directly callable in the default codemode mode", async () => {
+	const run = createHarness({
+		tools: [
+			{ name: "read", exposure: "direct" },
+			{ name: "bash", exposure: "direct" },
+		],
+	});
+	const prompt = await run();
+
+	assert.ok(prompt);
+	assert.equal(
+		section(prompt, "Available tools:"),
+		"- read: Read file contents\n- bash: Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
+	);
+	assert.equal(prompt.includes("Tools reachable only through the `codemode` tool:"), false);
 });
 
 test("guidelines render in order, skipping blanks and duplicates", () => {
@@ -412,7 +530,8 @@ interface HarnessOptions {
 	activeTools?: string[];
 	initialBranch?: Entry[];
 	/** Tool definitions as Pi would report them, including their own prompt guidelines. */
-	tools?: Array<{ name: string; promptGuidelines?: string[] }>;
+	tools?: Array<{ name: string; promptGuidelines?: string[]; exposure?: string }>;
+	codemodeMode?: "on" | "only";
 }
 
 function createHarness(config: HarnessOptions = {}) {
@@ -424,6 +543,7 @@ function createHarness(config: HarnessOptions = {}) {
 		},
 		getActiveTools: () => [...(config.activeTools ?? ["read", "bash"])],
 		getAllTools: () => config.tools ?? [],
+		getSettings: () => ({ codemode: { mode: config.codemodeMode ?? "on" } }),
 	};
 	const branch: Entry[] = config.initialBranch ?? [];
 	const ctx = { sessionManager: { getBranch: () => branch } };
