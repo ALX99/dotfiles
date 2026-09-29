@@ -65,7 +65,7 @@ export function hiddenSearchRecords(branch: readonly SessionEntry[], unreachable
 	});
 }
 
-/** The read path that works under minimal mode, where the tool is not in the selection. */
+/** The read path that works when the tool is missing from the selection, such as `--exclude-tools`. */
 const SESSION_FILE_COMMAND = `jq -c 'select(.type=="custom" and .customType=="${SEARCH_ENTRY_TYPE}")' "$PI_SESSION_FILE"`;
 
 /**

@@ -141,8 +141,8 @@ export default async function codexWebSearchExtension(pi: ExtensionAPI): Promise
 		const advertised = advertisedEntryIds(context.sessionManager.getBranch());
 		const fresh = hidden.filter((record) => !advertised.has(record.entryId));
 		if (fresh.length === 0) return undefined;
-		// Read the live selection rather than assuming activation took effect: minimal mode narrows
-		// it, and the digest must not name a tool the model cannot call.
+		// Read the live selection rather than assuming activation took effect: the session can
+		// exclude the tool, and the digest must not name a tool the model cannot call.
 		const toolActive = pi.getActiveTools().includes(RECALL_TOOL_NAME);
 		return {
 			message: {

@@ -500,8 +500,8 @@ test("the prompt renders the live tools' guidelines, attributed to their owner",
 });
 
 test("a tool disabled during this event drops its guidelines with it", async () => {
-	// Minimal mode narrows the selection in this same event, after Pi captured the options, so the
-	// options still carry both the tool and the guidelines that belong to it.
+	// An extension can narrow the selection in this same event, after Pi captured the options, so
+	// the options still carry both the tool and the guidelines that belong to it.
 	const hint = "Live subagent models: fast → provider/cheap; you are running provider/strong.";
 	const run = createHarness({
 		activeTools: ["bash", "read", "edit"],
@@ -522,24 +522,6 @@ test("a tool disabled during this event drops its guidelines with it", async () 
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- bash: Use Conventional Commits when committing.",
 	]);
-});
-
-test("minimal mode state no longer suppresses the replacement prompt", async () => {
-	const run = createHarness({
-		activeTools: ["bash"],
-		initialBranch: [
-			{
-				type: "custom",
-				customType: "minimal-mode-state",
-				data: { version: 1, enabled: true, previousTools: ["read", "bash"] },
-			},
-		],
-	});
-	const prompt = await run(options({ selectedTools: ["bash"], toolSnippets: { bash: "Execute bash commands" } }));
-
-	assert.match(prompt ?? "", /^You are an expert coding assistant that interacts with a computer\./);
-	assert.equal(section(prompt ?? "", "Available tools:"), "- bash: Execute bash commands (ls, rg, fd, etc.)");
-	assert.doesNotMatch(prompt ?? "", /exactly one bash tool call/);
 });
 
 interface CommandHarnessOptions {

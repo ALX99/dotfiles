@@ -4,7 +4,6 @@ import caffeinate from "./caffeinate.ts";
 import compactBash from "./compact.ts";
 import copyCode from "./copy-code.ts";
 import interruptOnEmptyEnter from "./interrupt-on-empty-enter.ts";
-import minimal from "./minimal.ts";
 import modelShortcuts from "./model-shortcuts.ts";
 import nestedContext from "./nested-context.ts";
 import registerProcessReaper from "./process-reaper.ts";
@@ -26,7 +25,6 @@ export default function zooid(pi: ExtensionAPI): void {
 	compactBash(pi);
 	copyCode(pi);
 	interruptOnEmptyEnter(pi);
-	minimal(pi);
 	modelShortcuts(pi);
 	nestedContext(pi);
 	retry(pi);
