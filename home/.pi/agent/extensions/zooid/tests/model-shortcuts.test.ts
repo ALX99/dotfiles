@@ -177,7 +177,7 @@ test("applies a shortcut queued during a turn when the agent settles", async () 
 
 	await harness.settleAgent();
 
-	assert.deepEqual(harness.modelChanges, ["openai-codex/gpt-6-sol"]);
+	assert.deepEqual(harness.modelChanges, ["openai-codex/gpt-6.1-sol"]);
 });
 
 test("applies only the latest shortcut when several are queued", async () => {

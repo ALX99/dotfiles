@@ -1,6 +1,6 @@
 {
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-6-luna",
+  "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "xhigh",
   "defaultProjectTrust": "always",
   "collapseChangelog": true,
@@ -23,7 +23,7 @@
   ],
   "enabledModels": [
     "openai-codex/gpt-6-luna",
-    "openai-codex/gpt-6-sol",
+    "openai-codex/gpt-6.1-sol",
     "openai-codex/gpt-6-astra",
     "commandcode/deepseek/deepseek-v4.1-flash",
     "commandcode/z-ai/glm-5.3-flash",
