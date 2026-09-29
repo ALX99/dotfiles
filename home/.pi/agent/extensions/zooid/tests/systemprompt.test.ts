@@ -76,9 +76,10 @@ test("the prompt assembles every section in the documented order", () => {
 	});
 
 	const order = [
+		"You are an expert coding assistant",
+		"APPENDED INSTRUCTIONS",
 		"Available tools:",
 		"Guidelines:",
-		"APPENDED INSTRUCTIONS",
 		"Skills:",
 		"System Information",
 		"<project_context>",
@@ -96,9 +97,12 @@ test("the prompt assembles every section in the documented order", () => {
 });
 
 test("a user-supplied custom prompt replaces the role statement only", () => {
-	const prompt = build({ customPrompt: "You are a terse shell operator." });
+	const prompt = build({
+		customPrompt: "You are a terse shell operator.",
+		appendSystemPrompt: "APPENDED INSTRUCTIONS",
+	});
 
-	assert.match(prompt, /^You are a terse shell operator\.\n\nAvailable tools:/);
+	assert.match(prompt, /^You are a terse shell operator\.\n\nAPPENDED INSTRUCTIONS\n\nAvailable tools:/);
 	assert.doesNotMatch(prompt, /expert coding assistant/);
 });
 

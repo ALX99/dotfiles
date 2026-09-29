@@ -165,9 +165,9 @@ export function buildSystemPrompt(
 	const uname = [host.system, host.release, host.version, host.machine].join(" ");
 	return [
 		options.customPrompt?.trim() || ROLE_LINE,
+		options.appendSystemPrompt?.trim() ?? "",
 		toolBlock(options),
 		guidelineBlock(options, owners),
-		options.appendSystemPrompt?.trim() ?? "",
 		skillBlock(options, enabledSkills),
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
 		contextBlock(options.contextFiles),
