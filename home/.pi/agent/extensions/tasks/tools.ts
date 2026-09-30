@@ -8,13 +8,15 @@ export const MIN_TASKS = 1;
 export const MAX_TASKS = 100;
 export const MAX_ADDED_TASKS = 20;
 
+const TASK_TITLE_DESCRIPTION = "State an observable result and how completion will be checked, not just an activity.";
+
 export const CreateTasksParams = Type.Object(
 	{
 		tasks: Type.Array(
 			Type.String({
 				minLength: 1,
 				maxLength: 200,
-				description: "Task title",
+				description: TASK_TITLE_DESCRIPTION,
 			}),
 			{
 				minItems: MIN_TASKS,
@@ -31,12 +33,13 @@ export type CreateTasksParams = Static<typeof CreateTasksParams>;
 export const FinishTaskParams = Type.Object(
 	{
 		status: StringEnum(TASK_OUTCOME_STATUSES, {
-			description: "Task status",
+			description:
+				"Use completed when the task's stated result is achieved, failed when the attempt did not achieve it, or blocked when a prerequisite prevents progress. Disclose verification gaps in the outcome.",
 		}),
 		outcome: Type.String({
 			minLength: 1,
 			description:
-				"Write a handoff for an agent continuing after this task's working context is removed. Include the concrete result, relevant files and symbols, decisions and why they matter, verification performed and its result, and anything the next task must preserve or resolve. Be concise, but do not omit details needed to continue. Do not narrate the work.",
+				"Write a handoff for an agent continuing after this task's working context is removed. Include the concrete result, relevant files and symbols, and decisions and their rationale. Name checks actually run and their results; distinguish confirmed results from assumptions and state what remains unverified. Preserve relevant failed or ruled-out approaches and why they did not work, so later tasks do not repeat them. Carry forward binding user constraints, scope and authorization limits, and unresolved blockers or prerequisites. Be concise, but do not omit details needed to continue. Do not narrate the work.",
 		}),
 		addTasks: Type.Optional(
 			Type.Array(
@@ -45,7 +48,7 @@ export const FinishTaskParams = Type.Object(
 						title: Type.String({
 							minLength: 1,
 							maxLength: 200,
-							description: "Task title",
+							description: TASK_TITLE_DESCRIPTION,
 						}),
 						after: Type.Optional(
 							Type.Union([
