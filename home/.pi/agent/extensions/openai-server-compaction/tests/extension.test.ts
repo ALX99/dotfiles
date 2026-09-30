@@ -75,6 +75,7 @@ function createHarness(options: {
 	sessionId: string;
 	model?: Model<Api>;
 	oauth?: boolean;
+	apiKey?: string;
 	branch?: BranchEntryLike[];
 	cwd?: string;
 	summary?: string;
@@ -107,7 +108,7 @@ function createHarness(options: {
 		},
 		modelRegistry: {
 			isUsingOAuth: () => options.oauth === true,
-			getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "sk-test", headers: {} }),
+			getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: options.apiKey ?? "sk-test", headers: {} }),
 			streamSimple(...args: Parameters<ModelRegistry["streamSimple"]>) {
 				summaryCalls.push(args);
 				return {
@@ -344,68 +345,170 @@ test("failure of both requests leaves compaction to Pi", async () => {
 	}
 });
 
-test("cancellation reaches both requests and leaves no checkpoint or warning", async () => {
-	const controller = new AbortController();
-	const aborted = (signal: AbortSignal) =>
-		new Promise<never>((_resolve, reject) => {
-			signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+for (const oauth of [false, true]) {
+	test(`cancellation reaches both requests and leaves no checkpoint or warning (OAuth: ${oauth})`, async () => {
+		const controller = new AbortController();
+		const aborted = (signal: AbortSignal) =>
+			new Promise<never>((_resolve, reject) => {
+				signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+			});
+		let summaryStarted!: () => void;
+		const summaryReady = new Promise<void>((resolve) => {
+			summaryStarted = resolve;
 		});
-	let summaryStarted!: () => void;
-	const summaryReady = new Promise<void>((resolve) => {
-		summaryStarted = resolve;
-	});
-	let remoteStarted!: () => void;
-	const remoteReady = new Promise<void>((resolve) => {
-		remoteStarted = resolve;
-	});
-	const harness = createHarness({
-		sessionId: "session-cancelled",
-		summarize: async (_model, _context, options) => {
-			assert.equal(options?.signal, controller.signal);
-			summaryStarted();
+		let remoteStarted!: () => void;
+		const remoteReady = new Promise<void>((resolve) => {
+			remoteStarted = resolve;
+		});
+		const harness = createHarness({
+			sessionId: "session-cancelled",
+			oauth,
+			summarize: async (_model, _context, options) => {
+				assert.equal(options?.signal, controller.signal);
+				summaryStarted();
+				return aborted(controller.signal);
+			},
+		});
+		const event = compactionEvent([]);
+		event.signal = controller.signal;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async (_url, init) => {
+			assert.equal(init?.signal, controller.signal);
+			remoteStarted();
 			return aborted(controller.signal);
-		},
+		};
+
+		try {
+			const pending = harness.emit("session_before_compact", event);
+			await Promise.all([summaryReady, remoteReady]);
+			controller.abort();
+			assert.equal(await pending, undefined);
+			assert.deepEqual(harness.notifications, []);
+			assert.equal(harness.summaryCalls.length, 1);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
-	const event = compactionEvent([]);
-	event.signal = controller.signal;
+}
+
+test("direct OAuth compacts with context management and replays its persisted checkpoint", async () => {
+	const harness = createHarness({ sessionId: "session-subscription", oauth: true });
 	const originalFetch = globalThis.fetch;
+	const sent: Record<string, unknown>[] = [];
 	globalThis.fetch = async (_url, init) => {
-		assert.equal(init?.signal, controller.signal);
-		remoteStarted();
-		return aborted(controller.signal);
+		assert.ok(typeof init?.body === "string");
+		sent.push(JSON.parse(init.body) as Record<string, unknown>);
+		return new Response(COMPACTION_STREAM);
 	};
 
 	try {
-		const pending = harness.emit("session_before_compact", event);
-		await Promise.all([summaryReady, remoteReady]);
-		controller.abort();
-		assert.equal(await pending, undefined);
+		const branch = [{ type: "message", id: "old", message: userMessage("remember old work") }];
+		const event = compactionEvent(branch);
+		event.customInstructions = "portable summary only";
+		const result = (await harness.emit("session_before_compact", event)) as {
+			compaction: {
+				summary: string;
+				details: { remoteCompaction: { replacementHistory: unknown[] } };
+			};
+		};
+		assert.equal(result.compaction.summary, "portable summary");
+		const encrypted = { type: "compaction", encrypted_content: "opaque" };
+		assert.deepEqual(result.compaction.details.remoteCompaction.replacementHistory, [encrypted]);
+		assert.deepEqual(sent[0]?.context_management, [{ type: "compaction", compact_threshold: 1000 }]);
+		assert.equal(sent[0]?.instructions, "system prompt", "checkpoint-specific instructions must not enter encryption");
+		assert.equal(sent[0]?.tool_choice, "none");
+		assert.deepEqual(sent[0]?.input, [
+			{ type: "message", role: "user", content: [{ type: "input_text", text: "remember old work" }] },
+		]);
+		assert.match(JSON.stringify(harness.summaryCalls), /portable summary only/);
 		assert.deepEqual(harness.notifications, []);
-		assert.equal(harness.summaryCalls.length, 1);
+
+		const persisted = JSON.parse(
+			JSON.stringify([
+				...branch,
+				{ type: "compaction", id: "checkpoint", ...result.compaction },
+				{ type: "message", id: "new", message: userMessage("continued work") },
+			]),
+		) as BranchEntryLike[];
+		const history = [
+			encrypted,
+			{ type: "message", role: "user", content: [{ type: "input_text", text: "continued work" }] },
+		];
+		const restored = createHarness({ sessionId: "session-restored", oauth: true, branch: persisted });
+		const payload = (await restored.emit("before_provider_request", {
+			type: "before_provider_request",
+			payload: { input: [], instructions: "system prompt", previous_response_id: "stale", store: false },
+		})) as Record<string, unknown>;
+		assert.deepEqual(payload.input, history);
+		assert.equal(payload.previous_response_id, undefined);
+		assert.equal(payload.instructions, "system prompt");
+		assert.equal(payload.store, false);
+		await restored.emit("session_before_compact", compactionEvent(persisted));
+		assert.deepEqual(sent.at(-1)?.input, history, "the next compaction starts from the persisted replacement");
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
 });
 
-test("a ChatGPT subscription's compaction is never requested from the network", async () => {
-	const harness = createHarness({ sessionId: "session-subscription", oauth: true });
+test("direct OAuth without a leading compaction keeps Pi's summary and does not persist generated output", async () => {
+	const harness = createHarness({ sessionId: "session-subscription-small", oauth: true });
 	const originalFetch = globalThis.fetch;
-	let calls = 0;
-	globalThis.fetch = async () => {
-		calls += 1;
-		return new Response("", { status: 400 });
-	};
-
+	globalThis.fetch = async () =>
+		new Response(
+			[
+				`data: ${JSON.stringify({ type: "response.output_item.done", item: { type: "message", role: "assistant", content: [{ type: "output_text", text: "unsaved generated answer" }] } })}\n\n`,
+				`data: ${JSON.stringify({ type: "response.completed" })}\n\n`,
+			].join(""),
+		);
 	try {
-		assert.equal(await harness.emit("session_before_compact", compactionEvent([])), undefined);
-		assert.equal(calls, 0, "api.openai.com refuses a compaction trigger for this credential");
-		assert.deepEqual(harness.notifications, []);
-
-		// The same session's ordinary requests keep Pi's own shape.
+		const result = (await harness.emit("session_before_compact", compactionEvent([]))) as {
+			compaction: { summary: string; details: unknown };
+		};
+		assert.equal(result.compaction.summary, "portable summary");
+		assert.deepEqual(result.compaction.details, { readFiles: [], modifiedFiles: [] });
+		assert.equal(harness.summaryCalls.length, 1);
+		assert.equal(harness.notifications.length, 1);
+		assert.match(harness.notifications[0]!, /no leading compaction item/);
 		assert.equal(
 			await harness.emit("before_provider_request", { type: "before_provider_request", payload: { input: [] } }),
 			undefined,
 		);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("Codex OAuth still uses the explicit trigger protocol", async () => {
+	const claims = Buffer.from(
+		JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_test" } }),
+	).toString("base64url");
+	const harness = createHarness({
+		sessionId: "session-codex",
+		oauth: true,
+		apiKey: `header.${claims}.signature`,
+		model: model({
+			api: "openai-codex-responses",
+			provider: "openai-codex",
+			baseUrl: "https://chatgpt.com/backend-api",
+		}),
+	});
+	const originalFetch = globalThis.fetch;
+	const sent: Record<string, unknown>[] = [];
+	try {
+		globalThis.fetch = async (url, init) => {
+			assert.equal(url, "https://chatgpt.com/backend-api/codex/responses");
+			assert.ok(typeof init?.body === "string");
+			sent.push(JSON.parse(init.body) as Record<string, unknown>);
+			return new Response(COMPACTION_STREAM);
+		};
+		const result = (await harness.emit("session_before_compact", compactionEvent([]))) as {
+			compaction: { summary: string };
+		};
+		assert.equal(result.compaction.summary, "portable summary");
+		assert.deepEqual(sent[0]?.input, [{ type: "compaction_trigger" }]);
+		assert.equal(sent[0]?.context_management, undefined);
+		assert.equal(sent[0]?.tool_choice, undefined);
+		assert.deepEqual(harness.notifications, []);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
@@ -520,27 +623,29 @@ test("a request Pi did not build as a Responses call is never patched", async ()
 	);
 });
 
-test("a failed compaction keeps Pi's summary and reports why", async () => {
-	const harness = createHarness({ sessionId: "session-failure" });
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = async () => new Response("upstream is unwell", { status: 500 });
+for (const oauth of [false, true]) {
+	test(`a failed compaction keeps Pi's summary and reports why (OAuth: ${oauth})`, async () => {
+		const harness = createHarness({ sessionId: "session-failure", oauth });
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = async () => new Response("upstream is unwell", { status: 500 });
 
-	try {
-		const result = (await harness.emit("session_before_compact", compactionEvent([]))) as {
-			compaction: Record<string, unknown>;
-		};
-		assert.equal(result.compaction.summary, "portable summary", "the session still gets a summary");
-		assert.deepEqual(
-			result.compaction.details,
-			{ readFiles: [], modifiedFiles: [] },
-			"only Pi's file tracking remains",
-		);
-		assert.equal(harness.notifications.length, 1);
-		assert.match(harness.notifications[0] ?? "", /OpenAI remote compaction failed.*500.*upstream is unwell/s);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-});
+		try {
+			const result = (await harness.emit("session_before_compact", compactionEvent([]))) as {
+				compaction: Record<string, unknown>;
+			};
+			assert.equal(result.compaction.summary, "portable summary", "the session still gets a summary");
+			assert.deepEqual(
+				result.compaction.details,
+				{ readFiles: [], modifiedFiles: [] },
+				"only Pi's file tracking remains",
+			);
+			assert.equal(harness.notifications.length, 1);
+			assert.match(harness.notifications[0] ?? "", /OpenAI remote compaction failed.*500.*upstream is unwell/s);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+}
 
 test("the config file switches the extension off for a session", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "openai-server-compaction-disabled-"));

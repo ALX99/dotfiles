@@ -25,7 +25,7 @@ export function modelKey(model: Model<Api>): string {
 	return `${model.provider}:${model.api}:${model.id}`;
 }
 
-/** OpenAI's own Responses endpoint, which an API key authenticates against. */
+/** OpenAI's own Responses endpoint, authenticated with an API key or direct OAuth. */
 export function isDirectOpenAIResponsesModel(model: Model<Api>): boolean {
 	if (model.api !== "openai-responses" || model.provider !== "openai") return false;
 	const host = hostnameFromBaseUrl(model.baseUrl);
@@ -39,18 +39,9 @@ export function isOpenAICodexResponsesModel(model: Model<Api>): boolean {
 	return hostnameFromBaseUrl(model.baseUrl) === "chatgpt.com";
 }
 
-/**
- * Whether this session's credential can hold OpenAI-side state at all.
- *
- * `api.openai.com` rejects a `compaction_trigger` for a ChatGPT subscription and
- * requires `store: false` for it, so that sign-in has neither a compaction to ask for
- * nor a stored response to continue from, and asking costs one refused request per
- * compaction. Only an API key reaches that endpoint's stateful Responses API; a
- * subscription is served by the Codex endpoint instead.
- */
-export function supportsServerCompaction(model: Model<Api>, isUsingOAuth: (model: Model<Api>) => boolean): boolean {
-	if (isOpenAICodexResponsesModel(model)) return true;
-	return isDirectOpenAIResponsesModel(model) && !isUsingOAuth(model);
+/** The two OpenAI endpoints whose encrypted compaction history this extension replays. */
+export function supportsServerCompaction(model: Model<Api>): boolean {
+	return isOpenAICodexResponsesModel(model) || isDirectOpenAIResponsesModel(model);
 }
 
 /**

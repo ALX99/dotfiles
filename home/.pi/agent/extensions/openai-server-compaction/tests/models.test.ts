@@ -36,9 +36,6 @@ const codexModel = model({
 	baseUrl: "https://chatgpt.com/backend-api",
 });
 
-const apiKey = () => false;
-const subscription = () => true;
-
 /** A model defined without a base URL, which Pi allows. */
 function withoutBaseUrl(overrides: Partial<Model<Api>> = {}): Model<Api> {
 	const next: Partial<Model<Api>> = { ...model(overrides) };
@@ -63,20 +60,11 @@ test("the ChatGPT-backed Codex endpoint is recognized separately", () => {
 	assert.equal(isOpenAICodexResponsesModel(model({})), false);
 });
 
-test("only a credential that can hold OpenAI-side state is served", () => {
-	assert.equal(supportsServerCompaction(model({}), apiKey), true, "an API key reaches the stateful Responses API");
-	assert.equal(
-		supportsServerCompaction(model({}), subscription),
-		false,
-		"api.openai.com refuses a compaction_trigger for a ChatGPT subscription and demands store: false",
-	);
-	assert.equal(
-		supportsServerCompaction(codexModel, subscription),
-		true,
-		"a subscription is served by the Codex endpoint",
-	);
-	assert.equal(supportsServerCompaction(model({ baseUrl: "https://proxy.internal/v1" }), apiKey), false);
-	assert.equal(supportsServerCompaction(model({ api: "anthropic-messages", provider: "anthropic" }), apiKey), false);
+test("both OpenAI endpoints are eligible independently of the credential", () => {
+	assert.equal(supportsServerCompaction(model({})), true);
+	assert.equal(supportsServerCompaction(codexModel), true);
+	assert.equal(supportsServerCompaction(model({ baseUrl: "https://proxy.internal/v1" })), false);
+	assert.equal(supportsServerCompaction(model({ api: "anthropic-messages", provider: "anthropic" })), false);
 });
 
 test("only a Responses request may be patched", () => {

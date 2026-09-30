@@ -83,6 +83,7 @@ test("the compaction endpoint follows the model's own Responses URL", () => {
 test("the request mirrors the surrounding turn and ends with the compaction trigger", () => {
 	const body = buildRemoteCompactionRequestBody({
 		model: model({}),
+		protocol: "trigger",
 		input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] }],
 		instructions: "system",
 		tools: [{ type: "function", name: "read" }],
@@ -120,6 +121,74 @@ test("request headers carry the beta flag, and the Codex endpoint also the accou
 	);
 });
 
+test("context management keeps the original instructions and input without permitting tools", () => {
+	const input: ResponseItem[] = [
+		{ type: "message", role: "user", content: [{ type: "input_text", text: "remember this" }] },
+	];
+	const body = buildRemoteCompactionRequestBody({
+		model: model({}),
+		protocol: "context-management",
+		input,
+		instructions: "original system prompt",
+		tools: [{ type: "function", name: "read" }],
+	});
+	assert.deepEqual(body.input, input);
+	assert.equal(body.instructions, "original system prompt");
+	assert.deepEqual(body.context_management, [{ type: "compaction", compact_threshold: 1000 }]);
+	assert.equal(body.tool_choice, "none");
+	assert.equal(body.store, false);
+	assert.equal(body.stream, true);
+});
+
+test("context management saves only a leading compaction, not output or later compactions", async () => {
+	const originalFetch = globalThis.fetch;
+	const stream = compactionStream([
+		`data: ${JSON.stringify({ type: "response.output_item.done", item: { type: "message", role: "assistant", content: [{ type: "output_text", text: "not part of the session" }] } })}\n\n`,
+		`data: ${JSON.stringify({ type: "response.output_item.done", item: { type: "compaction", encrypted_content: "post-generation" } })}\n\n`,
+	]);
+	globalThis.fetch = async () => new Response(stream);
+	try {
+		const result = await runPromise(
+			callRemoteCompaction({
+				model: model({}),
+				protocol: "context-management",
+				apiKey: "oauth-token",
+				input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "old work" }] }],
+				tools: [],
+			}),
+		);
+		assert.deepEqual(result.output, [COMPACTION_ITEM]);
+		assert.equal(result.usage?.totalTokens, 120);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("context management rejects absent, late, malformed and incomplete checkpoints", () => {
+	const generated = {
+		type: "response.output_item.done",
+		item: { type: "message", role: "assistant", content: [{ type: "output_text", text: "answer" }] },
+	};
+	const compacted = { type: "response.output_item.done", item: COMPACTION_ITEM };
+	const completed = { type: "response.completed" };
+	for (const events of [
+		[completed],
+		[generated, completed],
+		[generated, compacted, completed],
+		[{ type: "response.output_item.done", item: { type: "compaction", encrypted_content: "" } }, completed],
+		[{ type: "response.output_item.done", item: null }, compacted, completed],
+	]) {
+		assert.throws(() => parseCompactionItem(events, "context-management"), /no leading compaction item/);
+	}
+	assert.throws(() => parseCompactionItem([compacted], "context-management"), /ended before the response completed/);
+	for (const failure of [
+		{ type: "error", message: "refused" },
+		{ type: "response.failed", response: { error: { message: "refused" } } },
+	]) {
+		assert.throws(() => parseCompactionItem([compacted, failure], "context-management"), /refused/);
+	}
+});
+
 test("a header Pi resolved to null is dropped rather than sent", () => {
 	assert.deepEqual(stringHeaders({ a: "1", b: null }), { a: "1" });
 	assert.deepEqual(stringHeaders(undefined), {});
@@ -141,13 +210,14 @@ test("an event stream decodes to its JSON payloads", () => {
 
 test("a completed stream yields exactly one compaction item and its usage", () => {
 	const events = parseSseData(compactionStream());
-	assert.deepEqual(parseCompactionItem(events), COMPACTION_ITEM);
+	assert.deepEqual(parseCompactionItem(events, "trigger"), COMPACTION_ITEM);
 	assert.deepEqual(parseSseUsage(compactionStream()), { input_tokens: 100, output_tokens: 20, total_tokens: 120 });
 });
 
 test("a stream that failed, ended early, or returned two items is rejected", () => {
 	assert.throws(
-		() => parseCompactionItem(parseSseData(`data: ${JSON.stringify({ type: "error", message: "nope" })}\n\n`)),
+		() =>
+			parseCompactionItem(parseSseData(`data: ${JSON.stringify({ type: "error", message: "nope" })}\n\n`), "trigger"),
 		/nope/,
 	);
 	assert.throws(
@@ -156,14 +226,15 @@ test("a stream that failed, ended early, or returned two items is rejected", () 
 				parseSseData(
 					`data: ${JSON.stringify({ type: "response.failed", response: { error: { message: "bad" } } })}\n\n`,
 				),
+				"trigger",
 			),
 		/bad/,
 	);
-	assert.throws(() => parseCompactionItem([]), /ended before the response completed/);
+	assert.throws(() => parseCompactionItem([], "trigger"), /ended before the response completed/);
 	const two = compactionStream([
 		`data: ${JSON.stringify({ type: "response.output_item.done", item: COMPACTION_ITEM })}\n\n`,
 	]);
-	assert.throws(() => parseCompactionItem(parseSseData(two)), /expected exactly one/);
+	assert.throws(() => parseCompactionItem(parseSseData(two), "trigger"), /expected exactly one/);
 });
 
 test("a compaction call returns the history to replay and the usage it cost", async () => {
@@ -175,6 +246,7 @@ test("a compaction call returns the history to replay and the usage it cost", as
 			Effect.result(
 				callRemoteCompaction({
 					model: model({}),
+					protocol: "trigger",
 					apiKey: "sk-test",
 					input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "keep this" }] }],
 					tools: [],
@@ -200,7 +272,9 @@ test("a refused or unreachable endpoint fails in this extension's error channel"
 	try {
 		globalThis.fetch = async () => new Response("subscription sharing is not supported", { status: 400 });
 		const refused = await runPromise(
-			Effect.result(callRemoteCompaction({ model: model({}), apiKey: "token", input: [], tools: [] })),
+			Effect.result(
+				callRemoteCompaction({ model: model({}), protocol: "trigger", apiKey: "token", input: [], tools: [] }),
+			),
 		);
 		assert.ok(Result.isFailure(refused));
 		assert.match(refused.failure.message, /400.*subscription sharing is not supported/s);
@@ -210,7 +284,9 @@ test("a refused or unreachable endpoint fails in this extension's error channel"
 			throw new Error("connection reset");
 		};
 		const unreachable = await runPromise(
-			Effect.result(callRemoteCompaction({ model: model({}), apiKey: "token", input: [], tools: [] })),
+			Effect.result(
+				callRemoteCompaction({ model: model({}), protocol: "trigger", apiKey: "token", input: [], tools: [] }),
+			),
 		);
 		assert.ok(Result.isFailure(unreachable));
 		assert.match(unreachable.failure.message, /connection reset/);

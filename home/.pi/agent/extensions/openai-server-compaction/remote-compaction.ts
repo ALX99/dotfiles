@@ -7,19 +7,14 @@ import { arch, platform, release } from "node:os";
 
 import { toError } from "../_shared/errors.ts";
 import { hostnameFromBaseUrl, isDirectOpenAIResponsesModel, isOpenAICodexResponsesModel } from "./models.ts";
-import {
-	buildCompactedHistory,
-	isResponseItem,
-	type ResponseItem,
-	type ResponsesReasoningConfig,
-} from "./response-items.ts";
+import { buildCompactedHistory, type ResponseItem, type ResponsesReasoningConfig } from "./response-items.ts";
 
 /**
  * OpenAI's own compaction, requested through the Responses API.
  *
  * Pi summarizes a long conversation into text when the context fills up. OpenAI does
- * something else: it answers a trailing `compaction_trigger` with an encrypted item
- * that replaces the history, so the conversation continues from the provider's own state
+ * something else: it answers a trigger or context-management request with an
+ * encrypted item that replaces the history, so the conversation continues from the provider's own state
  * instead of a lossy summary of it. This module makes that call at Pi's compaction
  * boundary and hands the returned history back for the compaction entry to store.
  */
@@ -36,6 +31,13 @@ export interface RemoteCompactionResult {
 
 /** Beta flag the endpoint expects for the current compaction protocol. */
 const REMOTE_COMPACTION_FEATURE = "remote_compaction_v2";
+
+/** Direct OAuth allows context management but rejects the explicit trigger protocol. */
+type CompactionProtocol = "trigger" | "context-management";
+
+const isCompactionItem = Schema.is(
+	Schema.Struct({ type: Schema.Literal("compaction"), encrypted_content: Schema.NonEmptyString }),
+);
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -56,6 +58,7 @@ export function remoteCompactionEndpointUrl(model: Model<Api>): string {
 /** The compaction request mirrors the shape of the surrounding turns, not the endpoint defaults. */
 export function buildRemoteCompactionRequestBody(params: {
 	readonly model: Model<Api>;
+	readonly protocol: CompactionProtocol;
 	readonly input: readonly ResponseItem[];
 	readonly instructions?: string;
 	readonly tools: readonly Record<string, unknown>[];
@@ -64,7 +67,13 @@ export function buildRemoteCompactionRequestBody(params: {
 }): Record<string, unknown> {
 	return {
 		model: params.model.id,
-		input: [...params.input, { type: "compaction_trigger" }],
+		input: params.protocol === "trigger" ? [...params.input, { type: "compaction_trigger" }] : [...params.input],
+		...(params.protocol === "context-management"
+			? {
+					context_management: [{ type: "compaction", compact_threshold: 1000 }],
+					tool_choice: "none",
+				}
+			: {}),
 		instructions: params.instructions,
 		tools: params.tools,
 		stream: true,
@@ -87,6 +96,7 @@ export interface RemoteCompactionTarget {
 }
 
 export interface RemoteCompactionRequest extends RemoteCompactionTarget {
+	readonly protocol: CompactionProtocol;
 	readonly input: readonly ResponseItem[];
 	readonly instructions?: string;
 	readonly tools: readonly Record<string, unknown>[];
@@ -95,8 +105,9 @@ export interface RemoteCompactionRequest extends RemoteCompactionTarget {
 }
 
 /**
- * Request a compaction and return the history a later OpenAI turn replays: the retained
- * user turns followed by the compaction item the API returned.
+ * Return the replacement history, excluding any generation after context compaction.
+ * The trigger protocol retains user turns beside its compaction item; context
+ * management's leading item already represents the entire input.
  */
 export const callRemoteCompaction = Effect.fnUntraced(function* (
 	request: RemoteCompactionRequest,
@@ -117,10 +128,11 @@ export const callRemoteCompaction = Effect.fnUntraced(function* (
 			}
 
 			const stream = await response.text();
-			const compactionItem = parseCompactionItem(parseSseData(stream));
+			const compactionItem = parseCompactionItem(parseSseData(stream), request.protocol);
 			const usage = extractRemoteCompactionUsage(request.model, parseSseUsage(stream));
 			return {
-				output: buildCompactedHistory(request.input, compactionItem),
+				output:
+					request.protocol === "trigger" ? buildCompactedHistory(request.input, compactionItem) : [compactionItem],
 				...(usage === undefined ? {} : { usage }),
 			};
 		},
@@ -214,10 +226,14 @@ export function parseSseData(text: string): unknown[] {
 		});
 }
 
-/** The single compaction item a completed compaction stream carries. */
-export function parseCompactionItem(events: readonly unknown[]): ResponseItem {
+/**
+ * A context-management checkpoint must precede all generated output. A later
+ * compaction can contain that generation and would advance the saved conversation.
+ */
+export function parseCompactionItem(events: readonly unknown[], protocol: CompactionProtocol): ResponseItem {
 	let completed = false;
 	const compactionItems: ResponseItem[] = [];
+	const output: unknown[] = [];
 
 	for (const event of events) {
 		if (!Predicate.isObject(event)) continue;
@@ -227,14 +243,22 @@ export function parseCompactionItem(events: readonly unknown[]): ResponseItem {
 		if (event.type === "response.failed") {
 			throw new Error(`Remote compaction failed: ${responseFailureMessage(event)}`);
 		}
-		if (event.type === "response.output_item.done" && isResponseItem(event.item)) {
-			if (event.item.type === "compaction") compactionItems.push(event.item);
+		if (event.type === "response.output_item.done") {
+			output.push(event.item);
+			if (isCompactionItem(event.item)) compactionItems.push(event.item);
 			continue;
 		}
 		if (event.type === "response.completed") completed = true;
 	}
 
 	if (!completed) throw new Error("Remote compaction stream ended before the response completed.");
+	if (protocol === "context-management") {
+		const first = output[0];
+		if (!isCompactionItem(first)) {
+			throw new Error("Remote context management returned no leading compaction item.");
+		}
+		return first;
+	}
 	if (compactionItems.length !== 1) {
 		throw new Error(`Remote compaction returned ${compactionItems.length} compaction items, expected exactly one.`);
 	}

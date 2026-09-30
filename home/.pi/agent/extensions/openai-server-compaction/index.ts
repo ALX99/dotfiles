@@ -5,6 +5,7 @@ import { Effect, Result } from "effect";
 import { runPromise } from "../_shared/effect-runtime.ts";
 import { DEFAULT_CONFIG, loadConfig, type OpenAIServerCompactionConfig } from "./config.ts";
 import {
+	isDirectOpenAIResponsesModel,
 	isResponsesRequest,
 	supportsServerCompaction,
 	thinkingLevelToResponsesReasoning,
@@ -60,10 +61,7 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 
 	pi.on("session_before_compact", async (event, ctx) => {
 		const model = ctx.model;
-		if (
-			model === undefined ||
-			!supportsServerCompaction(model, (candidate) => ctx.modelRegistry.isUsingOAuth(candidate))
-		) {
+		if (model === undefined || !supportsServerCompaction(model)) {
 			return undefined;
 		}
 		if (!(await resolveConfig(ctx)).enabled) return undefined;
@@ -96,6 +94,10 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 					Effect.result(
 						callRemoteCompaction({
 							model,
+							protocol:
+								isDirectOpenAIResponsesModel(model) && ctx.modelRegistry.isUsingOAuth(model)
+									? "context-management"
+									: "trigger",
 							apiKey: auth.apiKey,
 							...(auth.headers === undefined ? {} : { headers: auth.headers }),
 							...(sessionId === undefined ? {} : { sessionId }),
@@ -150,7 +152,7 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 		const model = ctx.model;
 		// The same model also makes chat, image, and classifier calls, which must not be patched.
 		if (model === undefined || !isResponsesRequest(event.payload)) return undefined;
-		if (!supportsServerCompaction(model, (candidate) => ctx.modelRegistry.isUsingOAuth(candidate))) return undefined;
+		if (!supportsServerCompaction(model)) return undefined;
 		if (!(await resolveConfig(ctx)).enabled) return undefined;
 
 		const history = replayHistoryFor(ctx.sessionManager.getBranch(), model);
