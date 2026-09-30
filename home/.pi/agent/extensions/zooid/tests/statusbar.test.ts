@@ -10,7 +10,6 @@ import {
 	calculateTokensPerSecond,
 	formatTokenCount,
 	renderContextPercentage,
-	renderExtensionStatuses,
 	renderReadPercentage,
 	renderSessionCounts,
 	renderTokenMix,
@@ -57,35 +56,6 @@ test("supports multiple right-aligned statusbar parts", () => {
 
 	assert.equal(view.right, "tps:42.3  50%");
 	assert.equal(view.line, "~/dotfiles · model         tps:42.3  50%");
-});
-
-test("renders the statuses extensions set through setStatus", () => {
-	assert.deepEqual(
-		renderExtensionStatuses(
-			new Map([
-				["tasks", "2/5 complete · wire the parser"],
-				["other", ""],
-			]),
-			plainTheme,
-		),
-		["2/5 complete · wire the parser"],
-	);
-	assert.deepEqual(renderExtensionStatuses(new Map(), plainTheme), []);
-});
-
-test("keeps a status visible when the left side runs out of room", () => {
-	const view = buildStatusbarViewModel({
-		width: 30,
-		leftParts: [
-			"~/dotfiles",
-			"some-model/high",
-			...renderExtensionStatuses(new Map([["tasks", "2/5 complete · wire the parser"]]), plainTheme),
-		],
-		rightParts: ["50%"],
-	});
-
-	assert.match(view.left, /2\/5 complete/u);
-	assert.ok(view.line.endsWith("50%"));
 });
 
 interface UsageParts {

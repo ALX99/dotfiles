@@ -1,9 +1,8 @@
 /**
  * Statusbar Extension — Full custom statusbar replacement.
  *
- * Shows the active model, working directory and the statuses extensions set
- * through `ui.setStatus` on the left, and compact generation speed, turns,
- * compactions, token totals and mix, and context usage on
+ * Shows the active model and working directory on the left, and compact
+ * generation speed, turns, compactions, token totals and mix, and context usage on
  * the right. Token totals span every reply recorded in the session file,
  * including branches that were later summarized, and count recorded
  * summary-generation usage. Reasoning tokens are a subset of generated tokens,
@@ -32,13 +31,6 @@ import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
 import { sanitizeTerminalText } from "../_shared/terminal-text.ts";
 import { registerAgentActivity } from "../_shared/agent-activity.ts";
-
-/** Renders the extension statuses set through `ui.setStatus` as left-side parts. */
-export function renderExtensionStatuses(statuses: ReadonlyMap<string, string>, theme: StatusbarTheme): string[] {
-	return [...statuses.values()]
-		.filter((text) => text !== "")
-		.map((text) => theme.fg("text", sanitizeTerminalText(text)));
-}
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -593,7 +585,7 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 		requestRender?.();
 	});
 
-	ctx.ui.setFooter((tui, theme, footerData) => {
+	ctx.ui.setFooter((tui, theme) => {
 		const statusbarRequestRender = () => tui.requestRender();
 		requestRender = statusbarRequestRender;
 
@@ -614,8 +606,6 @@ function setupStatusbar(ctx: ExtensionContext, pi: ExtensionAPI): () => void {
 					}
 					leftParts.push(modelText);
 				}
-
-				leftParts.push(...renderExtensionStatuses(footerData.getExtensionStatuses(), theme));
 
 				const ctxUsage = ctx.getContextUsage();
 				const totals = metrics.totals();
