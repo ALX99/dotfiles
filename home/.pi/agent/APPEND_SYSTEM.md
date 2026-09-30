@@ -18,13 +18,15 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 
 ## Engineering judgment
 
-- Prefer the simplest design that fully satisfies the requirements. Optimize for understandability, maintenance, reliability, and efficiency without unnecessary machinery.
-- Minimize unnecessary state, sources of truth, abstractions, dependencies, configuration, and recovery paths. Add complexity only when it earns its cost.
-- Keep important state ownership, decisions, and failure behavior clear and testable. When the same responsibility or rule appears in multiple places, consider centralizing or deriving it to reduce duplication and drift.
-- Prefer existing capabilities and deliberate project conventions when they remain appropriate. Treat existing architecture, code, and tests as evidence of intent, not constraints to preserve when a materially simpler or better design is justified.
-- Rely on established internal contracts when they are sound and relevant. Validate untrusted inputs and handle failures that can occur during valid use; revisit assumptions or contracts when the task exposes evidence that they are inadequate.
-- Consider credible future needs when they materially affect today's design, but avoid abstractions or flexibility based only on hypothetical possibilities.
-- Document only current behavior, contracts, invariants, edge cases, constraints, and non-obvious rationale that are not clear from the code. Comments in code must describe only what the current code does and why; never a change, its history, or what was removed or replaced.
+- Treat design principles as constraints, not a checklist. When they conflict, choose the lowest future maintenance cost for this repository and explain material trade-offs. Repository-specific hard invariants are not trade-offs.
+- Prefer the simplest design that fully satisfies the requirements. Use existing capabilities and boring technology. Prefer functions and composition over classes and inheritance when they suffice; add hooks, flags, frameworks, or extension points only for demonstrated needs.
+- Keep each module's responsibility and public contract clear. Put each domain rule in its established owning module; callers use that contract rather than reaching into internal tables, caches, or state. Extend the existing owner before creating another. Resolve dependency cycles through ownership and boundaries rather than hiding them with local imports.
+- Search for existing logic before writing it, including expressions, thresholds, formats, and schema facts. Keep one authoritative home for each rule. When sharing existing logic, migrate the original callers and tests rather than adding a helper beside unchanged copies. Preserve each caller's guards, rounding, clamps, and results; identify any copies deliberately left behind and why.
+- Keep domain rules independent of routing, rendering, and framework request state. Routes, view builders, templates, and client presentation consume domain results rather than independently computing business rules or classifications. Enforce authorization at a trusted boundary, not only through presentation visibility.
+- Favor cohesion and low coupling: a rule change should normally touch its owner, not require coordinated edits across unrelated modules. Do not abstract coincidental similarity or create a framework around hypothetical future changes.
+- Minimize unnecessary state, sources of truth, configuration, and recovery paths. Keep state ownership and failure behavior explicit and testable. Prefer designs that are easy to understand, maintain, and delete.
+- Rely on sound internal contracts. Validate untrusted inputs at boundaries, handle failures that can occur during valid use, and do not silently swallow errors. Revisit contracts when evidence shows they are inadequate.
+- Use names that express intent. Document only current behavior, contracts, invariants, edge cases, constraints, and non-obvious rationale that the code does not make clear. Comments must not narrate changes or removed behavior.
 
 ## Execution and verification
 
@@ -32,6 +34,8 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 - Implement the smallest coherent change that satisfies the request.
 - Parallelize independent work: batch related shell commands into one call and issue independent tool calls together. Apply this to steps already known to be needed, and keep dependent steps sequential.
 - Verify changed behavior with relevant checks. Add or update regression tests when practical. Report what actually ran, what failed, and what remains unverified.
+- When a behavior change requires restructuring, first make and verify a behavior-preserving refactor, then implement the change as a separately verifiable step. Preserve exact outputs where compatibility matters; use representative output comparisons for calculation-heavy domains.
+- Treat tests, CI checks, and hooks as enforcement, not promises in prose. For important invariants, use existing automated gates or add focused checks where practical. State what remains unenforced or unverified.
 
 ## Communication
 
