@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -558,8 +558,7 @@ test("the skills section collapses when nothing is loaded", () => {
 });
 
 test("appended instructions are omitted when blank", () => {
-	assert.doesNotMatch(build(), /APPENDED/);
-	assert.doesNotMatch(build({ appendSystemPrompt: "   " }), /APPENDED/);
+	assert.equal(build({ appendSystemPrompt: "   " }), build());
 
 	const prompt = build({ appendSystemPrompt: "# Working principles\n\nBe careful." });
 	assert.match(prompt, /^# Working principles\n\nBe careful\.$/m);
@@ -612,16 +611,17 @@ test("the extension replaces Pi's prompt", async () => {
 	const run = createHarness();
 	const prompt = await run();
 
-	assert.ok(prompt);
-	assert.match(prompt, /^You are an expert coding assistant that interacts with a computer\./);
+	assert.equal(prompt, buildSystemPrompt(options({ promptGuidelines: [] })));
 });
 
 test("the extension honors a custom system prompt from Pi's options", async () => {
 	const run = createHarness();
 	const prompt = await run(options({ customPrompt: "You are a terse shell operator." }));
 
-	assert.match(prompt ?? "", /^You are a terse shell operator\.\n\nAvailable tools:/);
-	assert.doesNotMatch(prompt ?? "", /expert coding assistant/);
+	assert.equal(
+		prompt,
+		buildSystemPrompt(options({ customPrompt: "You are a terse shell operator.", promptGuidelines: [] })),
+	);
 });
 
 test("the extension uses live active tools rather than the event's possibly stale list", async () => {
@@ -767,15 +767,19 @@ test("passing a path writes the prompt instead of opening the editor", async () 
 
 	assert.equal(harness.previews.length, 0);
 	assert.match(harness.notifications.at(-1) ?? "", /Wrote \d+ chars/);
-	assert.match(await readFile(target, "utf8"), /^You are an expert coding assistant that interacts with a computer\./);
+	assert.equal(await readFile(target, "utf8"), buildSystemPrompt(options({ promptGuidelines: [] })));
 });
 
-test("a tilde path resolves under the home directory", async () => {
+test("a tilde path resolves under the home directory", async (t) => {
 	const harness = createCommandHarness();
-	await harness.run("~/nonexistent-dir-for-test");
+	const directory = await mkdtemp(join(homedir(), ".pi-systemprompt-test-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const target = join(directory, "prompt.txt");
 
-	assert.match(harness.notifications.at(-1) ?? "", /nonexistent-dir-for-test/);
-	assert.doesNotMatch(harness.notifications.at(-1) ?? "", /~\/nonexistent/);
+	await harness.run(`~${target.slice(homedir().length)}`);
+
+	assert.equal(harness.previews.length, 0);
+	assert.equal(await readFile(target, "utf8"), buildSystemPrompt(options({ promptGuidelines: [] })));
 });
 
 test("without a UI the command reports the prompt size instead of opening an editor", async () => {
@@ -839,10 +843,10 @@ test("page, home, and end keys move the viewport and request a render", () => {
 	assert.match(harness.footer(), /lines 1-/);
 
 	harness.viewer.handleInput("\u001b[F"); // end
-	const atEnd = harness.footer();
-	assert.match(atEnd, /of \d+ ·/);
+	assert.match(harness.render().join("\n"), /line 300/);
 	harness.viewer.handleInput("\u001b[H"); // home
 	assert.match(harness.footer(), /lines 1-/);
+	assert.doesNotMatch(harness.render().join("\n"), /line 300/);
 });
 
 test("the viewport stops at the last page rather than scrolling past it", () => {

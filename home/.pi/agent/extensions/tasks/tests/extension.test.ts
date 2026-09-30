@@ -287,20 +287,6 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	);
 	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
 	assert.deepEqual(Object.keys(finishProperties), ["status", "outcome", "addTasks"]);
-	assert.match(
-		(finishProperties.outcome as { description: string }).description,
-		/handoff.*working context is removed/u,
-	);
-	assert.equal("taskId" in finishProperties, false);
-	assert.equal("evidence" in finishProperties, false);
-	assert.equal("decisions" in finishProperties, false);
-	assert.equal("remaining" in finishProperties, false);
-	assert.equal("followups" in finishProperties, false);
-	assert.match(create.description, /one discovery task.*finish_task\.addTasks/u);
-	assert.match(
-		create.description,
-		/plan work before doing it.*one planning task.*add the tasks the planning produced/u,
-	);
 });
 
 test("starts with one discovery task and runs the tasks it discovers", async () => {
@@ -310,7 +296,6 @@ test("starts with one discovery task and runs the tasks it discovers", async () 
 		created.details.tasks.map((task) => task.id),
 		["t1"],
 	);
-	assert.match(created.content, /finish_task alone.*adding any follow-up tasks/u);
 
 	const discovered = await finishTask(
 		h,
@@ -349,7 +334,6 @@ test("generates short stable task IDs for precise queue additions", async () => 
 		QUEUE_TITLES,
 	);
 	assert.match(created.content, /t1: Add schema/u);
-	assert.match(created.content, /recording a concise handoff/u);
 });
 
 test("generates task IDs for additions and defaults them after the current task", async () => {

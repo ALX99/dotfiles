@@ -1,6 +1,14 @@
 import * as assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { createReadToolDefinition, initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import {
+	createReadToolDefinition,
+	initTheme,
+	ToolExecutionComponent,
+	type ExtensionToolContext,
+} from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import { createCompactRead } from "../compact.ts";
 
@@ -65,10 +73,21 @@ test("read displays truncation without counting continuation diagnostics as file
 	assert.match(render()[1]!, /line exceeds read limit$/);
 });
 
-test("read registration retains native execution and metadata", () => {
+test("compact read retains native metadata and reads requested lines relative to ctx.cwd", async (t) => {
+	const cwd = await mkdtemp(join(tmpdir(), "compact-read-"));
+	t.after(() => rm(cwd, { recursive: true, force: true }));
+	await writeFile(join(cwd, "config.ts"), "first\nsecond\nthird\nfourth");
 	const { definition } = setup();
 	const builtin = createReadToolDefinition(process.cwd());
 	for (const key of ["parameters", "description", "promptSnippet", "promptGuidelines", "executionMode"] as const)
 		assert.deepEqual(definition[key], builtin[key]);
-	assert.equal(definition.execute.toString(), builtin.execute.toString());
+	const execute = (args: { path: string; offset?: number; limit?: number }) =>
+		definition.execute("read-test", args, undefined, undefined, { cwd } as ExtensionToolContext);
+	const excerpt = await execute({ path: "config.ts", offset: 2, limit: 2 });
+	assert.deepEqual(excerpt.content, [
+		{ type: "text", text: "second\nthird\n\n[1 more lines in file. Use offset=4 to continue.]" },
+	]);
+	const remainder = await execute({ path: "config.ts", offset: 4 });
+	assert.deepEqual(remainder.content, [{ type: "text", text: "fourth" }]);
+	await assert.rejects(execute({ path: "missing.ts" }), { code: "ENOENT" });
 });
