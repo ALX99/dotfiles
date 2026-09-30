@@ -5,7 +5,7 @@
   "defaultProjectTrust": "always",
   "defaultTools": ["+codemode"],
   "codemode": {
-    "mode": "only"
+    "mode": "on"
   },
   "collapseChangelog": true,
   "quietStartup": false,
