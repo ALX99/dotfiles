@@ -310,7 +310,7 @@ test("starts with one discovery task and runs the tasks it discovers", async () 
 		created.details.tasks.map((task) => task.id),
 		["t1"],
 	);
-	assert.match(created.content, /finish_task\.addTasks.*run next/u);
+	assert.match(created.content, /finish_task alone.*adding any follow-up tasks/u);
 
 	const discovered = await finishTask(
 		h,
@@ -349,7 +349,7 @@ test("generates short stable task IDs for precise queue additions", async () => 
 		QUEUE_TITLES,
 	);
 	assert.match(created.content, /t1: Add schema/u);
-	assert.match(created.content, /Write each outcome as a handoff/u);
+	assert.match(created.content, /recording a concise handoff/u);
 });
 
 test("generates task IDs for additions and defaults them after the current task", async () => {
