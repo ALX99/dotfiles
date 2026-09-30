@@ -92,6 +92,13 @@ const SUPPRESSED_GUIDELINES = new Set([
 	"You can inspect PI_* environment variables for current model and session details.",
 ]);
 
+/**
+ * Guidelines that only make sense while the model holds the tools themselves. Under
+ * `codemode.mode: "only"` it issues one script instead, and that script reaches the tools through
+ * `tools.<name>()`. Matched by prefix, since the host edits the wording in `APPEND_SYSTEM.md`.
+ */
+const CODEMODE_SUPPRESSED_GUIDELINE_PREFIXES = ["Parallelize independent work:"];
+
 /** The slice of the host tool registry that the prompt's tool and guideline sections need. */
 export interface PromptToolRegistry {
 	getActiveTools(): string[];
@@ -131,7 +138,11 @@ const CODEMODE_TOOL = "codemode";
  * runs with the tool. The setting outlives `-builtin:codemode` and a session that drops the tool, so
  * it cannot stand alone as the condition.
  */
-export function promptTools(pi: PromptToolRegistry): { direct: string[]; scripted: string[] } {
+export function promptTools(pi: PromptToolRegistry): {
+	direct: string[];
+	scripted: string[];
+	throughCodemode: boolean;
+} {
 	const active = pi.getActiveTools();
 	const exposures = new Map(pi.getAllTools().map((tool) => [tool.name, tool.exposure]));
 	const throughCodemode = active.includes(CODEMODE_TOOL) && pi.getSettings?.().codemode?.mode === "only";
@@ -141,7 +152,7 @@ export function promptTools(pi: PromptToolRegistry): { direct: string[]; scripte
 		if (throughCodemode && exposures.get(name) === "direct") scripted.push(name);
 		else direct.push(name);
 	}
-	return { direct, scripted };
+	return { direct, scripted, throughCodemode };
 }
 
 /** Prefixes tool-owned guidelines so every tool rule has a stable, searchable owner. */
@@ -152,7 +163,11 @@ export function attributeGuideline(guideline: string, owners?: ReadonlyMap<strin
 }
 
 /** Pi already stripped blanks and duplicates before handing the per-tool guidelines over. */
-function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<string, string>): string {
+function guidelineBlock(
+	options: BuildSystemPromptOptions,
+	owners?: ReadonlyMap<string, string>,
+	throughCodemode = false,
+): string {
 	// The fixed rules below join a set so one a tool already declares still renders once.
 	const guidelines = new Set((options.promptGuidelines ?? []).map((guideline) => guideline.trim()));
 	if ((options.selectedTools ?? []).includes("read")) guidelines.add(READ_PATH_GUIDELINE);
@@ -160,6 +175,10 @@ function guidelineBlock(options: BuildSystemPromptOptions, owners?: ReadonlyMap<
 	if ((options.selectedTools ?? []).includes("bash")) guidelines.add(CONVENTIONAL_COMMITS_GUIDELINE);
 	const lines = [...guidelines]
 		.filter((guideline) => guideline.length > 0 && !SUPPRESSED_GUIDELINES.has(guideline))
+		.filter(
+			(guideline) =>
+				!throughCodemode || !CODEMODE_SUPPRESSED_GUIDELINE_PREFIXES.some((prefix) => guideline.startsWith(prefix)),
+		)
 		.map((guideline) => `- ${attributeGuideline(guideline, owners)}`);
 	return `Guidelines:\n${lines.length > 0 ? lines.join("\n") : "(none)"}`;
 }
@@ -197,6 +216,8 @@ export interface PromptTools {
 	owners: ReadonlyMap<string, string>;
 	/** Active tools the model reaches through `codemode` rather than by calling them. */
 	scripted: readonly string[];
+	/** Whether `codemode.mode: "only"` is in force, so the model holds no tools but `codemode`. */
+	throughCodemode: boolean;
 }
 
 /**
@@ -215,7 +236,7 @@ export function buildSystemPrompt(
 		options.customPrompt?.trim() || ROLE_LINE,
 		options.appendSystemPrompt?.trim() ?? "",
 		toolBlock(options, tools?.scripted),
-		guidelineBlock(options, tools?.owners),
+		guidelineBlock(options, tools?.owners, tools?.throughCodemode),
 		skillBlock(options, enabledSkills),
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
 		contextBlock(options.contextFiles),
@@ -327,7 +348,7 @@ export class SystemPromptViewer {
  */
 function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSystemPromptOptions): string {
 	const owners = guidelineOwners(pi);
-	const { scripted } = promptTools(pi);
+	const { scripted, throughCodemode } = promptTools(pi);
 	const live: BuildSystemPromptOptions = {
 		...options,
 		selectedTools: pi.getActiveTools(),
@@ -336,6 +357,7 @@ function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSy
 	return buildSystemPrompt(live, hostInformation(), enabledModelSkillNames(ctx, live.skills ?? []), {
 		owners,
 		scripted,
+		throughCodemode,
 	});
 }
 

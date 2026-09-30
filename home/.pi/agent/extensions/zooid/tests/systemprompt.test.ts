@@ -69,6 +69,9 @@ function section(prompt: string, heading: string): string | undefined {
 	return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
+const PARALLELIZE =
+	"Parallelize independent work: batch related shell commands into one call and issue independent tool calls together. Apply this to steps already known to be needed, and keep dependent steps sequential.";
+
 test("the prompt assembles every section in the documented order", () => {
 	const prompt = build({
 		appendSystemPrompt: "APPENDED INSTRUCTIONS",
@@ -196,7 +199,7 @@ test("tools behind codemode render as their own block instead of as callable", (
 		}),
 		HOST,
 		undefined,
-		{ owners: new Map(), scripted: ["read", "bash"] },
+		{ owners: new Map(), scripted: ["read", "bash"], throughCodemode: true },
 	);
 
 	assert.equal(section(prompt, "Available tools:"), "- codemode: Run a script");
@@ -224,7 +227,11 @@ test("codemode.mode only moves the active direct tools behind the codemode tool"
 		getSettings: () => ({ codemode: { mode: "only" as const } }),
 	};
 
-	assert.deepEqual(promptTools(registry), { direct: ["codemode", "web_search"], scripted: ["read", "bash"] });
+	assert.deepEqual(promptTools(registry), {
+		direct: ["codemode", "web_search"],
+		scripted: ["read", "bash"],
+		throughCodemode: true,
+	});
 });
 
 test("codemode.mode on leaves every active tool directly callable", () => {
@@ -237,13 +244,13 @@ test("codemode.mode on leaves every active tool directly callable", () => {
 		getSettings: () => ({ codemode: { mode: "on" as const } }),
 	};
 
-	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [] });
+	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [], throughCodemode: false });
 });
 
 test("a tool the registry does not describe stays directly callable", () => {
 	const registry = { getActiveTools: () => ["read"], getAllTools: () => [] };
 
-	assert.deepEqual(promptTools(registry), { direct: ["read"], scripted: [] });
+	assert.deepEqual(promptTools(registry), { direct: ["read"], scripted: [], throughCodemode: false });
 });
 
 test("codemode.mode only does nothing while the codemode tool is inactive", () => {
@@ -256,7 +263,7 @@ test("codemode.mode only does nothing while the codemode tool is inactive", () =
 		getSettings: () => ({ codemode: { mode: "only" as const } }),
 	};
 
-	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [] });
+	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [], throughCodemode: false });
 });
 
 test("the extension renders the codemode split from the live registry", async () => {
@@ -338,6 +345,49 @@ test("guideline owners come from the declaration order of the active tools", () 
 			["Use read to examine files", "read"],
 			["Shared rule", "read"],
 		],
+	);
+});
+
+test("the parallelize guideline renders while the model holds the tools", () => {
+	const prompt = build({ promptGuidelines: [PARALLELIZE, "Only tools rule"] });
+
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n").slice(0, 2), [`- ${PARALLELIZE}`, "- Only tools rule"]);
+});
+
+test("the parallelize guideline is dropped once codemode holds the tools", () => {
+	const prompt = buildSystemPrompt(options({ promptGuidelines: [PARALLELIZE, "Only tools rule"] }), HOST, undefined, {
+		owners: new Map(),
+		scripted: ["read", "bash"],
+		throughCodemode: true,
+	});
+
+	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n").slice(0, 2), [
+		"- Only tools rule",
+		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
+	]);
+});
+
+test("the parallelize guideline survives a codemode mode that leaves the tools direct", () => {
+	const prompt = buildSystemPrompt(options({ promptGuidelines: [PARALLELIZE] }), HOST, undefined, {
+		owners: new Map(),
+		scripted: [],
+		throughCodemode: false,
+	});
+
+	assert.equal(section(prompt, "Guidelines:")?.split("\n")[0], `- ${PARALLELIZE}`);
+});
+
+test("the parallelize guideline survives reworded in APPEND_SYSTEM.md", () => {
+	const prompt = buildSystemPrompt(
+		options({ promptGuidelines: ["Parallelize independent work: run the two reads at once."] }),
+		HOST,
+		undefined,
+		{ owners: new Map(), scripted: ["read"], throughCodemode: false },
+	);
+
+	assert.equal(
+		section(prompt, "Guidelines:")?.split("\n")[0],
+		"- Parallelize independent work: run the two reads at once.",
 	);
 });
 
