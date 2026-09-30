@@ -7,6 +7,7 @@ import { Check } from "typebox/value";
 import tasksExtension from "../index.ts";
 import type { TaskDashboard } from "../dashboard.ts";
 import { nextTaskPrompt } from "../state.ts";
+import { MAX_TASK_TITLE_LENGTH } from "../tools.ts";
 
 const plainTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
 
@@ -259,12 +260,21 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two", "Three"] }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["One", "Two"] }), true);
 	assert.equal(Check(create.parameters!, { tasks: ["Investigate and discover follow-ups"] }), true);
+	assert.equal(Check(create.parameters!, { tasks: ["T".repeat(MAX_TASK_TITLE_LENGTH)] }), true);
+	assert.equal(Check(create.parameters!, { tasks: ["T".repeat(MAX_TASK_TITLE_LENGTH + 1)] }), false);
 	assert.equal(Check(create.parameters!, { tasks: [] }), false);
 	assert.equal(Check(create.parameters!, { tasks: QUEUE_TITLES.map((title) => ({ title })) }), false);
 	assert.equal(Check(finish.parameters!, { status: "completed", outcome: "Verified." }), true);
 	assert.equal(Check(finish.parameters!, { status: "completed" }), false);
 	assert.equal(Check(finish.parameters!, { status: "skipped", outcome: "Not supported." }), false);
 	assert.equal(Check(finish.parameters!, { result: "completed", outcome: "Not supported." }), false);
+	const createProperties = (
+		create.parameters as {
+			properties: { tasks: { items: { description: string; maxLength: number } } };
+		}
+	).properties;
+	assert.equal(createProperties.tasks.items.maxLength, MAX_TASK_TITLE_LENGTH);
+	assert.match(createProperties.tasks.items.description, /at most 400 characters/u);
 	assert.equal(
 		Check(finish.parameters!, {
 			status: "completed",
@@ -276,6 +286,22 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 			],
 		}),
 		true,
+	);
+	assert.equal(
+		Check(finish.parameters!, {
+			status: "completed",
+			outcome: "Verified.",
+			addTasks: [{ title: "T".repeat(MAX_TASK_TITLE_LENGTH) }],
+		}),
+		true,
+	);
+	assert.equal(
+		Check(finish.parameters!, {
+			status: "completed",
+			outcome: "Verified.",
+			addTasks: [{ title: "T".repeat(MAX_TASK_TITLE_LENGTH + 1) }],
+		}),
+		false,
 	);
 	assert.equal(
 		Check(finish.parameters!, {

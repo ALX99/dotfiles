@@ -7,15 +7,16 @@ export const TASK_OUTCOME_STATUSES = ["completed", "failed", "blocked"] as const
 export const MIN_TASKS = 1;
 export const MAX_TASKS = 100;
 export const MAX_ADDED_TASKS = 20;
+export const MAX_TASK_TITLE_LENGTH = 400;
 
-const TASK_TITLE_DESCRIPTION = "State an observable result and how completion will be checked, not just an activity.";
+const TASK_TITLE_DESCRIPTION = `State an observable result and how completion will be checked, not just an activity. Keep the title at most ${MAX_TASK_TITLE_LENGTH} characters.`;
 
 export const CreateTasksParams = Type.Object(
 	{
 		tasks: Type.Array(
 			Type.String({
 				minLength: 1,
-				maxLength: 200,
+				maxLength: MAX_TASK_TITLE_LENGTH,
 				description: TASK_TITLE_DESCRIPTION,
 			}),
 			{
@@ -47,7 +48,7 @@ export const FinishTaskParams = Type.Object(
 					{
 						title: Type.String({
 							minLength: 1,
-							maxLength: 200,
+							maxLength: MAX_TASK_TITLE_LENGTH,
 							description: TASK_TITLE_DESCRIPTION,
 						}),
 						after: Type.Optional(

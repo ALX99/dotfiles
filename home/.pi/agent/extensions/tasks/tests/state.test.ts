@@ -21,6 +21,7 @@ import {
 	type TaskOutcome,
 	type TaskQueueDetails,
 } from "../state.ts";
+import { MAX_TASK_TITLE_LENGTH } from "../tools.ts";
 
 const queueEntry = (id: string, queueId: string, titles: readonly string[]): TaskLogEntry => ({
 	id,
@@ -97,6 +98,35 @@ test("replay is stable across a restart", () => {
 	const restarted = replay(JSON.parse(JSON.stringify(entries)) as readonly TaskLogEntry[]);
 	assert.deepEqual(replay(entries), restarted);
 	assert.equal(restarted[0]?.outcomes.get("t2")?.status, "failed");
+});
+
+test("replays task titles up to the configured limit", () => {
+	const title = "T".repeat(MAX_TASK_TITLE_LENGTH);
+	const queue = stateOf([queueEntry("e1", "q1", [title])]);
+	assert.equal(currentItem(queue)?.title, title);
+
+	const tooLongQueue = replay([queueEntry("e2", "q2", ["T".repeat(MAX_TASK_TITLE_LENGTH + 1)])]);
+	assert.deepEqual(tooLongQueue, []);
+
+	const base = queueEntry("e3", "q3", ["Current"]);
+	const acceptedAddition = stateOf([
+		base,
+		outcomeEntry("e4", "t1", {
+			addedTasks: [{ id: "t2", title, after: "current" }],
+		}),
+	]);
+	assert.equal(acceptedAddition.queue.tasks[1]?.title, title);
+
+	const rejectedAddition = stateOf([
+		base,
+		outcomeEntry("e5", "t1", {
+			addedTasks: [{ id: "t2", title: `${title}T`, after: "current" }],
+		}),
+	]);
+	assert.deepEqual(
+		rejectedAddition.queue.tasks.map((task) => task.id),
+		["t1"],
+	);
 });
 
 test("replay reconstructs the state a live projection produced", () => {

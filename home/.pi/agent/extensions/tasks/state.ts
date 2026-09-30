@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Predicate, Result, Schema } from "effect";
 
-import { MAX_ADDED_TASKS, MAX_TASKS, MIN_TASKS, TASK_OUTCOME_STATUSES } from "./tools.ts";
+import { MAX_ADDED_TASKS, MAX_TASKS, MAX_TASK_TITLE_LENGTH, MIN_TASKS, TASK_OUTCOME_STATUSES } from "./tools.ts";
 
 export const TASK_CANCEL_DETAILS_TYPE = "tasks:cancel";
 
@@ -93,7 +93,7 @@ const requiredText = (maxLength?: number) =>
 
 const TaskQueueItemSchema = Schema.Struct({
 	id: requiredText(200),
-	title: requiredText(200),
+	title: requiredText(MAX_TASK_TITLE_LENGTH),
 });
 
 const TaskQueueItemsSchema = Schema.Array(TaskQueueItemSchema).check(
@@ -107,7 +107,7 @@ const TaskQueueItemsSchema = Schema.Array(TaskQueueItemSchema).check(
 
 const TaskAddedItemSchema = Schema.Struct({
 	id: requiredText(200),
-	title: requiredText(200),
+	title: requiredText(MAX_TASK_TITLE_LENGTH),
 	after: requiredText(200),
 });
 
