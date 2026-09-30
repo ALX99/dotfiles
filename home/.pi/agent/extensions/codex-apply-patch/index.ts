@@ -226,26 +226,13 @@ export function supportsApplyPatchTransport(model: { compat?: unknown } | undefi
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
 	pi.registerTool(createApplyPatchToolDefinition(options, runApplyPatchProcess, createToolStatus(pi)));
 
-	const suppressedBuiltinTools: string[] = [];
 	const setCodexCompatToolsActive = (enabled: boolean): void => {
 		const active = pi.getActiveTools();
 		let next = active;
 		if (enabled) {
 			if (!next.includes(APPLY_PATCH_TOOL_NAME)) next = [...next, APPLY_PATCH_TOOL_NAME];
-			if (active.some((name) => name === "edit" || name === "write")) {
-				for (const name of active) {
-					if ((name === "edit" || name === "write") && !suppressedBuiltinTools.includes(name)) {
-						suppressedBuiltinTools.push(name);
-					}
-				}
-				next = next.filter((tool) => tool !== "edit" && tool !== "write");
-			}
 		} else {
 			if (next.includes(APPLY_PATCH_TOOL_NAME)) next = next.filter((tool) => tool !== APPLY_PATCH_TOOL_NAME);
-			for (const name of suppressedBuiltinTools) {
-				if (!next.includes(name)) next = [...next, name];
-			}
-			suppressedBuiltinTools.length = 0;
 		}
 		if (next !== active) pi.setActiveTools(next);
 	};

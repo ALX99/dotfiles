@@ -331,12 +331,12 @@ test("activation follows the transport's OpenAI grammar-tool support, not the mo
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
 	// Codex selects the freeform tool from model metadata on any provider.
 	fixture.select(grammarModel({ provider: "other-provider", id: "gpt-5.6-terra" }));
-	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	assert.deepEqual(fixture.active, ["read", "edit", "write", "apply_patch"]);
 	fixture.select(grammarModel({ provider: "openai-codex", id: "gpt-5.6-terra" }));
-	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	assert.deepEqual(fixture.active, ["read", "edit", "write", "apply_patch"]);
 	fixture.select(grammarModel({ id: "claude-opus" }));
-	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
-	// Without the flag Pi would send an ordinary JSON function tool, so keep the built-ins.
+	assert.deepEqual(fixture.active, ["read", "edit", "write", "apply_patch"]);
+	// Without the flag Pi would send an ordinary JSON function tool, so disable only apply_patch.
 	fixture.select(model({ compat: { supportsOpenAIGrammarTools: false } }));
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
 	fixture.select(model({ id: "claude-opus" }));
@@ -345,22 +345,22 @@ test("activation follows the transport's OpenAI grammar-tool support, not the mo
 	assert.deepEqual(fixture.active, ["read", "edit", "write"]);
 });
 
-test("activation is idempotent and restores only built-ins it suppressed", () => {
+test("activation is idempotent and toggles only apply_patch", () => {
 	const fixture = registerActivationFixture(["read", "edit"]);
 	const codex = grammarModel();
 
 	fixture.start(codex);
-	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
-	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]]);
+	assert.deepEqual(fixture.active, ["read", "edit", "apply_patch"]);
+	assert.deepEqual(fixture.setCalls, [["read", "edit", "apply_patch"]]);
 
 	fixture.start(codex);
 	fixture.select(codex);
-	assert.deepEqual(fixture.setCalls, [["read", "apply_patch"]], "repeated activation must be a no-op");
+	assert.deepEqual(fixture.setCalls, [["read", "edit", "apply_patch"]], "repeated activation must be a no-op");
 
 	fixture.select(model());
-	assert.deepEqual(fixture.active, ["read", "edit"], "write was never suppressed and must not be added");
+	assert.deepEqual(fixture.active, ["read", "edit"]);
 	assert.deepEqual(fixture.setCalls, [
-		["read", "apply_patch"],
+		["read", "edit", "apply_patch"],
 		["read", "edit"],
 	]);
 
@@ -368,11 +368,11 @@ test("activation is idempotent and restores only built-ins it suppressed", () =>
 	assert.equal(fixture.setCalls.length, 2, "repeated deactivation must be a no-op");
 });
 
-test("activation restores suppressed built-ins in their original order", () => {
+test("activation toggles only apply_patch and preserves built-in tool order", () => {
 	const fixture = registerActivationFixture(["read", "write", "edit"]);
 
 	fixture.start(grammarModel());
-	assert.deepEqual(fixture.active, ["read", "apply_patch"]);
+	assert.deepEqual(fixture.active, ["read", "write", "edit", "apply_patch"]);
 
 	fixture.select(model());
 	assert.deepEqual(fixture.active, ["read", "write", "edit"]);
