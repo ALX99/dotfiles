@@ -56,6 +56,21 @@ For an existing model whose provider is registered by an extension, check `model
 
 `pi --help` lists every flag. Sessions: `--continue`, `--resume`, `--session <path|id>`, `--fork`, `--session-dir`. Headless: `--print`, `--mode json|rpc`. Also `pi config` (toggle package resources), `pi list`, `pi update`, `pi --export <file>`.
 
+## MCP server configuration
+
+- Global MCP servers are configured in `~/.pi/agent/mcp.json`.
+- A trusted project can also define servers in `<project>/.pi/mcp.json`; Pi reads
+  this alongside the global config.
+- Use `pi mcp list` (or `pi mcp list --json`) to inspect configured servers,
+  connection state, exposed tools, and errors. Read the JSON config to get the
+  exact command, arguments, URL, and other options for a server.
+- Use `pi mcp add <server> --description "<what it offers>" -- <command> [args...]`
+  to add or replace a stdio server. For an HTTP server, use `--url <url>`
+  instead of the command. Pass `-l` to target the project-local config.
+  `pi mcp add` replaces that server's entry, so preserve its existing arguments
+  and options (such as `--exposure`) when updating it. Run `pi mcp --help` for
+  the installed CLI's current syntax.
+
 ## Reading your own session
 
 `$PI_SESSION_FILE` is this session's JSONL (unset when ephemeral): append-only, last entry is the current leaf, entry types in `docs/session-format.md`. Tool results dominate its bytes and it keeps history that compaction dropped from context, so query slices instead of reading it whole.
