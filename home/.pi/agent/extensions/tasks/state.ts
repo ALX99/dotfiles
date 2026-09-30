@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Result, Schema } from "effect";
+import { Predicate, Result, Schema } from "effect";
 
 import { MAX_ADDED_TASKS, MAX_TASKS, MIN_TASKS, TASK_OUTCOME_STATUSES } from "./tools.ts";
 
@@ -30,8 +30,8 @@ export interface TaskAddedItem extends TaskQueueItem {
 }
 
 /**
- * The only task outcome persisted by the extension. The same payload is stored
- * in the finish tool result and in the branch summary created at the boundary.
+ * The only task outcome persisted by the extension. It is stored in a direct
+ * finish_task result, an enclosing codemode result, and the branch summary.
  */
 export interface TaskOutcome {
 	kind: typeof TASK_OUTCOME_DETAILS_TYPE;
@@ -494,12 +494,15 @@ function sameAddedTasks(left: readonly TaskAddedItem[], right: readonly TaskAdde
 }
 
 function readTaskQueue(entry: TaskLogEntry): TaskQueueDetails | undefined {
-	return parseTaskQueue(successfulToolResultDetails(entry));
+	const details = successfulToolResultDetails(entry);
+	return parseTaskQueue(details) ?? parseTaskQueue(nestedTaskDetails(details, "taskQueue"));
 }
 
 function readTaskOutcome(entry: TaskLogEntry): TaskOutcome | undefined {
 	const details = entry.type === "branch_summary" ? entry.details : successfulToolResultDetails(entry);
-	return details === undefined ? undefined : parseTaskOutcome(details);
+	return details === undefined
+		? undefined
+		: (parseTaskOutcome(details) ?? parseTaskOutcome(nestedTaskDetails(details, "taskOutcome")));
 }
 
 function readTaskCancellation(entry: TaskLogEntry): TaskCancelledDetails | undefined {
@@ -512,6 +515,10 @@ function successfulToolResultDetails(entry: TaskLogEntry): unknown {
 		return undefined;
 	}
 	return entry.message.details;
+}
+
+function nestedTaskDetails(details: unknown, key: "taskOutcome" | "taskQueue"): unknown {
+	return Predicate.isObject(details) ? details[key] : undefined;
 }
 
 function parseTaskQueue(value: unknown): TaskQueueDetails | undefined {

@@ -994,6 +994,231 @@ test("requires boundary tools to be isolated in their assistant turn", async () 
 	);
 });
 
+test("records finish_task from a codemode script when it is the only nested tool call", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	const editParentId = "codemode-edit";
+	const editToolCallId = `${editParentId}/1`;
+	const changedPath = "Sources/Task.swift";
+	h.pushEntry(assistantToolCall(editParentId, "codemode"));
+	h.handlers.get("tool_call")!(
+		{
+			type: "tool_call",
+			toolName: "write",
+			toolCallId: editToolCallId,
+			parentToolCallId: editParentId,
+			input: { path: changedPath },
+		} as never,
+		h.ctx as never,
+	);
+	h.handlers.get("tool_result")!(
+		{
+			type: "tool_result",
+			toolName: "write",
+			toolCallId: editToolCallId,
+			parentToolCallId: editParentId,
+			input: { path: changedPath },
+			content: [{ type: "text", text: "File written." }],
+			details: undefined,
+			isError: false,
+		} as never,
+		h.ctx as never,
+	);
+	const editOuterResult = h.handlers.get("tool_result")!(
+		{
+			type: "tool_result",
+			toolName: "codemode",
+			toolCallId: editParentId,
+			input: {},
+			content: [{ type: "text", text: "Script completed." }],
+			details: { calls: [{ name: "write", status: "ok" }] },
+			isError: false,
+		} as never,
+		h.ctx as never,
+	) as { details: Record<string, unknown> };
+	assert.deepEqual(editOuterResult.details.taskChangedFiles, [changedPath]);
+	h.pushEntry(toolResult("codemode-edit-result", editParentId, "codemode", editOuterResult.details));
+
+	const parentToolCallId = "codemode-call";
+	const nestedToolCallId = `${parentToolCallId}/1`;
+	h.pushEntry(assistantToolCall(parentToolCallId, "codemode"));
+
+	assert.equal(
+		h.handlers.get("tool_call")!(
+			{
+				type: "tool_call",
+				toolName: "finish_task",
+				toolCallId: nestedToolCallId,
+				parentToolCallId,
+				input: { status: "completed", outcome: "Task done." },
+			} as never,
+			h.ctx as never,
+		),
+		undefined,
+	);
+	const nestedResult = await h.tools
+		.get("finish_task")!
+		.execute(nestedToolCallId, { status: "completed", outcome: "Task done." }, undefined, undefined, h.ctx);
+	assert.equal(nestedResult.terminate, undefined);
+
+	const outerResult = h.handlers.get("tool_result")!(
+		{
+			type: "tool_result",
+			toolName: "codemode",
+			toolCallId: parentToolCallId,
+			input: {},
+			content: [{ type: "text", text: "Script completed." }],
+			details: { calls: [{ name: "finish_task", status: "ok" }] },
+			isError: false,
+		} as never,
+		h.ctx as never,
+	) as { details: Record<string, unknown> };
+	const outcome = outerResult.details.taskOutcome as OutcomeDetails;
+	assert.equal(outcome.taskId, "t1");
+	assert.deepEqual(outcome.changedFiles, [changedPath]);
+
+	h.pushEntry(toolResult("codemode-result", parentToolCallId, "codemode", outerResult.details));
+	assert.deepEqual(
+		h.handlers.get("tool_call")!(
+			{
+				type: "tool_call",
+				toolName: "read",
+				toolCallId: "after-task-checkpoint",
+				input: { path: "README.md" },
+			} as never,
+			h.ctx as never,
+		),
+		{
+			block: true,
+			reason: "A task checkpoint is pending. Stop tool use so the task can be compacted.",
+			terminate: true,
+		},
+	);
+	const checkpoint = await commit(h, "queue-call-result");
+	assert.equal(checkpoint.details.taskId, "t1");
+	assert.match(checkpoint.summary, /Task done\./u);
+});
+
+test("records create_tasks from a codemode script when it is the only nested tool call", async () => {
+	const h = createHarness([{ id: "user", type: "message", message: { role: "user", content: "Plan this work." } }]);
+	const parentToolCallId = "codemode-create";
+	const nestedToolCallId = `${parentToolCallId}/1`;
+	h.pushEntry(assistantToolCall(parentToolCallId, "codemode"));
+
+	assert.equal(
+		h.handlers.get("tool_call")!(
+			{
+				type: "tool_call",
+				toolName: "create_tasks",
+				toolCallId: nestedToolCallId,
+				parentToolCallId,
+				input: { tasks: QUEUE_TITLES },
+			} as never,
+			h.ctx as never,
+		),
+		undefined,
+	);
+	await h.tools.get("create_tasks")!.execute(nestedToolCallId, { tasks: QUEUE_TITLES }, undefined, undefined, h.ctx);
+
+	const outerResult = h.handlers.get("tool_result")!(
+		{
+			type: "tool_result",
+			toolName: "codemode",
+			toolCallId: parentToolCallId,
+			input: {},
+			content: [{ type: "text", text: "Script completed." }],
+			details: { calls: [{ name: "create_tasks", status: "ok" }] },
+			isError: false,
+		} as never,
+		h.ctx as never,
+	) as { details: Record<string, unknown> };
+	assert.deepEqual(
+		(outerResult.details.taskQueue as QueueDetails).tasks.map((task) => task.id),
+		["t1", "t2", "t3", "t4"],
+	);
+	h.pushEntry(toolResult("codemode-create-result", parentToolCallId, "codemode", outerResult.details));
+	h.handlers.get("session_tree")!({} as never, h.ctx as never);
+
+	const finish = await finishTask(
+		h,
+		{ status: "completed", outcome: "The first task is complete." },
+		"finish-after-codemode-create",
+	);
+	assert.equal(finish.details.taskId, "t1");
+});
+
+test("does not commit a codemode task boundary when the script makes another nested call", async () => {
+	const h = createHarness();
+	await createQueue(h);
+	const parentToolCallId = "codemode-call";
+	const nestedToolCallId = `${parentToolCallId}/1`;
+	h.pushEntry(assistantToolCall(parentToolCallId, "codemode"));
+
+	h.handlers.get("tool_call")!(
+		{
+			type: "tool_call",
+			toolName: "finish_task",
+			toolCallId: nestedToolCallId,
+			parentToolCallId,
+			input: { status: "completed", outcome: "Task done." },
+		} as never,
+		h.ctx as never,
+	);
+	await h.tools
+		.get("finish_task")!
+		.execute(nestedToolCallId, { status: "completed", outcome: "Task done." }, undefined, undefined, h.ctx);
+
+	assert.deepEqual(
+		h.handlers.get("tool_call")!(
+			{
+				type: "tool_call",
+				toolName: "read",
+				toolCallId: `${parentToolCallId}/2`,
+				parentToolCallId,
+				input: { path: "README.md" },
+			} as never,
+			h.ctx as never,
+		),
+		{
+			block: true,
+			reason: "No nested tool calls may follow finish_task in the same codemode script.",
+		},
+	);
+
+	const outerResult = h.handlers.get("tool_result")!(
+		{
+			type: "tool_result",
+			toolName: "codemode",
+			toolCallId: parentToolCallId,
+			input: {},
+			content: [{ type: "text", text: "Script completed." }],
+			details: {
+				calls: [
+					{ name: "finish_task", status: "ok" },
+					{ name: "read", status: "error" },
+				],
+			},
+			isError: false,
+		} as never,
+		h.ctx as never,
+	) as { details?: Record<string, unknown>; isError?: boolean };
+	assert.equal(outerResult.details?.taskOutcome, undefined);
+	assert.equal(outerResult.isError, true);
+
+	h.pushEntry({
+		...toolResult("codemode-result", parentToolCallId, "codemode", outerResult.details ?? {}),
+		message: {
+			role: "toolResult",
+			toolCallId: parentToolCallId,
+			toolName: "codemode",
+			isError: true,
+			details: outerResult.details,
+		},
+	});
+	const retry = await finishTask(h, { status: "completed", outcome: "Direct retry." }, "direct-retry");
+	assert.equal(retry.details.taskId, "t1");
+});
+
 test("re-anchors on the current task with the shared continuation after automatic compaction", async () => {
 	const h = createHarness();
 	const queue = await createQueue(h);

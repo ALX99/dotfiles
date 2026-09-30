@@ -94,7 +94,7 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 		name: "create_tasks",
 		label: "Create Tasks",
 		description:
-			"Create an ordered task queue of 1–100 titles. Use it to plan work before doing it and to track that work: create one planning task to work out the approach, then add the tasks the planning produced. Start with one discovery task if follow-ups are unknown, and add them with finish_task.addTasks as you learn what is needed.",
+			"Create an ordered task queue of 1–100 titles. Use it to plan work before doing it and to track that work: create one planning task to work out the approach, then add the tasks the planning produced. Start with one discovery task if follow-ups are unknown, and add them with finish_task.addTasks as you learn what is needed. In codemode, make create_tasks the script's only nested tool call.",
 		parameters: CreateTasksParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {
@@ -105,7 +105,8 @@ export function registerTaskTools(pi: ExtensionAPI, handlers: TaskToolHandlers):
 	pi.registerTool({
 		name: "finish_task",
 		label: "Finish Task",
-		description: "Record the outcome of the current task and optionally add newly discovered follow-up tasks.",
+		description:
+			"Record the outcome of the current task and optionally add newly discovered follow-up tasks. In codemode, make finish_task the script's only nested tool call.",
 		parameters: FinishTaskParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, _signal, _onUpdate, ctx) {

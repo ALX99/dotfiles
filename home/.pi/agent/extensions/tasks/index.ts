@@ -34,6 +34,8 @@ import {
 	taskReminderPrompt,
 	titleOf,
 	type ActiveQueue,
+	type TaskOutcome,
+	type TaskQueueDetails,
 } from "./state.ts";
 
 export { TASK_TOOL_NAMES };
@@ -69,8 +71,26 @@ interface DeferredInputState {
 	continuation: string | undefined;
 }
 
+type TaskBoundaryToolName = "create_tasks" | "finish_task";
+
+interface CodemodeTaskBoundary {
+	toolCallId: string;
+	toolName: TaskBoundaryToolName;
+	queue?: TaskQueueDetails;
+	outcome?: TaskOutcome;
+}
+
+interface CodemodeCallState {
+	nestedCallCount: number;
+	pendingMutationPaths: Map<string, string[]>;
+	changedFiles: Set<string>;
+	boundary?: CodemodeTaskBoundary;
+}
+
 export default function tasksExtension(pi: ExtensionAPI): void {
 	let printTaskFinished = false;
+	const codemodeCalls = new Map<string, CodemodeCallState>();
+	const codemodeTaskCallParents = new Map<string, string>();
 	const deferredInputs: DeferredInputState = {
 		inputs: [],
 		replaying: false,
@@ -92,7 +112,13 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 					"The current task outcome has already been recorded. Continue with the next task.",
 				);
 			}
-			requireIsolatedTaskCall(ctx, toolCallId, "create_tasks");
+			const parentToolCallId = requireTaskBoundaryCall(
+				ctx,
+				toolCallId,
+				"create_tasks",
+				codemodeCalls,
+				codemodeTaskCallParents,
+			);
 			const active = getActiveQueue(ctx);
 			if (active !== undefined && (pendingCompaction(active) !== undefined || currentItem(active) !== undefined)) {
 				throw taskError(
@@ -102,6 +128,9 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			}
 
 			const details = createQueue(params.tasks);
+			if (parentToolCallId !== undefined) {
+				codemodeCalls.get(parentToolCallId)!.boundary!.queue = details;
+			}
 			const { tasks } = details;
 			activateTaskTools(pi);
 			ctx.ui.setStatus(TASK_STATUS_KEY, formatTaskLabel(0, tasks.length, tasks[0]!.title));
@@ -112,7 +141,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 						text: [
 							`Queued ${tasks.length} tasks.`,
 							...tasks.map((task, index) => `${index + 1}. ${task.id}: ${task.title}`),
-							"Work tasks in order. Call finish_task alone after each task, recording a concise handoff and adding any follow-up tasks.",
+							"Work tasks in order. After each task, call finish_task as the only tool call in its assistant turn, or make it the only nested tool call in a codemode script. Record a concise handoff and add any follow-up tasks.",
 						].join("\n"),
 					},
 				],
@@ -127,7 +156,13 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 					"The current task outcome has already been recorded. Continue with the next task.",
 				);
 			}
-			requireIsolatedTaskCall(ctx, toolCallId, "finish_task");
+			const parentToolCallId = requireTaskBoundaryCall(
+				ctx,
+				toolCallId,
+				"finish_task",
+				codemodeCalls,
+				codemodeTaskCallParents,
+			);
 			if (!Check(FinishTaskParams, params)) throw new Error("Invalid finish_task parameters.");
 			const active = getActiveQueue(ctx);
 			if (active === undefined) {
@@ -140,7 +175,10 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 				changedFiles: changedFilesForTask(ctx, active),
 				checkpoint: isHeadlessMode(ctx) ? "inline" : "rewrite",
 			});
-			if (isHeadlessMode(ctx)) printTaskFinished = true;
+			if (isHeadlessMode(ctx) && parentToolCallId === undefined) printTaskFinished = true;
+			if (parentToolCallId !== undefined) {
+				codemodeCalls.get(parentToolCallId)!.boundary!.outcome = details;
+			}
 
 			const projected = projectOutcome(active, details);
 			const next = currentItem(projected);
@@ -162,14 +200,139 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 							...(details.addedTasks.length === 0
 								? []
 								: [`Added: ${details.addedTasks.map(formatAddedTask).join("; ")}`]),
-							next === undefined ? finalSummaryPrompt(projected) : nextTaskPrompt(next),
+							parentToolCallId !== undefined && details.checkpoint === "rewrite"
+								? "The task outcome is ready to checkpoint. Do not call more tools or start the next task."
+								: next === undefined
+									? finalSummaryPrompt(projected)
+									: nextTaskPrompt(next),
 						].join(" "),
 					},
 				],
 				details,
-				terminate: details.checkpoint === "rewrite",
+				...(parentToolCallId === undefined ? { terminate: details.checkpoint === "rewrite" } : {}),
 			};
 		},
+	});
+
+	pi.on("tool_call", (event, ctx) => {
+		if (event.parentToolCallId === undefined) {
+			if (hasPendingTaskCompaction(ctx)) {
+				return {
+					block: true,
+					reason: "A task checkpoint is pending. Stop tool use so the task can be compacted.",
+					terminate: true,
+				};
+			}
+			return undefined;
+		}
+
+		const parentToolCallId = event.parentToolCallId;
+		const isCodemodeParent = getCurrentToolCalls(ctx).some(
+			(toolCall) => toolCall.id === parentToolCallId && toolCall.name === "codemode",
+		);
+		if (!isCodemodeParent) {
+			if (event.toolName !== "create_tasks" && event.toolName !== "finish_task") return undefined;
+			return {
+				block: true,
+				reason: `${event.toolName} can run through codemode only when codemode is the assistant turn's sole tool call.`,
+			};
+		}
+
+		const state: CodemodeCallState = codemodeCalls.get(parentToolCallId) ?? {
+			nestedCallCount: 0,
+			pendingMutationPaths: new Map(),
+			changedFiles: new Set(),
+		};
+		state.nestedCallCount += 1;
+		codemodeCalls.set(parentToolCallId, state);
+		const mutationPaths = observedMutationPaths(event.toolName, event.input, ctx.cwd);
+		if (mutationPaths.length > 0) state.pendingMutationPaths.set(event.toolCallId, mutationPaths);
+
+		if (state.boundary !== undefined) {
+			return {
+				block: true,
+				reason: `No nested tool calls may follow ${state.boundary.toolName} in the same codemode script.`,
+			};
+		}
+
+		if (event.toolName !== "create_tasks" && event.toolName !== "finish_task") return undefined;
+		if (state.nestedCallCount !== 1 || !isSingleToolCall(ctx, parentToolCallId, "codemode")) {
+			return {
+				block: true,
+				reason: `${event.toolName} can run in codemode only as its sole nested tool call.`,
+			};
+		}
+
+		state.boundary = { toolCallId: event.toolCallId, toolName: event.toolName };
+		codemodeTaskCallParents.set(event.toolCallId, parentToolCallId);
+		return undefined;
+	});
+
+	pi.on("tool_result", (event, ctx) => {
+		if (event.parentToolCallId !== undefined) {
+			const state = codemodeCalls.get(event.parentToolCallId);
+			const paths = state?.pendingMutationPaths.get(event.toolCallId);
+			state?.pendingMutationPaths.delete(event.toolCallId);
+			if (state !== undefined && !event.isError) {
+				for (const path of paths ?? []) state.changedFiles.add(path);
+			}
+			return undefined;
+		}
+		if (event.toolName !== "codemode") return undefined;
+		const state = codemodeCalls.get(event.toolCallId);
+		codemodeCalls.delete(event.toolCallId);
+		if (state === undefined) return undefined;
+
+		const codemodeDetails = {
+			...(Predicate.isObject(event.details) ? event.details : {}),
+			...(state.changedFiles.size === 0 ? {} : { taskChangedFiles: [...state.changedFiles] }),
+		};
+		if (state.boundary === undefined) {
+			return state.changedFiles.size === 0 ? undefined : { details: codemodeDetails };
+		}
+
+		codemodeTaskCallParents.delete(state.boundary.toolCallId);
+		const boundary = state.boundary;
+		const successfulCalls = hasOnlySuccessfulCodemodeBoundary(event.details, boundary.toolName);
+		const hasBoundaryResult =
+			boundary.toolName === "create_tasks" ? boundary.queue !== undefined : boundary.outcome !== undefined;
+		if (event.isError || !successfulCalls || !hasBoundaryResult) {
+			if (boundary.queue !== undefined) applyToolVisibility(pi, tasksEnabled(ctx));
+			refreshStatus(ctx);
+			return {
+				content: [
+					...event.content,
+					{
+						type: "text",
+						text: `Task boundary was not recorded. A codemode script must make exactly one nested tool call, and it must be ${boundary.toolName}.`,
+					},
+				],
+				details: codemodeDetails,
+				isError: true,
+			};
+		}
+
+		if (boundary.toolName === "create_tasks") {
+			return {
+				details: { ...codemodeDetails, taskQueue: boundary.queue },
+			};
+		}
+
+		if (isHeadlessMode(ctx)) printTaskFinished = true;
+		return {
+			content: [
+				...event.content,
+				...(boundary.outcome?.checkpoint === "rewrite"
+					? [
+							{
+								type: "text" as const,
+								text: "The task checkpoint is pending. Do not use tools or start the next task; the task extension will compact and resume it.",
+							},
+						]
+					: []),
+			],
+			details: { ...codemodeDetails, taskOutcome: boundary.outcome },
+		};
 	});
 
 	pi.on("input", (event, ctx) => {
@@ -177,7 +340,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			event.source === "extension" ||
 			isHeadlessMode(ctx) ||
 			!tasksEnabled(ctx) ||
-			(!hasPendingTaskCompaction(ctx) && !hasFinishingTaskCall(ctx))
+			(!hasPendingTaskCompaction(ctx) && !hasFinishingTaskCall(ctx) && !hasCodemodeTaskBoundary(codemodeCalls))
 		) {
 			return undefined;
 		}
@@ -187,7 +350,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 			...(event.images === undefined ? {} : { images: event.images }),
 		});
 		if (deferredInputs.inputs.length === 1 && !deferredInputs.replaying) {
-			ctx.ui.notify("Holding your message until the task checkpoint is compacted.", "info");
+			ctx.ui.notify("Holding your message until the task boundary is recorded.", "info");
 		}
 		return { action: "handled" };
 	});
@@ -293,6 +456,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		syncTaskToolVisibility(pi, ctx);
 		printTaskFinished = false;
+		codemodeCalls.clear();
+		codemodeTaskCallParents.clear();
 		deferredInputs.inputs.length = 0;
 		deferredInputs.replaying = false;
 		deferredInputs.continuation = undefined;
@@ -301,6 +466,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 	pi.on("agent_start", () => {
 		printTaskFinished = false;
+		codemodeCalls.clear();
+		codemodeTaskCallParents.clear();
 	});
 
 	pi.on("session_tree", (_event, ctx) => {
@@ -334,6 +501,8 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 
 	pi.on("session_shutdown", (_event, ctx) => {
 		printTaskFinished = false;
+		codemodeCalls.clear();
+		codemodeTaskCallParents.clear();
 		deferredInputs.inputs.length = 0;
 		deferredInputs.replaying = false;
 		deferredInputs.continuation = undefined;
@@ -455,6 +624,46 @@ function formatCompactionStatus(taskNumber: number, total: number): string {
 	return `${TASK_COMPACTION_MARKER} Task ${taskNumber}/${total} · compacting`;
 }
 
+function hasCodemodeTaskBoundary(codemodeCalls: ReadonlyMap<string, CodemodeCallState>): boolean {
+	return [...codemodeCalls.values()].some((state) => state.boundary !== undefined);
+}
+
+function isSingleToolCall(ctx: BranchContext, toolCallId: string, toolName: string): boolean {
+	const toolCalls = getCurrentToolCalls(ctx);
+	return toolCalls.length === 1 && toolCalls[0]?.id === toolCallId && toolCalls[0].name === toolName;
+}
+
+function requireTaskBoundaryCall(
+	ctx: BranchContext,
+	toolCallId: string,
+	toolName: TaskBoundaryToolName,
+	codemodeCalls: ReadonlyMap<string, CodemodeCallState>,
+	codemodeTaskCallParents: ReadonlyMap<string, string>,
+): string | undefined {
+	const parentToolCallId = codemodeTaskCallParents.get(toolCallId);
+	if (parentToolCallId === undefined) {
+		requireIsolatedTaskCall(ctx, toolCallId, toolName);
+		return undefined;
+	}
+
+	const state = codemodeCalls.get(parentToolCallId);
+	if (
+		state?.nestedCallCount === 1 &&
+		state.boundary?.toolCallId === toolCallId &&
+		state.boundary.toolName === toolName
+	) {
+		return parentToolCallId;
+	}
+
+	throw taskError("not_isolated", `${toolName} can run through codemode only as its sole nested tool call.`);
+}
+
+function hasOnlySuccessfulCodemodeBoundary(details: unknown, toolName: TaskBoundaryToolName): boolean {
+	if (!Predicate.isObject(details) || !Array.isArray(details.calls) || details.calls.length !== 1) return false;
+	const call = details.calls[0];
+	return Predicate.isObject(call) && call.name === toolName && call.status === "ok";
+}
+
 function formatQueueStatus(active: ActiveQueue): string {
 	const counts = taskCounts(active);
 	if (active.cancelled !== undefined) return `! Tasks canceled · ${formatTaskCounts(counts)}`;
@@ -477,6 +686,15 @@ function changedFilesForTask(ctx: ExtensionContext, active: ActiveQueue): string
 				if (paths.length > 0) mutationPaths.set(block.id, paths);
 			}
 			continue;
+		}
+
+		if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.toolName === "codemode") {
+			const details = entry.message.details;
+			if (Predicate.isObject(details) && Array.isArray(details.taskChangedFiles)) {
+				for (const path of details.taskChangedFiles) {
+					if (typeof path === "string") changed.add(path);
+				}
+			}
 		}
 
 		if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.isError) continue;
@@ -732,9 +950,11 @@ function requireIsolatedTaskCall(
 	toolCallId: string,
 	toolName: "create_tasks" | "finish_task",
 ): void {
-	const toolCalls = getCurrentToolCalls(ctx);
-	if (toolCalls.length === 1 && toolCalls[0]?.id === toolCallId && toolCalls[0].name === toolName) return;
-	throw taskError("not_isolated", `${toolName} must be the only tool call in its assistant turn.`);
+	if (isSingleToolCall(ctx, toolCallId, toolName)) return;
+	throw taskError(
+		"not_isolated",
+		`${toolName} must be the only tool call in its assistant turn, or the only nested tool call in a codemode script.`,
+	);
 }
 
 function getCurrentToolCalls(ctx: BranchContext): Array<{ id: string; name: string }> {
