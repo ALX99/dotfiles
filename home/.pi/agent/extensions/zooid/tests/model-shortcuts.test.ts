@@ -150,7 +150,7 @@ test("switches immediately when the session is idle", async () => {
 
 	await harness.runCommand("luna");
 
-	assert.deepEqual(harness.modelChanges, ["openai-codex/gpt-6-luna"]);
+	assert.deepEqual(harness.modelChanges, ["openai/gpt-6-luna"]);
 	assert.deepEqual(harness.thinkingLevels, [luna.thinkingLevel]);
 });
 
@@ -164,8 +164,8 @@ test("applies a shortcut queued during compaction once the session goes idle", a
 
 	await harness.endWork();
 
-	assert.deepEqual(harness.modelChanges, ["openai-codex/gpt-6-luna"]);
-	assert.match(harness.notifications.at(-1)?.message ?? "", /Switched to openai-codex\/gpt-6-luna/u);
+	assert.deepEqual(harness.modelChanges, ["openai/gpt-6-luna"]);
+	assert.match(harness.notifications.at(-1)?.message ?? "", /Switched to openai\/gpt-6-luna/u);
 });
 
 test("applies a shortcut queued during a turn when the agent settles", async () => {
@@ -177,7 +177,7 @@ test("applies a shortcut queued during a turn when the agent settles", async () 
 
 	await harness.settleAgent();
 
-	assert.deepEqual(harness.modelChanges, ["openai-codex/gpt-6.1-sol"]);
+	assert.deepEqual(harness.modelChanges, ["openai/gpt-6.1-sol"]);
 });
 
 test("applies only the latest shortcut when several are queued", async () => {

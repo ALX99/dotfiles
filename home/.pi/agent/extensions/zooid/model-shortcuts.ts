@@ -3,9 +3,9 @@ import type { Model } from "@earendil-works/pi-ai";
 import { toError } from "../_shared/errors.ts";
 
 export const MODEL_SHORTCUTS = [
-	{ command: "luna", provider: "openai-codex", model: "gpt-6-luna", thinkingLevel: "xhigh" },
-	{ command: "astra", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium" },
-	{ command: "sol", provider: "openai-codex", model: "gpt-6.1-sol", thinkingLevel: "medium" },
+	{ command: "luna", provider: "openai", model: "gpt-6-luna", thinkingLevel: "xhigh" },
+	{ command: "astra", provider: "openai", model: "gpt-6-astra", thinkingLevel: "medium" },
+	{ command: "sol", provider: "openai", model: "gpt-6.1-sol", thinkingLevel: "medium" },
 	{ command: "free", provider: "commandcode", model: "stealth/space-bunny-alpha", thinkingLevel: "high" },
 ] as const;
 

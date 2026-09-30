@@ -1,5 +1,5 @@
 {
-  "defaultProvider": "openai-codex",
+  "defaultProvider": "openai",
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "xhigh",
   "defaultProjectTrust": "always",
@@ -26,9 +26,9 @@
     "npm:pi-commandcode-provider"
   ],
   "enabledModels": [
-    "openai-codex/gpt-6-luna",
-    "openai-codex/gpt-6.1-sol",
-    "openai-codex/gpt-6-astra",
+    "openai/gpt-6-luna",
+    "openai/gpt-6.1-sol",
+    "openai/gpt-6-astra",
     "commandcode/deepseek/deepseek-v4.1-flash",
     "commandcode/z-ai/glm-5.3-flash",
     "commandcode/xiaomi/mimo-v2.6-flash"
