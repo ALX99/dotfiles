@@ -1,12 +1,20 @@
 # Harness learning
 
-An opt-in learning workflow for Pi. The model can record evidence and propose
-small repository-scoped procedures. Only the user can configure evaluation,
-run paid probes, approve or reject candidates, and roll back guidance.
+An opt-in learning workflow for Pi with two paths:
+
+- **Interactive learning:** the model records evidence and proposes small
+  repository-scoped procedures; the user runs decision probes and approves.
+- **Automated laboratory:** an explicitly authorized headless run diagnoses
+  coding-task failures, proposes procedures, tests them in Docker, and selects
+  experimental versions. Deployment still requires user review and approval.
+
+See [Laboratory experiments](lab/README.md) for the experiment schema, CLI,
+coding-task evaluator, budgets, and sandbox limitations.
 
 The mutable surface is **procedural guidance**, not extension code, tool
-implementations, `AGENTS.md`, or the evaluator. Nothing automatically rewrites
-source, commits changes, schedules model calls, or promotes a candidate.
+implementations, `AGENTS.md`, or the evaluator. Neither path rewrites harness
+source, commits changes, schedules background calls, or automatically deploys
+guidance. Laboratory coding tasks edit only disposable container workspaces.
 
 ```text
 exact session quotes → candidate procedure → independent decision probes
@@ -15,7 +23,9 @@ exact session quotes → candidate procedure → independent decision probes
 ```
 
 This is infrastructure for gated procedural learning. It does not establish
-that a procedure improves end-to-end coding performance.
+that a procedure improves everyday Pi coding performance. Decision probes test
+next-action choices; laboratory tasks use a separate bounded coding runtime,
+not a replay of native Pi sessions.
 
 ## Load
 
@@ -76,6 +86,8 @@ they also require an idle agent and no other running harness command.
 | `/harness evaluate <candidate-id>`              | Confirm and run paid, read-only, paired decision probes. Does not approve.                              |
 | `/harness approve <candidate-id> <reason>`      | Confirm promotion after the gate passes for the selected model.                                         |
 | `/harness reject <candidate-id> <reason>`       | Confirm rejection without deleting the candidate.                                                       |
+| `/harness lab-review <run-id>`                  | Review experimental procedures, selection history, gate reasons, and task verification outcomes.        |
+| `/harness lab-release <run-id> <reason>`        | Confirm deployment of a completed, passing lab run after current-parent and physical-model checks.      |
 | `/harness rollback <version-id\|root> <reason>` | Confirm restoration as a new version. `root` restores an empty pool.                                    |
 | `/harness cancel`                               | Cancel the outstanding command, including evaluation.                                                   |
 
@@ -140,7 +152,9 @@ are `MODEL_LIMITATION`, `TOOL_FAILURE`, `ENVIRONMENT_FAILURE`,
 procedural learning.
 
 Quote authenticity is checked, but attribution and the hypothesis remain
-claims to review. There is no automatic failure mining or causal classifier.
+claims to review. This interactive path has no automatic failure mining or
+causal classifier. The separate laboratory uses its own development-task
+traces, not automatic ingestion of ordinary Pi sessions.
 Duplicate procedures are blocked against the same parent or an active
 procedure, including cosmetic title changes. Rejected candidates are not
 silently retried as identical proposals.
@@ -305,9 +319,12 @@ To run only this feature's offline tests:
 ```sh
 cd home/.pi/agent/extensions
 PI_OFFLINE=1 node --test 'harness-learning/tests/*.test.ts'
+PI_OFFLINE=1 node --test 'harness-learning/lab/tests/*.test.ts'
 ```
 
 The loading test uses Pi's real extension loader in an isolated temporary
 directory. Integration tests use real session/history/storage with fake UI,
 Git, and provider boundaries; they do not make paid requests. These tests
 verify implementation contracts, not a real model's coding improvement.
+Real-Docker tests require an explicit local-image opt-in; see the laboratory
+guide. They use fake model responses and do not issue paid requests.

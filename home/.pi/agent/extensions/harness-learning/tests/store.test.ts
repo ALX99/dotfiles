@@ -9,8 +9,9 @@ import { Effect, Fiber } from "effect";
 import { runFork, runPromise } from "../../_shared/effect-runtime.ts";
 import { withExclusiveFileLock, writePrivateFileAtomic } from "../../_shared/fs.ts";
 import { HarnessError, MAX_STORE_BYTES } from "../schema.ts";
-import { appendStoreEvent, loadStore, openStore, type HarnessStore } from "../store.ts";
-import { activeProcedures, renderGuidance } from "../state.ts";
+import { appendStoreEvent, loadStore, loadStoreSnapshot, openStore, type HarnessStore } from "../store.ts";
+import { renderGuidance } from "../procedures.ts";
+import { activeProcedures } from "../state.ts";
 import { decision, evaluatedHistory, evaluation, evidence, pendingHistory } from "./fixtures.ts";
 
 async function fixture(t: TestContext): Promise<HarnessStore> {
@@ -44,6 +45,23 @@ test("the store starts empty and writes a private, replayable history with no le
 	assert.equal((await fs.stat(store.file)).mode & 0o777, 0o600);
 	assert.deepEqual(await fs.readdir(store.directory), ["history.json"]);
 	assert.equal(loaded.document.scope, store.scope);
+});
+
+test("offline snapshots create no directories and preserve permissions and change-time with private-file safety", async (t) => {
+	const store = await fixture(t);
+	assert.equal((await runPromise(loadStoreSnapshot(store))).state.head.id, "root");
+	assert.equal(await exists(store.root), false);
+	await runPromise(appendStoreEvent(store, evidence()));
+	await fs.chmod(store.file, 0o644);
+	const before = await fs.stat(store.file);
+	assert.deepEqual((await runPromise(loadStoreSnapshot(store))).document.events, [evidence()]);
+	const after = await fs.stat(store.file);
+	assert.equal(after.mode, before.mode);
+	assert.equal(after.ctimeMs, before.ctimeMs);
+	await runPromise(loadStore(store));
+	assert.equal((await fs.stat(store.file)).mode & 0o777, 0o600);
+	await fs.link(store.file, join(store.root, "linked-history"));
+	await assert.rejects(runPromise(loadStoreSnapshot(store)), /without links/);
 });
 
 test("canonical repository identity is shared by aliases and isolated from other scopes", async (t) => {

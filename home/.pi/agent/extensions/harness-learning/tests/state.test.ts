@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Result } from "effect";
+import { renderGuidance } from "../procedures.ts";
 import { MAX_ACTIVE_PROCEDURES, MAX_EVENTS, MAX_GUIDANCE_CHARS, type HarnessDocument } from "../schema.ts";
 import {
 	activeProcedures,
@@ -9,7 +10,6 @@ import {
 	emptyDocument,
 	evaluationPlan,
 	promotionGate,
-	renderGuidance,
 	replayDocument,
 } from "../state.ts";
 import {

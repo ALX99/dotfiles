@@ -10,10 +10,13 @@ import {
 	PROBE_MAX_TOKENS,
 	PROBE_TIMEOUT_MS,
 } from "./evaluation.ts";
-import { contextStore, eventEnvelope, selectedModel } from "./runtime.ts";
+import { labReleaseGate, labProcedures } from "./lab/state.ts";
+import { loadLabStore, openLabStore } from "./lab/store.ts";
+import { renderGuidance } from "./procedures.ts";
+import { contextStore, eventEnvelope, selectedModel, selectedPhysicalModel } from "./runtime.ts";
 import { EVALUATION_REPEATS, HarnessError, MAX_EVENTS } from "./schema.ts";
-import { evaluationPlan, promotionGate, type HarnessState } from "./state.ts";
-import { appendStoreEvent, loadStore } from "./store.ts";
+import { evaluationPlan, labReleasePlan, promotionGate, type HarnessState } from "./state.ts";
+import { appendStoreEvent, loadStore, loadStoreSnapshot } from "./store.ts";
 
 const HELP = [
 	"/harness status",
@@ -23,6 +26,8 @@ const HELP = [
 	"/harness approve <candidate-id> <reason>",
 	"/harness reject <candidate-id> <reason>",
 	"/harness rollback <version-id|root> <reason>",
+	"/harness lab-review <run-id>",
+	"/harness lab-release <run-id> <reason>",
 	"/harness cancel",
 ].join("\n");
 
@@ -88,13 +93,120 @@ const commandEffect = Effect.fn("harnessLearning.command")(function* (
 	};
 	const check = () =>
 		Effect.try({ try: ensureCurrent, catch: (cause) => new HarnessError({ message: toError(cause).message }) });
-	if (!["status", "review", "suite", "evaluate", "approve", "reject", "rollback"].includes(action)) {
+	if (
+		!["status", "review", "suite", "evaluate", "approve", "reject", "rollback", "lab-review", "lab-release"].includes(
+			action,
+		)
+	) {
 		yield* Effect.sync(() => ctx.ui.notify(HELP, "info"));
 		return undefined;
 	}
 	const store = yield* contextStore(pi, ctx, root);
-	const loaded = yield* loadStore(store);
+	const loaded = yield* action.startsWith("lab-") ? loadStoreSnapshot(store) : loadStore(store);
 	const state = loaded.state;
+	if (action === "lab-review" || action === "lab-release") {
+		const runId = parts[0];
+		if (runId === undefined) return yield* new HarnessError({ message: HELP });
+		const labStore = yield* openLabStore(store.scope, runId, store.root).pipe(
+			Effect.mapError((error) => new HarnessError({ message: error.message })),
+		);
+		const lab = yield* loadLabStore(labStore).pipe(
+			Effect.mapError((error) => new HarnessError({ message: error.message })),
+		);
+		const modelId = selectedPhysicalModel(ctx);
+		const plan = modelId.pipe(Result.flatMap((model) => labReleasePlan(state, lab.document, model)));
+		if (action === "lab-review") {
+			yield* Effect.sync(() =>
+				ctx.ui.notify(
+					JSON.stringify(
+						{
+							scope: lab.state.scope,
+							runId: lab.state.runId,
+							targetModel: lab.state.started.config.targetModel,
+							productionParent: lab.state.started.config.baseline.productionVersion,
+							experimentalVersion: lab.state.head.id,
+							finished: lab.state.finished,
+							laboratoryGate: labReleaseGate(lab.state),
+							productionGate: Result.isSuccess(plan) ? "eligible" : plan.failure.message,
+							procedures: labProcedures(lab.state),
+							candidates: lab.state.candidates.map((candidate) => ({
+								...candidate,
+								selection: lab.state.selections.find((entry) => entry.candidateId === candidate.id) ?? null,
+							})),
+							tasks: lab.state.tasks.map(({ id, phase, taskId, repeat, arm, outcome }) => ({
+								id,
+								phase,
+								taskId,
+								repeat,
+								arm,
+								outcome:
+									outcome.status === "completed"
+										? { status: outcome.status, verificationExitCode: outcome.verificationExitCode }
+										: outcome,
+							})),
+						},
+						null,
+						2,
+					),
+					"info",
+				),
+			);
+			return undefined;
+		}
+		const reason = parts.slice(1).join(" ");
+		if (reason.length === 0) return yield* new HarnessError({ message: "Laboratory release requires a reason" });
+		if (Result.isFailure(plan)) return yield* plan.failure;
+		const selected = yield* Effect.fromResult(modelId);
+		const cwd = ctx.cwd;
+		const leaf = ctx.sessionManager.getLeafId();
+		const assertReleaseCurrent = (): void => {
+			ensureCurrent();
+			const current = selectedPhysicalModel(ctx);
+			if (ctx.cwd !== cwd || ctx.sessionManager.getLeafId() !== leaf)
+				throw new HarnessError({ message: "Repository or session branch changed; release cancelled" });
+			if (Result.isFailure(current)) throw current.failure;
+			if (current.success !== selected)
+				throw new HarnessError({ message: "Selected model changed; release cancelled" });
+		};
+		yield* Effect.try({
+			try: assertReleaseCurrent,
+			catch: (cause) => new HarnessError({ message: toError(cause).message }),
+		});
+		if (
+			!(yield* confirm(
+				ctx,
+				"Release experimental procedural guidance?",
+				`${runId}: ${lab.state.head.id} → production parent ${state.head.id}\n${selected}\n${reason}\n\n` +
+					renderGuidance(plan.success.procedures) +
+					"\n\nRead /harness lab-review first. These are bounded coding-task results, not native-Pi replay or proof of everyday transfer. " +
+					"Same-account evidence is not adversarially protected. Other models' procedures are preserved; rollback remains available.",
+			))
+		)
+			return undefined;
+		yield* check();
+		const currentStore = yield* contextStore(pi, ctx, root);
+		if (currentStore.scope !== store.scope)
+			return yield* new HarnessError({ message: "Repository scope changed; release cancelled" });
+		yield* appendStoreEvent(
+			store,
+			{
+				...(yield* eventEnvelope()),
+				kind: "lab-release",
+				parentVersion: state.head.id,
+				model: selected,
+				lab: plan.success.lab,
+				reason,
+			},
+			assertReleaseCurrent,
+		);
+		yield* Effect.sync(() =>
+			ctx.ui.notify(
+				"Laboratory release recorded for this model. Guidance changes on the next request; /harness rollback remains available.",
+				"info",
+			),
+		);
+		return undefined;
+	}
 	if (action === "status") {
 		yield* Effect.sync(() => ctx.ui.notify(status(state), "info"));
 		return undefined;
@@ -284,6 +396,13 @@ function status(state: HarnessState): string {
 		`Current version: ${state.head.id}`,
 		`Active candidates: ${state.head.candidateIds.join(", ") || "none"}`,
 		`${state.evidence.length} evidence records; ${state.proposals.length} proposals; ${state.evaluations.length} evaluations.`,
+		`${state.releases.length} reviewed laboratory releases.`,
+		`Recent laboratory runs: ${
+			state.releases
+				.slice(-5)
+				.map((release) => release.lab.runId)
+				.join(", ") || "none"
+		}`,
 		`Latest suite: ${state.suites.at(-1)?.id ?? "none"}`,
 		`Recent versions: ${state.versions
 			.slice(-10)

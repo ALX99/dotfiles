@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Plan or explicitly launch bounded harness-learning experiments"
+#MISE dir="."
+set -euo pipefail
+exec node home/.pi/agent/extensions/harness-learning/lab/main.ts "$@"

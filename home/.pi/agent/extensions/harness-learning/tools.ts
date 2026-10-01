@@ -5,6 +5,7 @@ import { runPromise } from "../_shared/effect-runtime.ts";
 import { AttributionSchema, EvidenceInputSchema, ProposalInputSchema } from "./schema.ts";
 import { anchorText, anchoredEvidence, contextStore, eventEnvelope, selectedModel } from "./runtime.ts";
 import { appendStoreEvent, loadStore } from "./store.ts";
+import { activeProcedures } from "./state.ts";
 
 export function registerLearningTools(pi: ExtensionAPI, root?: string): void {
 	pi.registerTool({
@@ -55,6 +56,7 @@ export function registerLearningTools(pi: ExtensionAPI, root?: string): void {
 						scope: state.scope,
 						parentVersion: state.head.id,
 						activeCandidateIds: state.head.candidateIds,
+						activeProcedures: activeProcedures(state),
 						evidence: state.evidence.slice(-12),
 						candidates: state.proposals.slice(-10).map((proposal) => ({
 							...proposal,

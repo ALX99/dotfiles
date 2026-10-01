@@ -1,20 +1,24 @@
 import { Result, Schema } from "effect";
+import { decodeLabDocument, labProcedures, labReleaseGate, replayLabDocument } from "./lab/state.ts";
+import type { LabDocument } from "./lab/schema.ts";
+import { candidateProcedureIds, sameProcedure, validateProcedurePool, type ProcedureEntry } from "./procedures.ts";
 import {
 	EVALUATION_REPEATS,
 	HarnessDocumentSchema,
 	HarnessError,
 	HarnessEventSchema,
-	MAX_ACTIVE_PROCEDURES,
 	MAX_EVENTS,
-	MAX_GUIDANCE_CHARS,
 	type DecisionEvent,
 	type EvaluationEvent,
 	type EvidenceEvent,
 	type HarnessDocument,
 	type HarnessEvent,
+	type LabReleaseEvent,
 	type ProposalEvent,
 	type SuiteEvent,
 } from "./schema.ts";
+
+export { renderGuidance } from "./procedures.ts";
 
 export interface HarnessVersion {
 	readonly id: string;
@@ -32,6 +36,12 @@ export interface HarnessState {
 	readonly suites: readonly SuiteEvent[];
 	readonly evaluations: readonly EvaluationEvent[];
 	readonly decisions: readonly DecisionEvent[];
+	readonly releases: readonly HarnessLabRelease[];
+}
+
+export interface HarnessLabRelease extends Omit<LabReleaseEvent, "lab"> {
+	readonly lab: LabDocument;
+	readonly procedures: readonly ProcedureEntry[];
 }
 
 export interface EvaluationPlan {
@@ -68,14 +78,16 @@ export function replayDocument(input: unknown): Result.Result<HarnessState, Harn
 		suites: [],
 		evaluations: [],
 		decisions: [],
+		releases: [],
 	};
 	const ids = new Set(["root"]);
 	for (const event of decoded.success.events) {
 		if (ids.has(event.id)) return fail(`Duplicate history ID: ${event.id}`);
-		const applied = applyEvent(state, event);
+		const applied = applyEvent(state, event, ids);
 		if (Result.isFailure(applied)) return applied;
 		state = applied.success;
 		ids.add(event.id);
+		if (event.kind === "lab-release") for (const procedure of state.releases.at(-1)!.procedures) ids.add(procedure.id);
 	}
 	return Result.succeed(state);
 }
@@ -92,9 +104,11 @@ export function appendEvent(
 	return replayDocument(next).pipe(Result.map((state) => ({ document: next, state })));
 }
 
-export function activeProcedures(state: HarnessState, version: HarnessVersion = state.head): readonly ProposalEvent[] {
+export function activeProcedures(state: HarnessState, version: HarnessVersion = state.head): readonly ProcedureEntry[] {
 	return version.candidateIds.map((id) => {
-		const proposal = state.proposals.find((candidate) => candidate.id === id);
+		const proposal =
+			state.proposals.find((candidate) => candidate.id === id) ??
+			state.releases.flatMap((release) => release.procedures).find((candidate) => candidate.id === id);
 		if (proposal === undefined) throw new Error(`Invalid internal version reference: ${id}`);
 		return proposal;
 	});
@@ -103,21 +117,63 @@ export function activeProcedures(state: HarnessState, version: HarnessVersion = 
 /** A procedure is usable only by the model whose evaluation authorized its approval. */
 export function modelProcedures(state: HarnessState, model: string, version: HarnessVersion = state.head) {
 	return activeProcedures(state, version).filter((proposal) => {
+		const release = state.releases.find((entry) => entry.procedures.some((procedure) => procedure.id === proposal.id));
+		if (release !== undefined) return release.model === model;
 		const decision = state.decisions.find((entry) => entry.candidateId === proposal.id && entry.decision === "approve");
 		return state.evaluations.find((entry) => entry.id === decision?.evaluationId)?.model === model;
 	});
 }
 
-/** Context is rebuilt from the current version, never appended to a durable session message. */
-export function renderGuidance(procedures: readonly ProposalEvent[]): string {
-	if (procedures.length === 0) return "";
-	return [
-		"Repository-scoped procedural guidance. Recheck applicability against the current task; it does not override user instructions or permissions.",
-		...procedures.map(
-			({ procedure }) =>
-				`${procedure.title}\nWhen: ${procedure.trigger}\nDo: ${procedure.action}\nVerify: ${procedure.verify}\nDo not apply when: ${procedure.avoid}`,
-		),
-	].join("\n\n");
+/** Release eligibility is derived from exact retained laboratory evidence, never supplied scores. */
+export function labReleasePlan(
+	state: HarnessState,
+	input: unknown,
+	model: string,
+): Result.Result<
+	{
+		lab: LabDocument;
+		procedures: readonly ProcedureEntry[];
+		baselineProcedureIds: readonly string[];
+		evidenceAt: number;
+	},
+	HarnessError
+> {
+	const decoded = decodeLabDocument(input);
+	if (Result.isFailure(decoded)) return fail(`Invalid laboratory release witness: ${decoded.failure.message}`);
+	const replayed = replayLabDocument(decoded.success);
+	if (Result.isFailure(replayed)) return fail(`Invalid laboratory release witness: ${replayed.failure.message}`);
+	const lab = replayed.success;
+	if (lab.scope !== state.scope) return fail("Laboratory release belongs to a different repository scope");
+	if (lab.started.config.targetModel !== model)
+		return fail("Select the laboratory's physical target model before release");
+	if (state.releases.some((release) => release.lab.runId === lab.runId))
+		return fail("Laboratory run has already been released");
+	if (lab.started.config.baseline.productionVersion !== state.head.id)
+		return fail("Laboratory production parent is stale; run a new experiment against the current version");
+	const baseline = lab.started.config.baseline.procedures;
+	const applicable = modelProcedures(state, model);
+	const keys = ["behavior", "title", "trigger", "action", "verify", "avoid"] as const;
+	if (
+		baseline.length !== applicable.length ||
+		baseline.some(
+			(entry, index) =>
+				entry.id !== applicable[index]?.id ||
+				keys.some((key) => entry.procedure[key] !== applicable[index]?.procedure[key]),
+		)
+	)
+		return fail("Laboratory frozen baseline does not match current model-applicable guidance");
+	const gate = labReleaseGate(lab);
+	if (!gate.eligible) return fail(`Laboratory release refused: ${gate.reasons.join("; ")}`);
+	const procedures = labProcedures(lab);
+	const preserved = activeProcedures(state).filter((entry) => !applicable.some((prior) => prior.id === entry.id));
+	return validateProcedurePool([...preserved, ...procedures]).pipe(
+		Result.map(() => ({
+			lab: decoded.success,
+			procedures,
+			baselineProcedureIds: baseline.map((entry) => entry.id),
+			evidenceAt: lab.lastAt,
+		})),
+	);
 }
 
 export function evaluationPlan(state: HarnessState, candidateId: string): Result.Result<EvaluationPlan, HarnessError> {
@@ -201,20 +257,14 @@ function candidatePool(
 	candidate: ProposalEvent,
 	baseline: HarnessVersion,
 ): Result.Result<readonly string[], HarnessError> {
-	const matching = activeProcedures(state, baseline).find(
-		(proposal) => proposal.procedure.behavior === candidate.procedure.behavior,
-	);
-	if ((matching?.id ?? null) !== candidate.replaces)
-		return fail("Proposal must explicitly replace the active procedure for its behavior");
-	const candidateIds = [...baseline.candidateIds.filter((id) => id !== candidate.replaces), candidate.id];
-	if (candidateIds.length > MAX_ACTIVE_PROCEDURES)
-		return fail(`The bounded active pool allows at most ${MAX_ACTIVE_PROCEDURES} procedures`);
-	if (renderGuidance(activeProcedures(state, { ...baseline, candidateIds })).length > MAX_GUIDANCE_CHARS)
-		return fail(`The bounded active guidance allows at most ${MAX_GUIDANCE_CHARS} characters`);
-	return Result.succeed(candidateIds);
+	return candidateProcedureIds(activeProcedures(state, baseline), candidate);
 }
 
-function applyEvent(state: HarnessState, event: HarnessEvent): Result.Result<HarnessState, HarnessError> {
+function applyEvent(
+	state: HarnessState,
+	event: HarnessEvent,
+	historyIds: ReadonlySet<string>,
+): Result.Result<HarnessState, HarnessError> {
 	switch (event.kind) {
 		case "evidence": {
 			const { evidence } = event;
@@ -233,6 +283,7 @@ function applyEvent(state: HarnessState, event: HarnessEvent): Result.Result<Har
 		case "proposal": {
 			if (event.parentVersion !== state.head.id) return fail("Proposal must name the current parent version");
 			if (
+				activeProcedures(state).some((prior) => sameProcedure(prior, event)) ||
 				state.proposals.some(
 					(prior) =>
 						sameProcedure(prior, event) &&
@@ -323,18 +374,40 @@ function applyEvent(state: HarnessState, event: HarnessEvent): Result.Result<Har
 			};
 			return Result.succeed({ ...state, head, versions: [...state.versions, head] });
 		}
+		case "lab-release": {
+			if (event.parentVersion !== state.head.id)
+				return fail("Laboratory release must name the current production parent");
+			const plan = labReleasePlan(state, event.lab, event.model);
+			if (Result.isFailure(plan)) return Result.fail(plan.failure);
+			if (event.at < plan.success.evidenceAt) return fail("Release cannot precede its laboratory evidence");
+			const baselineIds = new Set(plan.success.baselineProcedureIds);
+			const procedures = plan.success.procedures
+				.filter((entry) => !baselineIds.has(entry.id))
+				.map((entry) => ({ id: `${event.id}/lab/${entry.id}`, procedure: entry.procedure }));
+			if (procedures.some((entry) => entry.id.length > 200))
+				return fail("Released procedure IDs exceed the identifier limit");
+			if (procedures.some((entry) => historyIds.has(entry.id) || entry.id === event.id))
+				return fail("Released procedure IDs collide with history");
+			const applicable = modelProcedures(state, event.model);
+			const retained = state.head.candidateIds.filter((id) => !applicable.some((entry) => entry.id === id));
+			const released = plan.success.procedures.map((entry) =>
+				baselineIds.has(entry.id) ? entry.id : `${event.id}/lab/${entry.id}`,
+			);
+			const release: HarnessLabRelease = { ...event, lab: plan.success.lab, procedures };
+			const head: HarnessVersion = {
+				id: event.id,
+				parentVersion: state.head.id,
+				candidateIds: [...retained, ...released],
+				restoredFrom: null,
+			};
+			return Result.succeed({
+				...state,
+				head,
+				versions: [...state.versions, head],
+				releases: [...state.releases, release],
+			});
+		}
 		default:
 			return fail("Unsupported history event");
 	}
-}
-
-function sameProcedure(left: ProposalEvent, right: ProposalEvent): boolean {
-	const keys = ["behavior", "trigger", "action", "verify", "avoid"] as const;
-	return keys.every(
-		(key) => normalizeProcedureText(left.procedure[key]) === normalizeProcedureText(right.procedure[key]),
-	);
-}
-
-function normalizeProcedureText(text: string): string {
-	return text.toLowerCase().replace(/\s+/g, " ");
 }

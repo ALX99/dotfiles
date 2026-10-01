@@ -4,7 +4,6 @@ import {
 	EVALUATION_REPEATS,
 	type EvidenceEvent,
 	type HarnessDocument,
-	type HarnessError,
 	type HarnessEvent,
 	type ProposalEvent,
 	type SuiteEvent,
@@ -13,12 +12,12 @@ import {
 } from "../schema.ts";
 import { appendEvent, emptyDocument, replayDocument } from "../state.ts";
 
-export function success<A>(result: Result.Result<A, HarnessError>): A {
+export function success<A, E extends { readonly message: string }>(result: Result.Result<A, E>): A {
 	assert.ok(Result.isSuccess(result), Result.isFailure(result) ? result.failure.message : "");
 	return result.success;
 }
 
-export function failure<A>(result: Result.Result<A, HarnessError>, message: RegExp): void {
+export function failure<A, E extends { readonly message: string }>(result: Result.Result<A, E>, message: RegExp): void {
 	assert.ok(Result.isFailure(result), "Expected a rejected operation");
 	assert.match(result.failure.message, message);
 }

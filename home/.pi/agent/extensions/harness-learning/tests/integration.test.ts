@@ -18,8 +18,11 @@ import { runPromise } from "../../_shared/effect-runtime.ts";
 import { withReplayedHistory } from "../../openai-server-compaction/models.ts";
 import { registerHarnessLearning } from "../index.ts";
 import { evaluateCandidate, loadProbeSuite, PROBE_MAX_TOKENS, PROBE_TIMEOUT_MS } from "../evaluation.ts";
-import { evaluationPlan } from "../state.ts";
+import { evaluationPlan, modelProcedures } from "../state.ts";
 import { appendStoreEvent, loadStore, openStore } from "../store.ts";
+import { createLabStore, appendLabStoreEvent, openLabStore } from "../lab/store.ts";
+import { finishedDocument } from "../lab/tests/fixtures.ts";
+import type { LabDocument } from "../lab/schema.ts";
 import { proposal, suite } from "./fixtures.ts";
 
 const MODEL: Model<Api> = {
@@ -34,6 +37,261 @@ const MODEL: Model<Api> = {
 	maxTokens: 10_000,
 	cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
 };
+const LAB_WITNESS = finishedDocument();
+
+test("human lab review/release uses production history, request-local guidance and existing rollback without exposing the witness", async (t) => {
+	const h = await fixture(t);
+	const lab = await h.prepareLab();
+	const before = await fs.readFile(lab.store.file, "utf8");
+	await h.run("lab-review lab1");
+	assert.match(h.notifications.at(-1)!, /"productionGate": "eligible"/);
+	assert.equal(h.confirmations.length, 0);
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+	await h.run("lab-release lab1 Reviewed task evidence and applicability");
+	const released = await h.load();
+	assert.equal(released.state.releases.length, 1);
+	assert.equal(released.state.head.parentVersion, "root");
+	assert.deepEqual(released.state.releases[0]?.lab, lab.document);
+	assert.match(h.confirmations.at(-1)!.message, /not native-Pi replay/);
+	assert.equal(await fs.readFile(lab.store.file, "utf8"), before);
+	assert.equal(h.calls.length, 0);
+	const list = await h.invoke("harness_evidence", { action: "list" });
+	assert.match(JSON.stringify(list), /strategy candidate1/);
+	assert.doesNotMatch(JSON.stringify(list), /holdout|verificationOutput|expectedChoice/);
+	assert.match(JSON.stringify(await h.emit("context", { messages: [] })), /strategy candidate1/);
+	h.reload();
+	assert.match(JSON.stringify(await h.emit("context", { messages: [] })), /strategy candidate1/);
+	h.setModel({ ...MODEL, api: "openai-responses" });
+	assert.equal(await h.emit("context", { messages: [] }), undefined);
+	assert.match(
+		JSON.stringify(await h.emit("before_provider_request", { payload: { input: [], instructions: "Existing" } })),
+		/Existing.*strategy candidate1/s,
+	);
+	h.setModel({ ...MODEL, id: "other" });
+	assert.equal(await h.emit("before_provider_request", { payload: { input: [] } }), undefined);
+	h.setModel(MODEL);
+	await h.run("rollback root Guidance activated outside its intended scope");
+	assert.equal(await h.emit("context", { messages: [] }), undefined);
+	await h.run(`rollback ${released.state.head.id} Restore verified guidance`);
+	assert.match(JSON.stringify(await h.emit("context", { messages: [] })), /strategy candidate1/);
+	await h.run("lab-release lab1 Do not duplicate");
+	assert.match(h.notifications.at(-1)!, /already been released/);
+});
+
+test("laboratory commands require idle interactive human confirmation and do not issue requests", async (t) => {
+	const h = await fixture(t);
+	await h.prepareLab();
+	for (const mode of ["json", "rpc", "print"]) {
+		h.setMode(mode);
+		await h.run("lab-release lab1 Unauthorized");
+		assert.match(h.notifications.at(-1)!, /interactive terminal/);
+	}
+	h.setMode("tui");
+	h.setIdle(false);
+	await h.run("lab-release lab1 Busy");
+	assert.match(h.notifications.at(-1)!, /idle agent/);
+	h.setIdle(true);
+	await h.run("lab-release lab1");
+	assert.match(h.notifications.at(-1)!, /requires a reason/);
+	h.setAllowed(false);
+	await h.run("lab-release lab1 Decline this release");
+	assert.equal(h.confirmations.length, 1);
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+	assert.equal(h.calls.length, 0);
+	for (const tool of ["harness_evidence", "harness_propose"])
+		await assert.rejects(h.invoke(tool, { action: "lab-release", runId: "lab1" }));
+	assert.deepEqual([...h.tools.keys()], ["harness_evidence", "harness_propose"]);
+});
+
+test("release refuses wrong, unavailable or virtual selections before confirmation", async (t) => {
+	const h = await fixture(t);
+	await h.prepareLab();
+	for (const model of [undefined, { ...MODEL, id: "different" }, { ...MODEL, api: "pi-virtual" }]) {
+		h.setModel(model);
+		await h.run("lab-release lab1 Wrong selection");
+		assert.match(h.notifications.at(-1)!, /Select|Select a|physical|model/);
+	}
+	h.setModel(MODEL);
+	t.mock.method(h.ctx.modelRegistry, "find", () => undefined);
+	await h.run("lab-release lab1 Missing physical model");
+	assert.match(h.notifications.at(-1)!, /physical target model/);
+	assert.equal(h.confirmations.length, 0);
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+});
+
+test("release cancels when model, session, branch, repository or idle state changes during confirmation", async (t) => {
+	for (const change of ["model", "session", "branch", "repository", "busy"] as const) {
+		const h = await fixture(t);
+		await h.prepareLab();
+		h.setConfirm(async () => {
+			switch (change) {
+				case "model":
+					h.setModel({ ...MODEL, id: "other" });
+					break;
+				case "session":
+					h.newSession();
+					break;
+				case "branch":
+					h.current().appendMessage({ role: "user", content: "New branch", timestamp: 0 });
+					break;
+				case "repository":
+					h.setGit({ stdout: h.ctx.cwd, stderr: "", code: 0, killed: false });
+					break;
+				case "busy":
+					h.setIdle(false);
+					break;
+			}
+			return true;
+		});
+		await h.run("lab-release lab1 Identity must stay fixed");
+		assert.match(h.notifications.at(-1)!, /changed|resumed/);
+		await assert.rejects(fs.access(h.store.file), /ENOENT/);
+	}
+});
+
+test("a concurrent production version change after review prevents a stale release from overwriting it", async (t) => {
+	const h = await fixture(t);
+	const lab = await h.prepareLab();
+	h.setConfirm(async () => {
+		await runPromise(
+			appendStoreEvent(h.store, {
+				id: "concurrent",
+				at: 10_000,
+				kind: "lab-release",
+				parentVersion: "root",
+				model: "test/model",
+				lab: lab.document,
+				reason: "Another confirmed session released first",
+			}),
+		);
+		return true;
+	});
+	await h.run("lab-release lab1 Reviewed before concurrent change");
+	assert.match(h.notifications.at(-1)!, /current production parent/);
+	const { state } = await h.load();
+	assert.equal(state.head.id, "concurrent");
+	assert.equal(state.releases.length, 1);
+});
+
+test("review can explain a failed run but cannot release partial or failed final evidence", async (t) => {
+	const h = await fixture(t);
+	await h.prepareLab("failed1", {
+		...LAB_WITNESS,
+		events: LAB_WITNESS.events.map((event) => (event.kind === "finished" ? { ...event, status: "failed" } : event)),
+	});
+	await h.run("lab-review failed1");
+	assert.match(h.notifications.at(-1)!, /Only a completed/);
+	await h.run("lab-release failed1 Failed run");
+	assert.match(h.notifications.at(-1)!, /Only a completed/);
+	assert.equal(h.confirmations.length, 0);
+	await h.run("lab-review missing1");
+	assert.match(h.notifications.at(-1)!, /not found/);
+	await h.run("lab-review ../escape");
+	assert.match(h.notifications.at(-1)!, /Invalid laboratory run ID/);
+	assert.equal(h.calls.length, 0);
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+});
+
+test("production write guards execute inside the transaction and failures leave no released version", async (t) => {
+	const h = await fixture(t);
+	const lab = await h.prepareLab();
+	let checked = false;
+	await assert.rejects(
+		runPromise(
+			appendStoreEvent(
+				h.store,
+				{
+					id: "guarded",
+					at: 10_000,
+					kind: "lab-release",
+					parentVersion: "root",
+					model: "test/model",
+					lab: lab.document,
+					reason: "Guarded release",
+				},
+				() => {
+					checked = true;
+					throw new Error("Identity changed at write boundary");
+				},
+			),
+		),
+		/Identity changed at write boundary/,
+	);
+	assert.equal(checked, true);
+	assert.equal((await h.load()).state.head.id, "root");
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+});
+
+test("cancellation during a release confirmation cannot deploy when the abandoned dialog later resolves", async (t) => {
+	const h = await fixture(t);
+	await h.prepareLab();
+	const entered = Promise.withResolvers<void>();
+	const answer = Promise.withResolvers<boolean>();
+	h.setConfirm(() => {
+		entered.resolve();
+		return answer.promise;
+	});
+	const work = h.run("lab-release lab1 Cancel before deployment");
+	await entered.promise;
+	await h.emit("session_tree");
+	answer.resolve(true);
+	await work;
+	await assert.rejects(fs.access(h.store.file), /ENOENT/);
+	assert.equal(h.calls.length, 0);
+});
+
+test("retaining complete release witnesses obeys the existing production byte limit without dropping history", async (t) => {
+	const h = await fixture(t);
+	const lab = await h.prepareLab();
+	for (let i = 0; i < 3; i++) {
+		const { state } = await h.load();
+		const baseline = modelProcedures(state, "test/model").map(({ id, procedure }) => ({ id, procedure }));
+		const large: LabDocument = {
+			...lab.document,
+			runId: `large${i}`,
+			events: lab.document.events.map((event) => {
+				if (event.kind === "started")
+					return {
+						...event,
+						config: { ...event.config, baseline: { productionVersion: state.head.id, procedures: baseline } },
+					};
+				if (event.kind === "candidate")
+					return {
+						...event,
+						replaces: baseline[0]?.id ?? null,
+						procedure: { ...event.procedure, action: `Validated distinct synthetic strategy ${i}` },
+					};
+				if (event.kind === "task" && event.outcome.status === "completed")
+					return {
+						...event,
+						trace: "t".repeat(16_384),
+						outcome: {
+							...event.outcome,
+							verificationOutput: "v".repeat(8192),
+							artifacts: [{ path: "src/input.mjs", content: "x".repeat(16_384) }],
+						},
+					};
+				return event;
+			}),
+		};
+		const event = {
+			id: `large-release${i}`,
+			at: 10_000,
+			kind: "lab-release",
+			parentVersion: state.head.id,
+			model: "test/model",
+			lab: large,
+			reason: "Bounded synthetic storage test",
+		};
+		if (i < 2) await runPromise(appendStoreEvent(h.store, event));
+		else {
+			const before = await fs.readFile(h.store.file, "utf8");
+			await assert.rejects(runPromise(appendStoreEvent(h.store, event)), /byte capacity/);
+			assert.equal(await fs.readFile(h.store.file, "utf8"), before);
+			assert.equal((await h.load()).state.head.id, "large-release1");
+		}
+	}
+});
 type ProbeArguments = Parameters<ModelRegistry["streamSimple"]>;
 
 function response(text: string, stopReason: AssistantMessage["stopReason"] = "stop"): AssistantMessage {
@@ -109,6 +367,7 @@ async function fixture(t: TestContext) {
 			return manager;
 		},
 		modelRegistry: {
+			find: (provider: string, id: string) => (model?.provider === provider && model.id === id ? model : undefined),
 			streamSimple(...args: ProbeArguments) {
 				calls.push(args);
 				nextCall?.();
@@ -193,6 +452,26 @@ async function fixture(t: TestContext) {
 	};
 	const suitePath = join(directory, "independent suite.json");
 	await fs.writeFile(suitePath, JSON.stringify(suite().suite), { mode: 0o640 });
+	const prepareLab = async (runId = "lab1", witness: LabDocument = LAB_WITNESS) => {
+		const document: LabDocument = {
+			...witness,
+			scope: store.scope,
+			runId,
+			events: witness.events.map((event) => {
+				if (event.kind === "started")
+					return {
+						...event,
+						config: { ...event.config, targetModel: "test/model" },
+					};
+				if (event.kind === "task") return { ...event, model: "test/model" };
+				return event;
+			}),
+		};
+		const lab = await runPromise(openLabStore(store.scope, runId, privateRoot));
+		await runPromise(createLabStore(lab, document.events[0]));
+		for (const event of document.events.slice(1)) await runPromise(appendLabStoreEvent(lab, event));
+		return { document, store: lab };
+	};
 	return {
 		tools,
 		calls,
@@ -208,6 +487,7 @@ async function fixture(t: TestContext) {
 		invoke,
 		record,
 		prepare,
+		prepareLab,
 		load: () => runPromise(loadStore(store)),
 		current: () => manager,
 		newSession: () => {

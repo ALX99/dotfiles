@@ -11,7 +11,8 @@ import {
 	ProbeSuiteSchema,
 	type EvaluationEvent,
 } from "./schema.ts";
-import { activeProcedures, modelProcedures, renderGuidance, type EvaluationPlan, type HarnessState } from "./state.ts";
+import { renderGuidance } from "./procedures.ts";
+import { activeProcedures, modelProcedures, type EvaluationPlan, type HarnessState } from "./state.ts";
 
 export const PROBE_MAX_TOKENS = 256;
 export const PROBE_TIMEOUT_MS = 30_000;

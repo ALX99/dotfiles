@@ -55,6 +55,12 @@ export const readPrivateFileStringIfExists = (
 	maxBytes: number,
 ): Effect.Effect<string | undefined, FsError> => readBoundedRegularFile(path, maxBytes, true);
 
+/** Owned, no-follow private-store snapshots without changing permissions. */
+export const readPrivateFileSnapshotIfExists = (
+	path: string,
+	maxBytes: number,
+): Effect.Effect<string | undefined, FsError> => readBoundedRegularFile(path, maxBytes, true, false);
+
 /** Bounded, no-follow reads without changing the source file's permissions. */
 export const readRegularFileStringIfExists = (
 	path: string,
@@ -65,6 +71,7 @@ const readBoundedRegularFile = (
 	path: string,
 	maxBytes: number,
 	privateFile: boolean,
+	restorePermissions = true,
 ): Effect.Effect<string | undefined, FsError> =>
 	attempt(privateFile ? "private read" : "bounded read", path, async () => {
 		const file = await nodeFs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -74,7 +81,7 @@ const readBoundedRegularFile = (
 			if (!stat.isFile() || (privateFile && (!ownedByUser(stat.uid) || stat.nlink > 1)))
 				throw new Error("Expected an owned regular file without links");
 			if (stat.size > maxBytes) throw new Error(`File exceeds ${maxBytes} bytes`);
-			if (privateFile) await file.chmod(0o600);
+			if (privateFile && restorePermissions) await file.chmod(0o600);
 			const buffer = Buffer.alloc(Math.min(stat.size, maxBytes) + 1);
 			let bytes = 0;
 			while (bytes < buffer.length) {

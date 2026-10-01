@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { Effect, Result } from "effect";
-import { hasNodeErrorCode, toError, type FsError } from "../_shared/errors.ts";
+import { privateStoreErrorMessage, toError, type FsError } from "../_shared/errors.ts";
 import {
 	makePrivateDirectory,
+	readPrivateFileSnapshotIfExists,
 	readPrivateFileStringIfExists,
 	realPath,
 	withExclusiveFileLock,
@@ -53,6 +54,7 @@ export const loadStore = Effect.fn("harnessLearning.loadStore")(function* (store
 export const appendStoreEvent = Effect.fn("harnessLearning.appendStoreEvent")(function* (
 	store: HarnessStore,
 	event: unknown,
+	assertCurrent?: () => void,
 ) {
 	yield* prepare(store);
 	return yield* withExclusiveFileLock(
@@ -63,6 +65,11 @@ export const appendStoreEvent = Effect.fn("harnessLearning.appendStoreEvent")(fu
 			const contents = `${JSON.stringify(next.document)}\n`;
 			if (Buffer.byteLength(contents, "utf8") > MAX_STORE_BYTES)
 				return yield* new HarnessError({ message: `Harness history exceeds its ${MAX_STORE_BYTES}-byte capacity` });
+			if (assertCurrent !== undefined)
+				yield* Effect.try({
+					try: assertCurrent,
+					catch: (cause) => new HarnessError({ message: toError(cause).message }),
+				});
 			yield* writePrivateFileAtomic(store.file, contents).pipe(Effect.mapError(storageError));
 			return next.state;
 		}),
@@ -74,8 +81,17 @@ const prepare = Effect.fnUntraced(function* (store: HarnessStore) {
 	yield* makePrivateDirectory(store.directory).pipe(Effect.mapError(storageError));
 });
 
-const readStore = Effect.fnUntraced(function* (store: HarnessStore): Effect.fn.Return<LoadedHarness, HarnessError> {
-	const raw = yield* readPrivateFileStringIfExists(store.file, MAX_STORE_BYTES).pipe(Effect.mapError(storageError));
+/** Offline planning can inspect an empty production scope without initializing storage. */
+export const loadStoreSnapshot = Effect.fnUntraced(function* (store: HarnessStore) {
+	return yield* readStore(store, false);
+});
+
+const readStore = Effect.fnUntraced(function* (
+	store: HarnessStore,
+	restorePermissions = true,
+): Effect.fn.Return<LoadedHarness, HarnessError> {
+	const read = restorePermissions ? readPrivateFileStringIfExists : readPrivateFileSnapshotIfExists;
+	const raw = yield* read(store.file, MAX_STORE_BYTES).pipe(Effect.mapError(storageError));
 	const parsed =
 		raw === undefined
 			? emptyDocument(store.scope)
@@ -89,9 +105,5 @@ const readStore = Effect.fnUntraced(function* (store: HarnessStore): Effect.fn.R
 });
 
 function storageError(error: FsError): HarnessError {
-	const detail =
-		error.operation === "lock" && hasNodeErrorCode(error.cause, "EEXIST")
-			? "another writer holds this lock; if its process crashed, inspect and remove the lock manually"
-			: toError(error.cause).message;
-	return new HarnessError({ message: `${error.operation} ${error.path}: ${detail}` });
+	return new HarnessError({ message: privateStoreErrorMessage(error) });
 }

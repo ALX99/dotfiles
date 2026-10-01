@@ -151,6 +151,15 @@ const RollbackEventSchema = Schema.Struct({
 	versionId: identifier,
 	reason: text(1000),
 });
+const LabReleaseEventSchema = Schema.Struct({
+	...envelope,
+	kind: Schema.Literal("lab-release"),
+	parentVersion: identifier,
+	model: text(200),
+	// State replay decodes and verifies the complete witness using the laboratory's own schema and gates.
+	lab: Schema.Unknown,
+	reason: text(1000),
+});
 
 export const HarnessEventSchema = Schema.Union([
 	EvidenceEventSchema,
@@ -159,6 +168,7 @@ export const HarnessEventSchema = Schema.Union([
 	EvaluationEventSchema,
 	DecisionEventSchema,
 	RollbackEventSchema,
+	LabReleaseEventSchema,
 ]);
 export type HarnessEvent = typeof HarnessEventSchema.Type;
 export type EvidenceEvent = typeof EvidenceEventSchema.Type;
@@ -166,6 +176,7 @@ export type ProposalEvent = typeof ProposalEventSchema.Type;
 export type SuiteEvent = typeof SuiteEventSchema.Type;
 export type EvaluationEvent = typeof EvaluationEventSchema.Type;
 export type DecisionEvent = typeof DecisionEventSchema.Type;
+export type LabReleaseEvent = typeof LabReleaseEventSchema.Type;
 
 export const HarnessDocumentSchema = Schema.Struct({
 	format: Schema.Literal(1),

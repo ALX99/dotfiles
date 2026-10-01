@@ -11,7 +11,7 @@
   },
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "0.99.2",
+  "lastChangelogVersion": "1.0.0",
   "retry": {
     "maxRetries": 20,
     "enabled": true
@@ -41,7 +41,7 @@
     "showTerminalProgress": true
   },
   "tuiMode": "fullscreen",
-  "hideThinkingBlock": true,
+  "hideThinkingBlock": false,
   "markdown": {
     "mermaid": "streaming"
   },

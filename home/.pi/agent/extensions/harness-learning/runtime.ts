@@ -42,6 +42,22 @@ export function selectedModel(ctx: ExtensionContext): Result.Result<string, Harn
 		: Result.succeed(`${ctx.model.provider}/${ctx.model.id}`);
 }
 
+/** Pi's compatibility registry also contains virtual entries, whose API never reaches a provider. */
+export function selectedPhysicalModel(ctx: ExtensionContext): Result.Result<string, HarnessError> {
+	return selectedModel(ctx).pipe(
+		Result.flatMap((identity) => {
+			const selected = ctx.model!;
+			const registered = ctx.modelRegistry.find(selected.provider, selected.id);
+			return registered === undefined ||
+				registered.api === "pi-virtual" ||
+				selected.api === "pi-virtual" ||
+				`${registered.provider}/${registered.id}` !== identity
+				? Result.fail(new HarnessError({ message: "Laboratory release requires the selected physical target model" }))
+				: Result.succeed(identity);
+		}),
+	);
+}
+
 /** Raw visible message text, never thinking, tool arguments, details, or synthesized summaries. */
 export function anchorText(entry: SessionEntry): string | undefined {
 	if (entry.type !== "message") return undefined;

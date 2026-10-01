@@ -3,7 +3,8 @@ import { Effect, Predicate, Schema } from "effect";
 import { runPromise } from "../_shared/effect-runtime.ts";
 import { registerHarnessCommand } from "./commands.ts";
 import { contextStore, selectedModel } from "./runtime.ts";
-import { modelProcedures, renderGuidance } from "./state.ts";
+import { renderGuidance } from "./procedures.ts";
+import { modelProcedures } from "./state.ts";
 import { loadStore } from "./store.ts";
 import { registerLearningTools } from "./tools.ts";
 
