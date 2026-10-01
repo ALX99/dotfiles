@@ -3,19 +3,20 @@
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "xhigh",
   "defaultProjectTrust": "always",
-  "defaultTools": ["+codemode"],
+  "defaultTools": [
+    "+codemode"
+  ],
   "codemode": {
     "mode": "on"
   },
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "0.99.1",
+  "lastChangelogVersion": "0.99.2",
   "retry": {
     "maxRetries": 20,
     "enabled": true
   },
   "packages": [
-    "git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466",
     {
       "source": "npm:pi-web-access",
       "extensions": [

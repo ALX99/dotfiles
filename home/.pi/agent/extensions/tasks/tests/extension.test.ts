@@ -313,6 +313,17 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	);
 	const finishProperties = (finish.parameters as { properties: Record<string, unknown> }).properties;
 	assert.deepEqual(Object.keys(finishProperties), ["status", "outcome", "addTasks"]);
+	const followUpTitle = (
+		finishProperties.addTasks as {
+			items: { properties: { title: { description: string; maxLength: number } } };
+		}
+	).items.properties.title;
+	assert.equal(followUpTitle.maxLength, MAX_TASK_TITLE_LENGTH);
+	assert.match(followUpTitle.description, /at most 400 characters/u);
+	assert.match(
+		(finishProperties.outcome as { description: string }).description,
+		/Result, Verification, and Preserve\/Next headings/u,
+	);
 });
 
 test("starts with one discovery task and runs the tasks it discovers", async () => {
