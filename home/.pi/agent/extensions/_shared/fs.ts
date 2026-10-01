@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import * as nodeFs from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { Effect } from "effect";
 import { FsError, hasNodeErrorCode } from "./errors.ts";
 
@@ -34,6 +36,111 @@ export const makeDirectory = (path: string, mode?: number): Effect.Effect<void, 
 	attempt("mkdir", path, async () => {
 		await nodeFs.mkdir(path, { recursive: true, ...(mode === undefined ? {} : { mode }) });
 	});
+
+export const realPath = (path: string): Effect.Effect<string, FsError> =>
+	attempt("realpath", path, () => nodeFs.realpath(path));
+
+/** Refuse links and foreign-owned directories, and restrict an owned directory to 0700. */
+export const makePrivateDirectory = (path: string): Effect.Effect<void, FsError> =>
+	attempt("private mkdir", path, async () => {
+		await nodeFs.mkdir(path, { recursive: true, mode: 0o700 });
+		const stat = await nodeFs.lstat(path);
+		if (!stat.isDirectory() || !ownedByUser(stat.uid)) throw new Error("Expected an owned, non-symlink directory");
+		await nodeFs.chmod(path, 0o700);
+	}).pipe(Effect.uninterruptible);
+
+/** Bounded reads of private regular files; a missing file is the only empty-store case. */
+export const readPrivateFileStringIfExists = (
+	path: string,
+	maxBytes: number,
+): Effect.Effect<string | undefined, FsError> => readBoundedRegularFile(path, maxBytes, true);
+
+/** Bounded, no-follow reads without changing the source file's permissions. */
+export const readRegularFileStringIfExists = (
+	path: string,
+	maxBytes: number,
+): Effect.Effect<string | undefined, FsError> => readBoundedRegularFile(path, maxBytes, false);
+
+const readBoundedRegularFile = (
+	path: string,
+	maxBytes: number,
+	privateFile: boolean,
+): Effect.Effect<string | undefined, FsError> =>
+	attempt(privateFile ? "private read" : "bounded read", path, async () => {
+		const file = await nodeFs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+		try {
+			const stat = await file.stat();
+			// An open old snapshot can have zero links after atomic replacement.
+			if (!stat.isFile() || (privateFile && (!ownedByUser(stat.uid) || stat.nlink > 1)))
+				throw new Error("Expected an owned regular file without links");
+			if (stat.size > maxBytes) throw new Error(`File exceeds ${maxBytes} bytes`);
+			if (privateFile) await file.chmod(0o600);
+			const buffer = Buffer.alloc(Math.min(stat.size, maxBytes) + 1);
+			let bytes = 0;
+			while (bytes < buffer.length) {
+				const read = await file.read(buffer, bytes, buffer.length - bytes, bytes);
+				if (read.bytesRead === 0) return buffer.subarray(0, bytes).toString("utf8");
+				bytes += read.bytesRead;
+			}
+			// Detect growth after stat without allocating unbounded memory.
+			const extra = await file.read(Buffer.alloc(1), 0, 1, bytes);
+			if (extra.bytesRead > 0 || bytes > maxBytes) throw new Error("File grew during bounded read");
+			return buffer.subarray(0, bytes).toString("utf8");
+		} finally {
+			await file.close();
+		}
+	}).pipe(
+		Effect.catchIf(isNotFound, () => Effect.succeed(undefined)),
+		Effect.uninterruptible,
+	);
+
+/** Same-directory atomic replacement. The old file survives failures before rename. */
+export const writePrivateFileAtomic = (path: string, contents: string): Effect.Effect<void, FsError> =>
+	attempt("atomic write", path, async () => {
+		const previous = await nodeFs.lstat(path).catch((cause: unknown) => {
+			if (hasNodeErrorCode(cause, "ENOENT")) return undefined;
+			throw cause;
+		});
+		if (previous !== undefined && (!previous.isFile() || !ownedByUser(previous.uid) || previous.nlink !== 1))
+			throw new Error("Refusing to replace a linked, non-regular, or foreign-owned file");
+		const temporary = join(dirname(path), `.atomic-${randomUUID()}.tmp`);
+		const file = await nodeFs.open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+		try {
+			try {
+				await file.writeFile(contents, "utf8");
+				await file.sync();
+			} finally {
+				await file.close();
+			}
+			await nodeFs.rename(temporary, path);
+		} finally {
+			await nodeFs.rm(temporary, { force: true });
+		}
+	}).pipe(Effect.uninterruptible);
+
+/**
+ * Cross-process exclusion, without stealing potentially live locks. A process
+ * crash leaves the lock for manual inspection. Use is uninterruptible so an
+ * uncancellable Node write cannot outlive its lock.
+ */
+export function withExclusiveFileLock<A, E>(path: string, use: Effect.Effect<A, E>): Effect.Effect<A, E | FsError> {
+	return Effect.acquireUseRelease(
+		attempt("lock", path, () => nodeFs.open(path, "wx", 0o600)),
+		() => use.pipe(Effect.uninterruptible),
+		(file) =>
+			attempt("unlock", path, async () => {
+				try {
+					await file.close();
+				} finally {
+					await nodeFs.unlink(path);
+				}
+			}),
+	);
+}
+
+function ownedByUser(uid: number): boolean {
+	return process.getuid === undefined || uid === process.getuid();
+}
 
 /** Remove a file; a missing file resolves without error. */
 export const removeFile = (path: string): Effect.Effect<void, FsError> =>

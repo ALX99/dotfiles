@@ -24,6 +24,8 @@ The tasks extension's model-facing protocol is intentionally limited to `create_
 
 Nested context restores on branch navigation and uses native steering so instructions reach the next model step.
 
+`harness-learning/` owns gated repository-scoped procedural learning, not arbitrary harness-source mutation. `schema.ts` and `state.ts` own validated evidence, bounded procedure pools, logical version history, evaluation coverage, and promotion rules; `store.ts` owns private locked atomic snapshots under `~/.pi/harness-learning/<sha256(canonical Git root or cwd)>/history.json`. `runtime.ts` authenticates current-branch quotes and derives session/scope/model identity; `tools.ts` exposes only evidence and proposals. `commands.ts` reserves suite import, paid evaluation, approval/rejection, and rollback for confirmed idle TUI commands; `evaluation.ts` runs bounded repeated paired decision probes, not end-to-end coding tasks. Approval is provider/model-bound, and `index.ts` injects guidance request-locally (Responses `instructions`, otherwise ephemeral context), so rollback does not retain durable instructions. No automatic source edits, commits, calls, or promotion occur. Evaluators must be independently authored; same-account files are not an adversarial sandbox or truly blind holdout, and probe usage is audited in custom session entries rather than Pi's ordinary totals. Usage and safety limits are documented in `harness-learning/README.md`.
+
 ## Where to Start
 
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.

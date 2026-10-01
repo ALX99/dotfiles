@@ -5,8 +5,11 @@ import { Effect, type Fiber } from "effect";
  * This and `runFork` are the only bridges between Effect code and Pi's
  * promise and callback API.
  */
-export function runPromise<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
-	return Effect.runPromise(effect);
+export function runPromise<A, E>(
+	effect: Effect.Effect<A, E>,
+	options?: { readonly signal?: AbortSignal | undefined },
+): Promise<A> {
+	return Effect.runPromise(effect, options);
 }
 
 /**
