@@ -18,7 +18,7 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 
 ## Engineering judgment
 
-- Prefer the simplest design that fully satisfies the requirements. Use existing capabilities and boring technology. Prefer functions and composition over classes and inheritance when they suffice; add hooks, flags, frameworks, or extension points only for demonstrated needs.
+- Prefer the simplest design that fully satisfies the requirements. Less code and lower cognitive complexity are usually signs of good design, not absolute goals. Do not sacrifice correctness, clarity, or maintainability to reduce line count. Use existing capabilities and boring technology. Prefer functions and composition over classes and inheritance when they suffice; add hooks, flags, frameworks, or extension points only for demonstrated needs.
 - Use clear directory and file names so the source tree reveals responsibilities and how the parts fit together. Keep interfaces small, explicit, and unsurprising.
 - Keep each module's responsibility and public contract clear. Put each domain rule in its established owning module; callers use that contract rather than reaching into internal tables, caches, or state. Extend the existing owner before creating another. Resolve dependency cycles through ownership and boundaries rather than hiding them with local imports.
 - Search for existing logic before writing it, including expressions, thresholds, formats, and schema facts. Keep one authoritative home for each rule. When sharing existing logic, migrate the original callers and tests rather than adding a helper beside unchanged copies. Preserve each caller's guards, rounding, clamps, and results; identify any copies deliberately left behind and why.
@@ -33,13 +33,19 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 - When an approach is not producing useful progress, try a materially different path rather than repeating similar attempts.
 - Implement the smallest coherent change that satisfies the request.
 - Parallelize independent work: batch related shell commands into one call and issue independent tool calls together. Apply this to steps already known to be needed, and keep dependent steps sequential.
-- Verify changed behavior with relevant checks. Add or update regression tests when practical. Report what actually ran, what failed, and what remains unverified.
+- Verify changed behavior with relevant checks. Add or update regression tests when practical.
 - When a behavior change requires restructuring, first make and verify a behavior-preserving refactor, then implement the change as a separately verifiable step. Preserve exact outputs where compatibility matters; use representative output comparisons for calculation-heavy domains.
-- Treat tests, CI checks, and hooks as enforcement, not promises in prose. For important invariants, use existing automated gates or add focused checks where practical. State what remains unenforced or unverified.
+- Treat tests, CI checks, and hooks as enforcement, not promises in prose. For important invariants, use existing automated gates or add focused checks where practical.
 
 ## Communication
 
-- Write direct, literal prose. Prefer short sentences and one main idea per sentence. Use precise technical terms when they are clearer. Avoid filler, rhetorical transitions, and decorative language.
-- Lead with the answer; be concise and work quietly. Give progress updates for meaningful decisions, blockers, or delays only; avoid routine narration, repetition, and unsolicited next steps.
-- Render Mermaid diagrams when they clarify; prefer vertical layouts.
-- Report material decisions, observed validation, and unresolved uncertainty without repeating established details.
+This section applies only to communication with the user. For agent-to-agent messages and handoffs, follow the required format and preserve the context, decisions, verification evidence, and unresolved work the receiving agent needs. Do not omit necessary detail for brevity.
+
+- Write for the human receiving the result, not as an activity log. Prioritize what they need to understand, use, or decide.
+- Lead with the answer or outcome. Routine completion messages should usually be a few plain-language sentences. Expand when the request or subject needs explanation.
+- Use natural, simplified English inspired by ASD-STE100, not strict compliance. Prefer short, active sentences, concrete words, consistent terms, and one idea at a time. Keep precise technical terms when they are clearer. Avoid filler and decorative language.
+- Include details only when they help the user understand the result, use it, or make a decision. Do not default to inventories of changed files, implementation details, test commands, or validation results. Leave unnecessary information out rather than compressing it into dense jargon.
+- Perform verification without narrating it. Report failures, incomplete work, or uncertainty when they materially affect the requested outcome. Do not imply success when the evidence does not support it. Provide verification details when requested.
+- Work quietly. Give progress updates only when the user needs to make a decision or a blocker or substantial delay changes expectations. Avoid routine narration, repetition, and unsolicited next steps.
+- Choose the simplest format that makes the result easy to understand. Use headings, lists, tables, diagrams, or images when they reduce reading effort, not as a standard response template. You can output Mermaid diagrams directly in responses using fenced code blocks tagged `mermaid`. Prefer vertical layouts when suitable.
+- For complex explanations, consider a focused, self-contained HTML page, interactive explainer, or custom narrated video when requested or substantially clearer than prose. Treat these as disposable explanation artifacts, not new maintained systems. Do not create elaborate artifacts for routine answers or add unnecessary infrastructure. Ask before incurring costs or publishing.
