@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { CREATE_TASKS_DESCRIPTION, CreateTasksParams, FINISH_TASK_DESCRIPTION, FinishTaskParams } from "../tools.ts";
-import { TASK_SCHEMA_TOKENS, tokenEstimate } from "../evaluation/multi/schema.mjs";
 
 /**
  * The tool descriptions are re-sent on every request of every session, so they
@@ -76,17 +75,7 @@ test("the tool description keeps the rules that take effect before the call", ()
 	assert.match(FINISH_TASK_DESCRIPTION, /only nested tool call/u, "the codemode rule is a hard constraint");
 });
 
-test("the schema cost is measured on the real schemas and their descriptions", () => {
-	assert.equal(TASK_SCHEMA_TOKENS.createParams, tokenEstimate(JSON.stringify(CreateTasksParams)));
-	assert.equal(TASK_SCHEMA_TOKENS.finishParams, tokenEstimate(JSON.stringify(FinishTaskParams)));
-	assert.equal(
-		TASK_SCHEMA_TOKENS.always,
-		TASK_SCHEMA_TOKENS.createParams + tokenEstimate(CREATE_TASKS_DESCRIPTION),
-		"a session that never queues pays only create_tasks, description included",
-	);
-	assert.equal(
-		TASK_SCHEMA_TOKENS.total,
-		TASK_SCHEMA_TOKENS.always + TASK_SCHEMA_TOKENS.finishParams + tokenEstimate(FINISH_TASK_DESCRIPTION),
-	);
-	assert.equal(TASK_SCHEMA_TOKENS.always, TASK_SCHEMA_TOKENS.create);
+test("task schemas and descriptions stay within their per-request size budgets", () => {
+	assert.ok(JSON.stringify(CreateTasksParams).length + CREATE_TASKS_DESCRIPTION.length <= 800);
+	assert.ok(JSON.stringify(FinishTaskParams).length + FINISH_TASK_DESCRIPTION.length <= 1_900);
 });

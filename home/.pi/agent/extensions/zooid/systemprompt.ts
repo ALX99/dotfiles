@@ -8,7 +8,7 @@ import { Effect } from "effect";
 
 import { runPromise } from "../_shared/effect-runtime.ts";
 import { writeFileString } from "../_shared/fs.ts";
-import { enabledModelSkillNames } from "../skills/index.ts";
+import { enabledModelSkillNames } from "../skills/state.ts";
 
 /** Host fields matching mini-swe-agent's `platform.uname()` template variables. */
 export interface HostInformation {
@@ -354,11 +354,16 @@ function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSy
 		selectedTools: pi.getActiveTools(),
 		promptGuidelines: [...owners.keys()],
 	};
-	return buildSystemPrompt(live, hostInformation(), enabledModelSkillNames(ctx, live.skills ?? []), {
-		owners,
-		scripted,
-		throughCodemode,
-	});
+	return buildSystemPrompt(
+		live,
+		hostInformation(),
+		enabledModelSkillNames(ctx.sessionManager.getBranch(), live.skills ?? []),
+		{
+			owners,
+			scripted,
+			throughCodemode,
+		},
+	);
 }
 
 /** Accepts a relative path, an absolute path, or a `~`-rooted path. */

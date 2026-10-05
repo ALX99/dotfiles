@@ -5,10 +5,15 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { ExtensionAPI, ModelRegistry, SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
-import type { Api, AssistantMessage, Message, Model } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, Message, Model, Tool } from "@earendil-works/pi-ai";
 
 import openAIServerCompactionExtension from "../index.ts";
-import { buildRemoteCompactionDetails, type BranchEntryLike } from "../session-history.ts";
+import { buildRemoteCompactionDetails } from "../session-history.ts";
+import { sessionBranch, type BranchEntryLike } from "./session-fixtures.ts";
+import { createApplyPatchTool } from "../../codex-apply-patch/index.ts";
+import { formatNestedContext } from "../../zooid/nested-context.ts";
+import { nextTaskPrompt, taskReminderPrompt } from "../../tasks/state.ts";
+import { formatRecallDigest } from "../../codex-web-search/recall.ts";
 
 const NO_USAGE = {
 	input: 0,
@@ -79,6 +84,7 @@ function createHarness(options: {
 	branch?: BranchEntryLike[];
 	cwd?: string;
 	summary?: string;
+	tools?: Tool[];
 	summarize?: (...args: Parameters<ModelRegistry["streamSimple"]>) => Promise<AssistantMessage>;
 }) {
 	const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
@@ -90,8 +96,12 @@ function createHarness(options: {
 		on(name: string, handler: (event: unknown, ctx: unknown) => unknown) {
 			handlers.set(name, handler);
 		},
-		getAllTools: () => [{ name: "read", description: "read a file", parameters: { type: "object" } }],
-		getActiveTools: () => ["read"],
+		// Pi's registry metadata omits constrained sampling; only transcript declarations retain it.
+		getAllTools: () =>
+			(options.tools ?? [{ name: "read", description: "read a file", parameters: { type: "object" } }]).map(
+				({ name, description, parameters }) => ({ name, description, parameters }),
+			),
+		getActiveTools: () => options.tools?.map((tool) => tool.name) ?? ["read"],
 		getThinkingLevel: () => "high",
 	} as unknown as ExtensionAPI;
 	openAIServerCompactionExtension(pi);
@@ -104,7 +114,7 @@ function createHarness(options: {
 		model: options.model ?? model({}),
 		sessionManager: {
 			getSessionId: () => options.sessionId,
-			getBranch: () => branch,
+			getBranch: () => sessionBranch(branch),
 		},
 		modelRegistry: {
 			isUsingOAuth: () => options.oauth === true,
@@ -139,9 +149,7 @@ function createHarness(options: {
 }
 
 /** One compaction request, as the session manager hands it to extensions. */
-function compactionEvent(
-	branch: BranchEntryLike[],
-): Omit<SessionBeforeCompactEvent, "branchEntries"> & { branchEntries: BranchEntryLike[] } {
+function compactionEvent(branch: BranchEntryLike[]): SessionBeforeCompactEvent {
 	return {
 		type: "session_before_compact",
 		preparation: {
@@ -153,7 +161,7 @@ function compactionEvent(
 			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
 			settings: { enabled: true, reserveTokens: 64_000, keepRecentTokens: 20_000 },
 		},
-		branchEntries: branch,
+		branchEntries: sessionBranch(branch),
 		reason: "threshold",
 		willRetry: false,
 		signal: new AbortController().signal,
@@ -537,13 +545,134 @@ test("a request after a compaction replays the stored history and nothing else c
 		},
 	})) as Record<string, unknown>;
 
-	assert.deepEqual(payload.input, [
+	assert.partialDeepStrictEqual(payload.input, [
 		{ type: "compaction", encrypted_content: "opaque" },
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "after compaction" }] },
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "same model" }] },
 	]);
 	assert.equal(payload.instructions, "system prompt");
 	assert.equal(payload.store, false, "the rest of the request is Pi's");
+});
+
+test("remote replay and the next compaction preserve task handoffs, nested rules, recall, edits, and grammar tools", async () => {
+	const patchTool = createApplyPatchTool();
+	const target = model({ compat: { supportsOpenAIGrammarTools: true } });
+	const patch = "*** Begin Patch\n*** Add File: file.txt\n+hello\n*** End Patch\n";
+	const task = { id: "t2", title: "verify the remaining work" };
+	const nested = formatNestedContext([{ path: "/repo/nested/AGENTS.md", content: "Never edit secrets." }]);
+	const continuation = nextTaskPrompt(task);
+	const reminder = taskReminderPrompt(task);
+	const recall = formatRecallDigest(
+		[
+			{
+				entryId: "search-1",
+				summary: {
+					queries: ["previous search"],
+					sources: ["https://example.com/result"],
+					openedUrls: [],
+					callCount: 1,
+				},
+			},
+		],
+		true,
+	);
+	const branch: BranchEntryLike[] = [
+		{
+			...compactionEntry("checkpoint"),
+			systemMessage: { role: "system", content: "system prompt", toolsAdded: [patchTool], timestamp: 0 },
+		},
+		{ type: "branch_summary", id: "handoff", fromId: "old-task", summary: "Preserve the completed task's result." },
+		...[
+			["nested-context", nested],
+			["tasks:continue", continuation],
+			["tasks:reminder", reminder],
+			["codex-web-search-recall", recall],
+		].map(([customType, content], index) => ({
+			type: "custom_message",
+			id: `custom-${index}`,
+			customType,
+			content,
+			display: false,
+		})),
+		{ type: "message", id: "user", message: userMessage("obsolete request") },
+		{ type: "context_edit", id: "edit", targetId: "user", replacement: { content: "Corrected request." } },
+		{
+			type: "message",
+			id: "assistant",
+			message: {
+				...assistantMessage(""),
+				stopReason: "toolUse",
+				content: [{ type: "toolCall", name: "apply_patch", id: "call_patch|ctc_patch", arguments: { patch } }],
+			},
+		},
+		{
+			type: "message",
+			id: "result",
+			message: {
+				role: "toolResult",
+				toolCallId: "call_patch|ctc_patch",
+				toolName: "apply_patch",
+				content: [{ type: "text", text: "Success" }],
+				isError: false,
+				timestamp: 0,
+			},
+		},
+	];
+	const harness = createHarness({ sessionId: "session-composed", model: target, tools: [patchTool], branch });
+	const request = {
+		input: [],
+		instructions: "live system prompt",
+		previous_response_id: "stale-chain",
+		tools: [{ type: "custom", name: "apply_patch" }],
+	};
+	const replayed = (await harness.emit("before_provider_request", {
+		type: "before_provider_request",
+		payload: request,
+	})) as {
+		input: unknown[];
+		instructions: string;
+		tools: unknown[];
+		previous_response_id?: string;
+	};
+	const assertContext = (input: unknown[]) => {
+		const serialized = JSON.stringify(input);
+		for (const text of [
+			nested,
+			continuation,
+			reminder,
+			recall,
+			"Corrected request.",
+			"Preserve the completed task's result.",
+		]) {
+			assert.ok(serialized.includes(JSON.stringify(text).slice(1, -1)), `missing projected context: ${text}`);
+		}
+		assert.doesNotMatch(serialized, /obsolete request/);
+		assert.partialDeepStrictEqual(input, [
+			{ type: "custom_tool_call", call_id: "call_patch", name: "apply_patch", input: patch },
+			{ type: "custom_tool_call_output", call_id: "call_patch", output: "Success" },
+		]);
+	};
+	assertContext(replayed.input);
+	assert.equal(replayed.instructions, request.instructions);
+	assert.deepEqual(replayed.tools, request.tools, "replay must not rebuild the live request's tools");
+	assert.equal(replayed.previous_response_id, undefined);
+
+	const originalFetch = globalThis.fetch;
+	const sent: Array<{ input: unknown[]; tools: unknown[] }> = [];
+	globalThis.fetch = async (_url, init) => {
+		assert.equal(typeof init?.body, "string");
+		sent.push(JSON.parse(init!.body as string) as { input: unknown[]; tools: unknown[] });
+		return new Response(COMPACTION_STREAM);
+	};
+	try {
+		await harness.emit("session_before_compact", compactionEvent(branch));
+		assertContext(sent[0]!.input);
+		assert.partialDeepStrictEqual(sent[0]!.tools, [
+			{ type: "custom", name: "apply_patch", format: { type: "grammar", syntax: "lark" } },
+		]);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });
 
 test("persisted compaction replays after restart, fork and navigation, including the next compaction", async () => {

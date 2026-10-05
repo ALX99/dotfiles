@@ -1,6 +1,13 @@
-import type { ToolInfo } from "@earendil-works/pi-coding-agent";
-import type { Message } from "@earendil-works/pi-ai";
+import type { Message, Tool } from "@earendil-works/pi-ai";
 import { Predicate } from "effect";
+import type { ResponsesModel } from "./models.ts";
+import {
+	createGrammarToolInputProperties,
+	convertResponsesMessages,
+	convertResponsesTools,
+	getDeclaredTools,
+	normalizeContext,
+} from "./pi-responses.ts";
 
 /**
  * OpenAI Responses input items, in the shape the API expects on a replayed
@@ -54,38 +61,27 @@ export function cloneResponseItem(item: ResponseItem): ResponseItem {
 	return isResponseItem(copy) ? copy : { type: item.type };
 }
 
-/** The message roles this extension replays; any other role carries no Responses items. */
-export function isReplayableMessage(value: unknown): value is Message {
-	return (
-		Predicate.isObject(value) && (value.role === "user" || value.role === "assistant" || value.role === "toolResult")
-	);
-}
-
-/** Convert one Pi message into the Responses items that represent it. */
-export function messageToResponseItems(message: Message): ResponseItem[] {
-	if (message.role === "user") {
-		const content = contentToResponseContentItems(message.content);
-		return content.length === 0 ? [] : [{ type: "message", role: "user", content }];
-	}
-
-	if (message.role === "assistant") return assistantMessageToResponseItems(message);
-
-	if (message.role === "toolResult") {
-		return [
-			{
-				type: "function_call_output",
-				call_id: message.toolCallId.split("|", 1)[0] ?? message.toolCallId,
-				output: toolResultContentToOutput(message.content),
-			},
-		];
-	}
-
-	return [];
-}
-
-/** Convert a whole Pi message list, in order. */
-export function messagesToResponseItems(messages: readonly Message[]): ResponseItem[] {
-	return messages.flatMap((message) => messageToResponseItems(message));
+/** Pi owns message serialization, including grammar tools, reasoning, IDs, and tool pairing. */
+export function messagesToResponseItems(
+	messages: readonly Message[],
+	model: ResponsesModel,
+	tools: readonly Tool[] = [],
+): ResponseItem[] {
+	const context = normalizeContext({ messages: [...messages] });
+	const toolOptions = responseToolOptions(model);
+	const items = convertResponsesMessages(model, context, new Set(["openai", "openai-codex", "opencode"]), {
+		includeSystemPrompt: false,
+		grammarToolInputProperties: createGrammarToolInputProperties(
+			[...tools, ...getDeclaredTools(context.messages)],
+			toolOptions.supportsOpenAIGrammarTools,
+		),
+		supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
+		supportsAdditionalTools: model.compat?.supportsAdditionalTools ?? false,
+		supportsToolSearch: model.compat?.supportsToolSearch ?? false,
+		toolOptions,
+	});
+	// Easy-input user messages may omit `type`; stored-history readers use its explicit form.
+	return items.map((item) => ({ ...item, type: item.type ?? "message" }));
 }
 
 /**
@@ -117,157 +113,24 @@ export function buildCompactedHistory(input: readonly ResponseItem[], compaction
 }
 
 /** Declare the tools the session actually offers, as the Responses API expects them. */
-export function buildToolsPayload(allTools: readonly ToolInfo[], activeToolNames: readonly string[]): ResponsesTool[] {
+export function buildToolsPayload(
+	allTools: readonly Tool[],
+	activeToolNames: readonly string[],
+	model: ResponsesModel,
+): ResponsesTool[] {
 	const active = new Set(activeToolNames);
-	return allTools
-		.filter((tool) => active.has(tool.name))
-		.map((tool) => ({
-			type: "function",
-			name: tool.name,
-			description: tool.description,
-			parameters: tool.parameters,
-		}));
+	return convertResponsesTools(
+		allTools.filter((tool) => active.has(tool.name)),
+		responseToolOptions(model),
+	).map((tool) => ({ ...tool }));
 }
 
-/** Whether this model accepts image parts at all. */
-export function modelSupportsImageInput(model: { readonly input?: readonly unknown[] }): boolean {
-	return Array.isArray(model.input) && model.input.includes("image");
-}
-
-function assistantMessageToResponseItems(message: Extract<Message, { role: "assistant" }>): ResponseItem[] {
-	const items: ResponseItem[] = [];
-	const textBlocks: string[] = [];
-	let phase: AssistantPhase | undefined;
-
-	const flushText = (): void => {
-		if (textBlocks.length === 0) return;
-		items.push({
-			type: "message",
-			role: "assistant",
-			content: [{ type: "output_text", text: textBlocks.join("") }],
-			...(phase === undefined ? {} : { phase }),
-		});
-		textBlocks.length = 0;
-	};
-
-	for (const block of message.content) {
-		if (block.type === "text") {
-			phase ??= parseTextSignaturePhase(block.textSignature);
-			textBlocks.push(block.text);
-			continue;
-		}
-		if (block.type === "thinking") {
-			flushText();
-			const reasoning = parseThinkingSignature(block.thinkingSignature);
-			if (reasoning !== undefined) items.push(reasoning);
-			continue;
-		}
-		if (block.type !== "toolCall") continue;
-		flushText();
-		const callId = typeof block.id === "string" ? (block.id.split("|", 1)[0] ?? block.id) : String(block.id);
-		items.push({
-			type: "function_call",
-			name: block.name,
-			call_id: callId,
-			arguments: JSON.stringify(block.arguments ?? {}),
-		});
-	}
-
-	flushText();
-	return items;
-}
-
-function contentToResponseContentItems(content: unknown): ResponseContentItem[] {
-	if (typeof content === "string") return content ? [{ type: "input_text", text: content }] : [];
-	if (!Array.isArray(content)) return [];
-
-	const parts: unknown[] = content;
-	const items: ResponseContentItem[] = [];
-	for (const part of parts) {
-		if (!Predicate.isObject(part)) continue;
-		const { type, text, data, mimeType, source } = part;
-		if ((type === "text" || type === "input_text" || type === "output_text") && typeof text === "string") {
-			items.push({ type: "input_text", text });
-			continue;
-		}
-		if (type === "image" && typeof data === "string" && typeof mimeType === "string") {
-			items.push({ type: "input_image", image_url: `data:${mimeType};base64,${data}` });
-			continue;
-		}
-		if (
-			type === "input_image" &&
-			Predicate.isObject(source) &&
-			source.type === "url" &&
-			typeof source.url === "string"
-		) {
-			items.push({ type: "input_image", image_url: source.url });
-		}
-	}
-	return items;
-}
-
-function toolResultContentToOutput(content: unknown): string | ToolResultOutputItem[] {
-	if (typeof content === "string") return content;
-	if (!Array.isArray(content)) return "";
-
-	const parts: unknown[] = content;
-	const output: ToolResultOutputItem[] = [];
-	for (const part of parts) {
-		if (!Predicate.isObject(part)) continue;
-		const { type, text, data, mimeType } = part;
-		if (type === "text" && typeof text === "string") {
-			output.push({ type: "input_text", text });
-		} else if (type === "image" && typeof data === "string" && typeof mimeType === "string") {
-			output.push({ type: "input_image", image_url: `data:${mimeType};base64,${data}` });
-		}
-	}
-	return output;
-}
-
-/** Pi records an assistant turn's phase in the text block signature. */
-function parseTextSignaturePhase(value: unknown): AssistantPhase | undefined {
-	if (typeof value !== "string" || !value.trim()) return undefined;
-	const parsed = safeParse(value);
-	if (!Predicate.isObject(parsed)) return undefined;
-	return parsed.phase === "commentary" || parsed.phase === "final_answer" ? parsed.phase : undefined;
-}
-
-/** Reasoning survives compaction only as the encrypted payload the API handed us. */
-function parseThinkingSignature(value: unknown): ResponseItem | undefined {
-	if (typeof value !== "string" || !value.trim()) return undefined;
-	const parsed = safeParse(value);
-	if (!Predicate.isObject(parsed) || parsed.type !== "reasoning") return undefined;
-
-	const summary = Array.isArray(parsed.summary)
-		? parsed.summary.flatMap((item) =>
-				Predicate.isObject(item) && typeof item.text === "string"
-					? [{ type: "summary_text" as const, text: item.text }]
-					: [],
-			)
-		: [];
-	const content = Array.isArray(parsed.content)
-		? parsed.content.flatMap((item) => {
-				if (!Predicate.isObject(item) || typeof item.text !== "string") return [];
-				return [
-					{ type: item.type === "reasoning_text" ? ("reasoning_text" as const) : ("text" as const), text: item.text },
-				];
-			})
-		: undefined;
-
+function responseToolOptions(model: ResponsesModel) {
 	return {
-		type: "reasoning",
-		summary,
-		...(content !== undefined && content.length > 0 ? { content } : {}),
-		encrypted_content: typeof parsed.encrypted_content === "string" ? parsed.encrypted_content : null,
+		strict: model.api === "openai-codex-responses" ? null : false,
+		supportsStrictMode: model.compat?.supportsStrictMode ?? true,
+		supportsOpenAIGrammarTools: model.compat?.supportsOpenAIGrammarTools ?? false,
 	};
-}
-
-function safeParse(value: string): unknown {
-	try {
-		return JSON.parse(value);
-	} catch {
-		return undefined;
-	}
 }
 
 function responseItemCallId(item: ResponseItem): string | undefined {
@@ -347,7 +210,7 @@ function stripImagesWhenUnsupported(
 	items: readonly ResponseItem[],
 	model: { readonly input?: readonly unknown[] },
 ): ResponseItem[] {
-	if (modelSupportsImageInput(model)) return [...items];
+	if (model.input?.includes("image")) return [...items];
 
 	return items.map((item) => {
 		const next = cloneResponseItem(item);

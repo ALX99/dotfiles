@@ -10,6 +10,7 @@ import type { ResponseItem, ResponsesReasoningConfig } from "./response-items.ts
  */
 
 export type ResponsesPayload = Record<string, unknown>;
+export type ResponsesModel = Model<"openai-responses" | "openai-codex-responses">;
 
 export function hostnameFromBaseUrl(baseUrl: unknown): string | undefined {
 	if (typeof baseUrl !== "string" || !baseUrl.trim()) return undefined;
@@ -40,7 +41,7 @@ export function isOpenAICodexResponsesModel(model: Model<Api>): boolean {
 }
 
 /** The two OpenAI endpoints whose encrypted compaction history this extension replays. */
-export function supportsServerCompaction(model: Model<Api>): boolean {
+export function supportsServerCompaction(model: Model<Api>): model is ResponsesModel {
 	return isOpenAICodexResponsesModel(model) || isDirectOpenAIResponsesModel(model);
 }
 

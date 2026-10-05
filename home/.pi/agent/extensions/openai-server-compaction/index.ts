@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Message } from "@earendil-works/pi-ai";
+import type { Tool } from "@earendil-works/pi-ai";
 import { Effect, Result } from "effect";
 
 import { runPromise } from "../_shared/effect-runtime.ts";
@@ -17,8 +17,9 @@ import {
 	generatePortableSummary,
 	stringHeaders,
 } from "./remote-compaction.ts";
-import { buildToolsPayload, isReplayableMessage, messagesToResponseItems } from "./response-items.ts";
-import { buildRemoteCompactionDetails, replayHistoryFor, type BranchEntryLike } from "./session-history.ts";
+import { buildToolsPayload, messagesToResponseItems } from "./response-items.ts";
+import { buildRemoteCompactionDetails, projectedBranchMessages, replayHistoryFor } from "./session-history.ts";
+import { getDeclaredTools } from "./pi-responses.ts";
 
 /**
  * OpenAI's own compaction, alongside Pi's.
@@ -71,8 +72,10 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 
 		// A previous compaction of this model holds the state OpenAI would compact
 		// again; otherwise the whole branch is the conversation to compact.
+		const messages = projectedBranchMessages(event.branchEntries);
+		const tools = compactionTools(pi, getDeclaredTools(messages));
 		const input =
-			replayHistoryFor(event.branchEntries, model) ?? messagesToResponseItems(branchMessages(event.branchEntries));
+			replayHistoryFor(event.branchEntries, model, tools) ?? messagesToResponseItems(messages, model, tools);
 		const thinkingLevel = pi.getThinkingLevel();
 		const reasoning = model.reasoning ? thinkingLevelToResponsesReasoning(thinkingLevel) : undefined;
 		const sessionId = ctx.sessionManager.getSessionId();
@@ -103,7 +106,7 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 							...(sessionId === undefined ? {} : { sessionId }),
 							input,
 							instructions: ctx.getSystemPrompt(),
-							tools: buildToolsPayload(pi.getAllTools(), pi.getActiveTools()),
+							tools: buildToolsPayload(tools, pi.getActiveTools(), model),
 							...(reasoning === undefined ? {} : { reasoning }),
 							signal: event.signal,
 						}),
@@ -155,14 +158,19 @@ export default async function openAIServerCompactionExtension(pi: ExtensionAPI):
 		if (!supportsServerCompaction(model)) return undefined;
 		if (!(await resolveConfig(ctx)).enabled) return undefined;
 
-		const history = replayHistoryFor(ctx.sessionManager.getBranch(), model);
+		const branch = ctx.sessionManager.getBranch();
+		const tools = compactionTools(pi, getDeclaredTools(projectedBranchMessages(branch)));
+		const history = replayHistoryFor(branch, model, tools);
 		return history === undefined ? undefined : withReplayedHistory(event.payload, history);
 	});
 }
 
-/** The branch's Pi messages, in order; custom messages have no Responses items. */
-function branchMessages(entries: readonly BranchEntryLike[]): Message[] {
-	return entries.flatMap((entry) =>
-		entry.type === "message" && isReplayableMessage(entry.message) ? [entry.message] : [],
-	);
+/**
+ * Native transcript declarations retain constrained sampling, unlike getAllTools' UI metadata.
+ * Legacy sessions without declarations still use their active registry schemas.
+ */
+function compactionTools(pi: ExtensionAPI, declared: readonly Tool[]): Tool[] {
+	const definitions = new Map<string, Tool>(pi.getAllTools().map((tool) => [tool.name, tool]));
+	for (const tool of declared) definitions.set(tool.name, tool);
+	return [...definitions.values()];
 }

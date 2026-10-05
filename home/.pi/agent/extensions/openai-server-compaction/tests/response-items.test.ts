@@ -3,12 +3,12 @@ import test from "node:test";
 
 import type { ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
+import { createApplyPatchTool } from "../../codex-apply-patch/index.ts";
+import type { ResponsesModel } from "../models.ts";
 
 import {
 	buildCompactedHistory,
 	buildToolsPayload,
-	isReplayableMessage,
-	messageToResponseItems,
 	messagesToResponseItems,
 	normalizeResponseItemsForPrompt,
 	type ResponseItem,
@@ -16,6 +16,12 @@ import {
 
 const textModel = { input: ["text"] };
 const imageModel = { input: ["text", "image"] };
+const responsesModel = {
+	id: "gpt-6.1-sol",
+	api: "openai-responses",
+	provider: "openai",
+	input: ["text", "image"],
+} as ResponsesModel;
 const NO_USAGE = {
 	input: 0,
 	output: 0,
@@ -53,7 +59,7 @@ function assistant(text: string): AssistantMessage {
 }
 
 test("a user message becomes one input_text item", () => {
-	assert.deepEqual(messageToResponseItems(user("hello")), [
+	assert.deepEqual(messagesToResponseItems([user("hello")], responsesModel), [
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "hello" }] },
 	]);
 });
@@ -67,7 +73,7 @@ test("an assistant turn keeps its text, encrypted reasoning, and tool calls in o
 				thinking: "hidden",
 				thinkingSignature: JSON.stringify({
 					type: "reasoning",
-					summary: [{ text: "plan" }],
+					summary: [{ type: "summary_text", text: "plan" }],
 					encrypted_content: "opaque",
 				}),
 			},
@@ -75,10 +81,11 @@ test("an assistant turn keeps its text, encrypted reasoning, and tool calls in o
 			{ type: "toolCall", id: "call_1|session", name: "read", arguments: { path: "a.ts" } },
 		],
 	};
-	assert.deepEqual(messageToResponseItems(message), [
+	assert.partialDeepStrictEqual(messagesToResponseItems([message], responsesModel), [
 		{ type: "reasoning", summary: [{ type: "summary_text", text: "plan" }], encrypted_content: "opaque" },
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "done" }] },
 		{ type: "function_call", name: "read", call_id: "call_1", arguments: JSON.stringify({ path: "a.ts" }) },
+		{ type: "function_call_output", call_id: "call_1", output: "No result provided" },
 	]);
 });
 
@@ -91,17 +98,8 @@ test("a tool result keeps the call id without the session suffix", () => {
 		timestamp: 0,
 		isError: false,
 	};
-	assert.deepEqual(messageToResponseItems(message), [
-		{ type: "function_call_output", call_id: "call_1", output: [{ type: "input_text", text: "output" }] },
-	]);
-});
-
-test("only Pi's own message roles are replayable", () => {
-	assert.equal(isReplayableMessage(user("hi")), true);
-	assert.equal(isReplayableMessage({ role: "custom", content: "hi" }), false);
-	assert.equal(isReplayableMessage(undefined), false);
-	assert.deepEqual(messagesToResponseItems([user("a"), { role: "custom", content: "b" } as unknown as Message]), [
-		{ type: "message", role: "user", content: [{ type: "input_text", text: "a" }] },
+	assert.deepEqual(messagesToResponseItems([message], responsesModel), [
+		{ type: "function_call_output", call_id: "call_1", output: "output" },
 	]);
 });
 
@@ -183,8 +181,46 @@ test("compacted history needs the compaction item the API returns", () => {
 });
 
 test("only the session's active tools are declared", () => {
-	const tools = buildToolsPayload([tool("read", "read a file"), tool("bash", "run a command")], ["read"]);
-	assert.deepEqual(tools, [
+	const tools = buildToolsPayload(
+		[tool("read", "read a file"), tool("bash", "run a command")],
+		["read"],
+		responsesModel,
+	);
+	assert.partialDeepStrictEqual(tools, [
 		{ type: "function", name: "read", description: "read a file", parameters: { type: "object" } },
+	]);
+});
+
+test("grammar tool declarations and call/result pairs keep the native custom-tool transport", () => {
+	const grammarModel = {
+		id: "gpt-6.1-sol",
+		api: "openai-responses",
+		provider: "openai",
+		input: ["text"],
+		compat: { supportsOpenAIGrammarTools: true },
+	} as ResponsesModel;
+	const patchTool = createApplyPatchTool();
+	const patch = "*** Begin Patch\n*** Add File: file.txt\n+hello\n*** End Patch\n";
+	const calls: Message[] = [
+		{
+			...assistant(""),
+			content: [{ type: "toolCall", name: "apply_patch", id: "call_patch|ctc_patch", arguments: { patch } }],
+		},
+		{
+			role: "toolResult",
+			toolCallId: "call_patch|ctc_patch",
+			toolName: "apply_patch",
+			content: [{ type: "text", text: "Success" }],
+			isError: false,
+			timestamp: 0,
+		},
+	];
+	const items = messagesToResponseItems(calls, grammarModel, [patchTool]);
+	assert.partialDeepStrictEqual(items, [
+		{ type: "custom_tool_call", call_id: "call_patch", name: "apply_patch", input: patch },
+		{ type: "custom_tool_call_output", call_id: "call_patch", output: "Success" },
+	]);
+	assert.partialDeepStrictEqual(buildToolsPayload([patchTool], ["apply_patch"], grammarModel), [
+		{ type: "custom", name: "apply_patch", format: { type: "grammar", syntax: "lark" } },
 	]);
 });

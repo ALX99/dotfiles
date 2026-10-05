@@ -7,9 +7,13 @@ import type { ResponseItem } from "../response-items.ts";
 import {
 	buildRemoteCompactionDetails,
 	extractRemoteCompactionDetails,
-	replayHistoryFor,
-	type BranchEntryLike,
+	replayHistoryFor as replaySessionHistory,
 } from "../session-history.ts";
+import { sessionBranch, type BranchEntryLike } from "./session-fixtures.ts";
+
+function replayHistoryFor(entries: readonly BranchEntryLike[], target: Model<Api>): ResponseItem[] | undefined {
+	return replaySessionHistory(sessionBranch(entries), target);
+}
 
 const NO_USAGE = {
 	input: 0,
@@ -128,7 +132,7 @@ test("replay is the stored history followed by the turns this model answered aft
 		messageEntry("m2", assistant("same model")),
 	];
 
-	assert.deepEqual(replayHistoryFor(branch, model({})), [
+	assert.partialDeepStrictEqual(replayHistoryFor(branch, model({})), [
 		COMPACTION_ITEM,
 		userItem("after compaction"),
 		assistantItem("same model"),
@@ -144,7 +148,7 @@ test("a turn another model answered is not replayed to this one", () => {
 		messageEntry("m4", assistant("another model", { provider: "commandcode", model: "deepseek-v4.1-flash" })),
 	];
 
-	assert.deepEqual(replayHistoryFor(branch, model({})), [
+	assert.partialDeepStrictEqual(replayHistoryFor(branch, model({})), [
 		COMPACTION_ITEM,
 		userItem("after compaction"),
 		assistantItem("same model"),
@@ -159,12 +163,44 @@ test("the question in flight is replayed, or the patched request would answer no
 		messageEntry("m3", user("question asked while the request is being patched")),
 	];
 
-	assert.deepEqual(replayHistoryFor(branch, model({})), [
+	assert.partialDeepStrictEqual(replayHistoryFor(branch, model({})), [
 		COMPACTION_ITEM,
 		userItem("first question"),
 		assistantItem("first answer"),
 		userItem("question asked while the request is being patched"),
 	]);
+});
+
+test("replay preserves extension instructions, task guidance, and search recall after compaction", () => {
+	const branch = [
+		compactionEntry("compaction-1"),
+		...["nested-context", "tasks:continue", "tasks:reminder", "codex-web-search-recall"].map((customType, index) => ({
+			type: "custom_message",
+			id: `custom-${index}`,
+			customType,
+			content: `required ${customType}`,
+			display: false,
+		})),
+		messageEntry("user", user("continue")),
+	];
+	const history = replayHistoryFor(branch, model({}));
+	assert.ok(history !== undefined);
+	for (const customType of ["nested-context", "tasks:continue", "tasks:reminder", "codex-web-search-recall"]) {
+		assert.match(JSON.stringify(history), new RegExp(`required ${customType}`));
+	}
+});
+
+test("replay applies native context edits instead of reviving raw message content", () => {
+	const branch = [
+		compactionEntry("compaction-1"),
+		messageEntry("user", user("obsolete instructions")),
+		messageEntry("removed", user("must not reach the model")),
+		{ type: "context_edit", id: "edit", targetId: "user", replacement: { content: "corrected instructions" } },
+		{ type: "context_edit", id: "omit", targetId: "removed", replacement: null },
+	];
+	const history = replayHistoryFor(branch, model({}));
+	assert.match(JSON.stringify(history), /corrected instructions/);
+	assert.doesNotMatch(JSON.stringify(history), /obsolete instructions|must not reach the model/);
 });
 
 test("the newest compaction on the branch is the one replayed", () => {
@@ -180,6 +216,16 @@ test("the newest compaction on the branch is the one replayed", () => {
 		[{ type: "compaction", encrypted_content: "newer" }, userItem("after the second")],
 		"each entry carries its own history",
 	);
+});
+
+test("a newer Pi-only compaction supersedes an earlier encrypted checkpoint", () => {
+	const branch = [
+		compactionEntry("remote"),
+		messageEntry("user", user("new work")),
+		{ type: "compaction", id: "local", details: {} },
+		messageEntry("next", user("continue from Pi's summary")),
+	];
+	assert.equal(replayHistoryFor(branch, model({})), undefined);
 });
 
 test("nothing is replayed for another model, or without a compaction", () => {

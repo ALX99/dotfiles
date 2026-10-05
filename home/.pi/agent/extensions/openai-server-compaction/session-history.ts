@@ -1,11 +1,11 @@
-import type { Api, Message, Model, Usage } from "@earendil-works/pi-ai";
+import { buildSessionProjection, convertToLlm, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { Api, Message, Model, Tool, Usage } from "@earendil-works/pi-ai";
 import { Predicate } from "effect";
 
-import { modelKey } from "./models.ts";
+import { modelKey, supportsServerCompaction } from "./models.ts";
 import {
-	isReplayableMessage,
 	isResponseItem,
-	messageToResponseItems,
+	messagesToResponseItems,
 	normalizeResponseItemsForPrompt,
 	type ResponseItem,
 } from "./response-items.ts";
@@ -19,14 +19,6 @@ import {
  * disagree with them, and a compaction that another process performed is picked up
  * without any handoff.
  */
-
-/** A session entry, of which only messages and compaction details matter here. */
-export interface BranchEntryLike {
-	readonly type: string;
-	readonly id: string;
-	readonly details?: unknown;
-	readonly message?: unknown;
-}
 
 /** The replacement history Pi stored for one compaction. */
 export interface RemoteCompactionDetails {
@@ -87,25 +79,39 @@ export function extractRemoteCompactionDetails(details: unknown): RemoteCompacti
 }
 
 /** The newest compaction on this branch that stored OpenAI's replacement history. */
-function latestRemoteCompaction(entries: readonly BranchEntryLike[]): RemoteCompactionRecord | undefined {
-	let found: RemoteCompactionRecord | undefined;
-	entries.forEach((entry, index) => {
-		if (entry.type !== "compaction") return;
-		const details = extractRemoteCompactionDetails(entry.details);
-		if (details === undefined) return;
-		found = { index, modelKey: details.modelKey, replacementHistory: details.replacementHistory };
-	});
-	return found;
+function latestRemoteCompaction(entries: readonly SessionEntry[]): RemoteCompactionRecord | undefined {
+	const index = entries.findLastIndex((entry) => entry.type === "compaction");
+	const entry = entries[index];
+	if (entry?.type !== "compaction") return undefined;
+	const details = extractRemoteCompactionDetails(entry.details);
+	// A newer Pi-only compaction supersedes the old encrypted checkpoint too.
+	return details === undefined
+		? undefined
+		: { index, modelKey: details.modelKey, replacementHistory: details.replacementHistory };
+}
+
+/** Pi owns context edits, custom messages, branch summaries, and compaction-aware projection. */
+export function projectedBranchMessages(entries: readonly SessionEntry[]): Message[] {
+	return convertToLlm(buildSessionProjection([...entries]).messages);
 }
 
 /**
  * The input to replay for a model that has a compaction: OpenAI's replacement history
  * followed by the turns that came after it. Undefined when this model produced none.
  */
-export function replayHistoryFor(entries: readonly BranchEntryLike[], model: Model<Api>): ResponseItem[] | undefined {
+export function replayHistoryFor(
+	entries: readonly SessionEntry[],
+	model: Model<Api>,
+	tools: readonly Tool[] = [],
+): ResponseItem[] | undefined {
 	const record = latestRemoteCompaction(entries);
-	if (record === undefined || record.modelKey !== modelKey(model)) return undefined;
-	const turns = completedTurnItems(entries.slice(record.index + 1), record.modelKey);
+	if (record === undefined || record.modelKey !== modelKey(model) || !supportsServerCompaction(model)) return undefined;
+	const afterCheckpoint = new Set(entries.slice(record.index + 1).map((entry) => entry.id));
+	const projected = buildSessionProjection([...entries])
+		.entries.filter((entry) => afterCheckpoint.has(entry.sourceEntry.id))
+		.flatMap((entry) => entry.messages);
+	const messages = completedTurnMessages(convertToLlm(projected), record.modelKey);
+	const turns = messagesToResponseItems(messages, model, tools);
 	return normalizeResponseItemsForPrompt([...record.replacementHistory, ...turns], model);
 }
 
@@ -117,21 +123,17 @@ export function replayHistoryFor(entries: readonly BranchEntryLike[], model: Mod
  * this one. The turn still in flight is kept either way: the request being patched is the
  * one carrying the question just asked, and dropping it would answer nothing.
  */
-function completedTurnItems(entries: readonly BranchEntryLike[], compactionModelKey: string): ResponseItem[] {
-	const completed: ResponseItem[] = [];
-	let inflight: ResponseItem[] = [];
+function completedTurnMessages(messages: readonly Message[], compactionModelKey: string): Message[] {
+	const completed: Message[] = [];
+	let inflight: Message[] = [];
 
-	for (const entry of entries) {
-		if (entry.type !== "message" || !isReplayableMessage(entry.message)) continue;
-		const items = messageToResponseItems(entry.message);
-		if (items.length === 0) continue;
-
-		if (entry.message.role !== "assistant") {
-			inflight.push(...items);
+	for (const message of messages) {
+		if (message.role !== "assistant") {
+			inflight.push(message);
 			continue;
 		}
-		if (assistantMessageMatchesModelKey(entry.message, compactionModelKey)) {
-			completed.push(...inflight, ...items);
+		if (assistantMessageMatchesModelKey(message, compactionModelKey)) {
+			completed.push(...inflight, message);
 		}
 		inflight = [];
 	}
