@@ -7,6 +7,7 @@ description: "Use for TypeScript/JavaScript symbol navigation: resolve definitio
 
 Use `tsc_lsp.py` for semantic TypeScript/JavaScript navigation before text
 search when resolving a symbol, its type, implementations, or references.
+Run the executable directly; its shebang selects Python.
 
 Positions are `path/file.ts:line:column` (1-based), matching `gopls`. The
 project root is inferred from the nearest `tsconfig.json` or `jsconfig.json`;
@@ -17,14 +18,14 @@ This is especially important when the current directory is a repository
 containing multiple TypeScript projects.
 
 ```sh
-tsc='python3 ~/.agents/skills/typescript-lsp/scripts/tsc_lsp.py'
-$tsc definition src/service.ts:42:7
-$tsc references src/service.ts:42:7
-$tsc implementations src/service.ts:42:7
-$tsc type-definition src/service.ts:42:7
-$tsc hover src/service.ts:42:7
-$tsc document-symbols src/service.ts
-$tsc workspace-symbols --query UserService
+tsc="$HOME/.agents/skills/typescript-lsp/scripts/tsc_lsp.py"
+"$tsc" definition src/service.ts:42:7
+"$tsc" references src/service.ts:42:7
+"$tsc" implementations src/service.ts:42:7
+"$tsc" type-definition src/service.ts:42:7
+"$tsc" hover src/service.ts:42:7
+"$tsc" document-symbols src/service.ts
+"$tsc" workspace-symbols --query UserService
 ```
 
 Results are line-oriented locations using 1-based positions. Use returned
