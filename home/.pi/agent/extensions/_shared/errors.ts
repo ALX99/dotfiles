@@ -19,12 +19,3 @@ export function toError(value: unknown): Error {
 export function hasNodeErrorCode(value: unknown, code: string): value is NodeJS.ErrnoException {
 	return value instanceof Error && "code" in value && value.code === code;
 }
-
-/** Never suggest stealing a lock: a crash and a live writer are indistinguishable from its file alone. */
-export function privateStoreErrorMessage(error: FsError): string {
-	const detail =
-		error.operation === "lock" && hasNodeErrorCode(error.cause, "EEXIST")
-			? "another writer holds this lock; if its process crashed, inspect and remove the lock manually"
-			: toError(error.cause).message;
-	return `${error.operation} ${error.path}: ${detail}`;
-}
