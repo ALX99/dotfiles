@@ -1,12 +1,12 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-	createBashToolDefinition,
 	initTheme,
 	ToolExecutionComponent,
 	type ExtensionAPI,
 	type Theme,
-	type ToolDefinition,
+	type ToolRenderers,
+	type ToolRendererResolver,
 } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import type { ToolStatusState } from "../../_shared/tool-status.ts";
@@ -15,15 +15,16 @@ import compactBash from "../compact.ts";
 initTheme("dark");
 
 function setup(command = "printf hello", requestRender = () => {}) {
-	let definition: ToolDefinition | undefined;
+	let definition: ToolRenderers | undefined;
 	let renderTheme: Theme | undefined;
 	let renderState: ToolStatusState | undefined;
-	const handlers = new Map<string, () => void>();
+	const handlers = new Map<string, (event?: unknown, ctx?: unknown) => void>();
 	compactBash({
-		on(event: string, handler: () => void) {
+		on(event: string, handler: (event?: unknown, ctx?: unknown) => void) {
 			handlers.set(event, handler);
 		},
-		registerTool(tool: ToolDefinition) {
+		registerToolRenderer(resolve: ToolRendererResolver) {
+			const tool = resolve("bash", () => undefined)!;
 			const renderCall = tool.renderCall!;
 			definition = {
 				...tool,
@@ -150,14 +151,32 @@ test("command titles use theme colors and bold styling in collapsed, narrow and 
 	assert.ok(render().some((line) => line.includes("$ printf hello")));
 });
 
-test("registration preserves the built-in schema and prompt metadata", () => {
-	const { definition } = setup();
-	const builtin = createBashToolDefinition(process.cwd());
-	assert.equal(definition.name, builtin.name);
-	assert.equal(definition.description, builtin.description);
-	assert.deepEqual(definition.parameters, builtin.parameters);
-	assert.equal(definition.promptSnippet, builtin.promptSnippet);
-	assert.deepEqual(definition.promptGuidelines, builtin.promptGuidelines);
+test("registration changes only rendering and passes unrelated tools to the next resolver", () => {
+	let resolver: ToolRendererResolver | undefined;
+	compactBash({
+		on() {},
+		registerTool() {
+			assert.fail("compact displays must not register or activate tools");
+		},
+		registerToolRenderer(resolve: ToolRendererResolver) {
+			resolver = resolve;
+		},
+	} as unknown as ExtensionAPI);
+	assert.ok(resolver);
+	for (const name of ["bash", "edit", "read"]) {
+		const renderer = resolver(name, () => undefined);
+		assert.ok(renderer);
+		assert.deepEqual(Object.keys(renderer).toSorted(), ["renderCall", "renderResult", "renderShell"]);
+	}
+	const downstream: ToolRenderers = { renderShell: "default" };
+	assert.equal(
+		resolver("mcp_tool", () => downstream),
+		downstream,
+	);
+	assert.equal(
+		resolver("unknown", () => undefined),
+		undefined,
+	);
 });
 
 test("the four-row spinner advances through a complete loop without repeating the boundary frame", async (t) => {
@@ -211,7 +230,7 @@ test("quiet commands animate before any output, and stop on settlement or sessio
 			assert.notEqual(render()[1], initial);
 			assert.equal(render().length, 2);
 			if (end === "success" || end === "error") row.updateResult(result("done", end === "error"));
-			else handlers.get(end)?.();
+			else handlers.get(end)?.({}, { sessionManager: { getBranch: () => [] } });
 			const settledRedraws = redraws;
 			await new Promise((resolve) => setTimeout(resolve, 150));
 			assert.equal(redraws, settledRedraws);

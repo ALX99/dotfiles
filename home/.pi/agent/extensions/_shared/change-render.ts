@@ -1,5 +1,24 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Text, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { renderToolDuration, type ToolStatusState } from "./tool-status.ts";
+
+/** Reserve a separate right column without allowing ANSI or wide text to overflow. */
+export function withToolDuration(component: Component, state: ToolStatusState, theme: Theme): Component {
+	return {
+		invalidate() {
+			component.invalidate();
+		},
+		render(width) {
+			const duration = renderToolDuration(theme, state);
+			const cells = duration === undefined ? 0 : visibleWidth(duration);
+			if (duration === undefined || width < cells + 5) return component.render(width);
+			const lines = component.render(width - cells - 1);
+			if (lines.length === 0) return lines;
+			const first = lines[0]!;
+			return [first + " ".repeat(width - cells - visibleWidth(first)) + duration, ...lines.slice(1)];
+		},
+	};
+}
 
 export function plainChangeText(text: string): string {
 	return stripTerminalSequences(text)
@@ -7,18 +26,28 @@ export function plainChangeText(text: string): string {
 		.replaceAll("\t", "    ");
 }
 
-export function changeHeader(status: string, label: string, summary: () => string, theme: Theme): Component {
-	return {
-		invalidate() {},
-		render(width) {
-			const title = theme.fg("toolTitle", theme.bold(plainChangeText(label).replaceAll(/\s+/gu, " ")));
-			const detail = summary();
-			const suffix = detail ? theme.fg("dim", ` · ${detail}`) : "";
-			const prefix = `${status} `;
-			const budget = width - visibleWidth(prefix) - visibleWidth(suffix);
-			return [budget < 4 ? truncateToWidth(prefix + title, width) : prefix + truncateToWidth(title, budget) + suffix];
+export function changeHeader(
+	status: string,
+	label: string,
+	summary: () => string,
+	theme: Theme,
+	state: ToolStatusState,
+): Component {
+	return withToolDuration(
+		{
+			invalidate() {},
+			render(width) {
+				const title = theme.fg("toolTitle", theme.bold(plainChangeText(label).replaceAll(/\s+/gu, " ")));
+				const detail = summary();
+				const suffix = detail ? theme.fg("dim", ` · ${detail}`) : "";
+				const prefix = `${status} `;
+				const budget = width - visibleWidth(prefix) - visibleWidth(suffix);
+				return [budget < 4 ? truncateToWidth(prefix + title, width) : prefix + truncateToWidth(title, budget) + suffix];
+			},
 		},
-	};
+		state,
+		theme,
+	);
 }
 
 export function changeFailure(output: string, expanded: boolean, theme: Theme): Component {

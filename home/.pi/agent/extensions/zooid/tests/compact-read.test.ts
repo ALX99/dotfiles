@@ -7,15 +7,18 @@ import {
 	createReadToolDefinition,
 	initTheme,
 	ToolExecutionComponent,
+	type ExtensionAPI,
 	type ExtensionToolContext,
+	type ToolRendererResolver,
+	type ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
-import { createCompactRead } from "../compact.ts";
+import { Text, stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
+import compact, { createCompactRead } from "../compact.ts";
 
 initTheme("dark");
 
 function setup(args = { path: "src/config.ts", offset: 10, limit: 20 }) {
-	const definition = createCompactRead();
+	const definition = createCompactRead(createReadToolDefinition(process.cwd()) as unknown as ToolRenderers);
 	const row = new ToolExecutionComponent(
 		"read",
 		"read-test",
@@ -73,20 +76,77 @@ test("read displays truncation without counting continuation diagnostics as file
 	assert.match(render()[1]!, /line exceeds read limit$/);
 });
 
-test("compact read retains native metadata and reads requested lines relative to ctx.cwd", async (t) => {
+test("registered read delegates expanded results to the next renderer without reusing its compact component", () => {
+	let resolver: ToolRendererResolver | undefined;
+	compact({
+		on() {},
+		registerToolRenderer(resolve: ToolRendererResolver) {
+			resolver = resolve;
+		},
+	} as unknown as ExtensionAPI);
+	assert.ok(resolver);
+	let resolutions = 0;
+	let paints = 0;
+	const definition = resolver("read", () => {
+		resolutions++;
+		return {
+			renderResult(result, options, _theme, context) {
+				paints++;
+				assert.equal(options.expanded, true);
+				assert.equal(context.lastComponent, undefined);
+				assert.equal(result.content[0]?.type, "text");
+				return new Text("downstream read renderer", 0, 0);
+			},
+		};
+	});
+	assert.equal(resolutions, 1);
+	const row = new ToolExecutionComponent(
+		"read",
+		"read-chain",
+		{ path: "file.ts" },
+		{},
+		definition,
+		{ requestRender() {} } as TUI,
+		process.cwd(),
+	);
+	row.updateResult({ content: [{ type: "text", text: "file contents" }], isError: false });
+	assert.equal(paints, 0);
+	row.setExpanded(true);
+	assert.match(row.render(100).map(stripTerminalSequences).join("\n"), /downstream read renderer/);
+	assert.ok(paints > 0);
+});
+
+test("unregistered read calls can expand text without a downstream renderer", () => {
+	const row = new ToolExecutionComponent(
+		"read",
+		"read-fallback",
+		{ path: "file.ts" },
+		{},
+		createCompactRead(undefined),
+		{ requestRender() {} } as TUI,
+		process.cwd(),
+	);
+	row.updateResult({ content: [{ type: "text", text: "restored file contents" }], isError: false });
+	assert.equal(row.render(100).length, 2);
+	row.setExpanded(true);
+	assert.match(row.render(100).map(stripTerminalSequences).join("\n"), /restored file contents/);
+});
+
+test("compact read renders native reads of requested lines relative to ctx.cwd", async (t) => {
 	const cwd = await mkdtemp(join(tmpdir(), "compact-read-"));
 	t.after(() => rm(cwd, { recursive: true, force: true }));
 	await writeFile(join(cwd, "config.ts"), "first\nsecond\nthird\nfourth");
-	const { definition } = setup();
+	const { row, render } = setup();
 	const builtin = createReadToolDefinition(process.cwd());
-	for (const key of ["parameters", "description", "promptSnippet", "promptGuidelines", "executionMode"] as const)
-		assert.deepEqual(definition[key], builtin[key]);
 	const execute = (args: { path: string; offset?: number; limit?: number }) =>
-		definition.execute("read-test", args, undefined, undefined, { cwd } as ExtensionToolContext);
+		builtin.execute("read-test", args, undefined, undefined, { cwd } as ExtensionToolContext);
 	const excerpt = await execute({ path: "config.ts", offset: 2, limit: 2 });
 	assert.deepEqual(excerpt.content, [
 		{ type: "text", text: "second\nthird\n\n[1 more lines in file. Use offset=4 to continue.]" },
 	]);
+	row.updateResult({ ...excerpt, isError: false });
+	row.setExpanded(true);
+	assert.match(render().join("\n"), /second\nthird/);
 	const remainder = await execute({ path: "config.ts", offset: 4 });
 	assert.deepEqual(remainder.content, [{ type: "text", text: "fourth" }]);
 	await assert.rejects(execute({ path: "missing.ts" }), { code: "ENOENT" });

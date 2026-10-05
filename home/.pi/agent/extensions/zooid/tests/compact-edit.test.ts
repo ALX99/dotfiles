@@ -9,7 +9,8 @@ import {
 	ToolExecutionComponent,
 	type ExtensionAPI,
 	type ExtensionToolContext,
-	type ToolDefinition,
+	type ToolRenderers,
+	type ToolRendererResolver,
 } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import { createCompactEdit } from "../compact.ts";
@@ -76,16 +77,13 @@ test("edit headers and failure excerpts fit narrow terminals and sanitize paths"
 	assert.match(render()[1]!, /src\/界界 config.ts/);
 });
 
-test("compact edit delegates native execution, including ctx.cwd, and renders its actual result", async (t) => {
+test("compact edit renders native execution results, including edits relative to ctx.cwd", async (t) => {
 	const cwd = await mkdtemp(join(tmpdir(), "compact-edit-"));
 	t.after(() => rm(cwd, { recursive: true, force: true }));
 	await writeFile(join(cwd, "config.ts"), "const timeout = 1000;\n");
-	const { row, render, definition } = setup();
+	const { row, render } = setup();
 	const builtin = createEditToolDefinition(process.cwd());
-	for (const key of ["parameters", "description", "promptSnippet", "promptGuidelines", "executionMode"] as const) {
-		assert.deepEqual(definition[key], builtin[key]);
-	}
-	const result = await definition.execute(
+	const result = await builtin.execute(
 		"edit-test",
 		{
 			path: "config.ts",
@@ -104,14 +102,14 @@ test("compact edit delegates native execution, including ctx.cwd, and renders it
 });
 
 test("registered edit owns independent animation and cleans up with the session", async (t) => {
-	let definition: ToolDefinition | undefined;
+	let definition: ToolRenderers | undefined;
 	const handlers = new Map<string, () => void>();
 	compact({
 		on(event: string, handler: () => void) {
 			handlers.set(event, handler);
 		},
-		registerTool(tool: ToolDefinition) {
-			if (tool.name === "edit") definition = tool;
+		registerToolRenderer(resolve: ToolRendererResolver) {
+			definition = resolve("edit", () => undefined);
 		},
 	} as ExtensionAPI);
 	assert.ok(definition);

@@ -45,7 +45,13 @@ export function patchRenderers(
 			const { files, summary } = patchSummary(patch);
 			const container = new Container();
 			container.addChild(
-				changeHeader(statusFor(theme, context), "patch", () => (context.isError ? "failed" : summary), theme),
+				changeHeader(
+					statusFor(theme, context),
+					"patch",
+					() => (context.isError ? "failed" : summary),
+					theme,
+					context.state,
+				),
 			);
 			if (context.expanded) {
 				container.addChild(new Text(theme.fg("dim", "Patch input (not an applied-file diff)"), 0, 0));

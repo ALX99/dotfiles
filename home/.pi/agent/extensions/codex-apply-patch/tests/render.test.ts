@@ -127,9 +127,9 @@ test("registered patch animates without output and stops on completion, error, s
 	for (const end of ["success", "error", "session_start", "session_shutdown"]) {
 		await suite.test(end, async (t) => {
 			let definition: ToolDefinition | undefined;
-			const handlers = new Map<string, (() => void)[]>();
+			const handlers = new Map<string, ((event?: unknown, ctx?: unknown) => void)[]>();
 			registerCodexCompat({
-				on(event: string, handler: () => void) {
+				on(event: string, handler: (event?: unknown, ctx?: unknown) => void) {
 					const list = handlers.get(event) ?? [];
 					list.push(handler);
 					handlers.set(event, list);
@@ -151,7 +151,7 @@ test("registered patch animates without output and stops on completion, error, s
 			await t.waitFor(() => assert.ok(redraws > initialRedraws), { interval: 10, timeout: 1000 });
 			assert.notEqual(render()[1], initial);
 			if (end === "success" || end === "error") row.updateResult({ ...success, isError: end === "error" });
-			else handlers.get(end)?.[0]?.();
+			else handlers.get(end)?.[0]?.({}, { sessionManager: { getBranch: () => [] } });
 			const settled = redraws;
 			await new Promise((resolve) => setTimeout(resolve, 150));
 			assert.equal(redraws, settled);

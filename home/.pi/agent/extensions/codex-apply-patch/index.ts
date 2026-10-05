@@ -224,7 +224,9 @@ export function supportsApplyPatchTransport(model: { compat?: unknown } | undefi
 }
 
 export function registerCodexCompat(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
-	pi.registerTool(createApplyPatchToolDefinition(options, runApplyPatchProcess, createToolStatus(pi)));
+	pi.registerTool(
+		createApplyPatchToolDefinition(options, runApplyPatchProcess, createToolStatus(pi, [APPLY_PATCH_TOOL_NAME])),
+	);
 
 	const setCodexCompatToolsActive = (enabled: boolean): void => {
 		const active = pi.getActiveTools();

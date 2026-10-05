@@ -1,28 +1,27 @@
-import {
+import type {
 	createBashToolDefinition,
 	createEditToolDefinition,
 	createReadToolDefinition,
-	SettingsManager,
-	type BashToolDetails,
-	type EditToolDetails,
-	type ExtensionAPI,
-	type ReadToolDetails,
-	type ToolDefinition,
+	BashToolDetails,
+	EditToolDetails,
+	ExtensionAPI,
+	ReadToolDetails,
+	ToolDefinition,
+	ToolRenderers,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Text, stripTerminalSequences, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { Effect } from "effect";
-import { runPromise } from "../_shared/effect-runtime.ts";
 import { createToolStatus, renderToolStatus, runningSince, type ToolStatusState } from "../_shared/tool-status.ts";
-import { changeFailure, changeHeader, colorChange } from "../_shared/change-render.ts";
+import { changeFailure, changeHeader, colorChange, withToolDuration } from "../_shared/change-render.ts";
 
 interface EditState extends ToolStatusState {
 	summary?: string;
 }
 
 export function createCompactEdit(statusFor = renderToolStatus) {
-	const builtin = createEditToolDefinition(process.cwd());
-	const definition: ToolDefinition<typeof builtin.parameters, EditToolDetails | undefined, EditState> = {
-		...builtin,
+	const definition: Pick<
+		ToolDefinition<ReturnType<typeof createEditToolDefinition>["parameters"], EditToolDetails | undefined, EditState>,
+		keyof ToolRenderers
+	> = {
 		renderShell: "self",
 		renderCall(args, theme, context) {
 			return changeHeader(
@@ -30,6 +29,7 @@ export function createCompactEdit(statusFor = renderToolStatus) {
 				`edit ${args.path ?? "…"}`,
 				() => context.state.summary ?? "",
 				theme,
+				context.state,
 			);
 		},
 		renderResult(result, { expanded, isPartial }, theme, context) {
@@ -54,13 +54,16 @@ export function createCompactEdit(statusFor = renderToolStatus) {
 			return new Text(diff === undefined ? output : colorChange(diff, theme), 0, 0);
 		},
 	};
-	return definition;
+	// Pi's renderer registry erases the parameter schema; this resolver is bound to edit calls.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion
+	return definition as unknown as ToolRenderers;
 }
 
-export function createCompactRead(statusFor = renderToolStatus) {
-	const builtin = createReadToolDefinition(process.cwd());
-	const definition: ToolDefinition<typeof builtin.parameters, ReadToolDetails | undefined, EditState> = {
-		...builtin,
+export function createCompactRead(native: ToolRenderers | undefined, statusFor = renderToolStatus) {
+	const definition: Pick<
+		ToolDefinition<ReturnType<typeof createReadToolDefinition>["parameters"], ReadToolDetails | undefined, EditState>,
+		keyof ToolRenderers
+	> = {
 		renderShell: "self",
 		renderCall(args, theme, context) {
 			// These are the requested bounds, not a claim about how many lines were returned.
@@ -73,6 +76,7 @@ export function createCompactRead(statusFor = renderToolStatus) {
 				`read ${args.path ?? "…"}`,
 				() => [...bounds, context.state.summary].filter(Boolean).join(" · "),
 				theme,
+				context.state,
 			);
 		},
 		renderResult(result, options, theme, context) {
@@ -96,17 +100,26 @@ export function createCompactRead(statusFor = renderToolStatus) {
 				return changeFailure(output, options.expanded, theme);
 			}
 			// Retain native syntax highlighting and continuation notices. Pi owns image components.
-			return options.expanded
-				? builtin.renderResult!(result, options, theme, { ...context, lastComponent: undefined })
-				: new Container();
+			if (!options.expanded) return new Container();
+			if (native?.renderResult)
+				return native.renderResult(result, options, theme, { ...context, lastComponent: undefined });
+			return new Text(
+				result.content
+					.filter((part) => part.type === "text")
+					.map((part) => part.text)
+					.join("\n"),
+				0,
+				0,
+			);
 		},
 	};
-	return definition;
+	// The resolver selects this typed renderer only for read calls.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion
+	return definition as unknown as ToolRenderers;
 }
 
-interface CompactBashState {
+interface CompactBashState extends ToolStatusState {
 	summary?: string;
-	frame?: number;
 }
 
 function plain(text: string): string {
@@ -115,53 +128,42 @@ function plain(text: string): string {
 		.replaceAll("\t", "    ");
 }
 
-export default function compactBash(pi: ExtensionAPI): void {
-	const statusFor = createToolStatus(pi);
-	pi.registerTool(createCompactEdit(statusFor));
-	pi.registerTool(createCompactRead(statusFor));
-
-	const builtin = createBashToolDefinition(process.cwd());
-	const definition: ToolDefinition<typeof builtin.parameters, BashToolDetails | undefined, CompactBashState> = {
-		...builtin,
+export function createCompactBash(statusFor = renderToolStatus) {
+	const definition: Pick<
+		ToolDefinition<
+			ReturnType<typeof createBashToolDefinition>["parameters"],
+			BashToolDetails | undefined,
+			CompactBashState
+		>,
+		keyof ToolRenderers
+	> = {
 		renderShell: "self",
-		async execute(id, args, signal, onUpdate, ctx) {
-			// Keep Pi's shell settings and current working directory when delegating.
-			const settings = await runPromise(
-				Effect.sync(() =>
-					SettingsManager.create(ctx.cwd, undefined, {
-						projectTrusted: ctx.isProjectTrusted(),
-					}),
-				),
-			);
-			const shellPath = settings.getShellPath();
-			const commandPrefix = settings.getShellCommandPrefix();
-			return createBashToolDefinition(ctx.cwd, {
-				...(shellPath !== undefined && { shellPath }),
-				...(commandPrefix !== undefined && { commandPrefix }),
-			}).execute(id, args, signal, onUpdate, ctx);
-		},
 		renderCall(args, theme, context) {
 			const state = context.state;
 			const command = plain(args.command ?? "");
 			const status = statusFor(theme, context);
-			return {
-				invalidate() {},
-				render(width) {
-					// Pi calls renderCall before renderResult; read the shared summary at paint time.
-					const elapsed = context.isPartial ? runningSince(state) : undefined;
-					const summary = state.summary ? `${state.summary}${elapsed === undefined ? "" : ` ${elapsed}`}` : undefined;
-					const suffix = summary ? theme.fg("dim", ` · ${summary}`) : "";
-					const title = (text: string) => theme.fg("toolTitle", theme.bold(text));
-					if (context.expanded) {
-						return new Text(`${status} ${title(`$ ${command}`)}${suffix}`, 0, 0).render(width);
-					}
-					const prefix = `${status} ${title("$ ")}`;
-					const budget = width - visibleWidth(prefix) - visibleWidth(suffix);
-					const compact = command.replaceAll(/\s+/gu, " ").trim();
-					if (budget < 4) return [truncateToWidth(prefix + title(compact), width)];
-					return [prefix + title(truncateToWidth(compact, budget)) + suffix];
+			return withToolDuration(
+				{
+					invalidate() {},
+					render(width) {
+						// Pi calls renderCall before renderResult; read the shared summary at paint time.
+						const elapsed = context.isPartial ? runningSince(state) : undefined;
+						const summary = state.summary ? `${state.summary}${elapsed === undefined ? "" : ` ${elapsed}`}` : undefined;
+						const suffix = summary ? theme.fg("dim", ` · ${summary}`) : "";
+						const title = (text: string) => theme.fg("toolTitle", theme.bold(text));
+						if (context.expanded) {
+							return new Text(`${status} ${title(`$ ${command}`)}${suffix}`, 0, 0).render(width);
+						}
+						const prefix = `${status} ${title("$ ")}`;
+						const budget = width - visibleWidth(prefix) - visibleWidth(suffix);
+						const compactCommand = command.replaceAll(/\s+/gu, " ").trim();
+						if (budget < 4) return [truncateToWidth(prefix + title(compactCommand), width)];
+						return [prefix + title(truncateToWidth(compactCommand, budget)) + suffix];
+					},
 				},
-			};
+				state,
+				theme,
+			);
 		},
 		renderResult(result, { expanded, isPartial }, theme, context) {
 			const state = context.state;
@@ -192,5 +194,23 @@ export default function compactBash(pi: ExtensionAPI): void {
 			};
 		},
 	};
-	pi.registerTool(definition);
+	// The resolver selects this typed renderer only for bash calls.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion
+	return definition as unknown as ToolRenderers;
+}
+
+export default function compact(pi: ExtensionAPI): void {
+	const statusFor = createToolStatus(pi, ["bash", "edit", "read"]);
+	pi.registerToolRenderer((name, next) => {
+		switch (name) {
+			case "bash":
+				return createCompactBash(statusFor);
+			case "edit":
+				return createCompactEdit(statusFor);
+			case "read":
+				return createCompactRead(next(), statusFor);
+			default:
+				return next();
+		}
+	});
 }
