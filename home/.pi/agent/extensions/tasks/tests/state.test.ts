@@ -8,6 +8,7 @@ import {
 	currentItem,
 	finishedCount,
 	latestActive,
+	nextTaskPrompt,
 	pendingCompaction,
 	positionOf,
 	projectOutcome,
@@ -15,6 +16,7 @@ import {
 	replay,
 	TaskQueueError,
 	taskCounts,
+	taskReminderPrompt,
 	titleOf,
 	type ActiveQueue,
 	type TaskLogEntry,
@@ -88,6 +90,24 @@ const persistedOutcome = (id: string, outcome: TaskOutcome): TaskLogEntry => ({
 const stateOf = (entries: readonly TaskLogEntry[]): ActiveQueue => replay(entries).at(-1)!;
 
 const taskIds = (active: ActiveQueue): string[] => active.queue.tasks.map((task) => task.id);
+
+test("task-start guidance bounds work to the current result, including planning and discovery", () => {
+	const prompt = nextTaskPrompt({ id: "t1", title: "Plan the parser fix" });
+	assert.match(prompt, /^Continue with t1: Plan the parser fix\./u);
+	assert.match(prompt, /Do only the work needed to achieve and verify its stated result/u);
+	assert.match(prompt, /leave later tasks for their own turn/u);
+	assert.match(prompt, /record it as a follow-up rather than doing it now/u);
+	assert.match(prompt, /For planning or discovery/u);
+	assert.match(prompt, /without implementing those tasks/u);
+	assert.match(prompt, /Once the current task is complete, call finish_task before continuing/u);
+});
+
+test("the settle-time reminder asks for completion without inviting extra work", () => {
+	assert.equal(
+		taskReminderPrompt({ id: "t1", title: "Plan the parser fix" }),
+		'If the current task "Plan the parser fix" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
+	);
+});
 
 test("replay is stable across a restart", () => {
 	const entries = [

@@ -142,6 +142,7 @@ export default function tasksExtension(pi: ExtensionAPI): void {
 							`Queued ${tasks.length} tasks.`,
 							...tasks.map((task, index) => `${index + 1}. ${task.id}: ${task.title}`),
 							"Work tasks in order. After each task, call finish_task as the only tool call in its assistant turn, or make it the only nested tool call in a codemode script. Record a concise handoff and add any follow-up tasks.",
+							nextTaskPrompt(tasks[0]!),
 						].join("\n"),
 					},
 				],

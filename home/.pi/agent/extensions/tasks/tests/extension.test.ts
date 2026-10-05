@@ -326,6 +326,14 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	);
 });
 
+test("the initial queue delivers the same scope guidance as later task starts", async () => {
+	const h = createHarness();
+	const result = await createQueueResult(h, ["Plan the parser fix"]);
+	assert.ok(result.content.endsWith(nextTaskPrompt(result.details.tasks[0]!)));
+	assert.match(result.content, /without implementing those tasks/u);
+	assert.match(result.content, /only tool call in its assistant turn/u);
+});
+
 test("starts with one discovery task and runs the tasks it discovers", async () => {
 	const h = createHarness();
 	const created = await createQueueResult(h, ["Investigate the problem and identify the work"]);
@@ -348,7 +356,7 @@ test("starts with one discovery task and runs the tasks it discovers", async () 
 		["t2", "t3"],
 	);
 	assert.match(discovered.content, /Task t1 completed \(1\/3\)/u);
-	assert.match(discovered.content, /Continue with t2: Fix the parser\.$/u);
+	assert.ok(discovered.content.endsWith(nextTaskPrompt({ id: "t2", title: "Fix the parser" })));
 	h.pushEntry(toolResult("finish-discovery-result", "finish-discovery", "finish_task", discovered.details));
 	await commit(h, "queue-call-result");
 
@@ -437,7 +445,7 @@ test("inserts additions after precise positions and preserves same-position orde
 	}
 });
 
-test("continues with a hidden title-only instruction after each task compacts", async () => {
+test("continues with hidden task-start guidance after each task compacts", async () => {
 	const h = createHarness();
 	await createQueue(h, ["Investigate", "Original second task", "Original third task"]);
 	let checkpointId = "queue-call-result";
@@ -464,22 +472,22 @@ test("continues with a hidden title-only instruction after each task compacts", 
 		[
 			{
 				customType: "tasks:continue",
-				content: "Continue with t4: Follow-up A.",
+				content: nextTaskPrompt({ id: "t4", title: "Follow-up A" }),
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t5: Follow-up B.",
+				content: nextTaskPrompt({ id: "t5", title: "Follow-up B" }),
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t2: Original second task.",
+				content: nextTaskPrompt({ id: "t2", title: "Original second task" }),
 				display: false,
 			},
 			{
 				customType: "tasks:continue",
-				content: "Continue with t3: Original third task.",
+				content: nextTaskPrompt({ id: "t3", title: "Original third task" }),
 				display: false,
 			},
 		],
@@ -828,7 +836,7 @@ test("reminds the model once per unfinished task after the agent settles", async
 			message: {
 				customType: "tasks:reminder",
 				content:
-					'If you have completed the task "Add schema" make sure to call the finish_task tool, otherwise keep working.',
+					'If the current task "Add schema" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
 				display: false,
 				details: { queueId: queue.queueId, taskId: "t1" },
 			},
@@ -855,7 +863,7 @@ test("reminds the model once per unfinished task after the agent settles", async
 	assert.equal(reminders(h).length, 2);
 	assert.equal(
 		reminders(h)[1]?.message.content,
-		'If you have completed the task "Implement handler" make sure to call the finish_task tool, otherwise keep working.',
+		'If the current task "Implement handler" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
 	);
 	assert.deepEqual(reminders(h)[1]?.message.details, { queueId: queue.queueId, taskId: "t2" });
 });
@@ -933,7 +941,7 @@ for (const mode of ["print", "json"]) {
 		const first = await finishTask(h, { status: "completed", outcome: "Schema added." }, "finish-1");
 		assert.equal(first.details.checkpoint, "inline");
 		assert.equal(first.terminate, false);
-		assert.match(first.content, /Continue with t2: Implement handler\.$/u);
+		assert.ok(first.content.endsWith(nextTaskPrompt({ id: "t2", title: "Implement handler" })));
 		assert.doesNotMatch(first.content, /print|compaction|invocation/u);
 		h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 
@@ -1268,7 +1276,7 @@ test("re-anchors on the current task with the shared continuation after automati
 	const recovery = h.sentMessages.at(-1);
 	assert.equal(recovery?.message.customType, "tasks:recovery");
 	assert.equal(recovery?.message.content, nextTaskPrompt(queue.tasks[0]!));
-	assert.equal(recovery?.message.content, "Continue with t1: Add schema.");
+	assert.match(recovery?.message.content as string, /Focus on the current task/u);
 	assert.deepEqual(recovery?.message.details, {
 		queueId: queue.queueId,
 		taskId: "t1",

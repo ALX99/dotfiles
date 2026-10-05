@@ -345,18 +345,23 @@ export function finalSummaryPrompt(active: ActiveQueue): string {
 }
 
 /**
- * The one instruction that starts a task: the post-checkpoint continuation, the
- * steer that re-anchors the model after an automatic compaction, and the text
- * the finish tool result ends with in inline (headless) mode. It names the task
- * only; recording the outcome is left to the settle-time reminder.
+ * Shared task-start guidance for the initial queue, post-checkpoint continuation,
+ * automatic-compaction recovery, and inline (headless) finish results. It names
+ * the task and sets its scope before work starts.
  */
 export function nextTaskPrompt(next: TaskQueueItem): string {
-	return `Continue with ${next.id}: ${next.title}.`;
+	return [
+		`Continue with ${next.id}: ${next.title}.`,
+		"Focus on the current task. Do only the work needed to achieve and verify its stated result; leave later tasks for their own turn.",
+		"If you discover additional work, record it as a follow-up rather than doing it now.",
+		"For planning or discovery, inspect enough to define the follow-up tasks, then record your findings without implementing those tasks.",
+		"Once the current task is complete, call finish_task before continuing.",
+	].join(" ");
 }
 
 /** The reminder that asks for the current task's outcome once the model stops. */
 export function taskReminderPrompt(current: TaskQueueItem): string {
-	return `If you have completed the task "${current.title}" make sure to call the finish_task tool, otherwise keep working.`;
+	return `If the current task "${current.title}" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.`;
 }
 
 export function formatOutcome(active: ActiveQueue, outcome: TaskOutcome): string {
