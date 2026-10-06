@@ -126,6 +126,20 @@ interface CodemodeCallState {
 	boundary?: CodemodeTaskBoundary;
 }
 
+const sessionBeforeTree: TaskEventHandlers["sessionBeforeTree"] = (event, ctx) => {
+	const active = getActiveQueue(ctx);
+	const finish = pendingCompaction(active);
+	if (active === undefined || finish === undefined || event.preparation.targetId !== active.checkpointEntryId)
+		return undefined;
+	return {
+		summary: {
+			summary: formatOutcome(active, finish),
+			details: finish,
+		},
+		label: `task: ${titleOf(active, finish.taskId)}`,
+	};
+};
+
 export default function tasksExtension(
 	pi: ExtensionAPI,
 	toolSelection: ToolSelection,
@@ -462,20 +476,6 @@ export default function tasksExtension(
 			}
 		},
 	});
-
-	const sessionBeforeTree: TaskEventHandlers["sessionBeforeTree"] = (event, ctx) => {
-		const active = getActiveQueue(ctx);
-		const finish = pendingCompaction(active);
-		if (active === undefined || finish === undefined || event.preparation.targetId !== active.checkpointEntryId)
-			return undefined;
-		return {
-			summary: {
-				summary: formatOutcome(active, finish),
-				details: finish,
-			},
-			label: `task: ${titleOf(active, finish.taskId)}`,
-		};
-	};
 
 	const sessionCompact: TaskEventHandlers["sessionCompact"] = (event, ctx) => {
 		if (event.reason === "manual") return;

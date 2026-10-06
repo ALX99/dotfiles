@@ -18,6 +18,8 @@ import {
 	registerCodexCompat,
 	runApplyPatchProcess,
 	supportsApplyPatchTransport,
+	type ApplyPatchSpawnOptions,
+	type ApplyPatchToolDetails,
 	type SpawnApplyPatchProcess,
 } from "../register.ts";
 import { APPLY_PATCH_OPENAI_LARK_GRAMMAR } from "../types.ts";
@@ -116,7 +118,7 @@ test("adapter spawns a fake executable directly with raw stdin and ctx.cwd", asy
 			cwd: await realpath(cwd),
 			args: [],
 		});
-		assert.deepEqual(result.details, { exitCode: 0 });
+		assert.deepEqual(result.details as ApplyPatchToolDetails, { exitCode: 0 });
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -207,7 +209,7 @@ test("cancellation escalates an uncooperative child from SIGTERM to SIGKILL in o
 });
 
 test("stdin errors are observed and terminate the child without hiding captured output", async () => {
-	const spawnProcess: SpawnApplyPatchProcess = (executable, args, options) => {
+	const spawnProcess: SpawnApplyPatchProcess = (executable, args, options: ApplyPatchSpawnOptions) => {
 		assert.equal(executable, "/fake/apply_patch");
 		assert.deepEqual(args, []);
 		assert.equal(options.argv0, "apply_patch");
