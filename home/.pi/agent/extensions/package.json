@@ -37,12 +37,18 @@
 	"knip": {
 		"ignoreExportsUsedInFile": true,
 		"entry": [
-			"*/index.ts",
-			"**/tests/*.test.ts"
+			"index.ts",
+			"**/tests/*.test.ts",
+			"tests/*.test.ts"
 		],
 		"project": [
 			"**/*.ts",
 			"**/*.mjs"
+		]
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
 		]
 	}
 }
