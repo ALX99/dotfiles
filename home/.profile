@@ -95,7 +95,7 @@ RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 GH_PAGER="delta"
 DOCKER_BUILDKIT="1"
 NPM_CONFIG_IGNORE_SCRIPTS=true
-DISABLE_TELEMETRY=1  # Disable claude code telemetry
+DISABLE_TELEMETRY=1 # Disable claude code telemetry
 
 # Twilight Bloom LS_COLORS uses Ghostty's ANSI palette, so all terminal apps
 # get the same vivid semantic colors without a separate xterm-256 palette.
