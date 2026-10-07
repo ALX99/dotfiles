@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { latestObservableActivity, observeSessionEvent, relativeAge } from "../inspection.ts";
+import {
+	appendLiveActivity,
+	createAgentActivityRefreshThrottle,
+	latestActivityTimestamp,
+	latestObservableActivity,
+	observeSessionEvent,
+	projectAgentFooterRows,
+	relativeAge,
+} from "../inspection.ts";
 
 const now = Date.UTC(2026, 9, 6, 12, 0, 0);
 
@@ -84,7 +92,7 @@ test("provider-exposed stream output is inspectable before the message is persis
 			{ type: "thinking", thinking: "The visible response points to the router." },
 		],
 	};
-	const live = observeSessionEvent({ type: "message_update", message } as AgentSessionEvent);
+	const live = observeSessionEvent({ type: "message_update", message } as AgentSessionEvent, now - 1_000);
 	const persisted = entry("assistant", 1_000, message);
 	const latest = latestObservableActivity([persisted], live, now);
 
@@ -96,6 +104,44 @@ test("provider-exposed stream output is inspectable before the message is persis
 		latest.map(({ age }) => age),
 		["1s ago", "1s ago"],
 	);
+});
+
+test("stream updates refresh activity time, then persisted entries remain authoritative", () => {
+	const message = {
+		role: "assistant",
+		timestamp: now - 60_000,
+		content: [{ type: "text", text: "First chunk" }],
+	};
+	const firstUpdate = observeSessionEvent({ type: "message_update", message } as AgentSessionEvent, now - 5_000);
+	const secondUpdate = observeSessionEvent(
+		{
+			type: "message_update",
+			message: { ...message, content: [{ type: "text", text: "First chunk, then the latest chunk" }] },
+		} as AgentSessionEvent,
+		now - 1_000,
+	);
+	const merged = appendLiveActivity(firstUpdate, secondUpdate);
+	assert.equal(latestActivityTimestamp([], merged), now - 1_000);
+	assert.equal(latestObservableActivity([], merged, now)[0]?.age, "1s ago");
+
+	const committed = entry("streamed", 0, {
+		...message,
+		content: [{ type: "text", text: "First chunk, then the latest chunk" }],
+	});
+	assert.equal(latestActivityTimestamp([committed], merged), now);
+});
+
+test("stream footer refreshes are throttled per child without timers", () => {
+	const throttle = createAgentActivityRefreshThrottle();
+
+	assert.equal(throttle.shouldRefresh("worker-agent-1", now), true);
+	assert.equal(throttle.shouldRefresh("worker-agent-1", now + 999), false);
+	assert.equal(throttle.shouldRefresh("worker-agent-1", now + 1_000), true);
+	assert.equal(throttle.shouldRefresh("reviewer-agent-1", now + 1_000), true);
+	throttle.reset("worker-agent-1");
+	assert.equal(throttle.shouldRefresh("worker-agent-1", now + 1_001), true);
+	throttle.clear();
+	assert.equal(throttle.shouldRefresh("reviewer-agent-1", now + 1_001), true);
 });
 
 test("live tool events merge with persisted session entries without duplicates", () => {
@@ -128,4 +174,79 @@ test("relative age uses concise second, minute, hour, and day units", () => {
 	assert.equal(relativeAge(now - 2 * 60_000, now), "2m ago");
 	assert.equal(relativeAge(now - 3 * 60 * 60_000, now), "3h ago");
 	assert.equal(relativeAge(now - 2 * 24 * 60 * 60_000, now), "2d ago");
+});
+
+test("footer activity timestamps use the newest persisted or live observable activity", () => {
+	const history = entry("old-output", 10_000, {
+		role: "assistant",
+		content: [{ type: "text", text: "Previously recorded output." }],
+	});
+	const live = observeSessionEvent(
+		{
+			type: "tool_execution_start",
+			toolCallId: "active-call",
+			toolName: "read",
+			args: { path: "src/index.ts" },
+		} as AgentSessionEvent,
+		now - 1_000,
+	);
+
+	assert.equal(latestActivityTimestamp([history], live), now - 1_000);
+	assert.equal(latestActivityTimestamp([], []), null);
+});
+
+test("footer projection preserves every direct child in registry order and keeps unknown context unknown", () => {
+	const statuses = ["running", "waiting_parent", "settled", "interrupted", "cancelled", "error"] as const;
+	const records = statuses.map((status, index) => ({
+		id: `worker-agent-${index + 1}`,
+		profile: {
+			name: `worker-${index + 1}`,
+			model: { provider: "test", id: "default" },
+		},
+		status,
+	}));
+	const rows = projectAgentFooterRows(
+		records,
+		new Map([
+			[
+				"worker-agent-1",
+				{
+					model: { provider: "test", id: "selected" },
+					totalTokens: 1_250,
+					lastActivityAt: now - 2_000,
+					contextUsage: { tokens: null, percent: null, contextWindow: 80_000 },
+				},
+			],
+			[
+				"worker-agent-2",
+				{
+					totalTokens: 0,
+					contextUsage: { tokens: 0, percent: 0, contextWindow: 80_000 },
+				},
+			],
+		]),
+	);
+
+	assert.deepEqual(
+		rows.map(({ id, status }) => [id, status]),
+		records.map(({ id, status }) => [id, status]),
+	);
+	assert.equal(new Set(rows.map(({ id }) => id)).size, records.length);
+	assert.deepEqual(rows[0], {
+		id: "worker-agent-1",
+		profile: "worker-1",
+		status: "running",
+		model: "test/selected",
+		totalTokens: 1_250,
+		lastActivityAt: now - 2_000,
+		contextTokens: null,
+		contextWindow: 80_000,
+		contextPercent: null,
+	});
+	assert.equal(rows[1]?.totalTokens, 0);
+	assert.equal(rows[1]?.contextTokens, 0);
+	assert.equal(rows[1]?.contextPercent, 0);
+	assert.equal(rows[2]?.totalTokens, null);
+	assert.equal(rows[2]?.contextTokens, null);
+	assert.equal(rows[2]?.contextWindow, null);
 });

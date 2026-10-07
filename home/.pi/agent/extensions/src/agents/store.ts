@@ -49,6 +49,7 @@ export interface OpenAgentStoreOptions {
 export interface AgentStore {
 	readonly ownerSessionId: string;
 	readonly path: string;
+	readonly subscribeAgentChanges: (listener: () => void) => () => void;
 	readonly snapshot: () => Effect.Effect<AgentStoreState>;
 	readonly listAgents: () => Effect.Effect<readonly AgentRecord[]>;
 	readonly getAgent: (agentId: string) => Effect.Effect<AgentRecord | undefined>;
@@ -75,6 +76,7 @@ export interface AgentStore {
 	readonly claimEvents: (
 		claimId: string,
 		agentIds?: readonly string[],
+		eventIds?: readonly string[],
 	) => Effect.Effect<readonly MailboxEvent[], AgentStateError | AgentStoreError | FsError>;
 	readonly acknowledgeEvents: (
 		claimId: string,
@@ -146,28 +148,45 @@ export const openAgentStore = Effect.fn("openAgentStore")(function* (
 		);
 	}
 	const stateRef = yield* SynchronizedRef.make(recovered);
+	const agentListeners = new Set<() => void>();
+	const notifyAgentListeners = (): void => {
+		for (const listener of Array.from(agentListeners)) {
+			try {
+				listener();
+			} catch (cause) {
+				console.error(`Agent store change listener failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+			}
+		}
+	};
 
 	const transact = <A>(
 		transition: (current: AgentStoreState) => Result.Result<Transition<A>, AgentStateError>,
-	): Effect.Effect<A, AgentStateError | FsError> =>
-		SynchronizedRef.modifyEffect(
+	): Effect.Effect<A, AgentStateError | FsError> => {
+		let agentsChanged = false;
+		return SynchronizedRef.modifyEffect(
 			stateRef,
 			(current): Effect.Effect<readonly [A, AgentStoreState], AgentStateError | FsError> => {
 				const decoded = transition(current);
 				if (Result.isFailure(decoded)) return Effect.fail(decoded.failure);
 				if (decoded.success.state === current) return Effect.succeed([decoded.success.value, current] as const);
 				const next = freezeAgentStoreState(decoded.success.state);
+				agentsChanged = !sameAgentFooterRecords(current.agents, next.agents);
 				return Effect.uninterruptible(
 					writeFileStringAtomically(path, serialize(next), { recursive: true, mode: 0o600 }).pipe(
 						Effect.as([decoded.success.value, next] as const),
 					),
 				);
 			},
-		);
+		).pipe(Effect.tap(() => (agentsChanged ? Effect.sync(notifyAgentListeners) : Effect.void)));
+	};
 
 	return {
 		ownerSessionId: options.ownerSessionId,
 		path,
+		subscribeAgentChanges(listener) {
+			agentListeners.add(listener);
+			return () => agentListeners.delete(listener);
+		},
 		snapshot: () => SynchronizedRef.get(stateRef),
 		listAgents: () => SynchronizedRef.get(stateRef).pipe(Effect.map((current) => current.agents)),
 		getAgent: (agentId) => SynchronizedRef.get(stateRef).pipe(Effect.map((current) => findAgent(current, agentId))),
@@ -186,7 +205,8 @@ export const openAgentStore = Effect.fn("openAgentStore")(function* (
 		consumeParentAnswer: (agentId, invocationId) =>
 			transact((current) => consumeParentAnswer(current, agentId, invocationId)),
 		finishInvocation: (input) => transact((current) => finishAgentInvocation(current, input)),
-		claimEvents: (claimId, agentIds) => transact((current) => claimMailboxEvents(current, claimId, agentIds)),
+		claimEvents: (claimId, agentIds, eventIds) =>
+			transact((current) => claimMailboxEvents(current, claimId, agentIds, eventIds)),
 		acknowledgeEvents: (claimId, eventIds, acknowledgedAt) =>
 			transact((current) => {
 				const next = acknowledgeMailboxEvents(current, claimId, eventIds, acknowledgedAt);
@@ -206,4 +226,21 @@ export const openAgentStore = Effect.fn("openAgentStore")(function* (
 
 function serialize(state: AgentStoreState): string {
 	return `${JSON.stringify(state, null, 2)}\n`;
+}
+
+function sameAgentFooterRecords(previous: readonly AgentRecord[], next: readonly AgentRecord[]): boolean {
+	return (
+		previous.length === next.length &&
+		previous.every((agent, index) => {
+			const candidate = next[index];
+			return (
+				candidate !== undefined &&
+				agent.id === candidate.id &&
+				agent.profile.name === candidate.profile.name &&
+				agent.profile.model.provider === candidate.profile.model.provider &&
+				agent.profile.model.id === candidate.profile.model.id &&
+				agent.status === candidate.status
+			);
+		})
+	);
 }

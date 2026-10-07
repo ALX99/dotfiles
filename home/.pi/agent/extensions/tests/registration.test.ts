@@ -84,7 +84,6 @@ const AGENT_TOOLS = [
 	"spawn_agent",
 	"wait_agent",
 	"send_agent",
-	"steer_agent",
 	"answer_agent",
 	"cancel_agent",
 	"list_agents",

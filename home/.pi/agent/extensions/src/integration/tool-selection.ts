@@ -23,6 +23,8 @@ export interface ToolSelection {
 	getActiveTools(): string[];
 	/** Remove currently active tools that this session's profile does not permit. */
 	applyCapabilityPolicy(): void;
+	/** Change the profile filter while retaining the session's underlying tool selection. */
+	setCapabilityPolicy(policy?: ProfileCapabilityPolicy): void;
 	setApplyPatchActive(enabled: boolean): void;
 	setTaskTools(names: readonly string[]): void;
 	setSearchRecallActive(enabled: boolean): void;
@@ -37,6 +39,10 @@ export function createToolSelection(
 	pi: Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">,
 	policy?: ProfileCapabilityPolicy,
 ): ToolSelection {
+	let capabilityPolicy = policy;
+	let requestedTools: string[] = [];
+	let lastAppliedTools: string[] = [];
+	let initialized = false;
 	const ownerByTool = new Map<string, Owner>();
 	for (const [owner, names] of OWNED_TOOL_ENTRIES) {
 		for (const name of names) {
@@ -52,18 +58,18 @@ export function createToolSelection(
 		for (const name of names) {
 			if (!owned.has(name)) throw new Error(`${owner} cannot activate tool ${name}.`);
 		}
+		syncExternalSelection();
 		desiredByOwner.set(owner, new Set(names));
 
-		const active = pi.getActiveTools();
 		const wanted = new Set<string>();
 		for (const [feature, featureTools] of OWNED_TOOL_ENTRIES) {
 			const desired = desiredByOwner.get(feature);
 			for (const name of featureTools) {
-				if (desired?.has(name) ?? active.includes(name)) wanted.add(name);
+				if (desired?.has(name) ?? requestedTools.includes(name)) wanted.add(name);
 			}
 		}
 
-		const next = active.filter((name) => !managedNames.has(name) || wanted.has(name));
+		const next = requestedTools.filter((name) => !managedNames.has(name) || wanted.has(name));
 		for (const name of managedNames) {
 			if (wanted.has(name) && !next.includes(name)) next.push(name);
 		}
@@ -71,14 +77,47 @@ export function createToolSelection(
 	}
 
 	function applyNames(names: readonly string[]): void {
-		const next = policy?.filterToolNames(names) ?? [...names];
+		initialize();
+		const next = capabilityPolicy?.filterToolNames(names) ?? [...names];
 		const active = pi.getActiveTools();
 		if (active.length !== next.length || active.some((name, index) => name !== next[index])) pi.setActiveTools(next);
+		const applied = pi.getActiveTools();
+		const denied = names.filter((name) => capabilityPolicy !== undefined && !capabilityPolicy.allowsTool(name));
+		requestedTools = [...applied, ...denied.filter((name) => !applied.includes(name))];
+		lastAppliedTools = applied;
+	}
+
+	function syncExternalSelection(): void {
+		initialize();
+		const active = pi.getActiveTools();
+		const activeNames = new Set(active);
+		requestedTools = requestedTools.filter((name) => !lastAppliedTools.includes(name) || activeNames.has(name));
+		for (const name of active) {
+			if (!requestedTools.includes(name)) requestedTools.push(name);
+		}
+	}
+
+	function initialize(): void {
+		if (initialized) return;
+		requestedTools = pi.getActiveTools();
+		lastAppliedTools = [...requestedTools];
+		initialized = true;
 	}
 
 	return {
-		getActiveTools: () => policy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools(),
-		applyCapabilityPolicy: () => applyNames(pi.getActiveTools()),
+		getActiveTools: () => {
+			initialize();
+			return capabilityPolicy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools();
+		},
+		applyCapabilityPolicy: () => {
+			syncExternalSelection();
+			applyNames(requestedTools);
+		},
+		setCapabilityPolicy: (nextPolicy) => {
+			syncExternalSelection();
+			capabilityPolicy = nextPolicy;
+			applyNames(requestedTools);
+		},
 		setApplyPatchActive: (enabled) => set("applyPatch", enabled ? OWNED_TOOLS.applyPatch : []),
 		setTaskTools: (names) => set("tasks", names),
 		setSearchRecallActive: (enabled) => set("searchRecall", enabled ? OWNED_TOOLS.searchRecall : []),

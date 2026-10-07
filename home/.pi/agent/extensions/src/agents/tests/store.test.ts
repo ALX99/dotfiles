@@ -121,6 +121,51 @@ test("concurrent allocations through one store are serialized and parent scoped"
 	assert.equal(agentStorePath("parent-a", directory), parent.path);
 });
 
+test("agent change listeners can read the committed status after registry updates", async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-agent-store-listener-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const store = await runPromise(openAgentStore({ ownerSessionId: "listener-session", directory }));
+	const agent = await runPromise(
+		store.createAgent({
+			profile: profile(),
+			sessionId: "listener-child",
+			cwd: "/repo",
+			invocationId: "listener-invocation",
+			createdAt: 1,
+		}),
+	);
+
+	let observedStatus: string | undefined;
+	let notifications = 0;
+	let resolveObserved!: () => void;
+	const observed = new Promise<void>((resolve) => {
+		resolveObserved = resolve;
+	});
+	const unsubscribe = store.subscribeAgentChanges(() => {
+		notifications += 1;
+		void runPromise(store.getAgent(agent.id)).then((current) => {
+			observedStatus = current?.status;
+			resolveObserved();
+		});
+	});
+	t.after(unsubscribe);
+
+	await runPromise(
+		store.finishInvocation({
+			agentId: agent.id,
+			invocationId: agent.invocationId,
+			status: "settled",
+			occurredAt: 2,
+		}),
+	);
+	await observed;
+	assert.equal(observedStatus, "settled", "the listener reads the status after the synchronized state commits");
+	assert.equal(notifications, 1);
+
+	await runPromise(store.claimEvents("listener-turn"));
+	assert.equal(notifications, 1, "mailbox-only changes do not refresh child rows");
+});
+
 test("records and restores a suspended parent request and its answer", async (t) => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-agent-request-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));

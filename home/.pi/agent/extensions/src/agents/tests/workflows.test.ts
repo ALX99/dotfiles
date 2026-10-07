@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { Deferred, Effect, Fiber, Result } from "effect";
+import { Deferred, Effect, Fiber, PubSub, Result } from "effect";
 
 import { runPromise } from "../../support/effect-runtime.ts";
 import { createCapabilityPolicy } from "../policy.ts";
@@ -94,6 +94,7 @@ function fakeSessionOwner(store: AgentStore, autoFinish?: LifecycleEventType) {
 		},
 		getSession: () => Effect.succeed(undefined),
 		getActivity: () => Effect.succeed([]),
+		getFooterRows: () => Effect.succeed([]),
 		dispose: () =>
 			Effect.gen(function* () {
 				const active = [...controls.entries()];
@@ -202,6 +203,42 @@ test("spawn_agent checks the profile policy before loading a profile or creating
 				assert.equal(spawned.agent, "engineer-agent-1");
 				assert.deepEqual(modelLookups, ["test/model"]);
 				assert.equal(fixture.sessions.messages[0]?.message, "Allowed child.");
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("spawn_agent reads the current parent profile policy for each invocation", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	let capabilityPolicy = createCapabilityPolicy({ name: "researcher", spawnProfiles: [] });
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+					getCapabilityPolicy: () => capabilityPolicy,
+				});
+
+				const denied = yield* Effect.result(
+					workflows.spawnAgent({ profile: "engineer", message: "This should initially be denied." }),
+				);
+				assert.equal(Result.isFailure(denied), true);
+				assert.deepEqual(yield* fixture.store.listAgents(), []);
+				assert.equal(fixture.sessions.messages.length, 0);
+
+				capabilityPolicy = createCapabilityPolicy({ name: "engineer", spawnProfiles: ["engineer"] });
+				const allowed = yield* workflows.spawnAgent({
+					profile: "engineer",
+					message: "The active profile now permits this child.",
+					mode: "wait",
+				});
+				assert.ok("event" in allowed);
+				assert.equal(allowed.event, "settled");
+				assert.equal(fixture.sessions.messages.length, 1);
 				yield* workflows.dispose();
 			}),
 		),
@@ -359,7 +396,7 @@ test("spawn, ask_parent, wait, and answer preserve one child invocation and deli
 	);
 });
 
-test("steer leaves the invocation running; interrupt reuses its session; cancel preserves it for send_agent", async (t) => {
+test("send_agent steers running invocations by default and can interrupt before continuing the same session", async (t) => {
 	const fixture = await createFixture(t);
 	await runPromise(
 		Effect.scoped(
@@ -376,14 +413,16 @@ test("steer leaves the invocation running; interrupt reuses its session; cancel 
 				const original = yield* fixture.store.getAgent(agentId);
 				assert.ok(original);
 
-				const steered = yield* workflows.steerAgent(agentId, "Continue, but focus on the API.");
+				const steered = yield* workflows.sendAgent(agentId, "Continue, but focus on the API.");
+				assert.ok("status" in steered);
 				assert.equal(steered.status, "running");
 				assert.deepEqual(fixture.sessions.steering, [
 					{ agent: agentId, instruction: "Continue, but focus on the API." },
 				]);
 				assert.equal(fixture.sessions.messages.length, 1);
 
-				const interrupted = yield* workflows.steerAgent(agentId, "Stop and inspect the handler instead.", "interrupt");
+				const interrupted = yield* workflows.sendAgent(agentId, "Stop and inspect the handler instead.", "interrupt");
+				assert.ok("status" in interrupted);
 				assert.equal(interrupted.status, "running");
 				const afterInterrupt = yield* fixture.store.getAgent(agentId);
 				assert.equal(afterInterrupt?.sessionId, original.sessionId);
@@ -395,12 +434,112 @@ test("steer leaves the invocation running; interrupt reuses its session; cancel 
 				assert.equal(cancelled.status, "cancelled");
 				assert.equal((yield* fixture.store.getAgent(agentId))?.sessionId, original.sessionId);
 				const resumed = yield* workflows.sendAgent(agentId, "Continue the same session with tests.");
+				assert.ok("status" in resumed);
 				assert.equal(resumed.status, "running");
 				assert.equal((yield* fixture.store.getAgent(agentId))?.sessionId, original.sessionId);
 				assert.equal(fixture.sessions.messages.length, 3);
-				assert.ok(Result.isFailure(yield* Effect.result(workflows.sendAgent(agentId, "duplicate"))));
+				const steeredAgain = yield* workflows.sendAgent(agentId, "One more direction.");
+				assert.ok("status" in steeredAgain);
+				assert.equal(steeredAgain.status, "running");
+				assert.equal(fixture.sessions.steering.length, 2);
 				const active = yield* fixture.store.getAgent(agentId);
 				assert.equal(active?.status, "running");
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("send_agent wait returns the steered invocation's settlement, not an intermediate parent request", async (t) => {
+	const fixture = await createFixture(t);
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
+				const events = yield* PubSub.subscribe(workflows.events);
+
+				const send = yield* Effect.forkChild(
+					workflows.sendAgent(spawned.agent, "Please finish the investigation.", "steer", true),
+				);
+				const asking = yield* Effect.forkChild(
+					workflows.childCommunication(spawned.agent).askParent("Which approach should I use?"),
+				);
+				assert.equal((yield* PubSub.take(events)).type, "parent_request");
+
+				yield* workflows.answerAgent(spawned.agent, "Use the existing approach.");
+				assert.equal(yield* Fiber.join(asking), "Use the existing approach.");
+				yield* fixture.sessions.finish(spawned.agent);
+				assert.deepEqual(yield* Fiber.join(send), { agent: spawned.agent, event: "settled" });
+				assert.deepEqual(
+					(yield* fixture.store.pendingEvents([spawned.agent])).map((event) => event.type),
+					["parent_request"],
+				);
+				assert.deepEqual(yield* workflows.waitAgent([spawned.agent]), [
+					{ agent: spawned.agent, event: "parent_request", message: "Which approach should I use?" },
+				]);
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("send_agent wait starts a new invocation for a settled child and returns its settlement", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({
+					profile: "engineer",
+					message: "Initial invocation.",
+					mode: "wait",
+				});
+				assert.ok("event" in spawned);
+				const sent = yield* workflows.sendAgent(spawned.agent, "Start the follow-up.", undefined, true);
+				assert.deepEqual(sent, { agent: spawned.agent, event: "settled" });
+				assert.equal(fixture.sessions.messages.length, 2);
+				assert.equal(fixture.sessions.messages[1]?.message, "Start the follow-up.");
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("send_agent wait releases its event claim when acknowledging the completion fails", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	const store: AgentStore = {
+		...fixture.store,
+		acknowledgeEvents: () => Effect.fail(new AgentStateError({ message: "Simulated acknowledgment failure." })),
+	};
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
+
+				const result = yield* Effect.result(workflows.sendAgent(spawned.agent, "Finish the task.", undefined, true));
+				assert.equal(Result.isFailure(result), true);
+				const pending = yield* fixture.store.pendingEvents([spawned.agent]);
+				assert.ok(pending.length > 0);
+				assert.ok(pending.every((event) => event.claimId === undefined));
 				yield* workflows.dispose();
 			}),
 		),

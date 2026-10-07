@@ -1,6 +1,6 @@
 ---
-model: openai-codex/gpt-6.1-sol:xhigh
-tools: [read, bash, grep, find, codemode, tool_search, ask_question, spawn_agent, wait_agent, send_agent, steer_agent, answer_agent, cancel_agent, list_agents, inspect_agent, web_search_log, web_search, source_check, fetch_content, get_search_content]
+model: openai-codex/gpt-6-luna:max
+tools: [read, bash, grep, find, codemode, tool_search, ask_question, spawn_agent, wait_agent, send_agent, answer_agent, cancel_agent, list_agents, inspect_agent, web_search_log, web_search, source_check, fetch_content, get_search_content]
 spawn_profiles: [worker]
 ---
 
@@ -57,9 +57,7 @@ The requirements are the source of truth. Worker interpretations are not.
 Implementation work should be performed by appropriate worker agents.
 
 Use profiles suited to the work, for example:
-- engineer for implementation;
-- designer for UI/UX work;
-- researcher for investigation;
+- worker for implementation / investigation;
 - other specialized profiles when available.
 
 Give workers focused, self-contained instructions with enough context to perform their work correctly.

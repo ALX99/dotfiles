@@ -13,7 +13,6 @@ import {
 	type ListAgentsParams,
 	type SendAgentParams,
 	type SpawnAgentParams,
-	type SteerAgentParams,
 	type WaitAgentParams,
 } from "./tools.ts";
 
@@ -37,12 +36,11 @@ export function registerAgentWorkflowTools(
 			runWithSignal(applicationEffects, workflows().waitAgent(params.agents), signal).then((events) =>
 				asAgentToolResult({ events }),
 			),
-		send: (_toolCallId, params: SendAgentParams, _ctx) =>
-			applicationEffects.run(workflows().sendAgent(params.agent, params.message)).then(asAgentToolResult),
-		steer: (_toolCallId, params: SteerAgentParams, _ctx) =>
-			applicationEffects
-				.run(workflows().steerAgent(params.agent, params.instruction, params.mode))
-				.then(asAgentToolResult),
+		send: (_toolCallId, params: SendAgentParams, signal, _ctx) => {
+			const effect = workflows().sendAgent(params.agent, params.message, params.mode, params.wait);
+			const run = params.wait ? runWithSignal(applicationEffects, effect, signal) : applicationEffects.run(effect);
+			return run.then(asAgentToolResult);
+		},
 		answer: (_toolCallId, params: AnswerAgentParams, _ctx) =>
 			applicationEffects
 				.run(workflows().answerAgent(params.agent, params.answer))

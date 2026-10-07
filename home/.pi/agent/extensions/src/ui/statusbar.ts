@@ -32,12 +32,21 @@ import {
 	type TurnEndEvent,
 	type TurnStartEvent,
 } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessage, ModelThinkingLevel, Usage } from "@earendil-works/pi-ai";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { AssistantMessage, ModelThinkingLevel } from "@earendil-works/pi-ai";
+import { sliceByColumn, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import { isAbsolute, relative, sep } from "node:path";
+import {
+	accountAssistantMessage,
+	EMPTY_SESSION_TOTALS,
+	sessionTotals,
+	type SessionTotals,
+} from "../support/session-totals.ts";
 import { sanitizeTerminalText } from "../support/terminal-text.ts";
 import type { EditorComposition } from "../integration/editor.ts";
+import type { ActiveProfileState } from "../agents/active-profile.ts";
+import { relativeAgeCompact, type AgentFooterRow } from "../agents/inspection.ts";
+import type { AgentStatus } from "../agents/state.ts";
 
 export function shortenCwd(cwd: string, home: string = homedir()): string {
 	const pathFromHome = relative(home, cwd);
@@ -69,6 +78,8 @@ export interface StatusbarViewInput {
 	readonly leftParts: readonly string[];
 	readonly rightParts?: readonly string[];
 	readonly contextPercentage?: string;
+	/** Reserve this left-side identity before fitting optional right-side metrics. */
+	readonly priorityLeftPart?: string;
 }
 
 export interface StatusbarViewModel {
@@ -158,61 +169,6 @@ export function formatTokenCount(tokens: number): string {
 	return `999${TOKEN_UNITS.at(-1)!.suffix}`;
 }
 
-export interface SessionTotals {
-	readonly turns: number;
-	readonly compactions: number;
-	readonly totalTokens: number;
-	/** Prompt tokens: fresh input plus cache reads and writes. */
-	readonly readTokens: number;
-	/** Generated tokens. */
-	readonly writeTokens: number;
-	/** Prompt tokens served from cache. */
-	readonly cachedTokens: number;
-}
-
-const EMPTY_SESSION_TOTALS: SessionTotals = {
-	turns: 0,
-	compactions: 0,
-	totalTokens: 0,
-	readTokens: 0,
-	writeTokens: 0,
-	cachedTokens: 0,
-};
-
-function addUsage(totals: SessionTotals, usage: Usage): SessionTotals {
-	return {
-		...totals,
-		totalTokens: totals.totalTokens + usage.totalTokens,
-		readTokens: totals.readTokens + usage.input + usage.cacheRead + usage.cacheWrite,
-		writeTokens: totals.writeTokens + usage.output,
-		cachedTokens: totals.cachedTokens + usage.cacheRead,
-	};
-}
-
-/**
- * Counts completed assistant turns, compaction events, and token usage across
- * session entries. Summarized branches still count because the tokens were
- * spent, and recorded summary-generation usage counts with their event.
- */
-export function sessionTotals(entries: readonly SessionEntry[]): SessionTotals {
-	let totals = EMPTY_SESSION_TOTALS;
-	for (const entry of entries) {
-		if (entry.type === "message" && entry.message.role === "assistant") {
-			// Auto-retry removes failed attempts from agent state but keeps them in the
-			// session file, so excluding them keeps the counts on real responses.
-			if (entry.message.stopReason === "error") continue;
-			totals = { ...addUsage(totals, entry.message.usage), turns: totals.turns + 1 };
-			continue;
-		}
-		if (entry.type !== "compaction" && entry.type !== "branch_summary") continue;
-		totals = {
-			...(entry.usage ? addUsage(totals, entry.usage) : totals),
-			compactions: totals.compactions + 1,
-		};
-	}
-	return totals;
-}
-
 function metricText(theme: StatusbarTheme, label: string, value: string): string {
 	return `${theme.fg("dim", label)}${theme.fg("muted", value)}`;
 }
@@ -288,8 +244,7 @@ function createStatusbarMetrics(requestRender: () => void) {
 			totalGenerationMs += durationMs;
 		},
 		account(message: AssistantMessage) {
-			if (message.stopReason === "error") return;
-			recorded = { ...addUsage(recorded, message.usage), turns: recorded.turns + 1 };
+			recorded = accountAssistantMessage(recorded, message);
 		},
 		restore(entries: readonly SessionEntry[]) {
 			recorded = sessionTotals(entries);
@@ -390,7 +345,10 @@ function renderGradientFill(percent: number, width: number, filledCharacter: str
 export function buildStatusbarViewModel(input: StatusbarViewInput): StatusbarViewModel {
 	const width = columnCount(input.width);
 	const rightParts = input.rightParts ?? (input.contextPercentage ? [input.contextPercentage] : []);
-	const right = fitRightParts(rightParts, width);
+	const priorityWidth = input.priorityLeftPart === undefined ? 0 : visibleWidth(input.priorityLeftPart);
+	const rightBudget =
+		input.priorityLeftPart === undefined ? width : Math.max(0, width - priorityWidth - (priorityWidth < width ? 1 : 0));
+	const right = fitRightParts(rightParts, rightBudget < 3 && input.priorityLeftPart !== undefined ? 0 : rightBudget);
 
 	if (right === "") {
 		const left = fitLeftParts(input.leftParts, width);
@@ -423,6 +381,73 @@ export function renderContextPercentage(usage: ContextUsage, theme: StatusbarThe
 
 	const normalizedPercent = clampPercent(usage.percent);
 	return colorizeRgb(`${Math.round(usage.percent)}%`, contextGradientColor(normalizedPercent), theme);
+}
+
+function truncateMiddleToWidth(text: string, width: number): string {
+	const textWidth = visibleWidth(text);
+	if (textWidth <= width) return text;
+	if (width <= 0) return "";
+
+	const ellipsis = "…";
+	const contentWidth = width - visibleWidth(ellipsis);
+	if (contentWidth <= 0) return sliceByColumn(text, textWidth - width, width, true);
+
+	const leftWidth = Math.floor(contentWidth / 2);
+	const rightWidth = contentWidth - leftWidth;
+	return `${sliceByColumn(text, 0, leftWidth, true)}${ellipsis}${sliceByColumn(text, textWidth - rightWidth, rightWidth, true)}`;
+}
+
+const AGENT_STATUS_COLOR = {
+	running: "accent",
+	waiting_parent: "warning",
+	settled: "success",
+	interrupted: "thinkingXhigh",
+	cancelled: "muted",
+	error: "error",
+} as const satisfies Readonly<Record<AgentStatus, string>>;
+
+/** Render one direct child while keeping its identity and lifecycle state ahead of optional metrics. */
+export function renderAgentFooterRow(
+	row: AgentFooterRow,
+	width: number,
+	theme: StatusbarTheme,
+	now = Date.now(),
+): string {
+	const availableWidth = columnCount(width);
+	const idText = sanitizeTerminalText(row.id);
+	const id = theme.fg("text", idText);
+	const state = theme.fg(AGENT_STATUS_COLOR[row.status], `state:${sanitizeTerminalText(row.status)}`);
+	const identityParts = [id, state];
+	const lastActivity =
+		row.lastActivityAt === null ? "" : theme.fg("dim", `last:${relativeAgeCompact(row.lastActivityAt, now)}`);
+	if (lastActivity !== "" && visibleWidth([...identityParts, lastActivity].join(" ")) <= availableWidth) {
+		identityParts.push(lastActivity);
+	}
+	const profile = theme.fg("muted", `profile:${sanitizeTerminalText(row.profile)}`);
+	if (visibleWidth([...identityParts, profile].join(" ")) <= availableWidth) identityParts.push(profile);
+	const identity = identityParts.join(" ");
+	if (visibleWidth(identity) > availableWidth) {
+		const stateWidth = visibleWidth(state);
+		if (stateWidth >= availableWidth) return truncateToWidth(state, availableWidth);
+		const retainedId = theme.fg("text", truncateMiddleToWidth(idText, availableWidth - stateWidth - 1));
+		const prioritizedIdentity = visibleWidth(retainedId) > 0 ? `${retainedId} ${state}` : state;
+		return truncateToWidth(prioritizedIdentity, availableWidth);
+	}
+	const contextTokens = row.contextTokens === null ? "--" : formatTokenCount(row.contextTokens);
+	const contextWindow = row.contextWindow === null ? "--" : formatTokenCount(row.contextWindow);
+	const contextPercent = row.contextPercent === null ? "--%" : `${Math.round(row.contextPercent)}%`;
+	const optionalParts = [
+		sanitizeTerminalText(row.model),
+		metricText(theme, "tok:", metricField(row.totalTokens ?? undefined, formatTokenCount, TOKEN_FIELD_WIDTH)),
+		metricText(theme, "ctx:", `${contextTokens}/${contextWindow} ${contextPercent}`),
+	];
+	const retained = [...optionalParts];
+	let line = [identity, ...retained].join(" ");
+	while (retained.length > 0 && visibleWidth(line) > availableWidth) {
+		retained.shift();
+		line = [identity, ...retained].join(" ");
+	}
+	return truncateToWidth(line, availableWidth);
 }
 
 /**
@@ -501,17 +526,43 @@ export interface StatusbarEvents {
 
 export interface StatusbarAdapter extends StatusbarActivity {
 	readonly events: StatusbarEvents;
+	setAgentRows(rows: readonly AgentFooterRow[]): void;
 }
 
-export default function (pi: ExtensionAPI, editor: EditorComposition): StatusbarAdapter {
+export default function (
+	pi: ExtensionAPI,
+	editor: EditorComposition,
+	activeProfile?: ActiveProfileState,
+): StatusbarAdapter {
 	let requestRender: (() => void) | undefined;
 	let setActivity = setActivityNoop;
 	let stopInputBorder = stopActivityNoop;
 	let metrics: ReturnType<typeof setupStatusbarMetrics> | undefined;
+	let agentRows: readonly AgentFooterRow[] = [];
+	let footerVisible = false;
+	let agentAgeTimer: ReturnType<typeof setInterval> | undefined;
+	let unsubscribeProfile: (() => void) | undefined;
+
+	const stopAgentAgeRefresh = (): void => {
+		if (agentAgeTimer !== undefined) clearInterval(agentAgeTimer);
+		agentAgeTimer = undefined;
+	};
+	const updateAgentAgeRefresh = (): void => {
+		if (!footerVisible || agentRows.length === 0) {
+			stopAgentAgeRefresh();
+			return;
+		}
+		if (agentAgeTimer === undefined) agentAgeTimer = setInterval(() => requestRender?.(), 1_000);
+	};
 
 	const sessionStart: StatusbarEvents["sessionStart"] = (_event, ctx) => {
+		stopAgentAgeRefresh();
+		footerVisible = ctx.mode === "tui";
+		unsubscribeProfile?.();
+		unsubscribeProfile = activeProfile?.subscribe(() => requestRender?.());
 		metrics = setupStatusbarMetrics(() => requestRender?.(), ctx.sessionManager.getEntries());
-		requestRender = setupStatusbar(ctx, pi, metrics);
+		requestRender = setupStatusbar(ctx, pi, metrics, activeProfile, () => agentRows);
+		updateAgentAgeRefresh();
 		const inputBorder = ctx.mode === "tui" ? setupInputBorder(ctx, editor) : undefined;
 		setActivity = inputBorder === undefined ? setActivityNoop : (active) => inputBorder.setActive(active);
 		stopInputBorder = inputBorder === undefined ? stopActivityNoop : () => inputBorder.shutdown();
@@ -539,11 +590,21 @@ export default function (pi: ExtensionAPI, editor: EditorComposition): Statusbar
 	const sessionTree: StatusbarEvents["sessionTree"] = (_event, ctx) => resync(ctx);
 	const sessionShutdown: StatusbarEvents["sessionShutdown"] = (_event, ctx) => {
 		stopInputBorder();
+		footerVisible = false;
+		stopAgentAgeRefresh();
+		unsubscribeProfile?.();
+		unsubscribeProfile = undefined;
+		agentRows = [];
 		ctx.ui.setWorkingVisible(true);
 	};
 
 	return {
 		setActive: (active) => setActivity(active),
+		setAgentRows(rows) {
+			agentRows = rows;
+			updateAgentAgeRefresh();
+			requestRender?.();
+		},
 		events: { sessionStart, modelSelect, turnStart, messageEnd, turnEnd, sessionCompact, sessionTree, sessionShutdown },
 	};
 }
@@ -624,6 +685,8 @@ function setupStatusbar(
 	ctx: ExtensionContext,
 	pi: ExtensionAPI,
 	metrics: ReturnType<typeof setupStatusbarMetrics>,
+	activeProfile: ActiveProfileState | undefined,
+	getAgentRows: () => readonly AgentFooterRow[],
 ): () => void {
 	let requestRender: (() => void) | undefined;
 
@@ -648,12 +711,17 @@ function setupStatusbar(
 					}
 					leftParts.push(modelText);
 				}
+				const profile = activeProfile?.getProfile();
+				const priorityLeftPart =
+					profile === undefined ? undefined : theme.fg("accent", `profile:${sanitizeTerminalText(profile.name)}`);
+				if (priorityLeftPart !== undefined) leftParts.push(priorityLeftPart);
 
 				const ctxUsage = ctx.getContextUsage();
 				const totals = metrics.totals();
 				const viewInput: StatusbarViewInput = {
 					width,
 					leftParts,
+					...(priorityLeftPart === undefined ? {} : { priorityLeftPart }),
 					rightParts: [
 						renderTokensPerSecond(metrics.tps(), theme),
 						...renderSessionCounts(totals, theme),
@@ -664,7 +732,8 @@ function setupStatusbar(
 					],
 				};
 				const view = buildStatusbarViewModel(viewInput);
-				return [view.line];
+				const now = Date.now();
+				return [view.line, ...getAgentRows().map((row) => renderAgentFooterRow(row, width, theme, now))];
 			},
 		};
 	});

@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { ApplicationEffects } from "../../application.ts";
+import type { ProfilePromptState } from "../../agents/active-profile.ts";
 import type { ProviderRequestTransform } from "../../context/model-context.ts";
 import type { NestedContextEvents } from "../../context/nested-instructions/nested-context.ts";
 import type { ToolSelection } from "../../integration/tool-selection.ts";
@@ -23,6 +24,7 @@ export async function installModelContextAdapter(
 			transforms: readonly ProviderRequestTransform[],
 		) => Promise<unknown>;
 		readonly toolSelection: ToolSelection;
+		readonly profileState?: ProfilePromptState;
 	},
 ): Promise<void> {
 	const search = await codexWebSearch(pi, {
@@ -36,10 +38,10 @@ export async function installModelContextAdapter(
 	});
 	const transforms = [search.transform, compactionTransform] as const;
 
-	skills(pi, dependencies.applicationEffects);
+	skills(pi, dependencies.applicationEffects, () => dependencies.profileState?.getPolicy());
 	const nested = nestedContext(pi, dependencies.applicationEffects);
 	bindNestedContextEvents(pi, nested);
-	systemPrompt(pi, dependencies.applicationEffects);
+	systemPrompt(pi, dependencies.applicationEffects, dependencies.profileState);
 
 	pi.on("before_provider_request", (event, context) => {
 		if (dependencies.isClosed()) return undefined;

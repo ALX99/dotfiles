@@ -18,13 +18,23 @@ import { Effect, Result, Schema } from "effect";
 import type { ApplicationEffects } from "../application.ts";
 import { createToolSelection } from "../integration/tool-selection.ts";
 import systemPromptExtension from "../context/system-prompt/systemprompt.ts";
-import { appendLiveActivity, observeSessionEvent, type AgentActivity } from "./inspection.ts";
+import {
+	appendLiveActivity,
+	createAgentActivityRefreshThrottle,
+	latestActivityTimestamp,
+	observeSessionEvent,
+	projectAgentFooterRows,
+	type AgentActivity,
+	type AgentFooterMetrics,
+	type AgentFooterRow,
+} from "./inspection.ts";
 import type { FsError } from "../support/errors.ts";
 import { toError } from "../support/errors.ts";
 import { AgentStateError, type AgentRecord, type LifecycleEventType } from "./state.ts";
 import { createCapabilityPolicy, installToolExecutionPolicy } from "./policy.ts";
 import type { ProfileSnapshot } from "./profile.ts";
 import type { AgentStore, AgentStoreError } from "./store.ts";
+import { sessionTotals } from "../support/session-totals.ts";
 
 export type AgentStopIntent = "interrupted" | "cancelled";
 
@@ -82,6 +92,8 @@ export interface AgentSessionOwnerOptions {
 	readonly noConfiguredExtensions?: boolean;
 	/** Bind host observation or test behavior before the first child prompt. */
 	readonly onSessionCreated?: (session: AgentSession, agent: AgentRecord) => void;
+	/** Notify a footer observer when a child session becomes live or appends an entry. */
+	readonly onSessionChanged?: (agentId: string) => void;
 }
 
 export interface AgentInvocationResult {
@@ -107,6 +119,7 @@ export interface AgentSessionOwner {
 	readonly getActivity: (
 		agentId: string,
 	) => Effect.Effect<readonly AgentActivity[], AgentStateError | AgentSessionOwnerError>;
+	readonly getFooterRows: (modelRegistry: Pick<ModelRegistry, "find">) => Effect.Effect<readonly AgentFooterRow[]>;
 	readonly dispose: () => Effect.Effect<void, AgentSessionOwnerError | AgentStoreError | FsError | AgentStateError>;
 }
 
@@ -164,9 +177,14 @@ export const createAgentSessionOwner = Effect.fn("createAgentSessionOwner")(func
 
 	const sessions = new Map<string, ChildSession>();
 	const liveActivity = new Map<string, readonly AgentActivity[]>();
+	const activityRefreshThrottle = createAgentActivityRefreshThrottle();
 	const active = new Map<string, ActiveInvocation>();
 	const firstInvocations = new Set<string>();
 	let closed = false;
+
+	const notifySessionChanged = (agentId: string): void => {
+		if (!closed) options.onSessionChanged?.(agentId);
+	};
 
 	// A JavaScript process cannot restore an in-flight provider call or its Deferred stack.
 	// Mark stale invocations interrupted while retaining their agents and JSONL sessions.
@@ -270,12 +288,32 @@ export const createAgentSessionOwner = Effect.fn("createAgentSessionOwner")(func
 									if (observed.length > 0) {
 										liveActivity.set(agentId, appendLiveActivity(liveActivity.get(agentId) ?? [], observed));
 									}
+									if (event.type === "message_update" && observed.length > 0) {
+										const occurredAt = observed[0]!.occurredAt;
+										if (
+											options.onSessionChanged !== undefined &&
+											activityRefreshThrottle.shouldRefresh(agentId, occurredAt)
+										) {
+											notifySessionChanged(agentId);
+										}
+									} else if (event.type === "message_end") {
+										// Pi emits message_end before appending; defer until the native log has committed the message.
+										queueMicrotask(() => notifySessionChanged(agentId));
+									} else if (
+										event.type === "entry_appended" ||
+										event.type === "agent_end" ||
+										event.type === "compaction_end"
+									) {
+										notifySessionChanged(agentId);
+									}
 								});
 								options.onSessionCreated?.(child.session, agent);
+								notifySessionChanged(agentId);
 							}
 
 							control.session = child.session;
 							child.observation.outcome = undefined;
+							activityRefreshThrottle.reset(agentId);
 							const prompt = child.session.prompt(message);
 							control.promptStarted = true;
 							for (const instruction of control.pendingSteering.splice(0)) {
@@ -368,6 +406,69 @@ export const createAgentSessionOwner = Effect.fn("createAgentSessionOwner")(func
 		);
 	});
 
+	const getFooterRows: AgentSessionOwner["getFooterRows"] = Effect.fnUntraced(function* (modelRegistry) {
+		const records = yield* options.store.listAgents();
+		const metricsByAgent = new Map<string, AgentFooterMetrics>();
+		for (const agent of records) {
+			const result = yield* Effect.result(
+				Effect.try({
+					try: (): AgentFooterMetrics => {
+						const resident = sessions.get(agent.id)?.session;
+						let sessionManager = resident?.sessionManager;
+						if (sessionManager === undefined) {
+							const sessionFile = SessionManager.findById(agent.cwd, agent.sessionId, sessionDirectory);
+							if (sessionFile !== undefined) {
+								sessionManager = SessionManager.open(sessionFile, sessionDirectory, agent.cwd);
+							}
+						}
+
+						let model = agent.profile.model;
+						const entries = sessionManager?.getBranch() ?? [];
+						if (entries.length > 0) {
+							for (const entry of entries.toReversed()) {
+								if (entry.type === "model_change") {
+									model = { provider: entry.provider, id: entry.modelId };
+									break;
+								}
+							}
+						}
+
+						const contextUsage = resident?.getContextUsage();
+						const contextWindow =
+							contextUsage?.contextWindow ?? modelRegistry.find(model.provider, model.id)?.contextWindow;
+						return {
+							model,
+							...(sessionManager === undefined
+								? {}
+								: { totalTokens: sessionTotals(sessionManager.getEntries()).totalTokens }),
+							lastActivityAt: latestActivityTimestamp(entries, liveActivity.get(agent.id) ?? []),
+							...(contextUsage === undefined ? {} : { contextUsage }),
+							...(contextWindow === undefined ? {} : { contextWindow }),
+						};
+					},
+					catch: (cause) =>
+						new AgentSessionOwnerError({
+							message: `Could not read footer metrics for agent "${agent.id}": ${toError(cause).message}`,
+							cause,
+						}),
+				}),
+			);
+			if (Result.isSuccess(result)) {
+				metricsByAgent.set(agent.id, result.success);
+			} else {
+				yield* Effect.logWarning(result.failure.message);
+				const model = agent.profile.model;
+				const contextWindow = modelRegistry.find(model.provider, model.id)?.contextWindow;
+				metricsByAgent.set(agent.id, {
+					model,
+					lastActivityAt: latestActivityTimestamp([], liveActivity.get(agent.id) ?? []),
+					...(contextWindow === undefined ? {} : { contextWindow }),
+				});
+			}
+		}
+		return projectAgentFooterRows(records, metricsByAgent);
+	});
+
 	const steer: AgentSessionOwner["steer"] = Effect.fnUntraced(function* (
 		agentId: string,
 		instruction: string,
@@ -422,6 +523,7 @@ export const createAgentSessionOwner = Effect.fn("createAgentSessionOwner")(func
 				const results = await Promise.allSettled([...sessions.values()].map((child) => child.dispose()));
 				sessions.clear();
 				liveActivity.clear();
+				activityRefreshThrottle.clear();
 				const failures = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []));
 				if (failures.length > 0) {
 					throw new AggregateError(failures, "One or more child sessions failed to dispose cleanly.");
@@ -435,7 +537,7 @@ export const createAgentSessionOwner = Effect.fn("createAgentSessionOwner")(func
 		});
 	});
 
-	return { registerAgent, invoke, stop, steer, getSession, getActivity, dispose };
+	return { registerAgent, invoke, stop, steer, getSession, getActivity, getFooterRows, dispose };
 });
 
 async function createChildSession(input: {
@@ -493,7 +595,10 @@ async function createChildSession(input: {
 			pi.on("agent_before_settle", (event) => {
 				observation.outcome = event.outcome;
 			});
-			systemPromptExtension(pi, childApplicationEffects, policy, agent.profile);
+			systemPromptExtension(pi, childApplicationEffects, {
+				getPolicy: () => policy,
+				getProfile: () => agent.profile,
+			});
 		};
 		const extensions = [
 			...(input.extensionFactories?.(agent, observation, input.modelRuntime, registerDisposer) ?? []),

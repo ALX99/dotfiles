@@ -7,6 +7,7 @@ import { Key, Markdown, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import { Effect } from "effect";
 
 import type { ApplicationEffects } from "../../application.ts";
+import type { ProfilePromptState } from "../../agents/active-profile.ts";
 import type { ProfileCapabilityPolicy } from "../../agents/policy.ts";
 import type { ProfileSnapshot } from "../../agents/profile.ts";
 import { writeFileString } from "../../support/fs.ts";
@@ -262,16 +263,23 @@ export function buildSystemPrompt(
 export default function systemPromptExtension(
 	pi: ExtensionAPI,
 	applicationEffects: ApplicationEffects,
-	policy?: ProfileCapabilityPolicy,
-	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
+	profileSource?: ProfilePromptState | ProfileCapabilityPolicy,
+	staticProfile?: Pick<ProfileSnapshot, "name" | "prompt">,
 ): void {
+	const profileState =
+		profileSource === undefined && staticProfile === undefined
+			? undefined
+			: profileSource !== undefined && "getPolicy" in profileSource
+				? profileSource
+				: { getPolicy: () => profileSource, getProfile: () => staticProfile };
 	pi.on("before_agent_start", (event, ctx) => ({
-		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions, policy, profile),
+		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions, profileState),
 	}));
 
 	pi.registerCommand("tools", {
 		description: "List the tools currently active for the agent",
 		handler: async (_args, ctx) => {
+			const policy = profileState?.getPolicy();
 			const { direct, scripted } = promptTools(pi, policy);
 			const count = direct.length + scripted.length;
 			const lines = [`Active tools (${count}):`];
@@ -285,7 +293,7 @@ export default function systemPromptExtension(
 	pi.registerCommand("systemprompt", {
 		description: "Show the system prompt the next turn will send, or write it to a file via /systemprompt <path>",
 		handler: async (args, ctx) => {
-			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions(), policy, profile);
+			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions(), profileState);
 			const label = `${prompt.length} chars`;
 			const target = resolveTarget(args.trim());
 			if (target !== undefined) {
@@ -382,9 +390,10 @@ function currentPrompt(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	options: BuildSystemPromptOptions,
-	policy?: ProfileCapabilityPolicy,
-	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
+	profileState?: ProfilePromptState,
 ): string {
+	const policy = profileState?.getPolicy();
+	const profile = profileState?.getProfile();
 	const owners = guidelineOwners(pi, policy);
 	const { scripted, throughCodemode } = promptTools(pi, policy);
 	const live: BuildSystemPromptOptions = {

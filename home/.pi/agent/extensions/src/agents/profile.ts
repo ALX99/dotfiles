@@ -210,7 +210,7 @@ export function discoverProfiles(
 	directory = profilesDirectory(),
 ): Effect.Effect<ProfileDiscovery, import("../support/errors.ts").FsError> {
 	return Effect.gen(function* () {
-		const entries = yield* readDirectoryFileNamesIfExists(directory);
+		const entries = yield* readDirectoryFileNamesIfExists(directory, { includeSymlinkedFiles: true });
 		if (entries === undefined) return { profiles: [], diagnostics: [] };
 
 		const profileFiles = entries.filter((entry) => entry.endsWith(".md")).toSorted();

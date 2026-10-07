@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Check } from "typebox/value";
 
-import { registerAgentTools, SpawnAgentParams, SteerAgentParams } from "../tools.ts";
+import { registerAgentTools, SendAgentParams, SpawnAgentParams } from "../tools.ts";
 import type { AgentToolHandlers } from "../tools.ts";
 
 const success = { content: [{ type: "text" as const, text: "ok" }], details: undefined };
@@ -18,7 +18,6 @@ function registeredTools(
 		spawn: handler,
 		wait: handler,
 		send: handler,
-		steer: handler,
 		answer: handler,
 		cancel: handler,
 		list: handler,
@@ -41,16 +40,7 @@ test("registers the orchestration tools and exposes ask_parent only to child run
 	const parent = registeredTools(false);
 	assert.deepEqual(
 		[...parent.keys()],
-		[
-			"spawn_agent",
-			"wait_agent",
-			"send_agent",
-			"steer_agent",
-			"answer_agent",
-			"cancel_agent",
-			"list_agents",
-			"inspect_agent",
-		],
+		["spawn_agent", "wait_agent", "send_agent", "answer_agent", "cancel_agent", "list_agents", "inspect_agent"],
 	);
 	assert.equal(parent.has("ask_parent"), false);
 
@@ -61,7 +51,6 @@ test("registers the orchestration tools and exposes ask_parent only to child run
 			"spawn_agent",
 			"wait_agent",
 			"send_agent",
-			"steer_agent",
 			"ask_parent",
 			"answer_agent",
 			"cancel_agent",
@@ -71,7 +60,7 @@ test("registers the orchestration tools and exposes ask_parent only to child run
 	);
 });
 
-test("tool schemas express the spawn and steering modes without exposing environment configuration", () => {
+test("tool schemas express spawn and send modes without exposing environment configuration", () => {
 	assert.equal(
 		Check(SpawnAgentParams, {
 			profile: "engineer",
@@ -89,13 +78,23 @@ test("tool schemas express the spawn and steering modes without exposing environ
 		}),
 		false,
 	);
-	assert.equal(Check(SteerAgentParams, { agent: "engineer-agent-1", instruction: "Use the API path." }), true);
+	assert.equal(Check(SendAgentParams, { agent: "engineer-agent-1", message: "Use the API path." }), true);
 	assert.equal(
-		Check(SteerAgentParams, { agent: "engineer-agent-1", instruction: "Use the API path.", mode: "interrupt" }),
+		Check(SendAgentParams, {
+			agent: "engineer-agent-1",
+			message: "Use the API path.",
+			mode: "interrupt",
+		}),
 		true,
 	);
+	assert.equal(Check(SendAgentParams, { agent: "engineer-agent-1", message: "Use the API path.", wait: true }), true);
+	assert.equal(Check(SendAgentParams, { agent: "engineer-agent-1", message: "Use the API path.", wait: false }), true);
 	assert.equal(
-		Check(SteerAgentParams, { agent: "engineer-agent-1", instruction: "Use the API path.", mode: "queue" }),
+		Check(SendAgentParams, { agent: "engineer-agent-1", message: "Use the API path.", mode: "queue" }),
+		false,
+	);
+	assert.equal(
+		Check(SendAgentParams, { agent: "engineer-agent-1", message: "Use the API path.", wait: "true" }),
 		false,
 	);
 });

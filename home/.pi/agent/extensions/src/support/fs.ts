@@ -14,18 +14,44 @@ export interface WriteFileOptions {
 export const readFileString = (path: string): Effect.Effect<string, FsError> =>
 	attempt("read", path, () => nodeFs.readFile(path, "utf8"));
 
-export const readDirectoryFileNames = (path: string): Effect.Effect<readonly string[], FsError> =>
-	attempt("readdir", path, async () =>
-		(await nodeFs.readdir(path, { withFileTypes: true })).filter((entry) => entry.isFile()).map((entry) => entry.name),
-	);
+export interface ReadDirectoryFileNamesOptions {
+	/** Include symlinks whose targets are files; broken links and directory links stay excluded. */
+	readonly includeSymlinkedFiles?: boolean;
+}
+
+/** Returns regular file names; optionally includes symlinks to regular files. */
+export const readDirectoryFileNames = (
+	path: string,
+	options?: ReadDirectoryFileNamesOptions,
+): Effect.Effect<readonly string[], FsError> =>
+	attempt("readdir", path, async () => {
+		const entries = await nodeFs.readdir(path, { withFileTypes: true });
+		const names = await Promise.all(
+			entries.map(async (entry) => {
+				if (entry.isFile()) return entry.name;
+				if (!options?.includeSymlinkedFiles || !entry.isSymbolicLink()) return undefined;
+
+				try {
+					return (await nodeFs.stat(join(path, entry.name))).isFile() ? entry.name : undefined;
+				} catch (cause) {
+					if (hasNodeErrorCode(cause, "ENOENT")) return undefined;
+					throw cause;
+				}
+			}),
+		);
+		return names.filter((name): name is string => name !== undefined);
+	});
 
 /** A missing file resolves to `undefined`; every other failure stays an error. */
 export const readFileStringIfExists = (path: string): Effect.Effect<string | undefined, FsError> =>
 	readFileString(path).pipe(Effect.catchIf(isNotFound, () => Effect.succeed(undefined)));
 
 /** A missing directory resolves to `undefined`; every other failure stays an error. */
-export const readDirectoryFileNamesIfExists = (path: string): Effect.Effect<readonly string[] | undefined, FsError> =>
-	readDirectoryFileNames(path).pipe(Effect.catchIf(isNotFound, () => Effect.succeed(undefined)));
+export const readDirectoryFileNamesIfExists = (
+	path: string,
+	options?: ReadDirectoryFileNamesOptions,
+): Effect.Effect<readonly string[] | undefined, FsError> =>
+	readDirectoryFileNames(path, options).pipe(Effect.catchIf(isNotFound, () => Effect.succeed(undefined)));
 
 export const writeFileString = (
 	path: string,

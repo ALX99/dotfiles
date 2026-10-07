@@ -22,6 +22,8 @@ export interface ProfileCapabilityPolicy {
 	filterSkills<T extends NamedCapability>(skills: readonly T[]): T[];
 }
 
+export type ProfileCapabilityPolicySource = ProfileCapabilityPolicy | (() => ProfileCapabilityPolicy | undefined);
+
 /** Omitted profile allowlists mean unrestricted; an empty list means deny all. */
 export function createCapabilityPolicy(
 	profile: Pick<ProfileSnapshot, "name" | "tools" | "skills" | "spawnProfiles">,
@@ -53,8 +55,13 @@ export function createCapabilityPolicy(
  * Enforce the snapshot at Pi's dispatch boundary. Pi runs this hook for direct, deferred, and
  * nested tool calls, so hiding a tool from the model is not the permission check.
  */
-export function installToolExecutionPolicy(pi: Pick<ExtensionAPI, "on">, policy: ProfileCapabilityPolicy): () => void {
+export function installToolExecutionPolicy(
+	pi: Pick<ExtensionAPI, "on">,
+	source: ProfileCapabilityPolicySource,
+): () => void {
 	return pi.on("tool_call", (event) => {
+		const policy = typeof source === "function" ? source() : source;
+		if (policy === undefined) return undefined;
 		if (policy.allowsTool(event.toolName)) return undefined;
 		return {
 			block: true,

@@ -60,23 +60,29 @@ export const WaitAgentParams = Type.Object(
 );
 export type WaitAgentParams = Static<typeof WaitAgentParams>;
 
-export const SendAgentParams = Type.Object({ agent: agentId, message }, { additionalProperties: false });
-export type SendAgentParams = Static<typeof SendAgentParams>;
-
-export const SteerAgentParams = Type.Object(
+export const SendAgentParams = Type.Object(
 	{
 		agent: agentId,
-		instruction: Type.String({ ...nonBlank, description: "A new direction for the active invocation." }),
+		message: Type.String({
+			...nonBlank,
+			description: "A message for a settled agent, or an instruction for its active invocation.",
+		}),
 		mode: Type.Optional(
 			StringEnum(["steer", "interrupt"] as const, {
 				description:
-					"steer is the default and waits for a safe opportunity; interrupt stops the current run, then continues this session with the instruction.",
+					"How to handle a running agent. Defaults to steer, which delivers the instruction at a safe opportunity; interrupt stops the run and continues the same session with the instruction. Settled agents always start a new invocation.",
+			}),
+		),
+		wait: Type.Optional(
+			Type.Boolean({
+				description:
+					"Wait for the invocation started or steered by this message to settle before returning. Defaults to false.",
 			}),
 		),
 	},
 	{ additionalProperties: false },
 );
-export type SteerAgentParams = Static<typeof SteerAgentParams>;
+export type SendAgentParams = Static<typeof SendAgentParams>;
 
 export const AskParentParams = Type.Object(
 	{
@@ -126,11 +132,7 @@ export interface AgentToolHandlers {
 	readonly send: (
 		toolCallId: string,
 		params: SendAgentParams,
-		ctx: ExtensionContext,
-	) => Promise<AgentToolResult<unknown>>;
-	readonly steer: (
-		toolCallId: string,
-		params: SteerAgentParams,
+		signal: AbortSignal | undefined,
 		ctx: ExtensionContext,
 	) => Promise<AgentToolResult<unknown>>;
 	readonly askParent?: (
@@ -211,25 +213,12 @@ export function registerAgentTools(
 		name: "send_agent",
 		label: "Send Agent",
 		description:
-			"Start a new invocation on a settled direct child using its existing session. If it is running, use steer_agent; if it is waiting for you, use answer_agent.",
-		promptSnippet: "Continue a settled agent on its existing session",
+			"Send a message to a direct child. A settled child starts a new invocation using its existing session. For a running child, mode defaults to steer and delivers the instruction at a safe opportunity; mode interrupt stops the run, then continues the same session with the instruction. Set wait to true to wait for that invocation to settle before returning; a parent request does not count as settlement. If the child is waiting for you, use answer_agent.",
+		promptSnippet: "Message or steer a direct child using its existing session",
 		parameters: SendAgentParams,
 		executionMode: "sequential",
-		execute(toolCallId, params, _signal, _onUpdate, ctx) {
-			return handlers.send(toolCallId, params, ctx);
-		},
-	});
-
-	pi.registerTool({
-		name: "steer_agent",
-		label: "Steer Agent",
-		description:
-			"Change the direction of a running direct child. Default mode steer delivers at the next safe opportunity without aborting its current operation. interrupt stops the current invocation, then starts the instruction in the same agent and session.",
-		promptSnippet: "Steer or interrupt a running child agent",
-		parameters: SteerAgentParams,
-		executionMode: "sequential",
-		execute(toolCallId, params, _signal, _onUpdate, ctx) {
-			return handlers.steer(toolCallId, params, ctx);
+		execute(toolCallId, params, signal, _onUpdate, ctx) {
+			return handlers.send(toolCallId, params, signal, ctx);
 		},
 	});
 

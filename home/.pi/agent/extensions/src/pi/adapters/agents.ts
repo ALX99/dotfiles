@@ -4,17 +4,25 @@ import {
 	createMcpExtension,
 	createToolSearchExtension,
 	type ExtensionAPI,
+	type ExtensionCommandContext,
 	type ExtensionFactory,
 	type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 import { Effect, Exit, Scope } from "effect";
 
 import type { ApplicationEffects } from "../../application.ts";
-import { createCapabilityPolicy, type ProfileCapabilityPolicy } from "../../agents/policy.ts";
+import type { ActiveProfileState } from "../../agents/active-profile.ts";
+import type { AgentFooterRow } from "../../agents/inspection.ts";
+import {
+	createCapabilityPolicy,
+	installToolExecutionPolicy,
+	type ProfileCapabilityPolicy,
+} from "../../agents/policy.ts";
+import { discoverProfiles, profilesDirectory, type ProfileSnapshot } from "../../agents/profile.ts";
 import type { AgentChildCommunication, AgentWorkflows } from "../../agents/workflows.ts";
 import { createAgentWorkflows } from "../../agents/workflows.ts";
 import { registerAgentWorkflowTools } from "../../agents/register.ts";
-import { createAgentSessionOwner } from "../../agents/session.ts";
+import { createAgentSessionOwner, type AgentSessionOwner } from "../../agents/session.ts";
 import { openAgentStore, type AgentStore } from "../../agents/store.ts";
 import type { MailboxEvent } from "../../agents/state.ts";
 import { createToolSelection } from "../../integration/tool-selection.ts";
@@ -25,6 +33,7 @@ const MAILBOX_MESSAGE_TYPE = "personal:agent-mailbox";
 
 type AgentAdapterSession = {
 	readonly store: AgentStore;
+	readonly sessions: AgentSessionOwner;
 	readonly workflows: AgentWorkflows;
 	readonly dispose: () => Promise<void>;
 };
@@ -35,6 +44,10 @@ export interface AgentAdapterOptions {
 	readonly parentCommunication?: AgentChildCommunication;
 	/** Captured profile policy for this agent; absent only in the unrestricted root session. */
 	readonly capabilityPolicy?: ProfileCapabilityPolicy;
+	/** Present only for a root session that supports switching its active profile. */
+	readonly activeProfile?: ActiveProfileState;
+	/** Present only when a root UI observes direct-child footer rows. */
+	readonly onFooterRows?: (rows: readonly AgentFooterRow[]) => void;
 	/** Reused recursively so all child sessions share Pi's configured model/auth runtime. */
 	readonly modelRuntime?: ModelRuntime;
 	readonly agentDir?: string;
@@ -127,6 +140,29 @@ export function installAgentAdapter(
 	let busy = false;
 	let disposed = false;
 	let delivery: AgentMailboxDelivery | undefined;
+	let stopFooterUpdates: (() => void) | undefined;
+	let footerGeneration = 0;
+	let availableProfiles = new Map<string, ProfileSnapshot>();
+	const registeredProfileCommands = new Set<string>();
+	let profileCommandEpoch = 0;
+
+	const refreshFooter = (modelRegistry: Parameters<AgentSessionOwner["getFooterRows"]>[0]): void => {
+		const current = active;
+		if (options.onFooterRows === undefined || current === undefined) return;
+		const generation = ++footerGeneration;
+		void applicationEffects
+			.run(current.sessions.getFooterRows(modelRegistry))
+			.then((rows) => {
+				if (disposed || active !== current || generation !== footerGeneration) return;
+				options.onFooterRows?.(rows);
+			})
+			.catch((cause: unknown) => {
+				if (disposed || active !== current || generation !== footerGeneration) return;
+				console.error(
+					`Could not refresh child-agent footer: ${cause instanceof Error ? cause.message : String(cause)}`,
+				);
+			});
+	};
 
 	const requestDelivery = (): void => {
 		if (active === undefined) return;
@@ -135,9 +171,13 @@ export function installAgentAdapter(
 
 	const close = async (): Promise<void> => {
 		const previous = active;
+		stopFooterUpdates?.();
+		stopFooterUpdates = undefined;
+		footerGeneration++;
 		delivery?.close();
 		delivery = undefined;
 		active = undefined;
+		options.onFooterRows?.([]);
 		if (previous !== undefined) await previous.dispose();
 	};
 
@@ -148,9 +188,14 @@ export function installAgentAdapter(
 		options.parentCommunication,
 		options.capabilityPolicy,
 	);
+	if (options.activeProfile !== undefined) {
+		installToolExecutionPolicy(pi, () => options.activeProfile?.getPolicy());
+	}
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (disposed) return;
+		profileCommandEpoch++;
+		availableProfiles = new Map();
 		await close();
 		busy = !ctx.isIdle();
 		const store = await applicationEffects.run(
@@ -167,6 +212,7 @@ export function installAgentAdapter(
 				...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
 				...(options.sessionDirectory === undefined ? {} : { sessionDirectory: options.sessionDirectory }),
 				...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
+				...(options.onFooterRows === undefined ? {} : { onSessionChanged: () => refreshFooter(ctx.modelRegistry) }),
 				providerRegistry: ctx.modelRegistry,
 				noConfiguredExtensions: true,
 				extensionFactories: (agent, _observation, modelRuntime, registerDisposer) => {
@@ -204,6 +250,9 @@ export function installAgentAdapter(
 						models: ctx.modelRegistry,
 						...(options.profileDirectory === undefined ? {} : { profileDirectory: options.profileDirectory }),
 						...(options.capabilityPolicy === undefined ? {} : { capabilityPolicy: options.capabilityPolicy }),
+						...(options.activeProfile === undefined
+							? {}
+							: { getCapabilityPolicy: () => options.activeProfile?.getPolicy() }),
 						onEvent: () => requestDelivery(),
 					}),
 				),
@@ -214,6 +263,7 @@ export function installAgentAdapter(
 		}
 		active = {
 			store,
+			sessions,
 			workflows,
 			dispose: async () => {
 				try {
@@ -223,6 +273,34 @@ export function installAgentAdapter(
 				}
 			},
 		};
+		if (options.onFooterRows !== undefined) {
+			stopFooterUpdates = store.subscribeAgentChanges(() => refreshFooter(ctx.modelRegistry));
+			refreshFooter(ctx.modelRegistry);
+		}
+		if (options.activeProfile !== undefined) {
+			try {
+				const discovery = await applicationEffects.run(
+					discoverProfiles(ctx.modelRegistry, options.profileDirectory ?? profilesDirectory(options.agentDir)),
+				);
+				availableProfiles = new Map(discovery.profiles.map((profile) => [profile.name, profile]));
+				for (const diagnostic of discovery.diagnostics) {
+					const message = `Could not load profile: ${diagnostic.message}`;
+					if (ctx.hasUI) ctx.ui.notify(message, "warning");
+					else console.error(message);
+				}
+				registerProfileCommands(
+					pi,
+					() => availableProfiles,
+					registeredProfileCommands,
+					options.activeProfile,
+					() => profileCommandEpoch,
+				);
+			} catch (cause) {
+				const message = `Could not discover profiles: ${cause instanceof Error ? cause.message : String(cause)}`;
+				if (ctx.hasUI) ctx.ui.notify(message, "warning");
+				else console.error(message);
+			}
+		}
 		delivery = createAgentMailboxDelivery({
 			store,
 			applicationEffects,
@@ -255,6 +333,8 @@ export function installAgentAdapter(
 	});
 	const dispose = async (): Promise<void> => {
 		disposed = true;
+		profileCommandEpoch++;
+		availableProfiles = new Map();
 		busy = false;
 		await close();
 	};
@@ -273,6 +353,81 @@ function mailboxMessage(event: MailboxEvent) {
 		...(event.options === undefined ? {} : { options: event.options }),
 		...(event.error === undefined ? {} : { error: event.error }),
 	};
+}
+
+function registerProfileCommands(
+	pi: ExtensionAPI,
+	getProfiles: () => ReadonlyMap<string, ProfileSnapshot>,
+	registered: Set<string>,
+	activeProfile: ActiveProfileState,
+	getEpoch: () => number,
+): void {
+	for (const name of getProfiles().keys()) {
+		if (registered.has(name)) continue;
+		if (pi.getCommands().some((command) => command.name === name)) {
+			console.warn(`Profile command "/${name}" was not registered because that command name is already in use.`);
+			continue;
+		}
+
+		pi.registerCommand(name, {
+			description: `Switch this session to the ${name} profile`,
+			handler: async (args, ctx: ExtensionCommandContext) => {
+				const commandEpoch = getEpoch();
+				const currentProfile = getProfiles().get(name);
+				if (currentProfile === undefined) {
+					ctx.ui.notify(`Profile "${name}" is not available in this session.`, "warning");
+					return;
+				}
+				if (args.trim().length > 0) {
+					ctx.ui.notify(`/${name} only switches profiles. Send your message after the switch.`, "warning");
+					return;
+				}
+				if (!ctx.isIdle()) {
+					if (ctx.hasUI) {
+						ctx.ui.notify(`Queued profile switch to "${name}"; it will apply when the current turn settles.`, "info");
+					}
+					await ctx.waitForIdle();
+					if (commandEpoch !== getEpoch()) return;
+				}
+
+				const model = ctx.modelRegistry.find(currentProfile.model.provider, currentProfile.model.id);
+				if (model === undefined) {
+					ctx.ui.notify(
+						`Model not found for profile "${name}": ${currentProfile.model.provider}/${currentProfile.model.id}`,
+						"warning",
+					);
+					return;
+				}
+				try {
+					const switched = await pi.setModel(model);
+					if (commandEpoch !== getEpoch()) return;
+					if (!switched) {
+						ctx.ui.notify(
+							`No API key for ${currentProfile.model.provider}/${currentProfile.model.id}; profile was not changed.`,
+							"warning",
+						);
+						return;
+					}
+					if (currentProfile.thinkingLevel !== undefined) pi.setThinkingLevel(currentProfile.thinkingLevel);
+					activeProfile.setProfile(currentProfile);
+					ctx.ui.notify(
+						`Switched to profile "${name}" (${currentProfile.model.provider}/${currentProfile.model.id}${
+							currentProfile.thinkingLevel === undefined ? "" : `, ${currentProfile.thinkingLevel} thinking`
+						}).`,
+						"info",
+					);
+				} catch (cause) {
+					if (commandEpoch === getEpoch()) {
+						ctx.ui.notify(
+							`Could not switch to profile "${name}": ${cause instanceof Error ? cause.message : String(cause)}`,
+							"warning",
+						);
+					}
+				}
+			},
+		});
+		registered.add(name);
+	}
 }
 
 const childApplicationEffects: ApplicationEffects = {

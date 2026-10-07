@@ -445,9 +445,11 @@ export function claimMailboxEvents(
 	state: AgentStoreState,
 	claimId: string,
 	agentIds?: readonly string[],
+	eventIds?: readonly string[],
 ): Result.Result<Transition<readonly MailboxEvent[]>, AgentStateError> {
 	if (claimId.trim().length === 0) return stateFailure("Mailbox claim ID must not be blank.");
 	const selectedAgents = agentIds === undefined ? undefined : new Set(agentIds);
+	const selectedEvents = eventIds === undefined ? undefined : new Set(eventIds);
 	const alreadyClaimed = state.mailbox.filter(
 		(event) => event.claimId === claimId && event.acknowledgedAt === undefined,
 	);
@@ -456,15 +458,18 @@ export function claimMailboxEvents(
 		(event) =>
 			event.acknowledgedAt === undefined &&
 			event.claimId === undefined &&
-			(selectedAgents === undefined || selectedAgents.has(event.agentId)),
+			(selectedAgents === undefined || selectedAgents.has(event.agentId)) &&
+			(selectedEvents === undefined || selectedEvents.has(event.id)),
 	);
 	if (claimed.length === 0) return Result.succeed({ state, value: [] });
-	const eventIds = new Set(claimed.map((event) => event.id));
-	const mailbox = state.mailbox.map((event) => (eventIds.has(event.id) ? Object.freeze({ ...event, claimId }) : event));
+	const claimedEventIds = new Set(claimed.map((event) => event.id));
+	const mailbox = state.mailbox.map((event) =>
+		claimedEventIds.has(event.id) ? Object.freeze({ ...event, claimId }) : event,
+	);
 	const next = freezeState({ ...state, mailbox });
 	return Result.succeed({
 		state: next,
-		value: next.mailbox.filter((event) => eventIds.has(event.id)),
+		value: next.mailbox.filter((event) => claimedEventIds.has(event.id)),
 	});
 }
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -125,6 +125,23 @@ test("discovery sorts valid profiles and reports invalid files without failing t
 	);
 	assert.equal(result.diagnostics.length, 1);
 	assert.match(result.diagnostics[0]?.message ?? "", /provider\/model-id/u);
+});
+
+test("discovery includes symlinked profile files", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "pi-profile-symlink-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const directory = join(root, "profiles");
+	const target = join(root, "manager.md");
+	await mkdir(directory);
+	await writeFile(target, profile(""));
+	await symlink(target, join(directory, "manager.md"));
+
+	const result = await runPromise(discoverProfiles(models, directory));
+	assert.deepEqual(
+		result.profiles.map(({ name }) => name),
+		["manager"],
+	);
+	assert.deepEqual(result.diagnostics, []);
 });
 
 test("discovery treats an absent profile directory as empty", async (t) => {

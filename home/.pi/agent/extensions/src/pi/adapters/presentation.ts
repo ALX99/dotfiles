@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import type { ActiveProfileState } from "../../agents/active-profile.ts";
 import type { EditorComposition } from "../../integration/editor.ts";
 import type { ToolStatusRenderer } from "../../support/tool-status.ts";
 import compactBash from "../../ui/compact.ts";
@@ -7,10 +8,15 @@ import copyCode from "../../ui/copy-code.ts";
 import statusbar from "../../ui/statusbar.ts";
 
 /** TUI capabilities share the session editor and the application's activity projection. */
-export function installPresentationAdapter(pi: ExtensionAPI, editor: EditorComposition, statusFor: ToolStatusRenderer) {
+export function installPresentationAdapter(
+	pi: ExtensionAPI,
+	editor: EditorComposition,
+	statusFor: ToolStatusRenderer,
+	activeProfile?: ActiveProfileState,
+) {
 	compactBash(pi, statusFor);
 	copyCode(pi);
-	const activity = statusbar(pi, editor);
+	const activity = statusbar(pi, editor, activeProfile);
 	bindStatusbarEvents(pi, activity);
 	return activity;
 }

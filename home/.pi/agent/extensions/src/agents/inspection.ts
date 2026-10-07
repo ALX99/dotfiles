@@ -1,5 +1,6 @@
 import { Result, Schema } from "effect";
 import type { AgentSessionEvent, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import type { AgentStatus } from "./state.ts";
 
 const AskParentInputSchema = Schema.Struct({
 	message: Schema.String,
@@ -57,12 +58,89 @@ export interface AgentInspection extends AgentListing {
 	readonly latest_events: readonly InspectedActivity[];
 }
 
+export interface AgentFooterMetrics {
+	readonly model?: { readonly provider: string; readonly id: string };
+	readonly totalTokens?: number;
+	readonly lastActivityAt?: number | null;
+	readonly contextUsage?: {
+		readonly tokens: number | null;
+		readonly percent: number | null;
+		readonly contextWindow?: number;
+	};
+	readonly contextWindow?: number;
+}
+
+export interface AgentFooterRow {
+	readonly id: string;
+	readonly profile: string;
+	readonly status: AgentStatus;
+	readonly model: string;
+	readonly totalTokens: number | null;
+	readonly lastActivityAt: number | null;
+	readonly contextTokens: number | null;
+	readonly contextWindow: number | null;
+	readonly contextPercent: number | null;
+}
+
 const MAX_ACTIVITY_TEXT = 240;
 const MAX_LIVE_ACTIVITY = 40;
+const FOOTER_STREAM_REFRESH_INTERVAL_MS = 1_000;
+
+/** Throttle streaming-driven footer refreshes without scheduling per-agent timers. */
+export function createAgentActivityRefreshThrottle() {
+	const lastRefreshAt = new Map<string, number>();
+	return {
+		shouldRefresh(agentId: string, now: number): boolean {
+			const last = lastRefreshAt.get(agentId);
+			if (last !== undefined && now - last < FOOTER_STREAM_REFRESH_INTERVAL_MS) return false;
+			lastRefreshAt.set(agentId, now);
+			return true;
+		},
+		reset(agentId: string): void {
+			lastRefreshAt.delete(agentId);
+		},
+		clear(): void {
+			lastRefreshAt.clear();
+		},
+	};
+}
+
+/** Keep one ordered footer row for every direct child registry record. */
+export function projectAgentFooterRows(
+	records: readonly {
+		readonly id: string;
+		readonly profile: {
+			readonly name: string;
+			readonly model: { readonly provider: string; readonly id: string };
+		};
+		readonly status: AgentStatus;
+	}[],
+	metricsByAgent: ReadonlyMap<string, AgentFooterMetrics>,
+): readonly AgentFooterRow[] {
+	return records.map((record) => {
+		const metrics = metricsByAgent.get(record.id);
+		const contextUsage = metrics?.contextUsage;
+		const model = metrics?.model ?? record.profile.model;
+		return {
+			id: record.id,
+			profile: record.profile.name,
+			status: record.status,
+			model: `${model.provider}/${model.id}`,
+			totalTokens: metrics?.totalTokens ?? null,
+			lastActivityAt: metrics?.lastActivityAt ?? null,
+			contextTokens: contextUsage?.tokens ?? null,
+			contextWindow: contextUsage?.contextWindow ?? metrics?.contextWindow ?? null,
+			contextPercent: contextUsage?.percent ?? null,
+		};
+	});
+}
 
 /** Keep only provider-exposed messages and actual tool events; never inspect private agent state. */
 export function observeSessionEvent(event: AgentSessionEvent, occurredAt = Date.now()): readonly AgentActivity[] {
-	if (event.type === "message_update" || event.type === "message_end") {
+	if (event.type === "message_update") {
+		return activityFromMessage(event.message, occurredAt);
+	}
+	if (event.type === "message_end") {
 		return activityFromMessage(event.message);
 	}
 	if (event.type === "tool_execution_start") {
@@ -89,13 +167,39 @@ export function latestObservableActivity(
 	live: readonly AgentActivity[],
 	now = Date.now(),
 ): readonly InspectedActivity[] {
-	const byKey = new Map<string, AgentActivity>();
-	for (const activity of entries.flatMap(activityFromEntry)) byKey.set(activity.key, activity);
-	for (const activity of live.slice(-MAX_LIVE_ACTIVITY)) byKey.set(activity.key, activity);
-	return [...byKey.values()]
+	return observableActivities(entries, live)
 		.toSorted((left, right) => right.occurredAt - left.occurredAt || right.key.localeCompare(left.key))
 		.slice(0, 5)
 		.map((activity) => toInspectedActivity(activity, now));
+}
+
+/** Return the newest timestamp from the same persisted and live activity used by agent inspection. */
+export function latestActivityTimestamp(
+	entries: readonly SessionEntry[],
+	live: readonly AgentActivity[],
+): number | null {
+	let latest: number | null = null;
+	for (const activity of observableActivities(entries, live)) {
+		if (latest === null || activity.occurredAt > latest) latest = activity.occurredAt;
+	}
+	return latest;
+}
+
+function observableActivities(entries: readonly SessionEntry[], live: readonly AgentActivity[]): AgentActivity[] {
+	const byKey = new Map<string, AgentActivity>();
+	for (const activity of entries.flatMap(activityFromEntry)) mergeActivity(byKey, activity);
+	for (const activity of live.slice(-MAX_LIVE_ACTIVITY)) mergeActivity(byKey, activity);
+	return [...byKey.values()];
+}
+
+function mergeActivity(byKey: Map<string, AgentActivity>, activity: AgentActivity): void {
+	const existing = byKey.get(activity.key);
+	byKey.set(
+		activity.key,
+		existing !== undefined && existing.occurredAt > activity.occurredAt
+			? { ...activity, occurredAt: existing.occurredAt }
+			: activity,
+	);
 }
 
 export function listAgentRecords(
@@ -134,18 +238,22 @@ export function appendLiveActivity(
 ): readonly AgentActivity[] {
 	if (incoming.length === 0) return current;
 	const byKey = new Map(current.map((activity) => [activity.key, activity]));
-	for (const activity of incoming) byKey.set(activity.key, activity);
+	for (const activity of incoming) mergeActivity(byKey, activity);
 	return [...byKey.values()].toSorted((left, right) => left.occurredAt - right.occurredAt).slice(-MAX_LIVE_ACTIVITY);
 }
 
-export function relativeAge(occurredAt: number, now: number): string {
+export function relativeAgeCompact(occurredAt: number, now: number): string {
 	const seconds = Math.max(1, Math.ceil(Math.max(0, now - occurredAt) / 1_000));
-	if (seconds < 60) return `${seconds}s ago`;
+	if (seconds < 60) return `${seconds}s`;
 	const minutes = Math.floor(seconds / 60);
-	if (minutes < 60) return `${minutes}m ago`;
+	if (minutes < 60) return `${minutes}m`;
 	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours}h ago`;
-	return `${Math.floor(hours / 24)}d ago`;
+	if (hours < 24) return `${hours}h`;
+	return `${Math.floor(hours / 24)}d`;
+}
+
+export function relativeAge(occurredAt: number, now: number): string {
+	return `${relativeAgeCompact(occurredAt, now)} ago`;
 }
 
 function activityFromEntry(entry: SessionEntry): AgentActivity[] {

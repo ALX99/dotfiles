@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import fc from "fast-check";
 
+import { createActiveProfileState } from "../../agents/active-profile.ts";
+import type { AgentFooterRow } from "../../agents/inspection.ts";
+import type { ProfileSnapshot } from "../../agents/profile.ts";
+import type { SessionTotals } from "../../support/session-totals.ts";
 import {
 	buildStatusbarViewModel,
 	calculateTokensPerSecond,
@@ -15,9 +18,9 @@ import {
 	renderTokenMix,
 	renderTokensPerSecond,
 	renderTotalTokens,
-	sessionTotals,
-	type SessionTotals,
+	renderAgentFooterRow,
 } from "../statusbar.ts";
+import statusbar from "../statusbar.ts";
 
 const plainTheme = {
 	fg: (_color: string, text: string) => text,
@@ -58,14 +61,6 @@ test("supports multiple right-aligned statusbar parts", () => {
 	assert.equal(view.line, "~/dotfiles · model         tps:42.3  50%");
 });
 
-interface UsageParts {
-	readonly input: number;
-	readonly output: number;
-	readonly cacheRead: number;
-	readonly cacheWrite: number;
-	readonly reasoning?: number;
-}
-
 function totals(overrides: Partial<SessionTotals> = {}): SessionTotals {
 	return {
 		turns: 0,
@@ -77,43 +72,6 @@ function totals(overrides: Partial<SessionTotals> = {}): SessionTotals {
 		...overrides,
 	};
 }
-
-function usageWithTotal(usage: UsageParts): UsageParts & { totalTokens: number } {
-	return { ...usage, totalTokens: usage.input + usage.output + usage.cacheRead + usage.cacheWrite };
-}
-
-function assistantEntry(stopReason: string, usage: UsageParts): SessionEntry {
-	return {
-		type: "message",
-		message: { role: "assistant", stopReason, usage: usageWithTotal(usage) },
-	} as unknown as SessionEntry;
-}
-
-function usageEntry(type: "compaction" | "branch_summary", usage: UsageParts): SessionEntry {
-	return { type, usage: usageWithTotal(usage) } as unknown as SessionEntry;
-}
-
-test("counts turns, compactions, and token usage across session entries", () => {
-	const entries = [
-		assistantEntry("stop", { input: 100, output: 200, cacheRead: 700, cacheWrite: 0, reasoning: 80 }),
-		{ type: "message", message: { role: "user" } } as unknown as SessionEntry,
-		assistantEntry("error", { input: 500, output: 500, cacheRead: 0, cacheWrite: 0, reasoning: 500 }),
-		{ type: "model_change" } as unknown as SessionEntry,
-		assistantEntry("aborted", { input: 50, output: 50, cacheRead: 150, cacheWrite: 0, reasoning: 10 }),
-		usageEntry("compaction", { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 2 }),
-		usageEntry("branch_summary", { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 1 }),
-		{ type: "branch_summary", fromId: "x", summary: "s" } as unknown as SessionEntry,
-	];
-
-	assert.deepEqual(sessionTotals(entries), {
-		turns: 2,
-		compactions: 3,
-		totalTokens: 1000 + 250 + 15 + 2,
-		readTokens: 800 + 200 + 10 + 1,
-		writeTokens: 200 + 50 + 5 + 1,
-		cachedTokens: 700 + 150,
-	});
-});
 
 test("formats token totals compactly", () => {
 	assert.equal(formatTokenCount(0), "0");
@@ -188,4 +146,320 @@ test("drops whole right-side metrics before cutting a value", () => {
 	assert.equal(view.right, "read:99%  cache:99%  tok:1.2M  45%");
 	assert.equal(view.left, "model");
 	assert.equal(view.line, `model ${view.right}`);
+});
+
+test("reserves the active root profile before optional footer metrics", () => {
+	const profile = "profile:worker";
+	const narrow = buildStatusbarViewModel({
+		width: 14,
+		leftParts: ["~/repo", "model", profile],
+		priorityLeftPart: profile,
+		rightParts: ["tps:42", "tok:1.2M", "45%"],
+	});
+	assert.equal(narrow.line, profile);
+
+	const medium = buildStatusbarViewModel({
+		width: 25,
+		leftParts: ["~/repo", "model", profile],
+		priorityLeftPart: profile,
+		rightParts: ["tps:42", "tok:1.2M", "45%"],
+	});
+	assert.ok(medium.line.includes(profile));
+	assert.ok(visibleWidth(medium.line) <= 25);
+});
+
+test("child rows sanitize dynamic text and retain identity and state before optional metrics", () => {
+	const row: AgentFooterRow = {
+		id: "worker-🔬\nagent",
+		profile: "review\u001b[31m",
+		status: "waiting_parent",
+		model: "test/model\u001b[2J",
+		totalTokens: 1_250,
+		lastActivityAt: null,
+		contextTokens: null,
+		contextWindow: 128_000,
+		contextPercent: null,
+	};
+
+	const wide = renderAgentFooterRow(row, 120, plainTheme);
+	assert.match(wide, /worker-🔬 agent state:waiting_parent profile:review/u);
+	assert.match(wide, /test\/model tok:/u);
+	assert.match(wide, /ctx:--\/128K --%/u);
+	assert.equal(wide.includes("\u001b"), false);
+	assert.doesNotMatch(wide, /[\r\n]/u);
+	assert.ok(visibleWidth(wide) <= 120);
+
+	const narrow = renderAgentFooterRow(row, 40, plainTheme);
+	assert.match(narrow, /worker-🔬 agent/u);
+	assert.match(narrow, /state:waiting_parent/u);
+	assert.ok(visibleWidth(narrow) <= 40);
+
+	const contextFirst = renderAgentFooterRow(
+		{
+			id: "worker-agent-1",
+			profile: "worker",
+			status: "running",
+			model: "provider/a-very-long-model-name",
+			totalTokens: 1_250,
+			lastActivityAt: null,
+			contextTokens: null,
+			contextWindow: 128_000,
+			contextPercent: null,
+		},
+		61,
+		plainTheme,
+	);
+	assert.match(contextFirst, /ctx:--\/128K --%/u);
+	assert.doesNotMatch(contextFirst, /provider\/|tok:/u, "model and cumulative token fields drop before context");
+	assert.ok(visibleWidth(contextFirst) <= 61);
+});
+
+test("child lifecycle states use distinct theme colors and activity ages stay concise", () => {
+	const row: AgentFooterRow = {
+		id: "worker-agent-1",
+		profile: "worker",
+		status: "running",
+		model: "test/model",
+		totalTokens: null,
+		lastActivityAt: null,
+		contextTokens: null,
+		contextWindow: null,
+		contextPercent: null,
+	};
+	const statusColors = new Map<string, string>();
+	const theme = {
+		fg(color: string, text: string) {
+			if (text.startsWith("state:")) statusColors.set(text, color);
+			return text;
+		},
+		getColorMode: () => "truecolor",
+	} as typeof plainTheme;
+	const now = Date.UTC(2026, 9, 6, 12, 0, 0);
+	const statuses: readonly AgentFooterRow["status"][] = [
+		"running",
+		"waiting_parent",
+		"settled",
+		"interrupted",
+		"cancelled",
+		"error",
+	];
+	for (const status of statuses) {
+		renderAgentFooterRow({ ...row, status }, 120, theme, now);
+	}
+	assert.deepEqual(
+		statuses.map((status) => statusColors.get(`state:${status}`)),
+		["accent", "warning", "success", "thinkingXhigh", "muted", "error"],
+	);
+	assert.equal(new Set(statusColors.values()).size, statuses.length);
+
+	const activeRow = { ...row, lastActivityAt: now - 1_000 };
+	assert.match(renderAgentFooterRow(activeRow, 120, plainTheme, now), /last:1s/u);
+	assert.match(renderAgentFooterRow(activeRow, 120, plainTheme, now + 9_000), /last:10s/u);
+	assert.match(renderAgentFooterRow(activeRow, 120, plainTheme, now + 59_000), /last:1m/u);
+});
+
+test("long child IDs retain lifecycle state and distinguishing suffixes at narrow widths", () => {
+	const idPrefix = "long-running-specialist-research-worker-agent-";
+	for (const status of ["running", "settled", "waiting_parent"] as const) {
+		const first = renderAgentFooterRow(
+			{
+				id: `${idPrefix}1`,
+				profile: "long-running-specialist-research-worker",
+				status,
+				model: "test/model",
+				totalTokens: null,
+				lastActivityAt: null,
+				contextTokens: null,
+				contextWindow: null,
+				contextPercent: null,
+			},
+			48,
+			plainTheme,
+		);
+		const second = renderAgentFooterRow(
+			{
+				id: `${idPrefix}2`,
+				profile: "long-running-specialist-research-worker",
+				status,
+				model: "test/model",
+				totalTokens: null,
+				lastActivityAt: null,
+				contextTokens: null,
+				contextWindow: null,
+				contextPercent: null,
+			},
+			48,
+			plainTheme,
+		);
+
+		assert.match(first, new RegExp(`agent-1 state:${status}`, "u"));
+		assert.match(second, new RegExp(`agent-2 state:${status}`, "u"));
+		assert.notEqual(first, second, "same-profile sibling IDs remain distinguishable");
+		assert.ok(first.startsWith("long-running"), "the ID retains a readable prefix");
+		assert.ok(visibleWidth(first) <= 48);
+		assert.ok(visibleWidth(second) <= 48);
+	}
+
+	const ansiTheme = {
+		fg: (_color: string, text: string) => `\u001b[31m${text}\u001b[0m`,
+		getColorMode: () => "truecolor",
+	} as typeof plainTheme;
+	const unicodeAndAnsi = renderAgentFooterRow(
+		{
+			id: "long-running-🔬-specialist-research-worker-agent-1",
+			profile: "worker",
+			status: "waiting_parent",
+			model: "test/model",
+			totalTokens: null,
+			lastActivityAt: null,
+			contextTokens: null,
+			contextWindow: null,
+			contextPercent: null,
+		},
+		48,
+		ansiTheme,
+	);
+	assert.match(unicodeAndAnsi, /agent-1/u);
+	assert.match(unicodeAndAnsi, /state:waiting_parent/u);
+	assert.ok(visibleWidth(unicodeAndAnsi) <= 48);
+
+	for (const width of [0, 1, 4]) {
+		const tiny = renderAgentFooterRow(
+			{
+				id: `${idPrefix}1`,
+				profile: "worker",
+				status: "waiting_parent",
+				model: "test/model",
+				totalTokens: null,
+				lastActivityAt: null,
+				contextTokens: null,
+				contextWindow: null,
+				contextPercent: null,
+			},
+			width,
+			plainTheme,
+		);
+		assert.ok(visibleWidth(tiny) <= width);
+	}
+});
+
+test("a same-model profile change requests a footer render and updates the bound profile", () => {
+	const activeProfile = createActiveProfileState({ setCapabilityPolicy: () => {} } as Parameters<
+		typeof createActiveProfileState
+	>[0]);
+	const profile: ProfileSnapshot = {
+		name: "worker",
+		model: { provider: "test", id: "same-model" },
+		prompt: "Work carefully.",
+		sourcePath: "/profiles/worker.md",
+	};
+
+	let footer: { readonly render: (width: number) => string[] } | undefined;
+	let renderRequests = 0;
+	const ctx = {
+		cwd: "/repo",
+		model: { id: "same-model" },
+		mode: "print",
+		getContextUsage: () => undefined,
+		sessionManager: { getEntries: () => [] },
+		ui: {
+			setFooter(factory: (tui: unknown, theme: typeof plainTheme) => typeof footer) {
+				footer = factory({ requestRender: () => (renderRequests += 1) }, plainTheme);
+			},
+			setWorkingVisible: () => {},
+		},
+	} as unknown as Parameters<ReturnType<typeof statusbar>["events"]["sessionStart"]>[1];
+	const pi = { getThinkingLevel: () => undefined } as unknown as Parameters<typeof statusbar>[0];
+	const activity = statusbar(pi, {} as Parameters<typeof statusbar>[1], activeProfile);
+	activity.events.sessionStart({} as Parameters<typeof activity.events.sessionStart>[0], ctx);
+
+	assert.doesNotMatch(footer?.render(80).join("\n") ?? "", /profile:worker/u);
+	const requestsBeforeSwitch = renderRequests;
+	activeProfile.setProfile(profile);
+	assert.ok(
+		renderRequests > requestsBeforeSwitch,
+		"setProfile notifies the statusbar even without a model_select event",
+	);
+	assert.match(footer?.render(80).join("\n") ?? "", /profile:worker/u);
+
+	activeProfile.setProfile({ ...profile, name: "reviewer" });
+	assert.match(footer?.render(80).join("\n") ?? "", /profile:reviewer/u);
+
+	activity.setAgentRows([
+		{
+			id: "worker-agent-1",
+			profile: "worker",
+			status: "running",
+			model: "test/model",
+			totalTokens: 20,
+			lastActivityAt: null,
+			contextTokens: 10,
+			contextWindow: 100,
+			contextPercent: 10,
+		},
+		{
+			id: "reviewer-agent-1",
+			profile: "reviewer",
+			status: "waiting_parent",
+			model: "test/model",
+			totalTokens: 30,
+			lastActivityAt: null,
+			contextTokens: null,
+			contextWindow: 100,
+			contextPercent: null,
+		},
+	]);
+	const lines = footer?.render(80) ?? [];
+	assert.equal(lines.length, 3, "the root row is followed by exactly one row per direct child");
+	assert.ok(lines[1]?.includes("worker-agent-1"));
+	assert.ok(lines[2]?.includes("reviewer-agent-1"));
+	assert.ok(lines.every((line) => !line.includes("\n") && visibleWidth(line) <= 80));
+});
+
+test("visible child rows request one shared age refresh and stop it when rows disappear", (t) => {
+	t.mock.timers.enable({ apis: ["setInterval"] });
+	let footer: { readonly render: (width: number) => string[] } | undefined;
+	let renderRequests = 0;
+	const ctx = {
+		cwd: "/repo",
+		model: { id: "test-model" },
+		mode: "tui",
+		getContextUsage: () => undefined,
+		sessionManager: { getEntries: () => [] },
+		ui: {
+			setFooter(factory: (tui: unknown, theme: typeof plainTheme) => typeof footer) {
+				footer = factory({ requestRender: () => (renderRequests += 1) }, plainTheme);
+			},
+			setWorkingVisible: () => {},
+		},
+	} as unknown as Parameters<ReturnType<typeof statusbar>["events"]["sessionStart"]>[1];
+	const pi = { getThinkingLevel: () => undefined } as unknown as Parameters<typeof statusbar>[0];
+	const editor = { install: () => {} } as unknown as Parameters<typeof statusbar>[1];
+	const activity = statusbar(pi, editor);
+	activity.events.sessionStart({} as Parameters<typeof activity.events.sessionStart>[0], ctx);
+
+	const beforeRows = renderRequests;
+	t.mock.timers.tick(1_000);
+	assert.equal(renderRequests, beforeRows, "the empty footer does not start a refresh timer");
+
+	const row: AgentFooterRow = {
+		id: "worker-agent-1",
+		profile: "worker",
+		status: "running",
+		model: "test/model",
+		totalTokens: null,
+		lastActivityAt: Date.now(),
+		contextTokens: null,
+		contextWindow: null,
+		contextPercent: null,
+	};
+	activity.setAgentRows([row, { ...row, id: "reviewer-agent-1" }]);
+	const beforeTick = renderRequests;
+	t.mock.timers.tick(1_000);
+	assert.equal(renderRequests, beforeTick + 1);
+	activity.setAgentRows([]);
+	const afterRowsDisappear = renderRequests;
+	t.mock.timers.tick(2_000);
+	assert.equal(renderRequests, afterRowsDisappear, "the shared timer stops when no child rows remain");
+	activity.events.sessionShutdown({} as Parameters<typeof activity.events.sessionShutdown>[0], ctx);
 });

@@ -4,6 +4,8 @@ import { Effect } from "effect";
 import { applicationWorkflow, createApplicationRuntime } from "../runtime.ts";
 import type { ApplicationEffects } from "../application.ts";
 import type { ActivitySignal } from "../application/activity.ts";
+import { createActiveProfileState } from "../agents/active-profile.ts";
+import type { AgentFooterRow } from "../agents/inspection.ts";
 import { createEditorComposition } from "../integration/editor.ts";
 import { createToolSelection } from "../integration/tool-selection.ts";
 import { installHostAdapter } from "./adapters/host.ts";
@@ -16,6 +18,7 @@ import { installWorkAdapter } from "./adapters/work.ts";
 
 const noopActivity = (_active: boolean): void => {};
 const noopRunCount = (_count: number): void => {};
+const noopAgentFooterRows = (_rows: readonly AgentFooterRow[]): void => {};
 
 /** Native Pi integration owns registrations and turns them into application workflows. */
 export async function installPersonalExtension(pi: ExtensionAPI): Promise<void> {
@@ -25,6 +28,7 @@ export async function installPersonalExtension(pi: ExtensionAPI): Promise<void> 
 	let updateStatusbarActivity = noopActivity;
 	let updateKeepAwakeActivity = noopActivity;
 	let updateEmptyEnterRuns = noopRunCount;
+	let updateAgentFooterRows = noopAgentFooterRows;
 
 	const updateActivity = async (signal: ActivitySignal): Promise<void> => {
 		if (disposed) return;
@@ -55,10 +59,15 @@ export async function installPersonalExtension(pi: ExtensionAPI): Promise<void> 
 	});
 
 	const toolSelection = createToolSelection(pi);
+	const activeProfile = createActiveProfileState(toolSelection);
+	pi.on("session_start", () => activeProfile.setProfile());
 	const editor = createEditorComposition();
 	const toolStatus = installToolExecutionAdapter(pi, applicationEffects);
 	installToolAdapter(pi, toolSelection, toolStatus);
-	installAgentAdapter(pi, applicationEffects);
+	installAgentAdapter(pi, applicationEffects, {
+		activeProfile,
+		onFooterRows: (rows) => updateAgentFooterRows(rows),
+	});
 	const work = installWorkAdapter(pi, { applicationEffects, editor, toolSelection });
 	await installModelContextAdapter(pi, {
 		applicationEffects,
@@ -68,16 +77,19 @@ export async function installPersonalExtension(pi: ExtensionAPI): Promise<void> 
 				applicationWorkflow((application) => application.providerRequest(payload, context, transforms)),
 			),
 		toolSelection,
+		profileState: activeProfile,
 	});
 	const keepAwake = installHostAdapter(pi);
 	updateKeepAwakeActivity = (active) => keepAwake.setActive(active);
 	updateEmptyEnterRuns = (count) => work.rescuedInputWork.setActiveRuns(count);
-	const statusbarActivity = installPresentationAdapter(pi, editor, toolStatus);
+	const statusbarActivity = installPresentationAdapter(pi, editor, toolStatus, activeProfile);
+	updateAgentFooterRows = (rows) => statusbarActivity.setAgentRows(rows);
 	updateStatusbarActivity = (active) => statusbarActivity.setActive(active);
 
 	pi.on("session_shutdown", async (event, ctx) => {
 		if (disposed) return;
 		try {
+			activeProfile.setProfile();
 			await updateActivity("session_shutdown");
 			await runtime.runPromise(applicationWorkflow((application) => application.shutdown));
 		} finally {

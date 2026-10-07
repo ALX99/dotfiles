@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import type { BuildSystemPromptOptions, Skill } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
+import type { ProfilePromptState } from "../../../agents/active-profile.ts";
 import { createCapabilityPolicy } from "../../../agents/policy.ts";
 
 import type { ApplicationEffects } from "../../../application.ts";
@@ -611,6 +612,7 @@ interface HarnessOptions {
 	codemodeMode?: "on" | "only";
 	policy?: ReturnType<typeof createCapabilityPolicy>;
 	profile?: { readonly name: string; readonly prompt: string };
+	profileState?: ProfilePromptState;
 }
 
 function createHarness(config: HarnessOptions = {}) {
@@ -626,7 +628,7 @@ function createHarness(config: HarnessOptions = {}) {
 	};
 	const branch: Entry[] = config.initialBranch ?? [];
 	const ctx = { sessionManager: { getBranch: () => branch } };
-	systemPromptExtension(pi as never, applicationEffects, config.policy, config.profile);
+	systemPromptExtension(pi as never, applicationEffects, config.profileState ?? config.policy, config.profile);
 
 	return async (eventOptions: BuildSystemPromptOptions = options()) => {
 		assert.ok(handler, "the extension registers a before_agent_start handler");
@@ -719,6 +721,56 @@ test("profile policy removes denied tools and skills from the rendered prompt", 
 	assert.match(prompt ?? "", /\* `research`/);
 	assert.doesNotMatch(prompt ?? "", /`design`/);
 	assert.doesNotMatch(prompt ?? "", /Use edit for precise changes/);
+});
+
+test("the prompt follows profile changes for instructions, tools, and visible skills", async () => {
+	let profile: { readonly name: string; readonly prompt: string } | undefined;
+	let policy: ReturnType<typeof createCapabilityPolicy> | undefined;
+	const run = createHarness({
+		activeTools: ["read", "bash", "edit"],
+		tools: [
+			{ name: "bash", promptGuidelines: ["Use bash for file operations"] },
+			{ name: "edit", promptGuidelines: ["Use edit for precise changes"] },
+		],
+		profileState: {
+			getProfile: () => profile,
+			getPolicy: () => policy,
+		},
+	});
+	const promptOptions = options({
+		selectedTools: ["read", "bash", "edit"],
+		toolSnippets: { read: "Read files", bash: "Run commands", edit: "Edit files" },
+		promptGuidelines: ["Use bash for file operations", "Use edit for precise changes"],
+		skills: [skill({ name: "research" }), skill({ name: "design" })],
+	});
+
+	const normal = await run(promptOptions);
+	assert.match(normal ?? "", /\* `research`/);
+	assert.match(normal ?? "", /\* `design`/);
+
+	profile = { name: "researcher", prompt: "Separate evidence from inference." };
+	policy = createCapabilityPolicy({
+		name: "researcher",
+		tools: ["read"],
+		skills: ["research"],
+		spawnProfiles: [],
+	});
+	const restricted = await run(promptOptions);
+	assert.match(restricted ?? "", /Profile instructions \(researcher\)/);
+	assert.match(restricted ?? "", /Separate evidence from inference\./);
+	assert.match(restricted ?? "", /Available tools:\n- read: Read files/);
+	assert.doesNotMatch(restricted ?? "", /- bash:|- edit:/);
+	assert.match(restricted ?? "", /\* `research`/);
+	assert.doesNotMatch(restricted ?? "", /`design`/);
+
+	profile = { name: "engineer", prompt: "Build carefully." };
+	policy = createCapabilityPolicy({ name: "engineer" });
+	const restored = await run(promptOptions);
+	assert.match(restored ?? "", /Profile instructions \(engineer\)/);
+	assert.match(restored ?? "", /- bash: Execute bash commands/);
+	assert.match(restored ?? "", /- edit: Edit files/);
+	assert.match(restored ?? "", /\* `research`/);
+	assert.match(restored ?? "", /\* `design`/);
 });
 
 test("the prompt renders the live tools' guidelines, attributed to their owner", async () => {

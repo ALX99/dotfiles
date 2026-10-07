@@ -1,5 +1,5 @@
 {
-  "defaultProvider": "openai",
+  "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "xhigh",
   "defaultProjectTrust": "always",
@@ -11,28 +11,26 @@
   },
   "collapseChangelog": true,
   "quietStartup": false,
-  "lastChangelogVersion": "1.0.0",
+  "lastChangelogVersion": "1.0.4",
   "retry": {
     "maxRetries": 20,
     "enabled": true
   },
   "packages": [
     {
-      "source": "npm:pi-web-access",
-      "extensions": [
-        "-dist/index.js"
-      ]
+      "source": "npm:pi-web-access"
     },
     "npm:@ff-labs/pi-fff",
     "npm:pi-commandcode-provider"
   ],
   "enabledModels": [
-    "openai/gpt-6-luna",
-    "openai/gpt-6.1-sol",
-    "openai/gpt-6-astra",
+    "openai-codex/gpt-6-luna",
+    "openai-codex/gpt-6.1-sol",
+    "openai-codex/gpt-6-astra",
     "commandcode/deepseek/deepseek-v4.1-flash",
     "commandcode/z-ai/glm-5.3-flash",
-    "commandcode/xiaomi/mimo-v2.6-flash"
+    "commandcode/xiaomi/mimo-v2.6-flash",
+    "commandcode/inclusionai/ling-3.1-flash:free"
   ],
   "theme": "terminal-light/terminal-dark",
   "showCacheMissNotices": true,
@@ -41,7 +39,7 @@
     "showTerminalProgress": true
   },
   "tuiMode": "fullscreen",
-  "hideThinkingBlock": false,
+  "hideThinkingBlock": true,
   "markdown": {
     "mermaid": "streaming"
   },

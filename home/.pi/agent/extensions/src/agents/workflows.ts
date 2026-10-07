@@ -56,12 +56,9 @@ export interface AgentWorkflows {
 	readonly sendAgent: (
 		agentId: string,
 		message: string,
-	) => Effect.Effect<{ readonly agent: string; readonly status: "running" }, AgentWorkflowFailure>;
-	readonly steerAgent: (
-		agentId: string,
-		instruction: string,
 		mode?: "steer" | "interrupt",
-	) => Effect.Effect<{ readonly agent: string; readonly status: "running" }, AgentWorkflowFailure>;
+		wait?: boolean,
+	) => Effect.Effect<{ readonly agent: string; readonly status: "running" } | AgentEventResult, AgentWorkflowFailure>;
 	readonly cancelAgent: (
 		agentId: string,
 	) => Effect.Effect<{ readonly agent: string; readonly status: "cancelled" }, AgentWorkflowFailure>;
@@ -82,6 +79,8 @@ export interface AgentWorkflowOptions {
 	readonly profileDirectory?: string;
 	/** Absent for a root session, which may spawn any profile. */
 	readonly capabilityPolicy?: ProfileCapabilityPolicy;
+	/** Read at each spawn so a parent session can switch profiles without rebuilding its workflows. */
+	readonly getCapabilityPolicy?: () => ProfileCapabilityPolicy | undefined;
 	/** Called after each durable mailbox event is published, for host-side safe-point delivery. */
 	readonly onEvent?: (event: MailboxEvent) => void;
 }
@@ -233,9 +232,10 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 	const spawnAgent: AgentWorkflows["spawnAgent"] = Effect.fnUntraced(function* (input: SpawnAgentInput) {
 		if (input.message.trim().length === 0)
 			return yield* new AgentWorkflowError({ message: "An initial agent message must not be blank." });
-		if (options.capabilityPolicy?.allowsSpawnProfile(input.profile) === false) {
+		const capabilityPolicy = options.getCapabilityPolicy?.() ?? options.capabilityPolicy;
+		if (capabilityPolicy?.allowsSpawnProfile(input.profile) === false) {
 			return yield* new AgentWorkflowError({
-				message: `Profile "${options.capabilityPolicy.profile}" is not allowed to spawn profile "${input.profile}".`,
+				message: `Profile "${capabilityPolicy.profile}" is not allowed to spawn profile "${input.profile}".`,
 			});
 		}
 		return yield* Effect.uninterruptibleMask((restore) =>
@@ -312,7 +312,16 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		return inspectAgentRecord(agent, [], activity);
 	});
 
-	const sendAgent: AgentWorkflows["sendAgent"] = Effect.fnUntraced(function* (agentId: string, message: string) {
+	const getJob = Effect.fnUntraced(function* (agentId: string) {
+		const job = (yield* Ref.get(jobs)).get(agentId);
+		if (job === undefined)
+			return yield* new AgentWorkflowError({ message: `Agent "${agentId}" has no live invocation.` });
+		return job;
+	});
+
+	const hasJob = (agentId: string) => Ref.get(jobs).pipe(Effect.map((current) => current.has(agentId)));
+
+	const sendMessage = Effect.fnUntraced(function* (agentId: string, message: string, mode: "steer" | "interrupt") {
 		if (message.trim().length === 0)
 			return yield* new AgentWorkflowError({ message: "An agent message must not be blank." });
 		const agent = yield* requireDirectAgent(options.store, agentId);
@@ -321,36 +330,60 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 				message: `Agent "${agentId}" is waiting for a parent answer; use answer_agent.`,
 			});
 		}
-		if (!TERMINAL_STATUSES.has(agent.status)) {
-			return yield* new AgentWorkflowError({ message: `Agent "${agentId}" is active; use steer_agent.` });
+		if (agent.status === "running") {
+			if (mode === "steer") {
+				const job = yield* getJob(agentId);
+				yield* options.sessions.steer(agentId, message);
+				return job;
+			} else {
+				const job = yield* getJob(agentId);
+				yield* options.sessions.stop(agentId, "interrupted");
+				yield* Deferred.await(job.completion);
+				return yield* launch(agentId, message);
+			}
 		}
-		yield* launch(agentId, message);
-		return { agent: agentId, status: "running" as const };
+		if (!TERMINAL_STATUSES.has(agent.status)) {
+			return yield* new AgentWorkflowError({ message: `Agent "${agentId}" cannot accept a new invocation.` });
+		}
+		return yield* launch(agentId, message);
 	});
 
-	const steerAgent: AgentWorkflows["steerAgent"] = Effect.fnUntraced(function* (
+	const acknowledgeInvocationEvent = Effect.fnUntraced(function* (result: AgentInvocationResult) {
+		const event = (yield* options.store.pendingEvents([result.agent])).find(
+			(candidate) => candidate.invocationId === result.invocationId && candidate.type === result.status,
+		);
+		if (event === undefined) return;
+
+		const claimId = randomUUID();
+		const claimed = yield* options.store.claimEvents(claimId, [result.agent], [event.id]);
+		if (claimed.length === 0) return;
+		yield* Effect.ensuring(
+			options.store.acknowledgeEvents(
+				claimId,
+				claimed.map((candidate) => candidate.id),
+				Date.now(),
+			),
+			options.store.releaseClaim(claimId).pipe(Effect.orDie),
+		);
+	});
+
+	const sendAgent: AgentWorkflows["sendAgent"] = Effect.fnUntraced(function* (
 		agentId: string,
-		instruction: string,
+		message: string,
 		mode: "steer" | "interrupt" = "steer",
+		wait = false,
 	) {
-		if (instruction.trim().length === 0)
-			return yield* new AgentWorkflowError({ message: "A steering instruction must not be blank." });
-		const agent = yield* requireDirectAgent(options.store, agentId);
-		if (agent.status === "waiting_parent") {
-			return yield* new AgentWorkflowError({
-				message: `Agent "${agentId}" is waiting for a parent answer; use answer_agent.`,
-			});
+		if (wait) {
+			return yield* Effect.uninterruptibleMask((restore) =>
+				Effect.gen(function* () {
+					const job = yield* sendMessage(agentId, message, mode);
+					const result = yield* restore(Deferred.await(job.completion));
+					yield* acknowledgeInvocationEvent(result);
+					return toInvocationEventResult(result);
+				}),
+			);
 		}
-		if (agent.status !== "running")
-			return yield* new AgentWorkflowError({ message: `Agent "${agentId}" is not running; use send_agent.` });
-		if (mode === "steer") {
-			yield* options.sessions.steer(agentId, instruction);
-			return { agent: agentId, status: "running" as const };
-		}
-		const job = yield* getJob(agentId);
-		yield* options.sessions.stop(agentId, "interrupted");
-		yield* Deferred.await(job.completion);
-		yield* launch(agentId, instruction);
+		yield* sendMessage(agentId, message, mode);
 		return { agent: agentId, status: "running" as const };
 	});
 
@@ -456,15 +489,6 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		);
 	});
 
-	const getJob = Effect.fnUntraced(function* (agentId: string) {
-		const job = (yield* Ref.get(jobs)).get(agentId);
-		if (job === undefined)
-			return yield* new AgentWorkflowError({ message: `Agent "${agentId}" has no live invocation.` });
-		return job;
-	});
-
-	const hasJob = (agentId: string) => Ref.get(jobs).pipe(Effect.map((current) => current.has(agentId)));
-
 	const dispose = Effect.fnUntraced(function* () {
 		if (closed) return;
 		closed = true;
@@ -479,7 +503,6 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		spawnAgent,
 		waitAgent,
 		sendAgent,
-		steerAgent,
 		cancelAgent,
 		childCommunication: (agentId: string) => ({
 			askParent: (message: string, suggestedOptions?: readonly string[]) =>
@@ -497,6 +520,14 @@ function toEventResult(event: MailboxEvent): AgentEventResult {
 		...(event.message === undefined ? {} : { message: event.message }),
 		...(event.options === undefined ? {} : { options: event.options }),
 		...(event.error === undefined ? {} : { error: event.error }),
+	};
+}
+
+function toInvocationEventResult(result: AgentInvocationResult): AgentEventResult {
+	return {
+		agent: result.agent,
+		event: result.status,
+		...(result.error === undefined ? {} : { error: result.error }),
 	};
 }
 

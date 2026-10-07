@@ -9,11 +9,13 @@ import { enabledModelSkillNames, SKILLS_STATE_ENTRY, type PersistedSkillsState }
 export default function skillsExtension(
 	pi: ExtensionAPI,
 	applicationEffects: ApplicationEffects,
-	policy?: ProfileCapabilityPolicy,
+	policySource?: ProfileCapabilityPolicy | (() => ProfileCapabilityPolicy | undefined),
 ): void {
+	const getPolicy = typeof policySource === "function" ? policySource : () => policySource;
 	pi.registerCommand("skills", {
 		description: "Inspect and toggle model-visible Pi skills for this session",
 		handler: async (_args, ctx) => {
+			const policy = getPolicy();
 			const options = ctx.getSystemPromptOptions();
 			const skills = policy?.filterSkills(options.skills ?? []) ?? options.skills ?? [];
 			const enabledNames = new Set(enabledModelSkillNames(ctx.sessionManager.getBranch(), skills, policy));
