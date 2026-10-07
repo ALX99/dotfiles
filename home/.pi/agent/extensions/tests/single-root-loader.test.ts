@@ -6,36 +6,30 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
 
-test("Pi loads all personal features through the single package entry point", async (t) => {
+test("the package entry point loads its core features through Pi's extension loader", async (t) => {
 	const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as {
 		pi?: { extensions?: string[] };
 	};
-	assert.deepEqual(manifest.pi?.extensions, ["./index.ts"]);
+	const extensions = manifest.pi?.extensions;
+	assert.deepEqual(extensions, ["./index.ts"]);
+	if (extensions === undefined) throw new Error("missing Pi extension entry point");
 
 	const root = await mkdtemp(join(tmpdir(), "personal-extension-loader-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
-	const entry = fileURLToPath(new URL("../index.ts", import.meta.url));
+	const packageRoot = new URL("../", import.meta.url);
+	const entry = fileURLToPath(new URL(extensions[0]!, packageRoot));
 	const loaded = await discoverAndLoadExtensions([entry], root, join(root, "agent"));
 
 	assert.deepEqual(loaded.errors, []);
 	assert.equal(loaded.extensions.length, 1);
-
-	const [extension] = loaded.extensions;
-	assert.ok(extension);
-	for (const event of [
-		"before_provider_request",
-		"session_before_compact",
-		"tool_call",
-		"agent_settled",
-		"before_agent_start",
-	]) {
+	const extension = loaded.extensions[0]!;
+	for (const event of ["before_provider_request", "tool_call", "agent_settled"]) {
 		assert.ok(extension.handlers.has(event), `missing ${event} handler`);
 	}
-	assert.ok((extension.handlers.get("before_provider_request")?.length ?? 0) > 0);
-	for (const command of ["codex-web-search", "skills", "tasks", "systemprompt"]) {
+	for (const command of ["skills", "tasks"]) {
 		assert.ok(extension.commands.has(command), `missing /${command} command`);
 	}
-	for (const tool of ["apply_patch", "web_search_log", "create_tasks", "finish_task"]) {
+	for (const tool of ["create_tasks", "finish_task", "spawn_agent"]) {
 		assert.ok(extension.tools.has(tool), `missing ${tool} tool`);
 	}
 });

@@ -1,8 +1,15 @@
 import * as assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { observeToolFiles } from "../tool-observations.ts";
+import { observeToolFiles, resolveToolPath } from "../tool-observations.ts";
 
 const cwd = "/workspace/project";
+
+test("resolveToolPath expands home shortcuts", () => {
+	assert.equal(resolveToolPath("~", cwd), homedir());
+	assert.equal(resolveToolPath("~/notes.md", cwd), join(homedir(), "notes.md"));
+});
 
 test("read paths are attempted targets but not mutations", () => {
 	assert.deepEqual(observeToolFiles("read", { path: "src/./file.ts" }, cwd), {

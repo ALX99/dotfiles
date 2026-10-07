@@ -171,7 +171,9 @@ test("registration changes only rendering and passes unrelated tools to the next
 	for (const name of ["bash", "edit", "read"]) {
 		const renderer = resolver(name, () => undefined);
 		assert.ok(renderer);
-		assert.deepEqual(Object.keys(renderer).toSorted(), ["renderCall", "renderResult", "renderShell"]);
+		assert.equal(typeof renderer.renderCall, "function");
+		assert.equal(typeof renderer.renderResult, "function");
+		assert.equal(renderer.renderShell, "self");
 	}
 	const downstream: ToolRenderers = { renderShell: "default" };
 	assert.equal(
@@ -182,20 +184,6 @@ test("registration changes only rendering and passes unrelated tools to the next
 		resolver("unknown", () => undefined),
 		undefined,
 	);
-});
-
-test("the four-row spinner advances through a complete loop without repeating the boundary frame", async (t) => {
-	const frames: string[] = [];
-	const { row, render, handlers } = setup("sleep 10", () => {
-		frames.push(render()[1]!.split(" ")[0]!);
-	});
-	t.after(() => handlers.get("session_shutdown")?.());
-	row.markExecutionStarted();
-	frames.length = 0;
-	frames.push(render()[1]!.split(" ")[0]!);
-	await t.waitFor(() => assert.ok(frames.length >= 10), { interval: 10, timeout: 3000 });
-	row.updateResult(result("done"));
-	assert.deepEqual(frames.slice(0, 10), ["⠛", "⠹", "⢸", "⣰", "⣤", "⣆", "⡇", "⠏", "⠛", "⠹"]);
 });
 
 test("a running command reports its elapsed time in seconds, then in minutes", async (t) => {

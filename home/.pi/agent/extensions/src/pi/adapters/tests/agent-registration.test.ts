@@ -180,7 +180,7 @@ test("the Pi adapter binds parent and child tool surfaces to session-scoped work
 
 	await disposeChild();
 	await assert.rejects(
-		Promise.resolve().then(() =>
+		async () =>
 			child.tools
 				.get("list_agents")!
 				.execute(
@@ -190,8 +190,7 @@ test("the Pi adapter binds parent and child tool surfaces to session-scoped work
 					undefined,
 					context("child-session", directory) as unknown as ExtensionToolContext,
 				),
-		),
-		/Agent workflows are not ready/u,
+		Error,
 		"the explicit adapter disposer closes session-scoped workflows without session_shutdown",
 	);
 

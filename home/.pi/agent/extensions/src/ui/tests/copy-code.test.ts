@@ -1,10 +1,14 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { extractCodeBlocks, getLastAssistantReply } from "../copy-code.ts";
 
-function assistantEntry(text: string, stopReason: "stop" | "toolUse" | "aborted" = "stop"): SessionEntry {
+function assistantEntry(
+	content: string | AssistantMessage["content"],
+	stopReason: "stop" | "toolUse" | "aborted" = "stop",
+): SessionEntry {
 	return {
 		type: "message",
 		id: "assistant",
@@ -12,7 +16,7 @@ function assistantEntry(text: string, stopReason: "stop" | "toolUse" | "aborted"
 		timestamp: new Date(0).toISOString(),
 		message: {
 			role: "assistant",
-			content: text === "" ? [] : [{ type: "text", text }],
+			content: typeof content === "string" ? (content === "" ? [] : [{ type: "text", text: content }]) : [...content],
 			api: "test",
 			provider: "test",
 			model: "test",
@@ -81,7 +85,13 @@ test("getLastAssistantReply reads only the latest assistant message", () => {
 	assert.equal(getLastAssistantReply(entries), "The latest answer has no code.");
 });
 
-test("getLastAssistantReply joins text content and ignores an empty aborted message", () => {
-	const entries = [assistantEntry("```sh\nprintf 'ok'\n```"), assistantEntry("", "aborted")];
-	assert.equal(getLastAssistantReply(entries), "```sh\nprintf 'ok'\n```");
+test("getLastAssistantReply joins text blocks, ignores other content, and skips an empty aborted reply", () => {
+	const reply = "```sh\nprintf 'ok'\n```";
+	const splitReply: AssistantMessage["content"] = [
+		{ type: "text", text: "```sh\n" },
+		{ type: "thinking", thinking: "not part of the reply" },
+		{ type: "text", text: "printf 'ok'\n```" },
+	];
+	const entries = [assistantEntry("older reply"), assistantEntry(splitReply), assistantEntry("", "aborted")];
+	assert.equal(getLastAssistantReply(entries), reply);
 });

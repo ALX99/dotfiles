@@ -143,10 +143,23 @@ test("normalization removes image parts for a model that cannot read them", () =
 });
 
 test("normalization returns copies, so replaying cannot alias stored state", () => {
-	const items: ResponseItem[] = [{ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] }];
+	const original = {
+		type: "message" as const,
+		role: "user",
+		content: [{ type: "input_text" as const, text: "hi" }],
+	};
+	const items: ResponseItem[] = [original];
 	const normalized = normalizeResponseItemsForPrompt(items, textModel);
-	normalized[0] = { type: "compaction", encrypted_content: "changed" };
-	assert.deepEqual(items[0], { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] });
+	const copiedMessage = normalized[0] as typeof original | undefined;
+	assert.ok(copiedMessage);
+	assert.equal(copiedMessage.type, "message");
+	assert.notStrictEqual(copiedMessage.content, original.content);
+	assert.notStrictEqual(copiedMessage.content[0], original.content[0]);
+
+	const copiedText = copiedMessage.content[0];
+	assert.ok(copiedText);
+	copiedText.text = "changed";
+	assert.deepEqual(original.content, [{ type: "input_text", text: "hi" }]);
 });
 
 test("compacted history keeps the retained user turns and the compaction item", () => {

@@ -211,14 +211,9 @@ test("rejects a corrupt registry instead of replacing it with empty state", asyn
 	const directory = await mkdtemp(join(tmpdir(), "pi-agent-corrupt-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	await mkdir(directory, { recursive: true });
-	await writeFile(agentStorePath("corrupt-session", directory), "{broken");
+	const path = agentStorePath("corrupt-session", directory);
+	await writeFile(path, "{broken");
 
-	await assert.rejects(
-		runPromise(openAgentStore({ ownerSessionId: "corrupt-session", directory })),
-		(error: unknown) => {
-			assert.ok(error instanceof AgentStoreError);
-			assert.match(error.message, /Could not parse/u);
-			return true;
-		},
-	);
+	await assert.rejects(runPromise(openAgentStore({ ownerSessionId: "corrupt-session", directory })), AgentStoreError);
+	assert.equal(await readFile(path, "utf8"), "{broken");
 });

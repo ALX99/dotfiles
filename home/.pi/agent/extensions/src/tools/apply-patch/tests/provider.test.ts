@@ -373,16 +373,6 @@ test("activation is idempotent and toggles only apply_patch", () => {
 	assert.equal(fixture.setCalls.length, 2, "repeated deactivation must be a no-op");
 });
 
-test("activation toggles only apply_patch and preserves built-in tool order", () => {
-	const fixture = registerActivationFixture(["read", "write", "edit"]);
-
-	fixture.start(grammarModel());
-	assert.deepEqual(fixture.active, ["read", "write", "edit", "apply_patch"]);
-
-	fixture.select(model());
-	assert.deepEqual(fixture.active, ["read", "write", "edit"]);
-});
-
 test("startup without grammar support removes only a pre-existing apply_patch activation", () => {
 	const fixture = registerActivationFixture(["read", "apply_patch"]);
 	fixture.start(model());

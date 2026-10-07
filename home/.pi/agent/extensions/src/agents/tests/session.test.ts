@@ -581,10 +581,9 @@ test("classifies normal, aborted, cancelled, and failed invocations from outcome
 	assert.deepEqual(classifyInvocationOutcome("aborted"), { status: "interrupted" });
 	assert.deepEqual(classifyInvocationOutcome("aborted", "cancelled"), { status: "cancelled" });
 	assert.deepEqual(classifyInvocationOutcome("aborted", "interrupted"), { status: "interrupted" });
-	assert.deepEqual(classifyInvocationOutcome("error"), {
-		status: "error",
-		error: "The agent runtime reported an error.",
-	});
+	const unreportedFailure = classifyInvocationOutcome("error");
+	assert.equal(unreportedFailure.status, "error");
+	assert.ok(unreportedFailure.error);
 	assert.deepEqual(classifyInvocationOutcome(undefined, undefined, new Error("Provider failed.")), {
 		status: "error",
 		error: "Provider failed.",
@@ -718,12 +717,13 @@ test("one agent cannot run overlapping invocations or stop after settling", asyn
 
 	await assert.rejects(
 		runPromise(owner.invoke(record.id, "This concurrent invocation must be rejected.")),
-		(error: unknown) => error instanceof AgentStateError && /already running/u.test(error.message),
+		AgentStateError,
 	);
+	const stillRunning = await runPromise(store.getAgent(record.id));
+	assert.equal(stillRunning?.status, "running");
+	assert.equal(stillRunning?.invocationId, record.invocationId);
 	releaseResponse();
 	assert.equal((await firstInvocation).status, "settled");
-	await assert.rejects(
-		runPromise(owner.stop(record.id, "cancelled")),
-		(error: unknown) => error instanceof AgentStateError && /no active invocation/u.test(error.message),
-	);
+	await assert.rejects(runPromise(owner.stop(record.id, "cancelled")), AgentStateError);
+	assert.equal((await runPromise(store.getAgent(record.id)))?.status, "settled");
 });

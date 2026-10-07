@@ -91,22 +91,22 @@ const stateOf = (entries: readonly TaskLogEntry[]): ActiveQueue => replay(entrie
 
 const taskIds = (active: ActiveQueue): string[] => active.queue.tasks.map((task) => task.id);
 
-test("task-start guidance bounds work to the current result, including planning and discovery", () => {
-	const prompt = nextTaskPrompt({ id: "t1", title: "Plan the parser fix" });
-	assert.match(prompt, /^Continue with t1: Plan the parser fix\./u);
-	assert.match(prompt, /Do only the work needed to achieve and verify its stated result/u);
-	assert.match(prompt, /leave later tasks for their own turn/u);
-	assert.match(prompt, /record it as a follow-up rather than doing it now/u);
-	assert.match(prompt, /For planning or discovery/u);
-	assert.match(prompt, /without implementing those tasks/u);
-	assert.match(prompt, /Once the current task is complete, call finish_task before continuing/u);
-});
+test("task prompts keep work on the current task and defer discovered work", () => {
+	const task = { id: "t1", title: "Plan the parser fix" };
+	const start = nextTaskPrompt(task);
 
-test("the settle-time reminder asks for completion without inviting extra work", () => {
-	assert.equal(
-		taskReminderPrompt({ id: "t1", title: "Plan the parser fix" }),
-		'If the current task "Plan the parser fix" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
-	);
+	assert.ok(start.includes(`${task.id}: ${task.title}`));
+	assert.match(start, /current task/iu);
+	assert.match(start, /only the work needed .*result/iu);
+	assert.match(start, /(?:leave|defer).*later tasks/iu);
+	assert.match(start, /planning or discovery.*follow-up tasks.*without implementing/iu);
+	assert.match(start, /finish_task before continuing/iu);
+
+	const reminder = taskReminderPrompt(task);
+	assert.ok(reminder.includes(task.title));
+	assert.match(reminder, /current task.*complete.*finish_task/iu);
+	assert.match(reminder, /rather than.*additional work/iu);
+	assert.match(reminder, /only.*work needed for this task/iu);
 });
 
 test("replay is stable across a restart", () => {

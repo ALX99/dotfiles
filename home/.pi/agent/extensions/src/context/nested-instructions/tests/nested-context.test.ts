@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -12,8 +12,6 @@ import nestedContext, {
 	formatNestedContext,
 	injectedContextPaths,
 	NESTED_CONTEXT_MESSAGE_TYPE,
-	patchTargetPaths,
-	toolCallTargetPaths,
 } from "../nested-context.ts";
 import { runPromise } from "../../../support/effect-runtime.ts";
 import { bindNestedContextEvents } from "../../../pi/adapters/model-context.ts";
@@ -132,40 +130,6 @@ test("skips already-loaded paths and files outside or at cwd", async () => {
 	assert.deepEqual(await collect(join(outside, "x.ts"), root, new Set()), []);
 });
 
-test("extracts target paths from read/edit/write inputs resolved against cwd", () => {
-	const root = makeRepo();
-	assert.deepEqual(toolCallTargetPaths("read", { path: "a.txt" }, root), [join(root, "a.txt")]);
-	assert.deepEqual(toolCallTargetPaths("edit", { path: "/abs/a.txt" }, root), ["/abs/a.txt"]);
-	assert.deepEqual(toolCallTargetPaths("read", { path: "~/notes.md" }, root), [join(homedir(), "notes.md")]);
-	assert.deepEqual(toolCallTargetPaths("write", { path: "~/notes.md" }, root), [join(homedir(), "notes.md")]);
-	assert.deepEqual(toolCallTargetPaths("read", { path: "~" }, root), [homedir()]);
-	assert.deepEqual(toolCallTargetPaths("edit", { path: "@a.txt" }, root), [join(root, "a.txt")]);
-	assert.deepEqual(toolCallTargetPaths("bash", { command: "echo hi > a.txt" }, root), []);
-});
-
-test("parses apply_patch file lines into deduplicated absolute paths", () => {
-	const root = makeRepo();
-	const patch = [
-		"*** Begin Patch",
-		"*** Add File: src/new.ts",
-		"+export {}",
-		"*** Update File: src/new.ts",
-		"@@",
-		"-old",
-		"+new",
-		"*** Move to: src/renamed.ts",
-		"*** Delete File: docs/old.md",
-		"*** End Patch",
-	].join("\n");
-
-	assert.deepEqual(patchTargetPaths(patch), ["src/new.ts", "src/renamed.ts", "docs/old.md"]);
-	assert.deepEqual(toolCallTargetPaths("apply_patch", { patch }, root), [
-		join(root, "src/new.ts"),
-		join(root, "src/renamed.ts"),
-		join(root, "docs/old.md"),
-	]);
-});
-
 test("injects discovered context once per path and steers it into the conversation", async () => {
 	const root = makeRepo();
 	writeTree(root, { "A/B/AGENTS.md": "rules for B" });
@@ -197,7 +161,7 @@ test("injects discovered context once per path and steers it into the conversati
 	assert.match(harness.sent[1]!.content, /rules for C/);
 });
 
-test("a new session clears the cache while resume keeps it", async () => {
+test("a new session clears previously injected context", async () => {
 	const root = makeRepo();
 	writeTree(root, { "A/AGENTS.md": "rules" });
 	const harness = loadExtension();
@@ -266,6 +230,6 @@ test("injectedContextPaths reads only matching custom messages with string paths
 test("formats injected content with per-path instruction blocks", () => {
 	const formatted = formatNestedContext([{ path: "/repo/A/AGENTS.md", content: "be terse" }]);
 	assert.match(formatted, /<context-file path="\/repo\/A\/AGENTS\.md">\nbe terse\n<\/context-file>/);
-	assert.match(formatted, /NESTED|instructions when working/i);
+	assert.match(formatted, /^Follow these instructions when working on files under each directory:$/m);
 	assert.equal(formatted.includes(NESTED_CONTEXT_MESSAGE_TYPE), false);
 });

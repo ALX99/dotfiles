@@ -41,6 +41,8 @@ Keep tracked links as links: `CLAUDE.md` targets this file, `home/.bash_profile`
 
 Keep this repository map current. When a change adds, removes, or relocates a major subsystem; changes an architectural boundary or source of truth; or introduces a critical repository-wide constraint, update `AGENTS.md` in the same commit. Do not record routine implementation details or file-level churn.
 
+- During Pi extension work, routinely audit tests and remove redundant, implementation-shaped, or incidental-copy assertions when they cover no distinct observable behavior; preserve public contracts, real workflows, and regressions.
+
 # Learning More About Effect
 
 The Pi extensions use the Effect TypeScript library.

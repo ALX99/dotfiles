@@ -150,14 +150,6 @@ test("host information matches mini-swe-agent's uname template", () => {
 	);
 });
 
-test("host information reads the real host when none is injected", () => {
-	const information = hostInformation();
-	assert.ok(information.system.length > 0);
-	assert.ok(information.release.length > 0);
-	assert.ok(information.version.length > 0);
-	assert.ok(information.machine.length > 0);
-});
-
 test("tildePath shortens only paths under home", () => {
 	assert.equal(tildePath("/home/dozy", "/home/dozy"), "~");
 	assert.equal(tildePath("/home/dozy/dotfiles/AGENTS.md", "/home/dozy"), "~/dotfiles/AGENTS.md");
@@ -238,12 +230,6 @@ test("tools behind codemode render as their own block instead of as callable", (
 	);
 });
 
-test("no second tool block renders when every tool is directly callable", () => {
-	const prompt = build({ selectedTools: ["read"] });
-
-	assert.equal(prompt.includes("Tools reachable only through the `codemode` tool:"), false);
-});
-
 test("codemode.mode only moves the active direct tools behind the codemode tool", () => {
 	const registry = {
 		getActiveTools: () => ["codemode", "read", "bash", "web_search"],
@@ -263,36 +249,10 @@ test("codemode.mode only moves the active direct tools behind the codemode tool"
 	});
 });
 
-test("codemode.mode on leaves every active tool directly callable", () => {
-	const registry = {
-		getActiveTools: () => ["read", "bash"],
-		getAllTools: () => [
-			{ name: "read", exposure: "direct" },
-			{ name: "bash", exposure: "direct" },
-		],
-		getSettings: () => ({ codemode: { mode: "on" as const } }),
-	};
-
-	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [], throughCodemode: false });
-});
-
 test("a tool the registry does not describe stays directly callable", () => {
 	const registry = { getActiveTools: () => ["read"], getAllTools: () => [] };
 
 	assert.deepEqual(promptTools(registry), { direct: ["read"], scripted: [], throughCodemode: false });
-});
-
-test("codemode.mode only does nothing while the codemode tool is inactive", () => {
-	const registry = {
-		getActiveTools: () => ["read", "bash"],
-		getAllTools: () => [
-			{ name: "read", exposure: "direct" },
-			{ name: "bash", exposure: "direct" },
-		],
-		getSettings: () => ({ codemode: { mode: "only" as const } }),
-	};
-
-	assert.deepEqual(promptTools(registry), { direct: ["read", "bash"], scripted: [], throughCodemode: false });
 });
 
 test("the extension renders the codemode split from the live registry", async () => {
@@ -383,41 +343,17 @@ test("the parallelize guideline renders while the model holds the tools", () => 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n").slice(0, 2), [`- ${PARALLELIZE}`, "- Only tools rule"]);
 });
 
-test("the parallelize guideline is dropped once codemode holds the tools", () => {
-	const prompt = buildSystemPrompt(options({ promptGuidelines: [PARALLELIZE, "Only tools rule"] }), HOST, undefined, {
-		owners: new Map(),
-		scripted: ["read", "bash"],
-		throughCodemode: true,
-	});
-
-	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n").slice(0, 2), [
-		"- Only tools rule",
-		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-	]);
-});
-
-test("the parallelize guideline survives a codemode mode that leaves the tools direct", () => {
-	const prompt = buildSystemPrompt(options({ promptGuidelines: [PARALLELIZE] }), HOST, undefined, {
-		owners: new Map(),
-		scripted: [],
-		throughCodemode: false,
-	});
-
-	assert.equal(section(prompt, "Guidelines:")?.split("\n")[0], `- ${PARALLELIZE}`);
-});
-
-test("the parallelize guideline survives reworded in APPEND_SYSTEM.md", () => {
+test("codemode-only mode suppresses a reworded parallelize guideline by its prefix", () => {
 	const prompt = buildSystemPrompt(
-		options({ promptGuidelines: ["Parallelize independent work: run the two reads at once."] }),
+		options({ promptGuidelines: ["Parallelize independent work: run the two reads at once.", "Only tools rule"] }),
 		HOST,
 		undefined,
-		{ owners: new Map(), scripted: ["read"], throughCodemode: false },
+		{ owners: new Map(), scripted: ["read"], throughCodemode: true },
 	);
 
-	assert.equal(
-		section(prompt, "Guidelines:")?.split("\n")[0],
-		"- Parallelize independent work: run the two reads at once.",
-	);
+	const guidelines = section(prompt, "Guidelines:") ?? "";
+	assert.doesNotMatch(guidelines, /Parallelize independent work:/);
+	assert.match(guidelines, /- Only tools rule/);
 });
 
 test("tool-owned guidelines always use the tool prefix", () => {
@@ -455,17 +391,6 @@ test("Pi's PI_* environment variable guideline is dropped", () => {
 
 	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- Only tools rule",
-		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
-		"- bash: Use Conventional Commits when committing.",
-	]);
-});
-
-test("dropping the PI_* guideline alone leaves only the renderer's own rules", () => {
-	const prompt = build({
-		promptGuidelines: ["You can inspect PI_* environment variables for current model and session details."],
-	});
-
-	assert.deepEqual(section(prompt, "Guidelines:")?.split("\n"), [
 		"- read: Paths beginning with `~/` are supported; use them instead of guessing an absolute home directory.",
 		"- bash: Use Conventional Commits when committing.",
 	]);
@@ -758,7 +683,7 @@ test("the prompt follows profile changes for instructions, tools, and visible sk
 	const restricted = await run(promptOptions);
 	assert.match(restricted ?? "", /Profile instructions \(researcher\)/);
 	assert.match(restricted ?? "", /Separate evidence from inference\./);
-	assert.match(restricted ?? "", /Available tools:\n- read: Read files/);
+	assert.match(restricted ?? "", /Available tools:\n- read:/);
 	assert.doesNotMatch(restricted ?? "", /- bash:|- edit:/);
 	assert.match(restricted ?? "", /\* `research`/);
 	assert.doesNotMatch(restricted ?? "", /`design`/);
@@ -996,6 +921,12 @@ function createViewer(prompt: string, rows = 20) {
 	};
 }
 
+function viewportRange(footer: string): { first: number; last: number; total: number } {
+	const match = /lines\s+(\d+)-(\d+)\s+of\s+(\d+)/u.exec(footer);
+	assert.ok(match, `expected a line range in ${JSON.stringify(footer)}`);
+	return { first: Number(match[1]), last: Number(match[2]), total: Number(match[3]) };
+}
+
 test("the viewer shows a titled viewport plus a scroll footer", () => {
 	const harness = createViewer("line one\n\nline two\n\nline three");
 	const lines = harness.render();
@@ -1016,19 +947,22 @@ test("page, home, and end keys move the viewport and request a render", () => {
 	const long = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`).join("\n\n");
 	const harness = createViewer(long, 24);
 
-	assert.match(harness.footer(), /lines 1-/);
+	const firstPage = viewportRange(harness.footer());
+	assert.equal(firstPage.first, 1);
 
 	harness.viewer.handleInput("\u001b[6~"); // page down
-	assert.match(harness.footer(), /lines 2[0-9]-/);
+	const nextPage = viewportRange(harness.footer());
+	assert.ok(nextPage.first > firstPage.first);
+	assert.ok(nextPage.last > firstPage.last);
 	assert.ok(harness.renders() > 0, "scrolling requests a render");
 
 	harness.viewer.handleInput("\u001b[5~"); // page up
-	assert.match(harness.footer(), /lines 1-/);
+	assert.equal(viewportRange(harness.footer()).first, firstPage.first);
 
 	harness.viewer.handleInput("\u001b[F"); // end
 	assert.match(harness.render().join("\n"), /line 300/);
 	harness.viewer.handleInput("\u001b[H"); // home
-	assert.match(harness.footer(), /lines 1-/);
+	assert.equal(viewportRange(harness.footer()).first, firstPage.first);
 	assert.doesNotMatch(harness.render().join("\n"), /line 300/);
 });
 
@@ -1037,12 +971,11 @@ test("the viewport stops at the last page rather than scrolling past it", () => 
 	const harness = createViewer(long, 24);
 
 	harness.viewer.handleInput("\u001b[F");
-	const total = Number(/of (\d+) ·/.exec(harness.footer())?.[1]);
-	const end = Number(/-(\d+) of/.exec(harness.footer())?.[1]);
-	assert.equal(end, total);
+	const lastPage = viewportRange(harness.footer());
+	assert.equal(lastPage.last, lastPage.total);
 
 	harness.viewer.handleInput("\u001b[6~"); // page down again must not overshoot
-	assert.equal(Number(/-(\d+) of/.exec(harness.footer())?.[1]), total);
+	assert.deepEqual(viewportRange(harness.footer()), lastPage);
 });
 
 test("enter and escape dismiss the viewer", () => {

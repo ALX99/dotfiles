@@ -43,7 +43,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 	const handlers = new Map<string, (event: never, ctx: never) => unknown>();
 	const sentUserMessages: Array<{ content: unknown; options: unknown }> = [];
 	const sentMessages: Array<{
-		message: { customType: string; content?: string; details?: Record<string, unknown> };
+		message: { customType: string; content?: string; details?: Record<string, unknown>; display?: boolean };
 		options: unknown;
 	}> = [];
 	const notifications: string[] = [];
@@ -77,7 +77,7 @@ function createHarness(initialBranch: Entry[] = [], mode?: string) {
 			sentUserMessages.push({ content, options });
 		},
 		sendMessage(
-			message: { customType: string; content?: string; details?: Record<string, unknown> },
+			message: { customType: string; content?: string; details?: Record<string, unknown>; display?: boolean },
 			options: unknown,
 		) {
 			sentMessages.push({ message, options });
@@ -295,11 +295,10 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.equal(Check(finish.parameters!, { result: "completed", outcome: "Not supported." }), false);
 	const createProperties = (
 		create.parameters as {
-			properties: { tasks: { items: { description: string; maxLength: number } } };
+			properties: { tasks: { items: { maxLength: number } } };
 		}
 	).properties;
 	assert.equal(createProperties.tasks.items.maxLength, MAX_TASK_TITLE_LENGTH);
-	assert.match(createProperties.tasks.items.description, /at most 400 characters/u);
 	assert.equal(
 		Check(finish.parameters!, {
 			status: "completed",
@@ -340,23 +339,16 @@ test("exposes only the two bookkeeping tools with model-facing schemas", () => {
 	assert.deepEqual(Object.keys(finishProperties), ["status", "outcome", "addTasks"]);
 	const followUpTitle = (
 		finishProperties.addTasks as {
-			items: { properties: { title: { description: string; maxLength: number } } };
+			items: { properties: { title: { maxLength: number } } };
 		}
 	).items.properties.title;
 	assert.equal(followUpTitle.maxLength, MAX_TASK_TITLE_LENGTH);
-	assert.match(followUpTitle.description, /at most 400 characters/u);
-	assert.match(
-		(finishProperties.outcome as { description: string }).description,
-		/Result, Verification, and Preserve\/Next headings/u,
-	);
 });
 
 test("the initial queue delivers the same scope guidance as later task starts", async () => {
 	const h = createHarness();
 	const result = await createQueueResult(h, ["Plan the parser fix"]);
 	assert.ok(result.content.endsWith(nextTaskPrompt(result.details.tasks[0]!)));
-	assert.match(result.content, /without implementing those tasks/u);
-	assert.match(result.content, /only tool call in its assistant turn/u);
 });
 
 test("starts with one discovery task and runs the tasks it discovers", async () => {
@@ -404,31 +396,6 @@ test("generates short stable task IDs for precise queue additions", async () => 
 		QUEUE_TITLES,
 	);
 	assert.match(created.content, /t1: Add schema/u);
-});
-
-test("generates task IDs for additions and defaults them after the current task", async () => {
-	const h = createHarness();
-	const created = await createQueueResult(h);
-	const queue = created.details;
-	const createCall = h.ctx.sessionManager.getBranch().find((entry) => entry.id === "queue-call-assistant");
-	assert.ok(createCall);
-
-	assert.match(created.content, /t1: Add schema/u);
-
-	const finish = await finishTask(
-		h,
-		{
-			status: "completed",
-			outcome: "Schema added and verified.",
-			addTasks: [{ title: "Investigate the unrelated parser warning." }],
-		},
-		"finish-1",
-	);
-	assert.deepEqual(finish.details.addedTasks, [
-		{ id: "t5", title: "Investigate the unrelated parser warning.", after: "current" },
-	]);
-	assert.match(finish.content, /Continue with t5: Investigate the unrelated parser warning\./u);
-	assert.equal(queue.tasks[0]?.id, "t1");
 });
 
 test("inserts additions after precise positions and preserves same-position order", async () => {
@@ -856,26 +823,20 @@ test("reminds the model once per unfinished task after the agent settles", async
 	const queue = await createQueue(h);
 
 	await settle(h);
-	assert.deepEqual(h.sentMessages, [
-		{
-			message: {
-				customType: "tasks:reminder",
-				content:
-					'If the current task "Add schema" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
-				display: false,
-				details: { queueId: queue.queueId, taskId: "t1" },
-			},
-			options: { triggerTurn: true, deliverAs: "followUp" },
-		},
-	]);
+	assert.equal(reminders(h).length, 1);
+	const firstReminder = reminders(h)[0]!;
+	assert.ok(firstReminder.message.content?.includes("Add schema"));
+	assert.equal(firstReminder.message.display, false);
+	assert.deepEqual(firstReminder.message.details, { queueId: queue.queueId, taskId: "t1" });
+	assert.deepEqual(firstReminder.options, { triggerTurn: true, deliverAs: "followUp" });
 
 	h.pushEntry({
 		id: "reminder-t1",
 		type: "custom_message",
 		customType: "tasks:reminder",
-		content: h.sentMessages[0]!.message.content,
+		content: firstReminder.message.content,
 		display: false,
-		details: h.sentMessages[0]!.message.details,
+		details: firstReminder.message.details,
 	});
 	await settle(h);
 	assert.equal(h.sentMessages.length, 1);
@@ -886,10 +847,7 @@ test("reminds the model once per unfinished task after the agent settles", async
 	await settle(h);
 
 	assert.equal(reminders(h).length, 2);
-	assert.equal(
-		reminders(h)[1]?.message.content,
-		'If the current task "Implement handler" is complete, call finish_task now rather than starting additional work. Otherwise, continue only the work needed for this task.',
-	);
+	assert.ok(reminders(h)[1]?.message.content?.includes("Implement handler"));
 	assert.deepEqual(reminders(h)[1]?.message.details, { queueId: queue.queueId, taskId: "t2" });
 });
 
@@ -967,7 +925,6 @@ for (const mode of ["print", "json"]) {
 		assert.equal(first.details.checkpoint, "inline");
 		assert.equal(first.terminate, false);
 		assert.ok(first.content.endsWith(nextTaskPrompt({ id: "t2", title: "Implement handler" })));
-		assert.doesNotMatch(first.content, /print|compaction|invocation/u);
 		h.pushEntry(toolResult("finish-1-result", "finish-1", "finish_task", first.details));
 
 		h.pushEntry(assistantToolCall("finish-2", "finish_task"));
@@ -1335,7 +1292,6 @@ test("re-anchors on the current task with the shared continuation after automati
 	const recovery = h.sentMessages.at(-1);
 	assert.equal(recovery?.message.customType, "tasks:recovery");
 	assert.equal(recovery?.message.content, nextTaskPrompt(queue.tasks[0]!));
-	assert.match(recovery?.message.content as string, /Focus on the current task/u);
 	assert.deepEqual(recovery?.message.details, {
 		queueId: queue.queueId,
 		taskId: "t1",

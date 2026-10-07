@@ -11,9 +11,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Effect, Predicate } from "effect";
 import type { ApplicationEffects } from "../../application.ts";
 import { readFileString } from "../../support/fs.ts";
-import { observeToolFiles, patchTargetPaths, resolveToolPath } from "../../integration/tool-observations.ts";
-
-export { patchTargetPaths };
+import { observeToolFiles, resolveToolPath } from "../../integration/tool-observations.ts";
 
 /**
  * Pi only loads context files at startup from the global agent dir and the

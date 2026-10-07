@@ -135,7 +135,7 @@ test("records inherited from an earlier process are hidden", () => {
 	);
 });
 
-test("a session with no searches hides nothing", () => {
+test("a compaction without search records creates no hidden searches", () => {
 	assert.deepEqual(hiddenSearchRecords([otherEntry("x"), compactionEntry("c1", "x")], new Set()), []);
 });
 

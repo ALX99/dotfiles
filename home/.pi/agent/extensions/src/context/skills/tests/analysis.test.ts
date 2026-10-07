@@ -7,7 +7,7 @@ import test from "node:test";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
 import { runPromise } from "../../../support/effect-runtime.ts";
-import { countDiagnostics, formatNativeSkillBlock, inspectSkills, summarizeSkillTokens } from "../analysis.ts";
+import { countDiagnostics, inspectSkills, summarizeSkillTokens } from "../analysis.ts";
 
 test("inspectSkills reports Pi metadata compatibility and token estimates", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-skills-analysis-"));
@@ -48,14 +48,19 @@ test("inspectSkills reports Pi metadata compatibility and token estimates", asyn
 		assert.ok(bad.diagnostics.some(({ message }) => message.includes("allowed-tools not active: edit")));
 
 		const counts = countDiagnostics(analyses);
-		assert.equal(counts.errors, 0);
-		assert.ok(counts.warnings >= 3);
+		assert.deepEqual(counts, { errors: 0, warnings: 3 });
 		const tokens = summarizeSkillTokens(analyses, new Set(["good", "manual"]), true);
 		assert.ok(tokens.activeDescriptorTokens > 0);
 		assert.equal(tokens.activeBodyTokens, good.bodyTokens);
-		assert.ok(tokens.allBodyTokens >= tokens.activeBodyTokens);
-		assert.ok(tokens.allNativeLoadTokens >= tokens.activeNativeLoadTokens);
-		assert.match(formatNativeSkillBlock(good.skill, good.body), /<skill name="good"/u);
+		assert.equal(tokens.activeNativeLoadTokens, good.nativeLoadTokens);
+		assert.equal(
+			tokens.allBodyTokens,
+			analyses.reduce((total, analysis) => total + analysis.bodyTokens, 0),
+		);
+		assert.equal(
+			tokens.allNativeLoadTokens,
+			analyses.reduce((total, analysis) => total + analysis.nativeLoadTokens, 0),
+		);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

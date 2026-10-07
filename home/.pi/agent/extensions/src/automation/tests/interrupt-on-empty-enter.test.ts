@@ -7,7 +7,6 @@ import {
 	type EmptyEnterUi,
 	createEmptyEnterHandler,
 	deliverRestoredText,
-	isPlainEnter,
 	shouldInterruptOnEmptyEnter,
 } from "../interrupt-on-empty-enter.ts";
 
@@ -74,12 +73,6 @@ test("does not interrupt for messages, autocomplete, disabled submits, or idle s
 
 test("leaves a stray empty Enter alone when nothing is queued to deliver", () => {
 	assert.equal(shouldInterruptOnEmptyEnter({ ...INTERRUPTING, queued: false }), false);
-});
-
-test("matches Enter but not newline keys", () => {
-	assert.equal(isPlainEnter("\r"), true);
-	assert.equal(isPlainEnter("\n"), false);
-	assert.equal(isPlainEnter("\x1b[13;2~"), false);
 });
 
 test("replays Escape and reports the text the interrupt restored", () => {
