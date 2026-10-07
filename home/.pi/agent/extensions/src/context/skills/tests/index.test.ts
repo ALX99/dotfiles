@@ -13,6 +13,7 @@ import {
 
 import skillsExtension from "../register.ts";
 import { enabledModelSkillNames, SKILLS_STATE_ENTRY } from "../state.ts";
+import { createCapabilityPolicy } from "../../../agents/policy.ts";
 
 const applicationEffects = {
 	initiate: (effect: Effect.Effect<void>) => Effect.runPromise(effect),
@@ -148,4 +149,51 @@ test("/skills persists a toggle for the prompt renderer and refuses changes afte
 		["alpha", "beta"],
 		"a new branch cannot inherit a runtime mirror",
 	);
+});
+
+test("profile policy filters skill visibility and the /skills activation surface", async () => {
+	const skills = [makeSkill("engineering"), makeSkill("design")];
+	const branch: SessionEntry[] = [];
+	let command: RegisteredCommand | undefined;
+	const choices = ["engineering", "engineering", "Done"];
+	const pi = {
+		registerCommand(_name: string, registered: RegisteredCommand) {
+			command = registered;
+		},
+		getActiveTools: () => ["read"],
+		appendEntry(customType: string, data: unknown) {
+			assert.equal(customType, SKILLS_STATE_ENTRY);
+			branch.push(selection(data));
+		},
+	} as unknown as ExtensionAPI;
+	const ctx = {
+		mode: "rpc",
+		hasUI: true,
+		getSystemPromptOptions: () => ({ skills, selectedTools: ["read"] }),
+		sessionManager: { getBranch: () => branch },
+		ui: {
+			notify() {},
+			select: async (_title: string, options: string[]) => {
+				assert.ok(options.some((option) => option.startsWith("engineering")));
+				assert.ok(!options.some((option) => option.startsWith("design")));
+				const choice = choices.shift();
+				assert.ok(choice !== undefined);
+				return options.find((option) => option.startsWith(choice));
+			},
+		},
+	} as unknown as ExtensionCommandContext;
+	const policy = createCapabilityPolicy({ name: "engineer", skills: ["engineering"] });
+
+	skillsExtension(pi, applicationEffects, policy);
+	assert.ok(command !== undefined);
+	await command.handler("", ctx);
+
+	assert.deepEqual([...enabledModelSkillNames(branch, skills, policy)], ["engineering"]);
+	const lastEntry = branch.at(-1);
+	assert.ok(lastEntry?.type === "custom");
+	assert.deepEqual(lastEntry.data, {
+		version: 1,
+		knownNames: ["engineering"],
+		enabledNames: ["engineering"],
+	});
 });

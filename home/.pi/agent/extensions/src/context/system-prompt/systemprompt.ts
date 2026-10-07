@@ -7,6 +7,8 @@ import { Key, Markdown, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import { Effect } from "effect";
 
 import type { ApplicationEffects } from "../../application.ts";
+import type { ProfileCapabilityPolicy } from "../../agents/policy.ts";
+import type { ProfileSnapshot } from "../../agents/profile.ts";
 import { writeFileString } from "../../support/fs.ts";
 import { enabledModelSkillNames } from "../skills/state.ts";
 
@@ -112,10 +114,11 @@ export interface PromptToolRegistry {
  * The insertion order also reproduces the list Pi builds for the same selection, so the map is the
  * live guideline list as well as the attribution source.
  */
-export function guidelineOwners(pi: PromptToolRegistry): ReadonlyMap<string, string> {
+export function guidelineOwners(pi: PromptToolRegistry, policy?: ProfileCapabilityPolicy): ReadonlyMap<string, string> {
 	const definitions = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
 	const owners = new Map<string, string>();
-	for (const name of pi.getActiveTools()) {
+	const activeTools = policy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools();
+	for (const name of activeTools) {
 		for (const guideline of definitions.get(name)?.promptGuidelines ?? []) {
 			const trimmed = guideline.trim();
 			// Pi keeps the first declaration of a duplicated guideline, so the owner does too.
@@ -138,12 +141,15 @@ const CODEMODE_TOOL = "codemode";
  * runs with the tool. The setting outlives `-builtin:codemode` and a session that drops the tool, so
  * it cannot stand alone as the condition.
  */
-export function promptTools(pi: PromptToolRegistry): {
+export function promptTools(
+	pi: PromptToolRegistry,
+	policy?: ProfileCapabilityPolicy,
+): {
 	direct: string[];
 	scripted: string[];
 	throughCodemode: boolean;
 } {
-	const active = pi.getActiveTools();
+	const active = policy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools();
 	const exposures = new Map(pi.getAllTools().map((tool) => [tool.name, tool.exposure]));
 	const throughCodemode = active.includes(CODEMODE_TOOL) && pi.getSettings?.().codemode?.mode === "only";
 	const direct: string[] = [];
@@ -194,6 +200,12 @@ function contextBlock(contextFiles: BuildSystemPromptOptions["contextFiles"]): s
 	return `<project_context>\n${instructions}\n</project_context>`;
 }
 
+/** Profile text is an additive layer after the normal Pi, tool, skill, and project instructions. */
+function profileBlock(profile?: Pick<ProfileSnapshot, "name" | "prompt">): string {
+	if (profile === undefined) return "";
+	return `Profile instructions (${profile.name}):\n\n${profile.prompt}`;
+}
+
 /**
  * A skill list is only useful when the model can open the files it points at. Pi applies the same
  * gate, and both skip skills that opted out of model invocation.
@@ -230,6 +242,7 @@ export function buildSystemPrompt(
 	host: HostInformation = hostInformation(),
 	enabledSkills?: ReadonlySet<string>,
 	tools?: PromptTools,
+	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
 ): string {
 	const uname = [host.system, host.release, host.version, host.machine].join(" ");
 	return [
@@ -240,20 +253,39 @@ export function buildSystemPrompt(
 		skillBlock(options, enabledSkills),
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
 		contextBlock(options.contextFiles),
+		profileBlock(profile),
 	]
 		.filter((section) => section.length > 0)
 		.join("\n\n");
 }
 
-export default function systemPromptExtension(pi: ExtensionAPI, applicationEffects: ApplicationEffects): void {
+export default function systemPromptExtension(
+	pi: ExtensionAPI,
+	applicationEffects: ApplicationEffects,
+	policy?: ProfileCapabilityPolicy,
+	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
+): void {
 	pi.on("before_agent_start", (event, ctx) => ({
-		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions),
+		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions, policy, profile),
 	}));
+
+	pi.registerCommand("tools", {
+		description: "List the tools currently active for the agent",
+		handler: async (_args, ctx) => {
+			const { direct, scripted } = promptTools(pi, policy);
+			const count = direct.length + scripted.length;
+			const lines = [`Active tools (${count}):`];
+			lines.push(...direct.map((name) => `- ${name}`));
+			lines.push(...scripted.map((name) => `- ${name} (via codemode)`));
+			if (count === 0) lines.push("- (none)");
+			ctx.ui.notify(lines.join("\n"), "info");
+		},
+	});
 
 	pi.registerCommand("systemprompt", {
 		description: "Show the system prompt the next turn will send, or write it to a file via /systemprompt <path>",
 		handler: async (args, ctx) => {
-			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions());
+			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions(), policy, profile);
 			const label = `${prompt.length} chars`;
 			const target = resolveTarget(args.trim());
 			if (target !== undefined) {
@@ -346,23 +378,30 @@ export class SystemPromptViewer {
  * as given: the host exposes normalized tool snippets only through them. `/skills` records its
  * selection in session entries rather than in those options, so it is read separately.
  */
-function currentPrompt(pi: ExtensionAPI, ctx: ExtensionContext, options: BuildSystemPromptOptions): string {
-	const owners = guidelineOwners(pi);
-	const { scripted, throughCodemode } = promptTools(pi);
+function currentPrompt(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	options: BuildSystemPromptOptions,
+	policy?: ProfileCapabilityPolicy,
+	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
+): string {
+	const owners = guidelineOwners(pi, policy);
+	const { scripted, throughCodemode } = promptTools(pi, policy);
 	const live: BuildSystemPromptOptions = {
 		...options,
-		selectedTools: pi.getActiveTools(),
+		selectedTools: policy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools(),
 		promptGuidelines: [...owners.keys()],
 	};
 	return buildSystemPrompt(
 		live,
 		hostInformation(),
-		enabledModelSkillNames(ctx.sessionManager.getBranch(), live.skills ?? []),
+		enabledModelSkillNames(ctx.sessionManager.getBranch(), live.skills ?? [], policy),
 		{
 			owners,
 			scripted,
 			throughCodemode,
 		},
+		profile,
 	);
 }
 

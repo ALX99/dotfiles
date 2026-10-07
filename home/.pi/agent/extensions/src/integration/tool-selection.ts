@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import type { ProfileCapabilityPolicy } from "../agents/policy.ts";
 import { APPLY_PATCH_TOOL_NAME } from "../tools/apply-patch/types.ts";
 import { RECALL_TOOL_NAME } from "../openai/search/recall.ts";
 import { TASK_TOOL_NAMES } from "../tasks/tools.ts";
@@ -20,6 +21,8 @@ type Owner = keyof typeof OWNED_TOOLS;
 
 export interface ToolSelection {
 	getActiveTools(): string[];
+	/** Remove currently active tools that this session's profile does not permit. */
+	applyCapabilityPolicy(): void;
 	setApplyPatchActive(enabled: boolean): void;
 	setTaskTools(names: readonly string[]): void;
 	setSearchRecallActive(enabled: boolean): void;
@@ -30,7 +33,10 @@ export interface ToolSelection {
  * always starts from Pi's live selection, and reads back that selection after Pi applies its
  * registry and CLI constraints.
  */
-export function createToolSelection(pi: Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">): ToolSelection {
+export function createToolSelection(
+	pi: Pick<ExtensionAPI, "getActiveTools" | "setActiveTools">,
+	policy?: ProfileCapabilityPolicy,
+): ToolSelection {
 	const ownerByTool = new Map<string, Owner>();
 	for (const [owner, names] of OWNED_TOOL_ENTRIES) {
 		for (const name of names) {
@@ -61,13 +67,18 @@ export function createToolSelection(pi: Pick<ExtensionAPI, "getActiveTools" | "s
 		for (const name of managedNames) {
 			if (wanted.has(name) && !next.includes(name)) next.push(name);
 		}
-		if (active.length !== next.length || active.some((name, index) => name !== next[index])) {
-			pi.setActiveTools(next);
-		}
+		applyNames(next);
+	}
+
+	function applyNames(names: readonly string[]): void {
+		const next = policy?.filterToolNames(names) ?? [...names];
+		const active = pi.getActiveTools();
+		if (active.length !== next.length || active.some((name, index) => name !== next[index])) pi.setActiveTools(next);
 	}
 
 	return {
-		getActiveTools: () => pi.getActiveTools(),
+		getActiveTools: () => policy?.filterToolNames(pi.getActiveTools()) ?? pi.getActiveTools(),
+		applyCapabilityPolicy: () => applyNames(pi.getActiveTools()),
 		setApplyPatchActive: (enabled) => set("applyPatch", enabled ? OWNED_TOOLS.applyPatch : []),
 		setTaskTools: (names) => set("tasks", names),
 		setSearchRecallActive: (enabled) => set("searchRecall", enabled ? OWNED_TOOLS.searchRecall : []),

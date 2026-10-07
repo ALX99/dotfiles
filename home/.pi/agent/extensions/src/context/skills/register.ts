@@ -1,17 +1,22 @@
 import type { ExtensionAPI, ExtensionContext, Skill } from "@earendil-works/pi-coding-agent";
 
 import type { ApplicationEffects } from "../../application.ts";
+import type { ProfileCapabilityPolicy } from "../../agents/policy.ts";
 import { inspectSkills, summarizeSkillTokens } from "./analysis.ts";
 import { formatSkillsSummary, showSkillsPanel, showSkillsSelector, type SkillsPanelOptions } from "./ui.ts";
 import { enabledModelSkillNames, SKILLS_STATE_ENTRY, type PersistedSkillsState } from "./state.ts";
 
-export default function skillsExtension(pi: ExtensionAPI, applicationEffects: ApplicationEffects): void {
+export default function skillsExtension(
+	pi: ExtensionAPI,
+	applicationEffects: ApplicationEffects,
+	policy?: ProfileCapabilityPolicy,
+): void {
 	pi.registerCommand("skills", {
 		description: "Inspect and toggle model-visible Pi skills for this session",
 		handler: async (_args, ctx) => {
 			const options = ctx.getSystemPromptOptions();
-			const skills = options.skills ?? [];
-			const enabledNames = new Set(enabledModelSkillNames(ctx.sessionManager.getBranch(), skills));
+			const skills = policy?.filterSkills(options.skills ?? []) ?? options.skills ?? [];
+			const enabledNames = new Set(enabledModelSkillNames(ctx.sessionManager.getBranch(), skills, policy));
 			const locked = isSessionLocked(ctx);
 
 			const analyses = await applicationEffects.run(inspectSkills(skills, pi.getActiveTools()));

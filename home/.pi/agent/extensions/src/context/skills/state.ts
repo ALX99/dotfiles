@@ -1,6 +1,8 @@
 import type { SessionEntry, Skill } from "@earendil-works/pi-coding-agent";
 import { Result, Schema } from "effect";
 
+import type { ProfileCapabilityPolicy } from "../../agents/policy.ts";
+
 export const SKILLS_STATE_ENTRY = "pi.skills.visibility";
 
 const PersistedSkillsState = Schema.Struct({
@@ -28,11 +30,17 @@ export function readSelection(entries: readonly SessionEntry[]): Map<string, boo
 export function enabledModelSkillNames(
 	entries: readonly SessionEntry[],
 	skills: readonly Skill[],
+	policy?: ProfileCapabilityPolicy,
 ): ReadonlySet<string> {
 	const selection = readSelection(entries);
 	return new Set(
 		skills
-			.filter((skill) => !skill.disableModelInvocation && (selection?.get(skill.name) ?? true))
+			.filter(
+				(skill) =>
+					!skill.disableModelInvocation &&
+					(policy?.allowsSkill(skill.name) ?? true) &&
+					(selection?.get(skill.name) ?? true),
+			)
 			.map((skill) => skill.name),
 	);
 }

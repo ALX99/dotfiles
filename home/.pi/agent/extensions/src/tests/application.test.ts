@@ -41,7 +41,7 @@ test("settlement runs concrete work in application-owned priority order", async 
 	}
 });
 
-test("activity has one state owner and separate settled and keep-awake projections", async () => {
+test("activity stops its indicator on agent_end before settlement", async () => {
 	const runtime = createApplicationRuntime();
 	try {
 		const activity = (
@@ -70,7 +70,7 @@ test("activity has one state owner and separate settled and keep-awake projectio
 		});
 		assert.deepEqual(await activity("agent_end"), {
 			activeRuns: 1,
-			indicatorActive: true,
+			indicatorActive: false,
 			keepAwakeActive: false,
 		});
 		assert.deepEqual(await activity("agent_settled"), {

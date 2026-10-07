@@ -1,5 +1,6 @@
 import * as nodeFs from "node:fs/promises";
-import { dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { basename, dirname, join } from "node:path";
 import { Effect } from "effect";
 import { FsError, hasNodeErrorCode } from "./errors.ts";
 
@@ -13,9 +14,18 @@ export interface WriteFileOptions {
 export const readFileString = (path: string): Effect.Effect<string, FsError> =>
 	attempt("read", path, () => nodeFs.readFile(path, "utf8"));
 
+export const readDirectoryFileNames = (path: string): Effect.Effect<readonly string[], FsError> =>
+	attempt("readdir", path, async () =>
+		(await nodeFs.readdir(path, { withFileTypes: true })).filter((entry) => entry.isFile()).map((entry) => entry.name),
+	);
+
 /** A missing file resolves to `undefined`; every other failure stays an error. */
 export const readFileStringIfExists = (path: string): Effect.Effect<string | undefined, FsError> =>
 	readFileString(path).pipe(Effect.catchIf(isNotFound, () => Effect.succeed(undefined)));
+
+/** A missing directory resolves to `undefined`; every other failure stays an error. */
+export const readDirectoryFileNamesIfExists = (path: string): Effect.Effect<readonly string[] | undefined, FsError> =>
+	readDirectoryFileNames(path).pipe(Effect.catchIf(isNotFound, () => Effect.succeed(undefined)));
 
 export const writeFileString = (
 	path: string,
@@ -28,6 +38,27 @@ export const writeFileString = (
 			encoding: "utf8",
 			...(options?.mode === undefined ? {} : { mode: options.mode }),
 		});
+	});
+
+/** Replace a file atomically so readers never observe a partially written value. */
+export const writeFileStringAtomically = (
+	path: string,
+	contents: string,
+	options?: WriteFileOptions,
+): Effect.Effect<void, FsError> =>
+	attempt("write", path, async () => {
+		const directory = dirname(path);
+		if (options?.recursive) await nodeFs.mkdir(directory, { recursive: true });
+		const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`);
+		try {
+			await nodeFs.writeFile(temporaryPath, contents, {
+				encoding: "utf8",
+				...(options?.mode === undefined ? {} : { mode: options.mode }),
+			});
+			await nodeFs.rename(temporaryPath, path);
+		} finally {
+			await nodeFs.rm(temporaryPath, { force: true });
+		}
 	});
 
 export const makeDirectory = (path: string, mode?: number): Effect.Effect<void, FsError> =>

@@ -24,7 +24,7 @@ interface ActivityState {
 function snapshot(state: ActivityState): ActivitySnapshot {
 	return {
 		activeRuns: state.activeRuns,
-		indicatorActive: state.activeRuns > 0 && !state.promptActive,
+		indicatorActive: state.activeRuns > 0 && !state.agentEnded && !state.promptActive,
 		keepAwakeActive: state.activeRuns > 0 && !state.agentEnded && !state.promptActive,
 	};
 }

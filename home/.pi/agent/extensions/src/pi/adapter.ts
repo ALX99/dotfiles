@@ -11,6 +11,7 @@ import { installModelContextAdapter } from "./adapters/model-context.ts";
 import { installPresentationAdapter } from "./adapters/presentation.ts";
 import { installToolExecutionAdapter } from "./adapters/tool-execution.ts";
 import { installToolAdapter } from "./adapters/tools.ts";
+import { installAgentAdapter } from "./adapters/agents.ts";
 import { installWorkAdapter } from "./adapters/work.ts";
 
 const noopActivity = (_active: boolean): void => {};
@@ -57,6 +58,7 @@ export async function installPersonalExtension(pi: ExtensionAPI): Promise<void> 
 	const editor = createEditorComposition();
 	const toolStatus = installToolExecutionAdapter(pi, applicationEffects);
 	installToolAdapter(pi, toolSelection, toolStatus);
+	installAgentAdapter(pi, applicationEffects);
 	const work = installWorkAdapter(pi, { applicationEffects, editor, toolSelection });
 	await installModelContextAdapter(pi, {
 		applicationEffects,

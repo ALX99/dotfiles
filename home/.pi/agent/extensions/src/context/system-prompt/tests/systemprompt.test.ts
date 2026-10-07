@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import type { BuildSystemPromptOptions, Skill } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
+import { createCapabilityPolicy } from "../../../agents/policy.ts";
 
 import type { ApplicationEffects } from "../../../application.ts";
 import systemPromptExtension, {
@@ -105,6 +106,26 @@ test("the prompt assembles every section in the documented order", () => {
 		positions,
 		"sections appear in order",
 	);
+});
+
+test("profile instructions are appended without changing any normal prompt layer", () => {
+	const promptOptions = options({
+		customPrompt: "You are a careful engineer.",
+		appendSystemPrompt: "Runtime instructions.",
+		contextFiles: [{ path: "/workspace/project/AGENTS.md", content: "Project rules." }],
+		skills: [skill({ name: "go-code" })],
+	});
+	const normalPrompt = buildSystemPrompt(promptOptions, HOST, new Set(["go-code"]));
+	const profile = { name: "engineer", prompt: "Prefer small, tested changes." };
+	const profiledPrompt = buildSystemPrompt(promptOptions, HOST, new Set(["go-code"]), undefined, profile);
+
+	assert.equal(profiledPrompt, `${normalPrompt}\n\nProfile instructions (engineer):\n\nPrefer small, tested changes.`);
+	assert.match(profiledPrompt, /^You are a careful engineer\./);
+	assert.match(profiledPrompt, /Runtime instructions\./);
+	assert.match(profiledPrompt, /Available tools:/);
+	assert.match(profiledPrompt, /Guidelines:/);
+	assert.match(profiledPrompt, /\* `go-code`/);
+	assert.match(profiledPrompt, /<project_context>/);
 });
 
 test("a user-supplied custom prompt replaces the role statement only", () => {
@@ -588,6 +609,8 @@ interface HarnessOptions {
 	/** Tool definitions as Pi would report them, including their own prompt guidelines. */
 	tools?: Array<{ name: string; promptGuidelines?: string[]; exposure?: string }>;
 	codemodeMode?: "on" | "only";
+	policy?: ReturnType<typeof createCapabilityPolicy>;
+	profile?: { readonly name: string; readonly prompt: string };
 }
 
 function createHarness(config: HarnessOptions = {}) {
@@ -603,7 +626,7 @@ function createHarness(config: HarnessOptions = {}) {
 	};
 	const branch: Entry[] = config.initialBranch ?? [];
 	const ctx = { sessionManager: { getBranch: () => branch } };
-	systemPromptExtension(pi as never, applicationEffects);
+	systemPromptExtension(pi as never, applicationEffects, config.policy, config.profile);
 
 	return async (eventOptions: BuildSystemPromptOptions = options()) => {
 		assert.ok(handler, "the extension registers a before_agent_start handler");
@@ -631,6 +654,25 @@ test("the extension honors a custom system prompt from Pi's options", async () =
 	);
 });
 
+test("the extension adds the immutable profile layer without dropping normal instructions", async () => {
+	const profile = { name: "engineer", prompt: "Prefer small, tested changes." };
+	const run = createHarness({ profile });
+	const promptOptions = options({
+		customPrompt: "You are a careful engineer.",
+		appendSystemPrompt: "Runtime instructions.",
+		contextFiles: [{ path: "/workspace/project/AGENTS.md", content: "Project rules." }],
+		skills: [skill({ name: "go-code" })],
+	});
+	const normalPrompt = await createHarness()(promptOptions);
+	const profiledPrompt = await run(promptOptions);
+
+	assert.equal(profiledPrompt, `${normalPrompt}\n\nProfile instructions (engineer):\n\nPrefer small, tested changes.`);
+	assert.match(profiledPrompt ?? "", /\* `go-code`/);
+	assert.match(profiledPrompt ?? "", /Available tools:/);
+	assert.match(profiledPrompt ?? "", /Runtime instructions\./);
+	assert.match(profiledPrompt ?? "", /<project_context>/);
+});
+
 test("the extension uses live active tools rather than the event's possibly stale list", async () => {
 	// Pi only rebuilds its prompt options when tools change, so the event can still name tools
 	// that a mode has since disabled.
@@ -652,6 +694,31 @@ test("the extension uses live active tools rather than the event's possibly stal
 		section(prompt ?? "", "Available tools:"),
 		"- bash: Execute bash commands (ls, rg, fd, jq, yq, awk, sed, etc.)",
 	);
+});
+
+test("profile policy removes denied tools and skills from the rendered prompt", async () => {
+	const run = createHarness({
+		activeTools: ["read", "bash", "edit"],
+		tools: [
+			{ name: "bash", promptGuidelines: ["Use bash for file operations"] },
+			{ name: "edit", promptGuidelines: ["Use edit for precise changes"] },
+		],
+		policy: createCapabilityPolicy({ name: "researcher", tools: ["read", "bash"], skills: ["research"] }),
+	});
+	const prompt = await run(
+		options({
+			selectedTools: ["read", "bash", "edit"],
+			toolSnippets: { read: "Read files", bash: "Run commands", edit: "Edit files" },
+			promptGuidelines: ["Use bash for file operations", "Use edit for precise changes"],
+			skills: [skill({ name: "research" }), skill({ name: "design" })],
+		}),
+	);
+
+	assert.match(prompt ?? "", /- bash: Execute bash commands/);
+	assert.doesNotMatch(prompt ?? "", /- edit:/);
+	assert.match(prompt ?? "", /\* `research`/);
+	assert.doesNotMatch(prompt ?? "", /`design`/);
+	assert.doesNotMatch(prompt ?? "", /Use edit for precise changes/);
 });
 
 test("the prompt renders the live tools' guidelines, attributed to their owner", async () => {
@@ -709,7 +776,10 @@ test("a tool disabled during this event drops its guidelines with it", async () 
 
 interface CommandHarnessOptions {
 	activeTools?: string[];
+	tools?: Array<{ name: string; exposure?: string }>;
+	codemodeMode?: string;
 	hasUI?: boolean;
+	profile?: { readonly name: string; readonly prompt: string };
 }
 
 function createCommandHarness(config: CommandHarnessOptions = {}) {
@@ -722,7 +792,8 @@ function createCommandHarness(config: CommandHarnessOptions = {}) {
 		},
 		on() {},
 		getActiveTools: () => [...(config.activeTools ?? ["read", "bash"])],
-		getAllTools: () => [],
+		getAllTools: () => config.tools ?? [],
+		getSettings: () => ({ codemode: { mode: config.codemodeMode ?? "on" } }),
 	};
 	const ctx = {
 		hasUI: config.hasUI ?? true,
@@ -742,7 +813,7 @@ function createCommandHarness(config: CommandHarnessOptions = {}) {
 			},
 		},
 	};
-	systemPromptExtension(pi as never, applicationEffects);
+	systemPromptExtension(pi as never, applicationEffects, undefined, config.profile);
 
 	return {
 		notifications,
@@ -752,8 +823,48 @@ function createCommandHarness(config: CommandHarnessOptions = {}) {
 			assert.ok(command, "the systemprompt command is registered");
 			await command.handler(args, ctx);
 		},
+		async runTools() {
+			const command = commands.get("tools");
+			assert.ok(command, "the tools command is registered");
+			await command.handler("", ctx);
+		},
 	};
 }
+
+test("/tools reports the active count and excludes inactive registry tools", async () => {
+	const harness = createCommandHarness({
+		activeTools: ["read", "bash"],
+		tools: [{ name: "read", exposure: "direct" }, { name: "bash", exposure: "direct" }, { name: "write" }],
+	});
+	await harness.runTools();
+
+	assert.equal(harness.notifications.at(-1), "Active tools (2):\n- read\n- bash");
+});
+
+test("/tools marks active tools that are callable through codemode", async () => {
+	const harness = createCommandHarness({
+		activeTools: ["codemode", "read", "bash"],
+		codemodeMode: "only",
+		tools: [
+			{ name: "codemode", exposure: "model-only" },
+			{ name: "read", exposure: "direct" },
+			{ name: "bash", exposure: "direct" },
+		],
+	});
+	await harness.runTools();
+
+	assert.equal(
+		harness.notifications.at(-1),
+		"Active tools (3):\n- codemode\n- read (via codemode)\n- bash (via codemode)",
+	);
+});
+
+test("/tools reports an empty active set", async () => {
+	const harness = createCommandHarness({ activeTools: [] });
+	await harness.runTools();
+
+	assert.equal(harness.notifications.at(-1), "Active tools (0):\n- (none)");
+});
 
 test("the command opens the rendered prompt in a read-only viewer", async () => {
 	const harness = createCommandHarness();
@@ -765,8 +876,18 @@ test("the command opens the rendered prompt in a read-only viewer", async () => 
 	assert.match(harness.previews[0]?.text ?? "", /enter esc close/);
 });
 
+test("the command preview includes the same profile layer as the next turn", async () => {
+	const profile = { name: "researcher", prompt: "Separate evidence from inference." };
+	const harness = createCommandHarness({ profile });
+	await harness.run("");
+
+	assert.match(harness.previews[0]?.text ?? "", /Profile instructions \(researcher\)/);
+	assert.match(harness.previews[0]?.text ?? "", /Separate evidence from inference\./);
+});
+
 test("passing a path writes the prompt instead of opening the editor", async () => {
-	const harness = createCommandHarness();
+	const profile = { name: "engineer", prompt: "Prefer small changes." };
+	const harness = createCommandHarness({ profile });
 	const target = join(tmpdir(), `pi-systemprompt-${process.pid}-${Date.now()}`, "prompt.txt");
 	targets.push(target);
 
@@ -774,7 +895,10 @@ test("passing a path writes the prompt instead of opening the editor", async () 
 
 	assert.equal(harness.previews.length, 0);
 	assert.match(harness.notifications.at(-1) ?? "", /Wrote \d+ chars/);
-	assert.equal(await readFile(target, "utf8"), buildSystemPrompt(options({ promptGuidelines: [] })));
+	assert.equal(
+		await readFile(target, "utf8"),
+		buildSystemPrompt(options({ promptGuidelines: [] }), hostInformation(), undefined, undefined, profile),
+	);
 });
 
 test("a tilde path resolves under the home directory", async (t) => {

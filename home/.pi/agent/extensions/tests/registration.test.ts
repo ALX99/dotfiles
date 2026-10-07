@@ -75,12 +75,23 @@ const FORMER_REGISTRATIONS = [
 			"turn_end",
 			"turn_start",
 		],
-		commands: ["jobs", "cc", "luna", "astra", "sol", "free", "retry", "sch", "systemprompt"],
+		commands: ["jobs", "cc", "luna", "astra", "sol", "free", "retry", "sch", "systemprompt", "tools"],
 		tools: [],
 	},
 ] as const;
 
-test("the single extension preserves the former registrations", async (t) => {
+const AGENT_TOOLS = [
+	"spawn_agent",
+	"wait_agent",
+	"send_agent",
+	"steer_agent",
+	"answer_agent",
+	"cancel_agent",
+	"list_agents",
+	"inspect_agent",
+];
+
+test("the single extension preserves existing registrations and adds agent orchestration tools", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "custom-extension-registration-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
 
@@ -103,6 +114,6 @@ test("the single extension preserves the former registrations", async (t) => {
 	);
 	assert.deepEqual(
 		[...extension.tools.keys()].toSorted(),
-		FORMER_REGISTRATIONS.flatMap((registration) => registration.tools).toSorted(),
+		[...FORMER_REGISTRATIONS.flatMap((registration) => registration.tools), ...AGENT_TOOLS].toSorted(),
 	);
 });

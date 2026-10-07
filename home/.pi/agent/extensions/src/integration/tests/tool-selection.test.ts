@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { RECALL_TOOL_NAME } from "../../openai/search/recall.ts";
+import { createCapabilityPolicy } from "../../agents/policy.ts";
 import { TASK_TOOL_NAMES } from "../../tasks/tools.ts";
 import { APPLY_PATCH_TOOL_NAME } from "../../tools/apply-patch/types.ts";
 import { createToolSelection } from "../tool-selection.ts";
@@ -39,4 +40,25 @@ test("feature activation preserves live external tools and Pi's excluded-tool se
 	selection.setSearchRecallActive(false);
 	assert.deepEqual(active, ["read", "bash", "mcp__notes__search", "create_tasks", "fff_custom", "finish_task"]);
 	assert.throws(() => selection.setTaskTools([RECALL_TOOL_NAME]), /cannot activate tool/);
+});
+
+test("profile policy filters active tools and blocks feature activation", () => {
+	const registered = new Set(["read", "bash", APPLY_PATCH_TOOL_NAME, ...TASK_TOOL_NAMES]);
+	let active = ["read", "bash", APPLY_PATCH_TOOL_NAME, ...TASK_TOOL_NAMES];
+	const pi = {
+		getActiveTools: () => [...active],
+		setActiveTools(names: string[]) {
+			active = names.filter((name) => registered.has(name));
+		},
+	} as unknown as ExtensionAPI;
+	const policy = createCapabilityPolicy({ name: "researcher", tools: ["read"] });
+	const selection = createToolSelection(pi, policy);
+
+	selection.applyCapabilityPolicy();
+	assert.deepEqual(active, ["read"]);
+	assert.deepEqual(selection.getActiveTools(), ["read"]);
+
+	selection.setApplyPatchActive(true);
+	selection.setTaskTools(TASK_TOOL_NAMES);
+	assert.deepEqual(active, ["read"], "owned feature changes cannot reactivate profile-denied tools");
 });
