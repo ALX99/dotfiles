@@ -112,7 +112,10 @@ function fakeSessionOwner(store: AgentStore, autoFinish?: LifecycleEventType) {
 		finish: (agentId: string, status: LifecycleEventType = "settled") => {
 			const control = controls.get(agentId);
 			if (control === undefined) throw new Error(`No fake invocation for ${agentId}`);
-			return Deferred.succeed(control.completion, status).pipe(Effect.asVoid);
+			return Effect.gen(function* () {
+				yield* Deferred.succeed(control.completion, status);
+				yield* Deferred.await(control.done);
+			});
 		},
 		active: (agentId: string) => controls.has(agentId),
 	};
@@ -306,7 +309,6 @@ test("a stricter spawn policy does not restrict communication with existing chil
 				assert.equal((yield* fixture.store.getAgent(existing.id))?.sessionId, existing.sessionId);
 
 				yield* fixture.sessions.finish(existing.id);
-				yield* Effect.sleep("10 millis");
 				assert.equal((yield* fixture.store.getAgent(existing.id))?.status, "settled");
 				yield* workflows.dispose();
 			}),
