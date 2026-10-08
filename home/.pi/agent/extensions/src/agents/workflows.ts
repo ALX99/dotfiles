@@ -282,6 +282,14 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 				if (event.claimId === undefined) yield* publish(event);
 			}
 		});
+		const terminalResult = () =>
+			Effect.gen(function* () {
+				const agents = yield* Effect.forEach(ids, (agentId) => options.store.getAgent(agentId));
+				if (!agents.every((agent) => agent !== undefined && TERMINAL_STATUSES.has(agent.status))) return undefined;
+				const pending = yield* options.store.pendingEvents(ids);
+				if (pending.some((event) => event.claimId === undefined)) return undefined;
+				return [] as const;
+			});
 		return yield* Effect.ensuring(
 			Effect.scoped(
 				Effect.gen(function* () {
@@ -292,11 +300,15 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 						const claimed = yield* deliver();
 						if (claimed.length > 0) return claimed;
 					}
+					const terminal = yield* terminalResult();
+					if (terminal !== undefined) return terminal;
 					while (true) {
 						const arrived = yield* PubSub.take(subscription);
 						if (!selected.has(arrived.agentId)) continue;
 						const claimed = yield* deliver();
 						if (claimed.length > 0) return claimed;
+						const terminal = yield* terminalResult();
+						if (terminal !== undefined) return terminal;
 					}
 				}),
 			),

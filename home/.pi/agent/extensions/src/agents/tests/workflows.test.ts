@@ -616,3 +616,26 @@ test("wait cancellation does not stop children and wait_agent supports a batch o
 		),
 	);
 });
+
+test("waitAgent returns no events after a previous wait acknowledges the terminal event", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
+
+				assert.deepEqual(yield* workflows.waitAgent([spawned.agent]), [{ agent: spawned.agent, event: "settled" }]);
+				assert.deepEqual(yield* fixture.store.pendingEvents([spawned.agent]), []);
+				assert.deepEqual(yield* Effect.timeout(workflows.waitAgent([spawned.agent]), 1_000), []);
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
