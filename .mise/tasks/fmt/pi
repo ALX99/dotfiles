@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Format pi extensions"
+#MISE hide=true
+#MISE dir="home/.pi/agent/extensions"
+#MISE depends=["pi:deps"]
+if [[ ${DOTFILES_FMT_DISPATCH:-} != fmt ]]; then
+  printf '%s\n' 'Run `mise run fmt`; formatter subtasks are internal.' >&2
+  exit 2
+fi
+exec pnpm run format
