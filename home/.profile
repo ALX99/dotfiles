@@ -25,10 +25,9 @@ XDG_CONFIG_HOME="$HOME/.config"
 # Default programs
 # =============================================================================
 TERMINAL="ghostty"
-if command -v code >/dev/null 2>&1; then
-  VISUAL="code --wait"
-fi
+unset VISUAL
 EDITOR="nvim"
+BASH_ENV="$HOME/.bashrc.d/noninteractive.bash"
 
 # =============================================================================
 # Platform-specific
