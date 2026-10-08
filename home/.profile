@@ -36,7 +36,6 @@ EDITOR="nvim"
 if [ "$__kernel_name" = "Darwin" ]; then
   PATH="/opt/homebrew/bin:$PATH"
 
-  USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
   XDG_CACHE_HOME="$HOME/Library/Caches"
   BUN_INSTALL_CACHE_DIR="$XDG_CACHE_HOME/bun"
