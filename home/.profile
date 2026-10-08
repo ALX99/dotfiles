@@ -34,7 +34,7 @@ EDITOR="nvim"
 # Platform-specific
 # =============================================================================
 if [ "$__kernel_name" = "Darwin" ]; then
-  PATH="/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
+  PATH="/opt/homebrew/bin:$PATH"
 
   USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
