@@ -31,22 +31,22 @@ alias \
 # =============================================================================
 # Better defaults
 # =============================================================================
-# GNU coreutils, findutils, gawk, sed, tar, grep, and diffutils come first in
-# PATH on macOS (see .profile), so these aliases only add flags.
+# Interactive macOS shells use private aliases for Homebrew GNU commands
+# (see .bashrc), so GNU-specific flags do not change child-process PATHs.
 alias \
-  ls="ls -hN --color=auto --group-directories-first" \
-  ll="ls -hNlA --color=auto" \
-  grep="grep --color=auto" \
-  diff="diff --color=auto" \
+  ls="__gnu_ls -hN --color=auto --group-directories-first" \
+  ll="__gnu_ls -hNlA --color=auto" \
+  grep="__gnu_grep --color=auto" \
+  diff="__gnu_diff --color=auto" \
   ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
   rm="rm -v" \
   mkdir="mkdir -p" \
   free="free -h" \
-  df="df --human-readable --output=source,target,size,used,avail,pcent" \
-  du='du --human-readable' \
-  dd="dd bs=512k status=progress" \
+  df="__gnu_df --human-readable --output=source,target,size,used,avail,pcent" \
+  du='__gnu_du --human-readable' \
+  dd="__gnu_dd bs=512k status=progress" \
   gcc="gcc -Wall -W -pedantic" \
   htop="htop -s PERCENT_CPU" \
   mpv='mpv --hwdec=auto' \
@@ -88,7 +88,7 @@ alias \
   ch="code . && exit" \
   bye='systemctl suspend-then-hibernate' \
   utop='htop -t -u $(whoami)' \
-  perms="stat -c '%a %n' *" \
+  perms="__gnu_stat -c '%a %n' *" \
   mimetype="file --dereference --brief --mime-type" \
   tgs='tmux-go-session' \
   pnav='cd "$(_projselect)"' \

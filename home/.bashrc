@@ -23,6 +23,25 @@ case $- in
 *) return ;;
 esac
 
+# Interactive macOS commands can use Homebrew's GNU utilities without
+# exporting their directories to child processes such as coding agents.
+if [[ $OSTYPE == darwin* ]]; then
+  for __gnu_pkg in coreutils diffutils findutils gawk gnu-sed gnu-tar grep; do
+    __gnu_dir="/opt/homebrew/opt/$__gnu_pkg/libexec/gnubin"
+    [[ -d $__gnu_dir ]] || continue
+    for __gnu_path in "$__gnu_dir"/*; do
+      [[ -x $__gnu_path && ! -d $__gnu_path ]] || continue
+      __gnu_name=${__gnu_path##*/}
+      case $(type -t "$__gnu_name") in
+        builtin | keyword | function | alias) continue ;;
+      esac
+      alias "__gnu_${__gnu_name}=$__gnu_path"
+      alias "$__gnu_name=__gnu_${__gnu_name}"
+    done
+  done
+  unset __gnu_dir __gnu_name __gnu_path __gnu_pkg
+fi
+
 # History
 HISTIGNORE="&:exit:ls:bg:fg:history:clear"
 HISTSIZE=-1
