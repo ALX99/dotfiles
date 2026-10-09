@@ -32,7 +32,7 @@ type Entry = Record<string, unknown>;
 const targets: string[] = [];
 
 // The markdown theme used by the viewer reads global theme state.
-initTheme("terminal-dark");
+initTheme("dark");
 
 test.after(() => {
 	void Promise.all(targets.map((target) => rm(dirname(target), { recursive: true, force: true })));

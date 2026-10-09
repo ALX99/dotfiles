@@ -32,7 +32,6 @@
     "commandcode/xiaomi/mimo-v2.6-flash",
     "commandcode/inclusionai/ling-3.1-flash:free"
   ],
-  "theme": "terminal-light/terminal-dark",
   "showCacheMissNotices": true,
   "enableInstallTelemetry": false,
   "terminal": {

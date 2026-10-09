@@ -13,10 +13,6 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "misc/themes/twilight-bloom.cue"
-PI_SCHEMA = (
-	"https://raw.githubusercontent.com/earendil-works/pi/main/packages/"
-	"coding-agent/src/modes/interactive/theme/theme-schema.json"
-)
 HERDR_BEGIN = "# BEGIN GENERATED: Twilight Bloom theme"
 HERDR_END = "# END GENERATED: Twilight Bloom theme"
 
@@ -46,12 +42,6 @@ def ghostty(variant: dict[str, object]) -> str:
 	]
 	lines.extend(f"palette = {index}={colour}" for index, colour in enumerate(palette))
 	return "\n".join(lines) + "\n"
-
-
-def pi(variant: dict[str, object]) -> str:
-	theme = variant["pi"]
-	assert isinstance(theme, dict)
-	return json.dumps({"$schema": PI_SCHEMA, **theme}, indent=2) + "\n"
 
 
 def herdr_block(theme: dict[str, object]) -> str:
@@ -99,8 +89,6 @@ def outputs(theme: dict[str, object]) -> dict[Path, str]:
 	return {
 		ROOT / ".config/ghostty/themes/twilight-bloom": ghostty(dark),
 		ROOT / ".config/ghostty/themes/twilight-bloom-light": ghostty(light),
-		ROOT / "home/.pi/agent/themes/terminal-dark.json": pi(dark),
-		ROOT / "home/.pi/agent/themes/terminal-light.json": pi(light),
 		ROOT / ".config/herdr/config.toml": herdr(theme),
 	}
 

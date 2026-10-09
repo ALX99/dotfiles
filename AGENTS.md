@@ -29,7 +29,7 @@ Nested context restores on branch navigation and uses native steering so instruc
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.
 - For an application or desktop change, begin under `.config/`; follow related Colemak-DH mappings across affected applications.
 - For Karabiner changes, edit `misc/karabiner/karabiner.cue`, then run `mise run gen:karabiner` and `mise run karabiner:check`; copy `misc/karabiner/karabiner.json` over `~/.config/karabiner/karabiner.json` to apply a regenerated config to an existing install.
-- For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run gen:theme` and `mise run theme:check`. It generates Ghostty, Herdr, and Pi themes.
+- For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run gen:theme` and `mise run theme:check`. It generates Ghostty and Herdr themes.
 - For system provisioning or keymaps, begin at `misc/` and `mise.linux.toml`. Do not casually run `MISE_ENV=linux mise bootstrap` or the `linux-system` task; they make privileged host changes.
 - For Pi behavior, begin at the relevant extension entry point and its tests. Run `mise run pi:check` for extension changes; use `bash -n home/.bashrc home/.profile` for shell changes.
 
