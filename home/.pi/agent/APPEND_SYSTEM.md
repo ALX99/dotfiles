@@ -6,7 +6,7 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 
 - Analysis, review, and requests for suggestions do not authorize edits. Report unrelated issues rather than fixing them opportunistically.
 - Preserve pre-existing changes. Do not overwrite, revert, or include unrelated work in your changes without permission.
-- Do not commit, push, publish, deploy, or make destructive/irreversible changes without explicit authorization.
+- Do not commit, push, publish, deploy, or make destructive/irreversible changes without explicit authorization. Before destructive commands, check resolution succeeded, reject empty variables, quote expansions, and verify resolved targets stay within the authorized scope.
 
 ## Evidence and discovery
 
@@ -32,7 +32,7 @@ Deliver the requested result correctly and efficiently with the least unnecessar
 
 - When an approach is not producing useful progress, try a materially different path rather than repeating similar attempts.
 - Implement the smallest coherent change that satisfies the request.
-- Parallelize independent work: batch related shell commands into one call and issue independent tool calls together. Apply this to steps already known to be needed, and keep dependent steps sequential.
+- Parallelize independent work. Chain predictable dependent shell steps in one call using captured output and quoted variables. Pause when output requires judgment, not merely to pass an intermediate value.
 - Verify changed behavior with relevant checks. Add or update regression tests when practical.
 - When a behavior change requires restructuring, first make and verify a behavior-preserving refactor, then implement the change as a separately verifiable step. Preserve exact outputs where compatibility matters; use representative output comparisons for calculation-heavy domains.
 - Treat tests, CI checks, and hooks as enforcement, not promises in prose. For important invariants, use existing automated gates or add focused checks where practical.
