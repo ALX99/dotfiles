@@ -38,13 +38,15 @@ import { registerRecallTool } from "./tools.ts";
  * requests and mirrors Codex's transcript feedback by summarizing the streamed
  * `web_search_call` items.
  *
- * Config lives in `~/.pi/codex-web-search.json` (override with
- * `PI_CODEX_WEB_SEARCH_CONFIG`), all fields optional:
+ * Pi overrides live in `~/.pi/codex-web-search.json` (override with
+ * `PI_CODEX_WEB_SEARCH_CONFIG`). `mode` defaults to Codex's `web_search` value in
+ * `$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) and can only narrow it.
+ * If neither config specifies a mode, hosted search is disabled. Example:
  *
  * ```json
  * {
  *   "enabled": true,
- *   "mode": "live",
+ *   "mode": "cached",
  *   "suppressClientTools": ["web_search"],
  *   "filters": { "allowedDomains": ["docs.example.com"] },
  *   "userLocation": { "country": "US", "region": "California" },

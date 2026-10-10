@@ -53,6 +53,9 @@ export interface AgentWorkflows {
 		AgentWorkflowFailure
 	>;
 	readonly waitAgent: (agentIds: readonly string[]) => Effect.Effect<readonly AgentEventResult[], AgentWorkflowFailure>;
+	readonly waitAgentInspections: (
+		agentIds: readonly string[],
+	) => Effect.Effect<readonly AgentInspection[], AgentWorkflowFailure>;
 	readonly sendAgent: (
 		agentId: string,
 		message: string,
@@ -229,6 +232,82 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		);
 	});
 
+	const waitForAgentEvents = Effect.fnUntraced(function* <A>(
+		agentIds: readonly string[],
+		project: (received: readonly AgentEventResult[]) => Effect.Effect<A, AgentWorkflowFailure>,
+		whenSettled?: (agentIds: readonly string[]) => Effect.Effect<A, AgentWorkflowFailure>,
+	): Effect.fn.Return<A, AgentWorkflowFailure> {
+		const ids = [...new Set(agentIds)];
+		if (ids.length === 0 || ids.some((id) => id.trim().length === 0)) {
+			return yield* new AgentWorkflowError({ message: "wait_agent requires one or more agent IDs." });
+		}
+		for (const id of ids) {
+			if ((yield* options.store.getAgent(id)) === undefined) {
+				return yield* new AgentWorkflowError({ message: `Unknown direct child agent "${id}".` });
+			}
+		}
+		const claimId = randomUUID();
+		const deliver = () =>
+			Effect.gen(function* () {
+				const claimed = yield* options.store.claimEvents(claimId, ids);
+				if (claimed.length === 0) return { found: false } as const;
+				const result = yield* project(claimed.map(toEventResult));
+				yield* options.store.acknowledgeEvents(
+					claimId,
+					claimed.map((event) => event.id),
+					Date.now(),
+				);
+				return { found: true, result } as const;
+			});
+		const releaseAndNotify = Effect.gen(function* () {
+			yield* options.store.releaseClaim(claimId);
+			for (const event of yield* options.store.pendingEvents(ids)) {
+				if (event.claimId === undefined) yield* publish(event);
+			}
+		});
+		const terminalResult = () =>
+			Effect.gen(function* () {
+				if (whenSettled === undefined) return undefined;
+				const agents = yield* Effect.forEach(ids, (agentId) => options.store.getAgent(agentId));
+				if (!agents.every((agent) => agent !== undefined && TERMINAL_STATUSES.has(agent.status))) return undefined;
+				const pending = yield* options.store.pendingEvents(ids);
+				// Another waiter may own a terminal event; no unclaimed event can be delivered here.
+				if (pending.some((event) => event.claimId === undefined)) return undefined;
+				const result = yield* whenSettled(ids);
+				const currentAgents = yield* Effect.forEach(ids, (agentId) => options.store.getAgent(agentId));
+				if (!currentAgents.every((agent) => agent !== undefined && TERMINAL_STATUSES.has(agent.status))) {
+					return undefined;
+				}
+				const currentPending = yield* options.store.pendingEvents(ids);
+				if (currentPending.some((event) => event.claimId === undefined)) return undefined;
+				return result;
+			});
+		return yield* Effect.ensuring(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const subscription = yield* PubSub.subscribe(events);
+					const selected = new Set(ids);
+					const pending = yield* options.store.pendingEvents(ids);
+					if (pending.length > 0) {
+						const delivered = yield* deliver();
+						if (delivered.found) return delivered.result;
+					}
+					const terminal = yield* terminalResult();
+					if (terminal !== undefined) return terminal;
+					while (true) {
+						const arrived = yield* PubSub.take(subscription);
+						if (!selected.has(arrived.agentId)) continue;
+						const delivered = yield* deliver();
+						if (delivered.found) return delivered.result;
+						const settledSnapshot = yield* terminalResult();
+						if (settledSnapshot !== undefined) return settledSnapshot;
+					}
+				}),
+			),
+			releaseAndNotify.pipe(Effect.orDie),
+		);
+	});
+
 	const spawnAgent: AgentWorkflows["spawnAgent"] = Effect.fnUntraced(function* (input: SpawnAgentInput) {
 		if (input.message.trim().length === 0)
 			return yield* new AgentWorkflowError({ message: "An initial agent message must not be blank." });
@@ -252,69 +331,12 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		);
 	});
 
-	const waitAgent: AgentWorkflows["waitAgent"] = Effect.fnUntraced(function* (agentIds: readonly string[]) {
-		const ids = [...new Set(agentIds)];
-		if (ids.length === 0 || ids.some((id) => id.trim().length === 0)) {
-			return yield* new AgentWorkflowError({ message: "wait_agent requires one or more agent IDs." });
-		}
-		for (const id of ids) {
-			if ((yield* options.store.getAgent(id)) === undefined) {
-				return yield* new AgentWorkflowError({ message: `Unknown direct child agent "${id}".` });
-			}
-		}
-		const claimId = randomUUID();
-		const deliver = () =>
-			Effect.gen(function* () {
-				const claimed = yield* options.store.claimEvents(claimId, ids);
-				if (claimed.length > 0) {
-					yield* options.store.acknowledgeEvents(
-						claimId,
-						claimed.map((event) => event.id),
-						Date.now(),
-					);
-					return claimed.map(toEventResult);
-				}
-				return [];
-			});
-		const releaseAndNotify = Effect.gen(function* () {
-			yield* options.store.releaseClaim(claimId);
-			for (const event of yield* options.store.pendingEvents(ids)) {
-				if (event.claimId === undefined) yield* publish(event);
-			}
-		});
-		const terminalResult = () =>
-			Effect.gen(function* () {
-				const agents = yield* Effect.forEach(ids, (agentId) => options.store.getAgent(agentId));
-				if (!agents.every((agent) => agent !== undefined && TERMINAL_STATUSES.has(agent.status))) return undefined;
-				const pending = yield* options.store.pendingEvents(ids);
-				if (pending.some((event) => event.claimId === undefined)) return undefined;
-				return [] as const;
-			});
-		return yield* Effect.ensuring(
-			Effect.scoped(
-				Effect.gen(function* () {
-					const subscription = yield* PubSub.subscribe(events);
-					const selected = new Set(ids);
-					const pending = yield* options.store.pendingEvents(ids);
-					if (pending.length > 0) {
-						const claimed = yield* deliver();
-						if (claimed.length > 0) return claimed;
-					}
-					const terminal = yield* terminalResult();
-					if (terminal !== undefined) return terminal;
-					while (true) {
-						const arrived = yield* PubSub.take(subscription);
-						if (!selected.has(arrived.agentId)) continue;
-						const claimed = yield* deliver();
-						if (claimed.length > 0) return claimed;
-						const terminal = yield* terminalResult();
-						if (terminal !== undefined) return terminal;
-					}
-				}),
-			),
-			releaseAndNotify.pipe(Effect.orDie),
+	const waitAgent: AgentWorkflows["waitAgent"] = (agentIds) =>
+		waitForAgentEvents(
+			agentIds,
+			(received) => Effect.succeed(received),
+			() => Effect.succeed([]),
 		);
-	});
 
 	const listAgents: AgentWorkflows["listAgents"] = () => options.store.listAgents().pipe(Effect.map(listAgentRecords));
 
@@ -323,6 +345,13 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		const activity = yield* options.sessions.getActivity(agentId);
 		return inspectAgentRecord(agent, [], activity);
 	});
+
+	const waitAgentInspections: AgentWorkflows["waitAgentInspections"] = (agentIds) =>
+		waitForAgentEvents(
+			agentIds,
+			(received) => Effect.forEach([...new Set(received.map((event) => event.agent))], inspectAgent),
+			(requestedIds) => Effect.forEach(requestedIds, inspectAgent),
+		);
 
 	const getJob = Effect.fnUntraced(function* (agentId: string) {
 		const job = (yield* Ref.get(jobs)).get(agentId);
@@ -514,6 +543,7 @@ export const createAgentWorkflows = Effect.fn("createAgentWorkflows")(function* 
 		inspectAgent,
 		spawnAgent,
 		waitAgent,
+		waitAgentInspections,
 		sendAgent,
 		cancelAgent,
 		childCommunication: (agentId: string) => ({

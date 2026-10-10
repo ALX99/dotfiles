@@ -16,12 +16,16 @@ const SOURCES_INCLUDE = "web_search_call.action.sources";
 export interface PayloadModel {
 	readonly provider: string;
 	readonly api: string;
-	readonly input?: readonly ("text" | "image")[];
 }
 
 /** Whether this provider/model pair should carry the hosted tool. */
 export function usesHostedWebSearch(model: PayloadModel, config: CodexWebSearchConfig): boolean {
-	return config.enabled && HOSTED_WEB_SEARCH_PROVIDERS.has(model.provider) && HOSTED_WEB_SEARCH_APIS.has(model.api);
+	return (
+		config.enabled &&
+		config.mode !== "disabled" &&
+		HOSTED_WEB_SEARCH_PROVIDERS.has(model.provider) &&
+		HOSTED_WEB_SEARCH_APIS.has(model.api)
+	);
 }
 
 /** The hosted tool shape Codex sends, mirroring codex-rs `ToolSpec::WebSearch`. */
@@ -38,11 +42,10 @@ interface HostedWebSearchTool {
 		readonly timezone?: string;
 	};
 	readonly search_context_size?: CodexWebSearchConfig["searchContextSize"];
-	readonly search_content_types?: readonly ["text", "image"];
 }
 
 /** Record keys keep the mode-to-access mapping exhaustive. */
-const HOSTED_TOOL_BY_MODE: Record<WebSearchMode, HostedWebSearchTool> = {
+const HOSTED_TOOL_BY_MODE: Record<Exclude<WebSearchMode, "disabled">, HostedWebSearchTool> = {
 	cached: { type: "web_search", external_web_access: false },
 	live: { type: "web_search", external_web_access: true },
 	indexed: { type: "web_search", external_web_access: true, indexed_web_access: true },
@@ -59,7 +62,8 @@ export function applyHostedWebSearch(
 	model: PayloadModel | undefined,
 	config: CodexWebSearchConfig,
 ): Record<string, unknown> | undefined {
-	if (model === undefined || !usesHostedWebSearch(model, config)) return undefined;
+	const mode = config.mode;
+	if (model === undefined || mode === "disabled" || !usesHostedWebSearch(model, config)) return undefined;
 
 	const tools = Array.isArray(payload.tools) ? payload.tools : [];
 	const include = readInclude(payload.include);
@@ -73,13 +77,12 @@ export function applyHostedWebSearch(
 		(entry) => !(Predicate.isObject(entry) && typeof entry.name === "string" && suppressed.has(entry.name)),
 	);
 	const hostedTool: HostedWebSearchTool = {
-		...HOSTED_TOOL_BY_MODE[config.mode],
+		...HOSTED_TOOL_BY_MODE[mode],
 		...(config.filters?.allowedDomains === undefined
 			? {}
 			: { filters: { allowed_domains: [...config.filters.allowedDomains] } }),
 		...(config.userLocation === undefined ? {} : { user_location: { type: "approximate", ...config.userLocation } }),
 		...(config.searchContextSize === undefined ? {} : { search_context_size: config.searchContextSize }),
-		...(model.input?.includes("image") === true ? { search_content_types: ["text", "image"] as const } : {}),
 	};
 	return {
 		...payload,

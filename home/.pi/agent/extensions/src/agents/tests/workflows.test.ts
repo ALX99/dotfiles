@@ -316,7 +316,7 @@ test("a stricter spawn policy does not restrict communication with existing chil
 	);
 });
 
-test("list_agents and inspect_agent expose direct-child metadata without inferred progress", async (t) => {
+test("wait_agent_inspections, list_agents, and inspect_agent expose direct-child snapshots", async (t) => {
 	const fixture = await createFixture(t, "settled");
 	await runPromise(
 		Effect.scoped(
@@ -327,9 +327,20 @@ test("list_agents and inspect_agent expose direct-child metadata without inferre
 					models,
 					profileDirectory: fixture.profiles,
 				});
-				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start.", mode: "wait" });
-				assert.ok("event" in spawned);
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
 				const agentId = spawned.agent;
+				const [waited] = yield* workflows.waitAgentInspections([agentId]);
+				assert.deepEqual(waited, {
+					agent: agentId,
+					profile: "engineer",
+					status: "settled",
+					cwd: "/parent",
+					latest_events: [],
+				});
+				assert.deepEqual(yield* fixture.store.pendingEvents([agentId]), []);
+				const waitedAgain = yield* Effect.timeout(workflows.waitAgentInspections([agentId]), 1_000);
+				assert.deepEqual(waitedAgain, [waited], "a second wait returns the terminal inspection without another event");
 				const [listed] = yield* workflows.listAgents();
 				assert.deepEqual(listed, {
 					agent: agentId,
@@ -343,6 +354,61 @@ test("list_agents and inspect_agent expose direct-child metadata without inferre
 					cwd: "/parent",
 					latest_events: [],
 				});
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("waitAgent returns no events after a previous wait acknowledges the terminal event", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: fixture.sessions.owner,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
+
+				assert.deepEqual(yield* workflows.waitAgent([spawned.agent]), [{ agent: spawned.agent, event: "settled" }]);
+				assert.deepEqual(yield* fixture.store.pendingEvents([spawned.agent]), []);
+				assert.deepEqual(yield* Effect.timeout(workflows.waitAgent([spawned.agent]), 1_000), []);
+				yield* workflows.dispose();
+			}),
+		),
+	);
+});
+
+test("wait-and-inspect releases mailbox events when snapshot projection fails", async (t) => {
+	const fixture = await createFixture(t, "settled");
+	const failingSessions: AgentSessionOwner = {
+		...fixture.sessions.owner,
+		getActivity: () => Effect.fail(new AgentStateError({ message: "Inspection unavailable." })),
+	};
+	await runPromise(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const workflows = yield* createAgentWorkflows({
+					store: fixture.store,
+					sessions: failingSessions,
+					models,
+					profileDirectory: fixture.profiles,
+				});
+				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
+				assertAgentResult(spawned);
+
+				const projected = yield* Effect.result(workflows.waitAgentInspections([spawned.agent]));
+				assert.ok(Result.isFailure(projected));
+				if (Result.isFailure(projected)) assert.equal(projected.failure.message, "Inspection unavailable.");
+				const pending = yield* fixture.store.pendingEvents([spawned.agent]);
+				assert.equal(pending.length, 1);
+				assert.equal(pending[0]?.claimId, undefined);
+				assert.equal(pending[0]?.acknowledgedAt, undefined);
+				assert.deepEqual(yield* workflows.waitAgent([spawned.agent]), [{ agent: spawned.agent, event: "settled" }]);
 				yield* workflows.dispose();
 			}),
 		),
@@ -611,29 +677,6 @@ test("wait cancellation does not stop children and wait_agent supports a batch o
 					events.map((event) => event.event),
 					["settled", "settled"],
 				);
-				yield* workflows.dispose();
-			}),
-		),
-	);
-});
-
-test("waitAgent returns no events after a previous wait acknowledges the terminal event", async (t) => {
-	const fixture = await createFixture(t, "settled");
-	await runPromise(
-		Effect.scoped(
-			Effect.gen(function* () {
-				const workflows = yield* createAgentWorkflows({
-					store: fixture.store,
-					sessions: fixture.sessions.owner,
-					models,
-					profileDirectory: fixture.profiles,
-				});
-				const spawned = yield* workflows.spawnAgent({ profile: "engineer", message: "Start." });
-				assertAgentResult(spawned);
-
-				assert.deepEqual(yield* workflows.waitAgent([spawned.agent]), [{ agent: spawned.agent, event: "settled" }]);
-				assert.deepEqual(yield* fixture.store.pendingEvents([spawned.agent]), []);
-				assert.deepEqual(yield* Effect.timeout(workflows.waitAgent([spawned.agent]), 1_000), []);
 				yield* workflows.dispose();
 			}),
 		),

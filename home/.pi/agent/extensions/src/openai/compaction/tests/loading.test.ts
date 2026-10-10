@@ -19,13 +19,18 @@ test("compaction loads and replays native session context through Pi's extension
 	t.after(() => rm(root, { recursive: true, force: true }));
 	const entry = fileURLToPath(new URL("../../../../index.ts", import.meta.url));
 	const searchConfigPath = join(root, "search.json");
+	const codexHome = join(root, "codex-home");
 	const projectConfigPath = join(root, ".pi", "openai-server-compaction.json");
 	await mkdir(join(root, ".pi"), { recursive: true });
+	await mkdir(codexHome);
 	await writeFile(searchConfigPath, JSON.stringify({ enabled: true }));
+	await writeFile(join(codexHome, "config.toml"), 'web_search = "live"\n');
 	await writeFile(projectConfigPath, JSON.stringify({ enabled: true }));
 	const previousSearchConfigPath = process.env.PI_CODEX_WEB_SEARCH_CONFIG;
+	const previousCodexHome = process.env.CODEX_HOME;
 	const previousCompactionEnabled = process.env.PI_OPENAI_SERVER_COMPACTION_ENABLED;
 	process.env.PI_CODEX_WEB_SEARCH_CONFIG = searchConfigPath;
+	process.env.CODEX_HOME = codexHome;
 	process.env.PI_OPENAI_SERVER_COMPACTION_ENABLED = "true";
 	let loaded: Awaited<ReturnType<typeof discoverAndLoadExtensions>>;
 	try {
@@ -33,6 +38,8 @@ test("compaction loads and replays native session context through Pi's extension
 	} finally {
 		if (previousSearchConfigPath === undefined) delete process.env.PI_CODEX_WEB_SEARCH_CONFIG;
 		else process.env.PI_CODEX_WEB_SEARCH_CONFIG = previousSearchConfigPath;
+		if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+		else process.env.CODEX_HOME = previousCodexHome;
 		if (previousCompactionEnabled === undefined) delete process.env.PI_OPENAI_SERVER_COMPACTION_ENABLED;
 		else process.env.PI_OPENAI_SERVER_COMPACTION_ENABLED = previousCompactionEnabled;
 	}

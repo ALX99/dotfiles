@@ -1,13 +1,14 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Effect, Predicate, Result } from "effect";
+import { parse as parseToml } from "smol-toml";
+import { Effect, Predicate, Result, Schema } from "effect";
 
 import { toError } from "../../support/errors.ts";
 import { readFileStringIfExists } from "../../support/fs.ts";
 import { parseJson } from "../../support/json.ts";
 
 /** Access level of the hosted search tool, mirroring Codex's `web_search` setting. */
-export type WebSearchMode = "cached" | "live" | "indexed";
+export type WebSearchMode = "disabled" | "cached" | "indexed" | "live";
 export type WebSearchContextSize = "low" | "medium" | "high";
 
 export interface WebSearchFilters {
@@ -21,15 +22,16 @@ export interface WebSearchUserLocation {
 	readonly timezone?: string;
 }
 
-const WEB_SEARCH_MODES = ["cached", "live", "indexed"] as const;
+const WEB_SEARCH_MODES = ["disabled", "cached", "indexed", "live"] as const;
+const webSearchModeSchema = Schema.Literals(WEB_SEARCH_MODES);
 const WEB_SEARCH_CONTEXT_SIZES = ["low", "medium", "high"] as const;
 
 export interface CodexWebSearchConfig {
 	/** Inject the hosted web search tool at all. */
 	readonly enabled: boolean;
 	/**
-	 * `cached` keeps the search inside OpenAI's index, `live` may fetch pages, and
-	 * `indexed` restricts live fetches to URLs the index already knows.
+	 * `disabled` omits hosted search; `cached` uses OpenAI's index; `indexed` limits
+	 * live access to indexed URLs; `live` may fetch pages.
 	 */
 	readonly mode: WebSearchMode;
 	/**
@@ -47,11 +49,12 @@ export interface CodexWebSearchConfig {
 
 export const DEFAULT_CONFIG: CodexWebSearchConfig = {
 	enabled: true,
-	mode: "live",
+	mode: "disabled",
 	suppressClientTools: ["web_search"],
 };
 
 export const CONFIG_PATH_ENV = "PI_CODEX_WEB_SEARCH_CONFIG";
+export const CODEX_HOME_ENV = "CODEX_HOME";
 
 /** The config file location, overridable for tests and alternate profiles. */
 export function configPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -60,31 +63,40 @@ export function configPath(env: NodeJS.ProcessEnv = process.env): string {
 	return join(homedir(), ".pi", "codex-web-search.json");
 }
 
+/** Codex's active config file, using the same CODEX_HOME override as the CLI. */
+export function codexConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+	const codexHome = env[CODEX_HOME_ENV];
+	return join(
+		codexHome !== undefined && codexHome.trim().length > 0 ? codexHome : join(homedir(), ".codex"),
+		"config.toml",
+	);
+}
+
 export interface LoadedConfig {
 	readonly config: CodexWebSearchConfig;
 	/** User-facing problems found while loading; a missing file is not one. */
 	readonly diagnostics: readonly string[];
 }
 
-/**
- * Load `~/.pi/codex-web-search.json`. Every field is optional, and an invalid field
- * falls back to its default with a diagnostic rather than disabling the extension.
- */
-export function loadConfig(path: string = configPath()): Effect.Effect<LoadedConfig> {
+/** Load Pi's hosted-search overrides and apply Codex's configured access ceiling. */
+export function loadConfig(
+	path: string = configPath(),
+	codexPath: string = codexConfigPath(),
+): Effect.Effect<LoadedConfig> {
 	return Effect.gen(function* () {
 		const raw = yield* readConfigObject(path);
-		if (raw === undefined) return { config: DEFAULT_CONFIG, diagnostics: [] };
-		if (!raw.ok) return { config: DEFAULT_CONFIG, diagnostics: raw.diagnostics };
-
-		const diagnostics: string[] = [];
-		const enabled = readBoolean(raw.value.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled;
-		const mode = readMode(raw.value.mode, path, diagnostics) ?? DEFAULT_CONFIG.mode;
+		const diagnostics = raw !== undefined && !raw.ok ? [...raw.diagnostics] : [];
+		const codexMode = yield* readCodexWebSearchMode(codexPath, diagnostics);
+		const piConfig = raw !== undefined && raw.ok ? raw.value : {};
+		const enabled = readBoolean(piConfig.enabled, "enabled", path, diagnostics) ?? DEFAULT_CONFIG.enabled;
+		const requestedMode = readMode(piConfig.mode, "mode", path, diagnostics);
+		const mode = resolveWebSearchMode(codexMode, requestedMode);
 		const suppressClientTools =
-			readStringArray(raw.value.suppressClientTools, "suppressClientTools", path, diagnostics) ??
+			readStringArray(piConfig.suppressClientTools, "suppressClientTools", path, diagnostics) ??
 			DEFAULT_CONFIG.suppressClientTools;
-		const filters = readFilters(raw.value.filters, path, diagnostics);
-		const userLocation = readUserLocation(raw.value.userLocation, path, diagnostics);
-		const searchContextSize = readSearchContextSize(raw.value.searchContextSize, path, diagnostics);
+		const filters = readFilters(piConfig.filters, path, diagnostics);
+		const userLocation = readUserLocation(piConfig.userLocation, path, diagnostics);
+		const searchContextSize = readSearchContextSize(piConfig.searchContextSize, path, diagnostics);
 		const config: CodexWebSearchConfig = {
 			enabled,
 			mode,
@@ -94,6 +106,39 @@ export function loadConfig(path: string = configPath()): Effect.Effect<LoadedCon
 			...(searchContextSize === undefined ? {} : { searchContextSize }),
 		};
 		return { config, diagnostics };
+	});
+}
+
+/** A missing Codex setting leaves Pi's explicit mode in control; otherwise take the stricter mode. */
+function resolveWebSearchMode(
+	codexMode: WebSearchMode | undefined,
+	requestedMode: WebSearchMode | undefined,
+): WebSearchMode {
+	if (codexMode === undefined) return requestedMode ?? "disabled";
+	if (requestedMode === undefined) return codexMode;
+	if (codexMode === "disabled" || requestedMode === "disabled") return "disabled";
+	if (codexMode === "cached" || requestedMode === "cached") return "cached";
+	if (codexMode === "indexed" || requestedMode === "indexed") return "indexed";
+	return "live";
+}
+
+function readCodexWebSearchMode(path: string, diagnostics: string[]): Effect.Effect<WebSearchMode | undefined> {
+	return Effect.gen(function* () {
+		const read = yield* Effect.result(readFileStringIfExists(path));
+		if (Result.isFailure(read)) {
+			diagnostics.push(`${path}: ${toError(read.failure.cause).message}`);
+			return "disabled";
+		}
+		if (read.success === undefined) return undefined;
+
+		try {
+			const config = parseToml(read.success);
+			if (config.web_search === undefined) return undefined;
+			return readMode(config.web_search, "web_search", path, diagnostics) ?? "disabled";
+		} catch (cause) {
+			diagnostics.push(`${path}: invalid TOML: ${toError(cause).message}`);
+			return "disabled";
+		}
 	});
 }
 
@@ -137,13 +182,11 @@ function readBoolean(value: unknown, field: string, path: string, diagnostics: s
 	return undefined;
 }
 
-function readMode(value: unknown, path: string, diagnostics: string[]): WebSearchMode | undefined {
+function readMode(value: unknown, field: string, path: string, diagnostics: string[]): WebSearchMode | undefined {
 	if (value === undefined) return undefined;
-	if (typeof value === "string") {
-		const match = WEB_SEARCH_MODES.find((mode) => mode === value);
-		if (match !== undefined) return match;
-	}
-	diagnostics.push(`${path}: "mode" must be one of ${WEB_SEARCH_MODES.join(", ")}`);
+	const decoded = Schema.decodeUnknownResult(webSearchModeSchema)(value);
+	if (Result.isSuccess(decoded)) return decoded.success;
+	diagnostics.push(`${path}: "${field}" must be one of ${WEB_SEARCH_MODES.join(", ")}`);
 	return undefined;
 }
 

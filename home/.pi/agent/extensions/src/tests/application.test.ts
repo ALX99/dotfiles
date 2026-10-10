@@ -83,6 +83,29 @@ test("activity stops its indicator on agent_end before settlement", async () => 
 	}
 });
 
+test("activity settles a continued run after multiple agent starts without leaving the stripe active", async () => {
+	const runtime = createApplicationRuntime();
+	try {
+		const activity = (
+			signal: "session_start" | "agent_start" | "agent_end" | "agent_settled" | "ui_prompt_start" | "ui_prompt_end",
+		) => runtime.runPromise(applicationWorkflow((application) => application.activity(signal)));
+
+		await activity("session_start");
+		assert.equal((await activity("agent_start")).indicatorActive, true);
+		assert.equal((await activity("agent_end")).indicatorActive, false);
+		assert.equal((await activity("agent_start")).indicatorActive, true);
+		assert.equal((await activity("agent_end")).indicatorActive, false);
+
+		assert.deepEqual(await activity("agent_settled"), {
+			activeRuns: 0,
+			indicatorActive: false,
+			keepAwakeActive: false,
+		});
+	} finally {
+		await runtime.dispose();
+	}
+});
+
 test("provider request transforms run in order and isolate failures", async () => {
 	const runtime = createApplicationRuntime();
 	const order: string[] = [];

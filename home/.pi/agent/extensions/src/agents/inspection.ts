@@ -161,16 +161,23 @@ export function observeSessionEvent(event: AgentSessionEvent, occurredAt = Date.
 	return [];
 }
 
-/** Project the active Pi session branch and transient tool events into a small newest-first view. */
+/** Project the newest useful event from the active Pi branch and transient tool events. */
 export function latestObservableActivity(
 	entries: readonly SessionEntry[],
 	live: readonly AgentActivity[],
 	now = Date.now(),
 ): readonly InspectedActivity[] {
-	return observableActivities(entries, live)
-		.toSorted((left, right) => right.occurredAt - left.occurredAt || right.key.localeCompare(left.key))
-		.slice(0, 5)
-		.map((activity) => toInspectedActivity(activity, now));
+	const latest = observableActivities(entries, live)
+		.filter(
+			(activity) =>
+				activity.type === "output" ||
+				activity.type === "tool_call" ||
+				activity.type === "tool_result" ||
+				activity.type === "ask_parent",
+		)
+		.toSorted((left, right) => left.occurredAt - right.occurredAt)
+		.at(-1);
+	return latest === undefined ? [] : [toInspectedActivity(latest, now)];
 }
 
 /** Return the newest timestamp from the same persisted and live activity used by agent inspection. */

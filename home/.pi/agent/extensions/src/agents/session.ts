@@ -17,7 +17,7 @@ import { Effect, Result, Schema } from "effect";
 
 import type { ApplicationEffects } from "../application.ts";
 import { createToolSelection } from "../integration/tool-selection.ts";
-import systemPromptExtension from "../context/system-prompt/systemprompt.ts";
+import systemPromptExtension, { CHILD_AGENT_HANDOFF_INSTRUCTIONS } from "../context/system-prompt/systemprompt.ts";
 import {
 	appendLiveActivity,
 	createAgentActivityRefreshThrottle,
@@ -595,10 +595,16 @@ async function createChildSession(input: {
 			pi.on("agent_before_settle", (event) => {
 				observation.outcome = event.outcome;
 			});
-			systemPromptExtension(pi, childApplicationEffects, {
-				getPolicy: () => policy,
-				getProfile: () => agent.profile,
-			});
+			systemPromptExtension(
+				pi,
+				childApplicationEffects,
+				{
+					getPolicy: () => policy,
+					getProfile: () => agent.profile,
+				},
+				undefined,
+				CHILD_AGENT_HANDOFF_INSTRUCTIONS,
+			);
 		};
 		const extensions = [
 			...(input.extensionFactories?.(agent, observation, input.modelRuntime, registerDisposer) ?? []),

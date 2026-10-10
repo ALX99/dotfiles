@@ -43,6 +43,9 @@ export function cwdPath(path: string, cwd: string, home: string = os.homedir()):
 const ROLE_LINE =
 	"You are an expert coding assistant that interacts with a computer. Use the tools available to you to achieve the goal efficiently.";
 
+export const CHILD_AGENT_HANDOFF_INSTRUCTIONS =
+	"Child-agent handoff:\nAt the end of each invocation's normal final assistant response, include a concise plain-text handoff with these headings: Summary, Files, Checks, and Blockers. Be truthful: report only work actually done, files actually changed, checks actually run and their results, and real blockers; never invent claims. Use None for files or blockers when empty and Not run for checks that were not run. Do not use JSON. Apply this on every invocation, including resumed sessions.";
+
 const SKILL_INSTRUCTIONS =
 	"Use the list below to identify relevant skills. Read a skill's `SKILL.md` only when its instructions are needed for the current task. Multiple skills may apply. Resolve paths referenced by a skill relative to the directory containing its `SKILL.md`.";
 
@@ -244,6 +247,7 @@ export function buildSystemPrompt(
 	enabledSkills?: ReadonlySet<string>,
 	tools?: PromptTools,
 	profile?: Pick<ProfileSnapshot, "name" | "prompt">,
+	promptAddendum?: string,
 ): string {
 	const uname = [host.system, host.release, host.version, host.machine].join(" ");
 	return [
@@ -255,6 +259,7 @@ export function buildSystemPrompt(
 		`System Information\n- Host: ${uname}\n- Working directory: ${tildePath(options.cwd)}`,
 		contextBlock(options.contextFiles),
 		profileBlock(profile),
+		promptAddendum?.trim() ?? "",
 	]
 		.filter((section) => section.length > 0)
 		.join("\n\n");
@@ -265,6 +270,7 @@ export default function systemPromptExtension(
 	applicationEffects: ApplicationEffects,
 	profileSource?: ProfilePromptState | ProfileCapabilityPolicy,
 	staticProfile?: Pick<ProfileSnapshot, "name" | "prompt">,
+	promptAddendum?: string,
 ): void {
 	const profileState =
 		profileSource === undefined && staticProfile === undefined
@@ -273,7 +279,7 @@ export default function systemPromptExtension(
 				? profileSource
 				: { getPolicy: () => profileSource, getProfile: () => staticProfile };
 	pi.on("before_agent_start", (event, ctx) => ({
-		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions, profileState),
+		systemPrompt: currentPrompt(pi, ctx, event.systemPromptOptions, profileState, promptAddendum),
 	}));
 
 	pi.registerCommand("tools", {
@@ -293,7 +299,7 @@ export default function systemPromptExtension(
 	pi.registerCommand("systemprompt", {
 		description: "Show the system prompt the next turn will send, or write it to a file via /systemprompt <path>",
 		handler: async (args, ctx) => {
-			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions(), profileState);
+			const prompt = currentPrompt(pi, ctx, ctx.getSystemPromptOptions(), profileState, promptAddendum);
 			const label = `${prompt.length} chars`;
 			const target = resolveTarget(args.trim());
 			if (target !== undefined) {
@@ -391,6 +397,7 @@ function currentPrompt(
 	ctx: ExtensionContext,
 	options: BuildSystemPromptOptions,
 	profileState?: ProfilePromptState,
+	promptAddendum?: string,
 ): string {
 	const policy = profileState?.getPolicy();
 	const profile = profileState?.getProfile();
@@ -411,6 +418,7 @@ function currentPrompt(
 			throughCodemode,
 		},
 		profile,
+		promptAddendum,
 	);
 }
 

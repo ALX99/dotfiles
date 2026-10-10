@@ -1,5 +1,6 @@
-font-family = Departure Mono
+font-family = Paper Mono
 font-size = 14
+font-feature = zero, ss01, ss03
 
 copy-on-select = clipboard
 macos-option-as-alt = true

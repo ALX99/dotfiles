@@ -33,8 +33,8 @@ export function registerAgentWorkflowTools(
 		spawn: (_toolCallId, params: SpawnAgentParams, signal, _ctx) =>
 			runWithSignal(applicationEffects, workflows().spawnAgent(params), signal).then(asAgentToolResult),
 		wait: (_toolCallId, params: WaitAgentParams, signal, _ctx) =>
-			runWithSignal(applicationEffects, workflows().waitAgent(params.agents), signal).then((events) =>
-				asAgentToolResult({ events }),
+			runWithSignal(applicationEffects, workflows().waitAgentInspections(params.agents), signal).then(
+				asAgentToolResult,
 			),
 		send: (_toolCallId, params: SendAgentParams, signal, _ctx) => {
 			const effect = workflows().sendAgent(params.agent, params.message, params.mode, params.wait);

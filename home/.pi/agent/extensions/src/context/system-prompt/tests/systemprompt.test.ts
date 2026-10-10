@@ -11,6 +11,7 @@ import { createCapabilityPolicy } from "../../../agents/policy.ts";
 
 import type { ApplicationEffects } from "../../../application.ts";
 import systemPromptExtension, {
+	CHILD_AGENT_HANDOFF_INSTRUCTIONS,
 	SystemPromptViewer,
 	attributeGuideline,
 	buildSystemPrompt,
@@ -538,6 +539,7 @@ interface HarnessOptions {
 	policy?: ReturnType<typeof createCapabilityPolicy>;
 	profile?: { readonly name: string; readonly prompt: string };
 	profileState?: ProfilePromptState;
+	promptAddendum?: string;
 }
 
 function createHarness(config: HarnessOptions = {}) {
@@ -553,7 +555,13 @@ function createHarness(config: HarnessOptions = {}) {
 	};
 	const branch: Entry[] = config.initialBranch ?? [];
 	const ctx = { sessionManager: { getBranch: () => branch } };
-	systemPromptExtension(pi as never, applicationEffects, config.profileState ?? config.policy, config.profile);
+	systemPromptExtension(
+		pi as never,
+		applicationEffects,
+		config.profileState ?? config.policy,
+		config.profile,
+		config.promptAddendum,
+	);
 
 	return async (eventOptions: BuildSystemPromptOptions = options()) => {
 		assert.ok(handler, "the extension registers a before_agent_start handler");
@@ -598,6 +606,16 @@ test("the extension adds the immutable profile layer without dropping normal ins
 	assert.match(profiledPrompt ?? "", /Available tools:/);
 	assert.match(profiledPrompt ?? "", /Runtime instructions\./);
 	assert.match(profiledPrompt ?? "", /<project_context>/);
+});
+
+test("the extension adds a scoped prompt addendum without changing the default prompt", async () => {
+	const normal = await createHarness()();
+	const child = await createHarness({ promptAddendum: CHILD_AGENT_HANDOFF_INSTRUCTIONS })();
+
+	assert.doesNotMatch(normal ?? "", /Child-agent handoff:/);
+	assert.ok(child?.endsWith(CHILD_AGENT_HANDOFF_INSTRUCTIONS));
+	assert.match(child ?? "", /Summary, Files, Checks, and Blockers/);
+	assert.match(child ?? "", /Do not use JSON/);
 });
 
 test("the extension uses live active tools rather than the event's possibly stale list", async () => {

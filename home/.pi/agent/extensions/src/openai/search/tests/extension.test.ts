@@ -51,14 +51,20 @@ const applicationEffects: ApplicationEffects = {
 
 const configDir = mkdtempSync(join(tmpdir(), "codex-web-search-extension-"));
 const configFile = join(configDir, "config.json");
+const codexConfigFile = join(configDir, "config.toml");
+const previousCodexHome = process.env.CODEX_HOME;
 process.env.PI_CODEX_WEB_SEARCH_CONFIG = configFile;
+process.env.CODEX_HOME = configDir;
 after(() => {
 	rmSync(configDir, { recursive: true, force: true });
 	delete process.env.PI_CODEX_WEB_SEARCH_CONFIG;
+	if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+	else process.env.CODEX_HOME = previousCodexHome;
 });
 
 async function createHarness(config: Record<string, unknown> = {}) {
 	writeFileSync(configFile, JSON.stringify(config));
+	writeFileSync(codexConfigFile, 'web_search = "live"\n');
 	const handlers = new Map<string, Handler>();
 	const commands = new Map<string, { handler(args: string, ctx: unknown): Promise<void> }>();
 	const renderers = new Map<string, Renderer>();
@@ -193,7 +199,7 @@ test("the provider hook injects the hosted tool for Codex and leaves other model
 	assert.equal(handler({ payload: "not a payload" }, harness.ctx), undefined);
 });
 
-test("the provider hook loads Codex search settings into the hosted tool payload", async () => {
+test("the provider hook loads Pi options without inferring image-search support", async () => {
 	const harness = await createHarness({
 		mode: "indexed",
 		filters: { allowedDomains: ["example.com"] },
@@ -226,7 +232,6 @@ test("the provider hook loads Codex search settings into the hosted tool payload
 					timezone: "America/Los_Angeles",
 				},
 				search_context_size: "low",
-				search_content_types: ["text", "image"],
 			},
 		],
 		include: ["reasoning.encrypted_content", "web_search_call.action.sources"],

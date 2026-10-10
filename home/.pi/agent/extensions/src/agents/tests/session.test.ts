@@ -11,6 +11,7 @@ import { Type } from "typebox";
 
 import { runPromise } from "../../support/effect-runtime.ts";
 import { sessionTotals } from "../../support/session-totals.ts";
+import { CHILD_AGENT_HANDOFF_INSTRUCTIONS } from "../../context/system-prompt/systemprompt.ts";
 import { latestActivityTimestamp } from "../inspection.ts";
 import { AgentStateError } from "../state.ts";
 import { openAgentStore } from "../store.ts";
@@ -247,6 +248,14 @@ test("child agents keep stable IDs, inherit or override cwd, and continue one no
 	const reopenedSession = await runPromise(restartedOwner.getSession(initial.id));
 	assert.equal(reopenedSession?.sessionId, initial.sessionId);
 	assert.match(await readFile(sessionFile, "utf8"), /Continue after reopening the runtime\./u);
+	assert.equal(observedSystemMessages.length, 3);
+	for (const systemMessage of observedSystemMessages) {
+		const parsedMessages = JSON.parse(systemMessage) as { readonly content: string }[];
+		assert.ok(
+			parsedMessages.some(({ content }) => content.includes(CHILD_AGENT_HANDOFF_INSTRUCTIONS)),
+			"every child invocation, including resumes, receives the handoff instruction",
+		);
+	}
 });
 
 test("a fresh owner recovers an invocation without a live runtime as interrupted, without deleting its session", async (t) => {

@@ -56,11 +56,8 @@ export class AgentActivity extends Context.Service<
 							next = { ...current, agentEnded: true };
 							break;
 						case "agent_settled":
-							next = {
-								...current,
-								activeRuns: Math.max(0, current.activeRuns - 1),
-								agentEnded: current.activeRuns <= 1,
-							};
+							// Retries and continuations can start multiple loops before one final settlement.
+							next = { ...current, activeRuns: 0, agentEnded: true };
 							break;
 						case "ui_prompt_start":
 							next = { ...current, promptActive: true };

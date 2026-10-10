@@ -5,6 +5,7 @@ import type { AgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-
 import {
 	appendLiveActivity,
 	createAgentActivityRefreshThrottle,
+	inspectAgentRecord,
 	latestActivityTimestamp,
 	latestObservableActivity,
 	observeSessionEvent,
@@ -24,7 +25,7 @@ function entry(id: string, ageMs: number, message: unknown): SessionEntry {
 	} as SessionEntry;
 }
 
-test("inspection returns the five newest observable events newest-first with relative ages", () => {
+test("inspection returns only the newest useful event and skips thinking and session events", () => {
 	const entries = [
 		entry("old", 120_000, { role: "assistant", content: [{ type: "text", text: "Older output" }] }),
 		entry("output", 90_000, { role: "assistant", content: [{ type: "text", text: "A visible update" }] }),
@@ -63,47 +64,88 @@ test("inspection returns the five newest observable events newest-first with rel
 	];
 
 	const latest = latestObservableActivity(entries, [], now);
-	assert.deepEqual(
-		latest.map(({ type }) => type),
-		["session_event", "tool_result", "ask_parent", "thinking", "output"],
-	);
-	assert.deepEqual(
-		latest.map(({ age }) => age),
-		["1s ago", "5s ago", "30s ago", "1m ago", "1m ago"],
-	);
-	assert.deepEqual(latest[2], {
-		age: "30s ago",
-		type: "ask_parent",
-		message: "Which database?",
-		options: ["SQLite", "Postgres"],
-	});
+	assert.deepEqual(latest, [
+		{
+			age: "5s ago",
+			type: "tool_result",
+			tool: "read",
+			content: "Found the handler.",
+		},
+	]);
+	assert.equal(latest.length, 1);
 	assert.equal(
 		latest.some((event) => "content" in event && event.content.includes("private hidden reasoning")),
 		false,
 	);
 });
 
-test("provider-exposed stream output is inspectable before the message is persisted", () => {
+test("inspection chooses the last source-ordered useful event when timestamps tie", () => {
 	const message = {
 		role: "assistant",
 		timestamp: now - 1_000,
 		content: [
-			{ type: "text", text: "I am tracing the request." },
-			{ type: "thinking", thinking: "The visible response points to the router." },
+			{ type: "toolCall", id: "read-1", name: "read", arguments: { path: "src/route.ts" } },
+			{ type: "text", text: "The final assistant block." },
 		],
 	};
-	const live = observeSessionEvent({ type: "message_update", message } as AgentSessionEvent, now - 1_000);
-	const persisted = entry("assistant", 1_000, message);
-	const latest = latestObservableActivity([persisted], live, now);
+	const expected = [{ age: "1s ago", type: "output", content: "The final assistant block." }];
 
-	assert.deepEqual(
-		latest.map(({ type }) => type),
-		["thinking", "output"],
+	assert.deepEqual(latestObservableActivity([entry("assistant", 1_000, message)], [], now), expected);
+
+	const live = appendLiveActivity(
+		[],
+		observeSessionEvent({ type: "message_update", message } as AgentSessionEvent, now - 1_000),
 	);
-	assert.deepEqual(
-		latest.map(({ age }) => age),
-		["1s ago", "1s ago"],
+	assert.deepEqual(latestObservableActivity([], live, now), expected);
+});
+
+test("inspection shows the child's actual ask_parent request while waiting", () => {
+	const parentRequest = entry("parent-request", 2_000, {
+		role: "assistant",
+		content: [
+			{
+				type: "toolCall",
+				id: "ask-1",
+				name: "ask_parent",
+				arguments: { message: "Which database?", options: ["SQLite", "Postgres"] },
+			},
+		],
+	});
+	const newerUserEvent = entry("user-event", 1_000, { role: "user", content: "Waiting for your answer." });
+
+	assert.deepEqual(latestObservableActivity([parentRequest, newerUserEvent], [], now), [
+		{
+			age: "2s ago",
+			type: "ask_parent",
+			message: "Which database?",
+			options: ["SQLite", "Postgres"],
+		},
+	]);
+});
+
+test("settled inspection projects the child's ordinary final handoff output", () => {
+	const handoff =
+		"Summary: Implemented inspection.\nFiles: inspection.ts.\nChecks: Focused tests passed.\nBlockers: None.";
+	const settled = inspectAgentRecord(
+		{ id: "engineer-agent-1", profile: { name: "engineer" }, status: "settled", cwd: "/workspace" },
+		[
+			entry("final", 0, {
+				role: "assistant",
+				content: [{ type: "text", text: handoff }],
+			}),
+		],
+		[],
+		now,
 	);
+
+	assert.equal(settled.status, "settled");
+	assert.deepEqual(settled.latest_events, [
+		{
+			age: "1s ago",
+			type: "output",
+			content: "Summary: Implemented inspection. Files: inspection.ts. Checks: Focused tests passed. Blockers: None.",
+		},
+	]);
 });
 
 test("stream updates refresh activity time, then persisted entries remain authoritative", () => {

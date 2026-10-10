@@ -200,8 +200,8 @@ export function registerAgentTools(
 		name: "wait_agent",
 		label: "Wait for Agents",
 		description:
-			"Wait for one or more direct children to produce a lifecycle event or ask_parent request. Returns the event data; it does not interpret task completion or progress.",
-		promptSnippet: "Wait for child-agent events",
+			"Wait for one or more direct children to produce a lifecycle event or ask_parent request, then return one current inspection snapshot for each child that produced an event. If every requested child is already terminal and no event is available, return their current snapshots immediately. Snapshots include the current status and newest useful session event; no task completion or progress is inferred.",
+		promptSnippet: "Wait for child-agent events and inspect their current snapshots",
 		parameters: WaitAgentParams,
 		executionMode: "sequential",
 		execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -279,7 +279,7 @@ export function registerAgentTools(
 		name: "inspect_agent",
 		label: "Inspect Agent",
 		description:
-			"Inspect a direct child agent's profile, runtime status, working directory, and latest five observable session events. Does not infer task, progress, or private reasoning.",
+			"Inspect a direct child agent's profile, runtime status, working directory, and newest useful session event. Does not infer task, progress, or private reasoning.",
 		promptSnippet: "Inspect a child agent's latest observable activity",
 		parameters: InspectAgentParams,
 		executionMode: "sequential",

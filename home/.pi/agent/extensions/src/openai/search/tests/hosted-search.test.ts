@@ -8,7 +8,7 @@ const CODEX_MODEL = { provider: "openai-codex", api: "openai-codex-responses" };
 const OPENAI_MODEL = { provider: "openai", api: "openai-responses" };
 
 function config(overrides: Partial<CodexWebSearchConfig> = {}): CodexWebSearchConfig {
-	return { ...DEFAULT_CONFIG, ...overrides };
+	return { ...DEFAULT_CONFIG, mode: "live", ...overrides };
 }
 
 function functionTool(name: string): Record<string, unknown> {
@@ -41,6 +41,7 @@ test("the hosted tool is added for OpenAI Responses providers only", () => {
 
 	assert.equal(usesHostedWebSearch(CODEX_MODEL, config()), true);
 	assert.equal(usesHostedWebSearch(CODEX_MODEL, config({ enabled: false })), false);
+	assert.equal(usesHostedWebSearch(CODEX_MODEL, config({ mode: "disabled" })), false);
 	assert.equal(usesHostedWebSearch({ provider: "openrouter", api: "openai-responses" }, config()), false);
 });
 
@@ -53,7 +54,7 @@ test("the configured mode maps to the Codex access flags", () => {
 	assert.deepEqual(tool("indexed"), { type: "web_search", external_web_access: true, indexed_web_access: true });
 });
 
-test("Codex hosted search settings are serialized to the Responses tool", () => {
+test("image-capable input does not infer image-search support", () => {
 	const configured = config({
 		filters: { allowedDomains: ["example.com"] },
 		userLocation: { country: "US", region: "California", timezone: "America/Los_Angeles" },
@@ -73,20 +74,11 @@ test("Codex hosted search settings are serialized to the Responses tool", () => 
 			timezone: "America/Los_Angeles",
 		},
 		search_context_size: "low",
-		search_content_types: ["text", "image"],
 	});
-	assert.deepEqual(firstTool(applyHostedWebSearch({ tools: [] }, textModel, configured)), {
-		type: "web_search",
-		external_web_access: true,
-		filters: { allowed_domains: ["example.com"] },
-		user_location: {
-			type: "approximate",
-			country: "US",
-			region: "California",
-			timezone: "America/Los_Angeles",
-		},
-		search_context_size: "low",
-	});
+	assert.deepEqual(
+		firstTool(applyHostedWebSearch({ tools: [] }, imageModel, configured)),
+		firstTool(applyHostedWebSearch({ tools: [] }, textModel, configured)),
+	);
 });
 
 test("a request keeps its other tools and drops the suppressed ones", () => {
