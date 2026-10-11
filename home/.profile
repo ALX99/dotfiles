@@ -104,7 +104,3 @@ fi
 
 # shellcheck source=/dev/null
 [ -n "$BASH_VERSION" ] && [ -f ~/.bashrc ] && . ~/.bashrc
-
-# >>> Codex installer >>>
-export PATH="$HOME/.local/bin:$PATH"
-# <<< Codex installer <<<
