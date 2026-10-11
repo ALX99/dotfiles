@@ -106,5 +106,5 @@ fi
 [ -n "$BASH_VERSION" ] && [ -f ~/.bashrc ] && . ~/.bashrc
 
 # >>> Codex installer >>>
-export PATH="/Users/dozy/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 # <<< Codex installer <<<

@@ -152,24 +152,24 @@ test("host information matches mini-swe-agent's uname template", () => {
 });
 
 test("tildePath shortens only paths under home", () => {
-	assert.equal(tildePath("/home/dozy", "/home/dozy"), "~");
-	assert.equal(tildePath("/home/dozy/dotfiles/AGENTS.md", "/home/dozy"), "~/dotfiles/AGENTS.md");
-	assert.equal(tildePath("/home/dozynski/file", "/home/dozy"), "/home/dozynski/file");
-	assert.equal(tildePath("/workspace/project", "/home/dozy"), "/workspace/project");
+	assert.equal(tildePath("/home/testuser", "/home/testuser"), "~");
+	assert.equal(tildePath("/home/testuser/dotfiles/AGENTS.md", "/home/testuser"), "~/dotfiles/AGENTS.md");
+	assert.equal(tildePath("/home/testuser-other/file", "/home/testuser"), "/home/testuser-other/file");
+	assert.equal(tildePath("/workspace/project", "/home/testuser"), "/workspace/project");
 });
 
 test("cwdPath shortens paths under the working directory and leaves the rest to tildePath", () => {
-	assert.equal(cwdPath("/workspace/project", "/workspace/project", "/home/dozy"), ".");
+	assert.equal(cwdPath("/workspace/project", "/workspace/project", "/home/testuser"), ".");
 	assert.equal(
-		cwdPath("/workspace/project/.agents/skills/go/SKILL.md", "/workspace/project", "/home/dozy"),
+		cwdPath("/workspace/project/.agents/skills/go/SKILL.md", "/workspace/project", "/home/testuser"),
 		".agents/skills/go/SKILL.md",
 	);
 	// A sibling directory that merely shares the prefix is not under the working directory.
 	assert.equal(
-		cwdPath("/workspace/project-other/AGENTS.md", "/workspace/project", "/home/dozy"),
+		cwdPath("/workspace/project-other/AGENTS.md", "/workspace/project", "/home/testuser"),
 		"/workspace/project-other/AGENTS.md",
 	);
-	assert.equal(cwdPath("/home/dozy/file", "/workspace/project", "/home/dozy"), "~/file");
+	assert.equal(cwdPath("/home/testuser/file", "/workspace/project", "/home/testuser"), "~/file");
 });
 
 test("paths under home render as ~ in every section the renderer owns", () => {

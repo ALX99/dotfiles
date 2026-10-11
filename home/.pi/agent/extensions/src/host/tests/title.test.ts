@@ -13,7 +13,7 @@ function createHarness(mode = "tui") {
 	const pi = { on: (name: string, handler: Handler) => handlers.set(name, handler) } as unknown as ExtensionAPI;
 	const ctx = {
 		mode,
-		cwd: "/Users/dozy/dotfiles",
+		cwd: "/Users/testuser/dotfiles",
 		ui: { setTitle: (title: string) => titles.push(title) },
 	} as unknown as ExtensionContext;
 	return { handlers, titles, pi, ctx };
