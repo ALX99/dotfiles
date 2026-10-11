@@ -8,6 +8,7 @@ zig = "latest"
 "aqua:oven-sh/bun" = "latest"
 "aqua:pnpm/pnpm" = "latest"
 "npm:typescript" = "latest"
+"npm:oxlint" = "latest"
 
 # Harnesses
 # Harness releases are time-sensitive, so they take a 1h holdback instead of the
