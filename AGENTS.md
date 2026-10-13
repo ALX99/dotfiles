@@ -2,7 +2,7 @@
 
 ## Repository Purpose
 
-This Stow-managed personal repository holds shell tooling, desktop applications, system setup, and AI-agent configuration. `.local/`, `home/`, and `.config/` are packages installed into `~/.local`, `~`, and `~/.config`; `.stowrc` deliberately disables Stow folding.
+This Stow-managed personal repository holds shell tooling, desktop applications, system setup, and AI-agent configuration. `.local/`, `home/`, and `.config/` are shared base packages installed into `~/.local`, `~`, and `~/.config`; `.stowrc` deliberately disables Stow folding. `profiles/personal/` mirrors those packages for opt-in personal configuration. Keep personal identities and personal-only tools there so base remains suitable for work; work secrets and identities belong in local, untracked files.
 
 ## Architecture and Ownership
 
@@ -14,7 +14,7 @@ This Stow-managed personal repository holds shell tooling, desktop applications,
 
 ## Key Flows and Sources of Truth
 
-`mise run install` restows the three user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. `mise.toml` owns the bootstrap manifest and tools; `.mise/tasks/` owns automation as standalone scripts (entry points flat, subsystem work namespaced like `pi:check` and `karabiner:check`, generators inverted as `gen:<area>` and run together by `mise run gen`). Together they are the source for installation and host setup. GitHub Actions installs the tools from `mise.toml` and runs `mise run check` for every push and pull request.
+`mise run install [base|personal]` restows the shared user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. The install task saves the machine's selection in `~/.config/dotfiles/profile`, reuses it on later runs, and defaults to base on a new machine. Personal selection stows `profiles/personal/`; base selection unstows that overlay. `home/.profile` exposes `DOTFILES_PROFILE` and selects `MISE_ENV=personal` for personal login shells unless an explicit mise environment is supplied. `home/.gitconfig` requires an explicit identity, reads the optional personal include, and includes `~/.gitconfig.local` last for machine settings or directory-scoped work identities. `mise.toml` owns the bootstrap manifest and tools; `mise.personal.toml` and `mise.linux.toml` remain native mise environment layers for personal packages and Linux provisioning. `.mise/tasks/` owns automation as standalone scripts (entry points flat, subsystem work namespaced like `pi:check` and `karabiner:check`, generators inverted as `gen:<area>` and run together by `mise run gen`). Together they are the source for installation and host setup. GitHub Actions installs the tools from `mise.toml` and runs `mise run check` for every push and pull request.
 
 Across Pi extensions, prompt hooks run in chain order and the last writer wins. The personal extension's ModelContext workflow rebuilds its prompt and search recall manifest from Pi's live tool selection, including CLI constraints and custom-tool activation, then applies hosted-search and compaction-history transforms in order. Skill visibility derives from native branch entries and the supplied inventory; no selection mirror or separate durable state is kept. The enabled skill names serve both `/skills` and prompt rendering. `src/host/process-reaper.ts` owns a process-local group registry; its temporary marker files only hand PIDs from Bash to that registry and are not durable session state.
 
@@ -27,6 +27,7 @@ Nested context restores on branch navigation and uses native steering so instruc
 ## Where to Start
 
 - For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.
+- For machine-profile changes, inspect `.mise/tasks/install`, `profiles/personal/`, and the profile selection in `home/.profile`. Run `mise run profiles:check` with Stow and Python 3 available; it installs into temporary home directories and checks identity separation, switching, local overrides, and upgrades.
 - For an application or desktop change, begin under `.config/`; follow related Colemak-DH mappings across affected applications.
 - For Karabiner changes, edit `misc/karabiner/karabiner.cue`, then run `mise run gen:karabiner` and `mise run karabiner:check`; copy `misc/karabiner/karabiner.json` over `~/.config/karabiner/karabiner.json` to apply a regenerated config to an existing install.
 - For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run gen:theme` and `mise run theme:check`. It generates Ghostty and Herdr themes.

@@ -1,10 +1,7 @@
 # Personal profile: tools only wanted on personal machines.
-# Loaded on top of config.toml when MISE_ENV=personal (see home/.profile).
+# Installed by `mise run install personal`; login shells select MISE_ENV=personal.
 # [tools] merges additively; entries here never affect the default env.
 [tools]
-# Core things
-rust = "stable"
-
 # AI stuff
 # npm backend: `skills get` reads the package's version-matched skill-data/ tree,
 # which the aqua release asset (bare binary) does not ship.
