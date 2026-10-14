@@ -1,5 +1,4 @@
-# Personal-machine packages, loaded with MISE_ENV=personal. Login shells select
-# this environment after `mise run install personal`.
+# Personal-machine packages, loaded with MISE_ENV=personal.
 [bootstrap.packages]
 "brew:ffmpeg" = {} # dep-heavy; brew builds
 "brew:imagemagick" = {} # dep-heavy; brew builds

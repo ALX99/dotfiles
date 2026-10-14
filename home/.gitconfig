@@ -1,10 +1,7 @@
 # https://git-scm.com/docs/git-config
 [user]
-  # Require an explicitly configured identity on base/work machines.
-  useConfigOnly = true
-
-[include]
-  path = ~/.gitconfig.personal
+  email = 46844683+ALX99@users.noreply.github.com
+  name  = ALX99
 
 [pull]
   rebase = merges
@@ -92,7 +89,3 @@
 [credential "https://gist.github.com"]
 	helper = 
 	helper = !gh auth git-credential
-
-# Machine-specific settings take precedence over shared and personal defaults.
-[include]
-  path = ~/.gitconfig.local

@@ -1,5 +1,5 @@
-# Shared base config. `mise run install personal` selects MISE_ENV=personal in
-# login shells; Linux provisioning is explicit with `mise -E linux bootstrap`.
+# Base config, auto-loaded everywhere. Machine-specific packages layer in via
+# MISE_ENV from mise.personal.toml / mise.linux.toml.
 
 # On brew because they're source-built, dependency-coupled, or self-referential.
 [bootstrap.packages]
@@ -35,13 +35,13 @@ node = "26" # pi:check
 "aqua:pnpm/pnpm" = "12" # pi:check
 
 # Task files live in .mise/tasks/: flat entry points (install, linux-system),
-# subsystem tasks (pi:check, profiles:check, shell:check, karabiner:check), internal formatter
+# subsystem tasks (pi:check, shell:check, karabiner:check), internal formatter
 # subtasks (fmt:cue, fmt:pi, fmt:shell), and generator subcommands (gen:<area>).
 # Aggregate tasks (check, fmt) and `gen` are defined here;
 # `gen` depends on every `gen:*` task, so new generators need no registration.
 [tasks.check]
 description = "Run all repository checks"
-depends = ["karabiner:check", "pi:check", "profiles:check", "shell:check", "theme:check"]
+depends = ["karabiner:check", "pi:check", "shell:check", "theme:check"]
 
 [tasks.fmt]
 description = "Run all repository formatters"

@@ -1,51 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Install shared dotfiles with an optional personal profile"
+#MISE description="Stow user dotfiles into $HOME and link shared agent skills"
 set -euo pipefail
 shopt -s nullglob
 
 repo_dir=$(git rev-parse --show-toplevel)
-profile_file="$HOME/.config/dotfiles/profile"
-profile=base
-if [[ -f $profile_file ]]; then
-  IFS= read -r profile <"$profile_file" || true
-fi
-if [[ $# -gt 1 ]]; then
-  printf 'usage: mise run install [base|personal]\n' >&2
-  exit 2
-fi
-profile=${1:-$profile}
-case "$profile" in
-base | personal) ;;
-*)
-  printf 'Unknown dotfiles profile: %s. Use base or personal.\n' "$profile" >&2
-  exit 2
-  ;;
-esac
-
-# Remove the former shared personal-tools link when upgrading. Only the link
-# into this checkout is ours; existing local files and foreign links stay put.
-legacy_personal_config="$HOME/.config/mise/mise.personal.toml"
-if [[ -L $legacy_personal_config ]]; then
-  legacy_target=$(readlink "$legacy_personal_config")
-  [[ $legacy_target == /* ]] || legacy_target="${legacy_personal_config%/*}/$legacy_target"
-  legacy_parent=$(cd -P -- "${legacy_target%/*}" 2>/dev/null && pwd) || legacy_parent=
-  if [[ $legacy_parent/${legacy_target##*/} == "$repo_dir/.config/mise/mise.personal.toml" ]]; then
-    rm "$legacy_personal_config"
-  fi
-fi
-
-# Profile packages mirror the shared Stow targets. Switching to base unstows
-# the overlay; Stow removes only its own links and preserves local files.
-profile_dir="$repo_dir/profiles/personal"
-if [[ $profile == base ]]; then
-  for package in home .config .local; do
-    [[ -d $profile_dir/$package ]] || continue
-    target="$HOME"
-    [[ $package == home ]] || target="$HOME/$package"
-    mkdir -p "$target"
-    stow --dir "$profile_dir" --target "$target" --delete "$package"
-  done
-fi
 
 in_list() {
   case " $2 " in
@@ -213,18 +171,6 @@ printf 'Agent skills: %d repo-linked; external kept:%s; pruned:%s\n' \
 
 stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
 
-if [[ $profile == personal ]]; then
-  for package in home .config .local; do
-    [[ -d $profile_dir/$package ]] || continue
-    target="$HOME"
-    [[ $package == home ]] || target="$HOME/$package"
-    stow --dir "$profile_dir" --target "$target" --restow "$package"
-  done
-fi
-
-mkdir -p "${profile_file%/*}"
-printf '%s\n' "$profile" >"$profile_file"
-
 if command -v herdr >/dev/null 2>&1 &&
   [[ -d "$HOME/.config/herdr/plugins" ]]; then
   for plugin_dir in "$HOME/.config/herdr/plugins"/*/; do
@@ -244,4 +190,4 @@ if [[ ! -d "$HOME/.pi/agent/extensions/node_modules" ]]; then
   printf "Hint: run 'mise run pi:deps' to install pi extension dependencies\n"
 fi
 
-printf 'User configuration completed (profile: %s). Start a new login shell after switching profiles.\n' "$profile"
+printf 'User configuration completed.\n'

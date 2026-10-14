@@ -6,33 +6,6 @@ set -a
 __kernel_name=$(uname)
 
 # =============================================================================
-# Machine profile (written by `mise run install [base|personal]`)
-# =============================================================================
-DOTFILES_PROFILE=base
-if [ -f "$HOME/.config/dotfiles/profile" ]; then
-  IFS= read -r DOTFILES_PROFILE <"$HOME/.config/dotfiles/profile" || :
-fi
-# Clear only the environment selected by our previous login shell.
-if [ -n "${__dotfiles_mise_env:-}" ] && [ "${MISE_ENV:-}" = "$__dotfiles_mise_env" ]; then
-  unset MISE_ENV
-fi
-unset __dotfiles_mise_env
-case "$DOTFILES_PROFILE" in
-base) ;;
-personal)
-  # Explicit mise environments still take precedence over the machine default.
-  if [ "${MISE_ENV+x}" != x ]; then
-    MISE_ENV=personal
-    __dotfiles_mise_env=personal
-  fi
-  ;;
-*)
-  printf 'dotfiles: unknown machine profile %s; using base\n' "$DOTFILES_PROFILE" >&2
-  DOTFILES_PROFILE=base
-  ;;
-esac
-
-# =============================================================================
 # PATH
 # =============================================================================
 PNPM_HOME="$HOME/.local/share/pnpm"

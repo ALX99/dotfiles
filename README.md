@@ -4,56 +4,6 @@ this is my personal dotfiles repo. mostly a place to keep the config i use
 across machines, but there are a few aliases and scripts in here that might be
 useful to you as well.
 
-## machine profiles
-
-`base` is the shared setup i use on both personal and work machines. personal
-settings live in `profiles/personal/` and are only installed when i opt in:
-
-```sh
-mise run install base      # shared shell, editor, agent config, and tools
-mise run install personal  # shared setup + personal git identity and extra tools
-```
-
-the choice is saved in `~/.config/dotfiles/profile`, outside the repo. running
-`mise run install` again reuses it; a new machine defaults to `base`. switching
-to `base` removes the personal overlay's symlinks. it doesn't uninstall packages
-or delete local files. start a new login shell after switching (`exec bash -l`).
-`echo "$DOTFILES_PROFILE"` shows the profile loaded by the shell.
-
-login shells on personal machines also select `MISE_ENV=personal`, so both
-the global tools and this repo's bootstrap packages use the same profile.
-an explicitly set mise environment takes precedence. preview package changes
-with `mise bootstrap --dry-run` before applying them with `mise bootstrap`.
-linux is a separate platform layer: use `mise -E linux bootstrap`, or
-`mise -E personal,linux bootstrap` on a personal linux machine.
-
-keep shared config in `home/`, `.config/`, and `.local/`. add personal files in
-the matching directories under `profiles/personal/`; the installer handles
-each as a separate Stow package. personal bootstrap packages stay in
-`mise.personal.toml`. work identities, credentials, and machine-specific
-settings belong in local files, outside the tracked packages.
-
-base doesn't set a git name or email, and git requires an explicit identity.
-put your work identity in `~/.gitconfig.local`, which is included last:
-
-```gitconfig
-[user]
-  name = Your Name
-  email = you@company.example
-```
-
-if you use a personal machine for work too, scope that identity to your work
-checkout directory instead. put this in `~/.gitconfig.local` and keep the
-identity in `~/.gitconfig.work`:
-
-```gitconfig
-[includeIf "gitdir:~/work/"]
-  path = ~/.gitconfig.work
-```
-
-shared settings can still be overridden with repo-local `git config` values.
-shell-only local settings can go in the existing `~/.privrc` hook.
-
 ## skills
 
 i like to keep things fairly minimal. if you are interested in my skills,
