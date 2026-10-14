@@ -31,23 +31,20 @@
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 "aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
 "aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
-node = "26" # pi:check
-"aqua:pnpm/pnpm" = "12" # pi:check
 
 # Task files live in .mise/tasks/: flat entry points (install, linux-system),
-# subsystem tasks (pi:check, shell:check, karabiner:check), internal formatter
-# subtasks (fmt:cue, fmt:pi, fmt:shell), and generator subcommands (gen:<area>).
+# subsystem tasks (shell:check, karabiner:check), internal formatter
+# subtasks (fmt:cue, fmt:shell), and generator subcommands (gen:<area>).
 # Aggregate tasks (check, fmt) and `gen` are defined here;
 # `gen` depends on every `gen:*` task, so new generators need no registration.
 [tasks.check]
 description = "Run all repository checks"
-depends = ["karabiner:check", "pi:check", "shell:check", "theme:check"]
+depends = ["karabiner:check", "shell:check", "theme:check"]
 
 [tasks.fmt]
 description = "Run all repository formatters"
 depends = [
   { task = "fmt:cue", env = { DOTFILES_FMT_DISPATCH = "fmt" } },
-  { task = "fmt:pi", env = { DOTFILES_FMT_DISPATCH = "fmt" } },
   { task = "fmt:shell", env = { DOTFILES_FMT_DISPATCH = "fmt" } },
 ]
 
