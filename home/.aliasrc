@@ -9,7 +9,6 @@ alias \
   q="exit" \
   c="clear" \
   e="\$EDITOR" \
-  g="git" \
   k='kubectl' \
   mr="mise run" \
   se="sudoedit" \
@@ -47,10 +46,7 @@ alias \
   df="__gnu_df --human-readable --output=source,target,size,used,avail,pcent" \
   du='__gnu_du --human-readable' \
   dd="__gnu_dd bs=512k status=progress" \
-  gcc="gcc -Wall -W -pedantic" \
-  htop="htop -s PERCENT_CPU" \
-  mpv='mpv --hwdec=auto' \
-  upower="upower -i /org/freedesktop/UPower/devices/battery_BAT0"
+  htop="htop -s PERCENT_CPU"
 
 # =============================================================================
 # Kubectl
@@ -64,16 +60,6 @@ alias \
   ksn='kubectl config set-context --current --namespace "$(kln | fzf --header "select ns. ctx: ["$(kubectl config current-context)"]")"'
 
 # =============================================================================
-# Helm
-# =============================================================================
-alias \
-  hls="helm ls" \
-  hdu="helm dependency update" \
-  hui="helm upgrade --install" \
-  hur="helm upgrade --reuse-values" \
-  hua='helm uninstall $(helm ls --short)'
-
-# =============================================================================
 # Docker
 # =============================================================================
 alias \
@@ -84,18 +70,10 @@ alias \
 # Utilities
 # =============================================================================
 alias \
-  sshp='ssh -o "StrictHostKeyChecking=no" -o PreferredAuthentications=password -o PubkeyAuthentication=no' \
-  ch="code . && exit" \
   bye='systemctl suspend-then-hibernate' \
   utop='htop -t -u $(whoami)' \
-  perms="__gnu_stat -c '%a %n' *" \
-  mimetype="file --dereference --brief --mime-type" \
-  tgs='tmux-go-session' \
-  pnav='cd "$(_projselect)"' \
   dlmv='mv ~/Downloads/"$(\ls -At ~/Downloads | head -n1)" .' \
-  vset='_x() { read -r "$1" && export "$1"; }; _x' \
-  set_aws_profile='export AWS_PROFILE="$(aws configure list-profiles | fzf)"' \
-  unset_aws_profile='unset AWS_PROFILE'
+  vset='_x() { read -r "$1" && export "$1"; }; _x'
 
 # Fuzzy file picker
 alias \
@@ -116,28 +94,8 @@ sd() {
   set +e
 }
 
-gbrowse() {
-  git log --graph --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr" "$@" |
-    fzf --ansi --no-sort --reverse --tiebreak=index +m \
-      --bind "ctrl-m:execute: git show --color=always \$(echo {} | cut -d' ' -f2)" \
-      --preview "git show --stat --color=always \$(echo {} | cut -d' ' -f2)" \
-      --preview-window=right,60
-}
-
-launch() {
-  "$@" >/dev/null 2>&1 &
-  disown
-}
-
-_man_help() {
-  res="${READLINE_LINE%% *}"
-  help "$res" 2>/dev/null || man "$res"
-}
-
 urldecode() { printf "%b" "${1//%/\\x}"; }
 urlencode() { printf "%s" "$1" | jq -sRr @uri; }
-
-dshell() { docker run --entrypoint /bin/bash --rm -it "$1" 2>/dev/null || docker run --entrypoint /bin/sh --rm -it "$1"; }
 
 ksc() (
   set -euo pipefail
@@ -145,38 +103,9 @@ ksc() (
   yq e -i ".current-context = \"$s\"" ~/.kube/config
 )
 
-_fzf_file_insert() {
-  local preview_cmd picker file
-  command -v fd >/dev/null 2>&1 || {
-    printf "fd is required for Alt+f file picker\n" >&2
-    return
-  }
-
-  preview_cmd="cat {}"
-  command -v bat >/dev/null 2>&1 && preview_cmd="bat --color=always --style=numbers --line-range :200 {}"
-
-  if command -v fzf-tmux >/dev/null 2>&1 && [ -n "$TMUX" ]; then
-    picker=(fzf-tmux -p "60%,80%")
-  else
-    picker=(fzf --height=40% --layout=reverse --border)
-  fi
-
-  file="$(
-    fd --type f --hidden --follow --exclude .git --color=never --strip-cwd-prefix 2>/dev/null |
-      "${picker[@]}" --prompt 'files > ' --preview "$preview_cmd" --preview-window=right,60%
-  )" || return
-
-  [[ -z $file ]] && return
-  READLINE_LINE="${READLINE_LINE:0:READLINE_POINT}${file}${READLINE_LINE:READLINE_POINT}"
-  READLINE_POINT=$((READLINE_POINT + ${#file}))
-}
-
 # =============================================================================
 # Key bindings
 # =============================================================================
-bind -x '"\eF": _fzf_file_insert'
-bind -x '"\eh": _arg_help'
-bind -x '"\eH": _man_help'
 bind -x $'"\C-l":clear;' # Ctrl+l to clear screen
 
 command -v direnv >/dev/null 2>&1 &&

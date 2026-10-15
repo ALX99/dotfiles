@@ -55,10 +55,8 @@
   dc = diff --cached
 
   # branches
-  bd = !gbd
   bl = branch
   bc = checkout -b
-  bs = !gbs
 
   # stashes
   sa = stash push
