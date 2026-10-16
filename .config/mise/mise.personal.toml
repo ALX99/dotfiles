@@ -19,3 +19,4 @@ rust = "stable"
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 "npm:@kitlangton/terminal-control-darwin-arm64" = "latest"
 "cargo:tokei" = "latest"
+opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
