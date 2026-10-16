@@ -5,19 +5,8 @@
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
-# Interactive shells get full mise activation with its directory-change and
-# prompt hooks so tools switch automatically per project. Non-interactive
-# shells only need to resolve binaries, which the shims directory provides
-# without spawning mise.
-if command -v mise >/dev/null 2>&1; then
-  if [[ $- == *i* ]]; then
-    eval "$(mise activate bash)"
-  elif [[ -d $HOME/.local/share/mise/shims ]]; then
-    export PATH="$HOME/.local/share/mise/shims:$PATH"
-  fi
-fi
-
-# If not running interactively, don't do anything
+# Keep noninteractive shells that source .bashrc lightweight. Login shells
+# source it through .profile, and remote shells may source it as well.
 case $- in
 *i*) ;;
 *)
@@ -27,6 +16,12 @@ case $- in
   return
   ;;
 esac
+
+# Interactive shells need mise's directory-change and prompt hooks so tools
+# switch automatically per project.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate bash)"
+fi
 
 # Interactive macOS commands can use Homebrew's GNU utilities without
 # exporting their directories to child processes such as coding agents.
@@ -202,8 +197,7 @@ __prompt_command() {
 
 PROMPT_COMMAND=__prompt_command
 
-# The activation runs before PROMPT_COMMAND is initialized above so it also
-# works for noninteractive shells that source .bashrc.
+# PROMPT_COMMAND above replaces the hook installed during activation; add it back.
 _mise_add_prompt_command 2>/dev/null || true
 
 # autocd autocd

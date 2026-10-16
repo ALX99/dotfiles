@@ -102,5 +102,16 @@ if [ -t 0 ]; then
   stty -ixon
 fi
 
+# Noninteractive login Bash needs shims; interactive Bash gets them through
+# full activation in .bashrc.
+case $- in
+*i*) ;;
+*)
+  if [ -n "${BASH_VERSION:-}" ] && command -v mise >/dev/null 2>&1; then
+    eval "$(mise activate bash --shims)"
+  fi
+  ;;
+esac
+
 # shellcheck source=/dev/null
 [ -n "$BASH_VERSION" ] && [ -f ~/.bashrc ] && . ~/.bashrc
