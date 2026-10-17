@@ -23,7 +23,7 @@ local enabled_lsps = {
   "tailwindcss",
   "tsc",
   "terraformls",
-  "eslint",
+  "oxlint",
   "gopls",
   "lua_ls",
   "gh_actions_ls",

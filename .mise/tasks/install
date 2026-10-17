@@ -186,8 +186,4 @@ if [[ $(uname) == Linux ]] &&
   systemctl --user enable --now ssh-agent
 fi
 
-if [[ ! -d "$HOME/.pi/agent/extensions/node_modules" ]]; then
-  printf "Hint: run 'mise run pi:deps' to install pi extension dependencies\n"
-fi
-
 printf 'User configuration completed.\n'

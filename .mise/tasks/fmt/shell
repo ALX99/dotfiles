@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #MISE description="Format shell scripts"
+#MISE hide=true
 set -euo pipefail
+if [[ ${DOTFILES_FMT_DISPATCH:-} != fmt ]]; then
+  printf '%s\n' 'Run `mise run fmt`; formatter subtasks are internal.' >&2
+  exit 2
+fi
 
 git ls-files --cached --others --exclude-standard -z |
   while IFS= read -r -d '' file; do

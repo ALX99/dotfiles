@@ -16,6 +16,40 @@ _G.Config.new_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   command = "checktime",
 })
 
+-- Reload Ghostty after writing its Stow-managed config.
+if vim.uv.os_uname().sysname == 'Darwin' then
+  local ghostty_config = vim.uv.fs_realpath(vim.fn.expand('~/.config/ghostty/config'))
+  if ghostty_config then
+    local reload_script = [[
+if application "Ghostty" is running then
+  tell application "Ghostty"
+    if (count of windows) > 0 then
+      perform action "reload_config" on focused terminal of selected tab of front window
+    end if
+  end tell
+end if
+]]
+
+    _G.Config.new_autocmd('BufWritePost', {
+      callback = function(event)
+        local path = vim.uv.fs_realpath(vim.api.nvim_buf_get_name(event.buf))
+        if path ~= ghostty_config then return end
+
+        vim.system({ '/usr/bin/osascript', '-e', reload_script }, { text = true }, function(result)
+          if result.code ~= 0 then
+            vim.schedule(function()
+              vim.notify(
+                'Ghostty config reload failed: ' .. vim.trim(result.stderr or ''),
+                vim.log.levels.WARN
+              )
+            end)
+          end
+        end)
+      end,
+    })
+  end
+end
+
 -- Highlight on yank
 _G.Config.new_autocmd('TextYankPost', {
   callback = function()

@@ -103,6 +103,10 @@ _G.Config.new_autocmd('LspAttach', {
       vim.notify("LspAttach: client " .. args.data.client_id .. " not found", vim.log.levels.INFO)
       return
     end
+    if vim.bo[args.buf].filetype == "typescript" or vim.bo[args.buf].filetype == "typescriptreact" then
+      vim.lsp.codelens.enable(false, { bufnr = args.buf })
+    end
+
     mappings(client, args.buf)
     highlight_references(client, args.buf)
   end,

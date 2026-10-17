@@ -25,29 +25,16 @@ XDG_CONFIG_HOME="$HOME/.config"
 # Default programs
 # =============================================================================
 TERMINAL="ghostty"
-if command -v code >/dev/null 2>&1; then
-  VISUAL="code --wait"
-fi
+unset VISUAL
 EDITOR="nvim"
+BASH_ENV="$HOME/.bashrc.d/noninteractive.bash"
 
 # =============================================================================
 # Platform-specific
 # =============================================================================
 if [ "$__kernel_name" = "Darwin" ]; then
-  # GNU tools are the default for every process, not only interactive shells:
-  # aliases never reach non-interactive bash (scripts, editors, coding agents),
-  # while PATH does. Homebrew ships each GNU package's unprefixed tools in
-  # libexec/gnubin, so these directories outrank /usr/bin and the BSD cat,
-  # sed, find, tar, and grep. Uninstalled packages are skipped.
-  __gnu_bins=
-  for __gnu_pkg in coreutils findutils gawk gnu-sed gnu-tar grep; do
-    __gnu_dir="/opt/homebrew/opt/$__gnu_pkg/libexec/gnubin"
-    [ -d "$__gnu_dir" ] && __gnu_bins="$__gnu_bins:$__gnu_dir"
-  done
-  PATH="${__gnu_bins#:}:/opt/homebrew/bin:$PATH:$HOME/.gem/ruby/2.6.0/bin"
-  unset __gnu_bins __gnu_dir __gnu_pkg
+  PATH="/opt/homebrew/bin:$PATH"
 
-  USE_BUILTIN_RIPGREP=0
   CGO_LDFLAGS="-w"
   XDG_CACHE_HOME="$HOME/Library/Caches"
   BUN_INSTALL_CACHE_DIR="$XDG_CACHE_HOME/bun"
@@ -95,7 +82,7 @@ RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 GH_PAGER="delta"
 DOCKER_BUILDKIT="1"
 NPM_CONFIG_IGNORE_SCRIPTS=true
-DISABLE_TELEMETRY=1  # Disable claude code telemetry
+DISABLE_TELEMETRY=1 # Disable claude code telemetry
 
 # Twilight Bloom LS_COLORS uses Ghostty's ANSI palette, so all terminal apps
 # get the same vivid semantic colors without a separate xterm-256 palette.
@@ -115,9 +102,16 @@ if [ -t 0 ]; then
   stty -ixon
 fi
 
+# Noninteractive login Bash needs shims; interactive Bash gets them through
+# full activation in .bashrc.
+case $- in
+*i*) ;;
+*)
+  if [ -n "${BASH_VERSION:-}" ] && command -v mise >/dev/null 2>&1; then
+    eval "$(mise activate bash --shims)"
+  fi
+  ;;
+esac
+
 # shellcheck source=/dev/null
 [ -n "$BASH_VERSION" ] && [ -f ~/.bashrc ] && . ~/.bashrc
-
-# >>> Codex installer >>>
-export PATH="/Users/dozy/.local/bin:$PATH"
-# <<< Codex installer <<<

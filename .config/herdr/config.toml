@@ -1,82 +1,99 @@
-# Omarchy-compatible base configuration with repository customizations.
-# Keep the terminal/ANSI theme and tmux-compatible defaults so Omarchy theme
-# changes continue to flow through the terminal palette.
+# Herdr configuration. Twilight Bloom matches Pi and Ghostty.
+onboarding = false
 
 [theme]
 name = "terminal"
+auto_switch = true
+dark_name = "terminal"
+light_name = "terminal"
 
-[theme.custom]
-panel_bg = "black"
+# BEGIN GENERATED: Twilight Bloom theme
+# Generated from misc/themes/twilight-bloom.cue; do not edit here.
+[theme.custom.dark]
+text = "#d0d0d0"
+overlay1 = "#d0d0d0"
+subtext0 = "#a8a8a8"
+overlay0 = "#a8a8a8"
+active_row_bg = "#4e4e4e"
+selection_bg = "#4e4e4e"
+mauve = "#ffafaf"
 
+[theme.custom.light]
+text = "#4e4e4e"
+overlay1 = "#4e4e4e"
+subtext0 = "#3a3a3a"
+overlay0 = "#3a3a3a"
+active_row_bg = "#afd7d7"
+selection_bg = "#afd7d7"
+mauve = "#875f87"
+
+# END GENERATED: Twilight Bloom theme
 [terminal]
 shell_mode = "auto"
 new_cwd = "follow"
 
 [keys]
-prefix = "ctrl+space"
+# Match tmux's M-a prefix. Ghostty is configured to pass Option as Alt.
+prefix = "alt+a"
 
-# Omarchy/tmux-compatible controls
-reload_config = "prefix+q"
-help = "prefix+?"
-detach = "prefix+d"
-copy_mode = "prefix+["
-split_horizontal = ["prefix+h", "alt+enter"]
-split_vertical = ["prefix+v", "alt+shift+enter"]
-close_pane = ["prefix+x", "alt+esc"]
-zoom = "prefix+z"
-last_pane = "prefix+;"
-resize_mode = ["prefix+ctrl+left", "prefix+ctrl+down", "prefix+ctrl+up", "prefix+ctrl+right"]
-resize_pane_left = "ctrl+alt+shift+left"
-resize_pane_down = "ctrl+alt+shift+down"
-resize_pane_up = "ctrl+alt+shift+up"
-resize_pane_right = "ctrl+alt+shift+right"
-rename_pane = "prefix+shift+o"
+# Keep the familiar tmux navigation and split keys.
+new_tab = "prefix+c"
+previous_tab = "prefix+m"
+next_tab = "prefix+i"
+switch_tab = "prefix+1..9"
+split_vertical = "prefix+v"
+split_horizontal = "prefix+s"
+close_pane = "prefix+x"
+zoom = ["prefix+z", "alt+f"]
+detach = "prefix+q"
+reload_config = "prefix+shift+r"
 
-# Colemak-DH navigation additions
+# Herdr's workspace/session surfaces take the place of tmux's session switcher.
+workspace_picker = ["prefix+h", "alt+g"]
+goto = "prefix+w"
+new_worktree = "prefix+shift+y"
+settings = "prefix+shift+s"
+
+# Colemak-DH pane movement, with prefix-arrow fallbacks.
+focus_pane_left = ["prefix+left", "alt+m"]
+focus_pane_down = ["prefix+down", "alt+n"]
+focus_pane_up = ["prefix+up", "alt+e"]
+focus_pane_right = ["prefix+right", "alt+i"]
 navigate_pane_left = "m"
 navigate_pane_down = "n"
 navigate_pane_up = "e"
 navigate_pane_right = "i"
+
+# Keep the tmux pane-swap muscle memory without colliding with tab movement.
 swap_pane_down = "prefix+n"
 swap_pane_up = "prefix+e"
 swap_pane_left = "prefix+shift+left"
 swap_pane_right = "prefix+shift+right"
+edit_scrollback = "prefix+shift+h"
+last_pane = "alt+tab"
 
-# Windows -> tabs
-new_tab = "prefix+c"
-rename_tab = "prefix+r"
-close_tab = "prefix+k"
-switch_tab = ["prefix+1..9", "alt+1..9"]
-previous_tab = ["prefix+p", "alt+left"]
-next_tab = ["prefix+n", "alt+right"]
-move_tab_previous = "alt+shift+left"
-move_tab_next = "alt+shift+right"
+# Resize mode's built-in keys are hardcoded to hjkl, so bind direct resize
+# chords to the same Colemak-DH row as focus_pane_* instead.
+resize_pane_left = "alt+shift+m"
+resize_pane_down = "alt+shift+n"
+resize_pane_up = "alt+shift+e"
+resize_pane_right = "alt+shift+i"
 
-# Sessions -> workspaces
-new_workspace = "prefix+shift+c"
-rename_workspace = "prefix+shift+r"
-close_workspace = "prefix+shift+k"
-previous_workspace = ["prefix+shift+p", "alt+up"]
-next_workspace = ["prefix+shift+n", "alt+down"]
+# Herdr copy mode already provides tmux-style scrolling and selection.
+copy_mode = "prefix+["
 
 [ui]
-accent = "blue"
-pane_gaps = false
-pane_outer_borders = false
-pane_scrollbars = false
-confirm_close = false
-prompt_new_tab_name = false
-mouse_capture = true
-tab_bar_right = [{ type = "zoom" }, { type = "hostname" }]
-window_title = "{hostname}: {workspace}"
-
-# Repository UI additions that do not replace Omarchy's core defaults.
 sidebar_width = 24
 sidebar_min_width = 18
 sidebar_max_width = 36
 sidebar_collapsed_mode = "compact"
+mouse_capture = true
+copy_on_select = true
+pane_borders = true
+pane_gaps = false
 show_agent_labels_on_pane_borders = false
 hide_tab_bar_when_single_tab = false
+prompt_new_tab_name = false
 agent_panel_sort = "spaces"
 
 [ui.sidebar.spaces]
@@ -84,10 +101,10 @@ row_gap = 0
 rows = [
   ["state_icon", "workspace"],
   [
-    { token = "$pr_draft", fg = "yellow" },
-    { token = "$pr_open", fg = "blue" },
-    { token = "$pr_merged", fg = "green" },
-    { token = "$pr_closed", fg = "red" },
+    { token = "$pr_draft", fg = "#ffd36a" },
+    { token = "$pr_open", fg = "#8fa8ff" },
+    { token = "$pr_merged", fg = "#78e3b0" },
+    { token = "$pr_closed", fg = "#ff6b8a" },
     "branch",
     "git_status",
   ],
@@ -107,9 +124,9 @@ resume_agents_on_restore = true
 manage_ssh_config = true
 
 [advanced]
+# Approximate tmux's history-limit = 200000 with a byte-based scrollback cap.
 scrollback_limit_bytes = 100_000_000
 
-# Additional repository commands.
 [[keys.command]]
 key = "prefix+g"
 type = "popup"
@@ -127,8 +144,22 @@ width = "90%"
 height = "80%"
 
 [[keys.command]]
+key = "prefix+p"
+type = "plugin_action"
+command = "dotfiles.git-pr-status.refresh"
+description = "refresh GitHub PR status"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "dotfiles.git-pr-status.open"
+description = "open GitHub PR for worktree"
+
+[[keys.command]]
 key = "alt+t"
 type = "popup"
+# Herdr forwards popup input to the child shell, so the marker lets
+# .bashrc make Cmd+T/Alt+T exit this scratch popup like tmux's popup table.
 command = 'HERDR_SCRATCH_POPUP=1 exec "${SHELL:-bash}"'
 description = "toggle scratch shell"
 width = "95%"
@@ -147,15 +178,3 @@ key = "prefix+shift+t"
 type = "plugin_action"
 command = "dotfiles.tmpsh.spawn"
 description = "spawn tmpsh space (temp folder)"
-
-[[keys.command]]
-key = "prefix+shift+u"
-type = "plugin_action"
-command = "dotfiles.git-pr-status.refresh"
-description = "refresh GitHub PR status"
-
-[[keys.command]]
-key = "prefix+shift+y"
-type = "plugin_action"
-command = "dotfiles.git-pr-status.open"
-description = "open GitHub PR for worktree"

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #MISE description="Format repository CUE sources"
+#MISE hide=true
 set -euo pipefail
+if [[ ${DOTFILES_FMT_DISPATCH:-} != fmt ]]; then
+  printf '%s\n' 'Run `mise run fmt`; formatter subtasks are internal.' >&2
+  exit 2
+fi
 cd "$(git rev-parse --show-toplevel)"
 
 cue fmt --files misc/karabiner/karabiner.cue misc/themes/twilight-bloom.cue

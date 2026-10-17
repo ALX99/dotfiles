@@ -8,12 +8,13 @@ zig = "latest"
 "aqua:oven-sh/bun" = "latest"
 "aqua:pnpm/pnpm" = "latest"
 "npm:typescript" = "latest"
+"npm:oxlint" = "latest"
 
 # Harnesses
 # Harness releases are time-sensitive, so they take a 1h holdback instead of the
 # global 24h (`minimum_release_age` here overrides the `[settings]` default).
-"aqua:openai/codex" = { version = "latest", minimum_release_age = "1h" }
-"npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h" }
+"aqua:openai/codex" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
+"npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
 
 # AI stuff
 "npm:skills" = "latest"
@@ -29,6 +30,11 @@ zig = "latest"
 
 # CLIs
 "aqua:cli/cli" = "latest"
+# Lightpanda ships bare per-platform binaries named `lightpanda-<arch>-<os>`,
+# so `bin` gives the downloaded file its tool name. `latest` is avoided on
+# purpose: the repo's "Latest release" is the rolling `nightly` tag, whose
+# assets are re-uploaded every build and break checksum verification.
+"github:lightpanda-io/browser" = { version = "1", bin = "lightpanda" }
 "aqua:sharkdp/bat" = "latest"
 "aqua:sharkdp/fd" = "latest"
 "aqua:junegunn/fzf" = "latest"

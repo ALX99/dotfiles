@@ -10,23 +10,44 @@
 # shellcheck disable=SC1091
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
-# Interactive shells get full mise activation with its directory-change and
-# prompt hooks so tools switch automatically per project. Non-interactive
-# shells only need to resolve binaries, which the shims directory provides
-# without spawning mise.
-if command -v mise >/dev/null 2>&1; then
-  if [[ $- == *i* ]]; then
-    eval "$(mise activate bash)"
-  elif [[ -d $HOME/.local/share/mise/shims ]]; then
-    export PATH="$HOME/.local/share/mise/shims:$PATH"
-  fi
-fi
-
-# If not running interactively, don't do anything
+# Keep noninteractive shells that source .bashrc lightweight. Login shells
+# source it through .profile, and remote shells may source it as well.
 case $- in
 *i*) ;;
-*) return ;;
+*)
+  # Login shells set BASH_ENV after startup, so load these defaults here too.
+  # shellcheck disable=SC1091
+  . "$HOME/.bashrc.d/noninteractive.bash"
+  return
+  ;;
 esac
+
+# Interactive shells need mise's directory-change and prompt hooks so tools
+# switch automatically per project.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate bash)"
+fi
+
+# Interactive macOS commands can use Homebrew's GNU utilities without
+# exporting their directories to child processes such as coding agents.
+if [[ $OSTYPE == darwin* ]]; then
+  # These aliases intentionally capture the discovered executable paths now.
+  # shellcheck disable=SC2139
+  for __gnu_pkg in coreutils diffutils findutils gawk gnu-sed gnu-tar grep; do
+    __gnu_dir="/opt/homebrew/opt/$__gnu_pkg/libexec/gnubin"
+    [[ -d $__gnu_dir ]] || continue
+    for __gnu_path in "$__gnu_dir"/*; do
+      [[ -x $__gnu_path && ! -d $__gnu_path ]] || continue
+      __gnu_name=${__gnu_path##*/}
+      case $(type -t "$__gnu_name") in
+      builtin | keyword | function | alias) continue ;;
+      esac
+      alias "__gnu_${__gnu_name}=$__gnu_path"
+      alias "$__gnu_name=__gnu_${__gnu_name}"
+    done
+  done
+  unset __gnu_dir __gnu_name __gnu_path __gnu_pkg
+fi
 
 # History
 HISTIGNORE="&:exit:ls:bg:fg:history:clear"
@@ -181,8 +202,7 @@ __prompt_command() {
 
 PROMPT_COMMAND=__prompt_command
 
-# The activation runs before PROMPT_COMMAND is initialized above so it also
-# works for noninteractive shells that source .bashrc.
+# PROMPT_COMMAND above replaces the hook installed during activation; add it back.
 _mise_add_prompt_command 2>/dev/null || true
 
 # autocd autocd

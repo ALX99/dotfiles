@@ -37,8 +37,6 @@ _lazy_completion kubectl "k" "kubectl completion bash"
 # instead of the __start_mise convention.
 _lazy_completion mise "" "mise completion bash" _usage_complete_mise
 _lazy_completion mr "" "mise completion bash" _mr
-_lazy_completion helm "" "helm completion bash"
-_lazy_completion k6 "" "k6 completion bash"
 _lazy_completion gh "" "gh completion -s bash"
 _lazy_completion orb "" "orb completion bash"
 unset -f _lazy_completion
