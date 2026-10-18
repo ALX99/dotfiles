@@ -31,22 +31,30 @@ alias \
 # Better defaults
 # =============================================================================
 # Interactive macOS shells use private aliases for Homebrew GNU commands
-# (see .bashrc), so GNU-specific flags do not change child-process PATHs.
+# (see .bashrc), so GNU-specific flags do not change child-process PATHs. On
+# Linux, use command to bypass the aliases being defined here.
+if [[ $OSTYPE == darwin* ]]; then
+  __gnu_prefix=__gnu_
+else
+  __gnu_prefix='command '
+fi
+# shellcheck disable=SC2139
 alias \
-  ls="__gnu_ls -hN --color=auto --group-directories-first" \
-  ll="__gnu_ls -hNlA --color=auto" \
-  grep="__gnu_grep --color=auto" \
-  diff="__gnu_diff --color=auto" \
+  ls="${__gnu_prefix}ls -hN --color=auto --group-directories-first" \
+  ll="${__gnu_prefix}ls -hNlA --color=auto" \
+  grep="${__gnu_prefix}grep --color=auto" \
+  diff="${__gnu_prefix}diff --color=auto" \
   ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
   rm="rm -v" \
   mkdir="mkdir -p" \
   free="free -h" \
-  df="__gnu_df --human-readable --output=source,target,size,used,avail,pcent" \
-  du='__gnu_du --human-readable' \
-  dd="__gnu_dd bs=512k status=progress" \
+  df="${__gnu_prefix}df --human-readable --output=source,target,size,used,avail,pcent" \
+  du="${__gnu_prefix}du --human-readable" \
+  dd="${__gnu_prefix}dd bs=512k status=progress" \
   htop="htop -s PERCENT_CPU"
+unset __gnu_prefix
 
 # =============================================================================
 # Kubectl
