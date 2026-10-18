@@ -27,19 +27,19 @@
 "~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout" = { source = "misc/keymaps/Colemak-DH-ANSI.keylayout", mode = "0644" }
 
 [tools]
-"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # gen:karabiner, karabiner:check
+"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # gen:theme, theme:check
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 "aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
 "aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
 
 # Task files live in .mise/tasks/: flat entry points (install, linux-system),
-# subsystem tasks (shell:check, karabiner:check), internal formatter
+# subsystem tasks (shell:check), internal formatter
 # subtasks (fmt:cue, fmt:shell), and generator subcommands (gen:<area>).
 # Aggregate tasks (check, fmt) and `gen` are defined here;
 # `gen` depends on every `gen:*` task, so new generators need no registration.
 [tasks.check]
 description = "Run all repository checks"
-depends = ["karabiner:check", "shell:check", "theme:check"]
+depends = ["shell:check", "theme:check"]
 
 [tasks.fmt]
 description = "Run all repository formatters"

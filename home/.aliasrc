@@ -97,6 +97,27 @@ sd() {
 urldecode() { printf "%b" "${1//%/\\x}"; }
 urlencode() { printf "%s" "$1" | jq -sRr @uri; }
 
+# Run the Mise-installed Pi CLI with Bun instead of Node.
+pi() {
+  local shim target bundle cli
+  shim=$(mise which pi) || return
+  target=$(sed -n 's/^# aube-bin-shim v2 target=//p' "$shim")
+  if [[ -z "$target" ]]; then
+    printf 'pi: unable to read the Mise Pi shim target from %s\n' "$shim" >&2
+    return 127
+  fi
+
+  bundle=$(cd "$(dirname "$shim")" &&
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$target") || return
+  cli="${bundle%/bundle/cli.js}/cli.js"
+  if [[ ! -f "$cli" ]]; then
+    printf 'pi: unbundled CLI not found: %s\n' "$cli" >&2
+    return 127
+  fi
+
+  bun run --bun "$cli" "$@"
+}
+
 ksc() (
   set -euo pipefail
   s="$(klc | fzf)"
