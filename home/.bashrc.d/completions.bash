@@ -32,6 +32,8 @@ _lazy_completion() {
     }
     complete -F _lazy_${cmd} ${cmd} ${aliases}"
 }
+# Bun selects the completion format from SHELL, not an explicit argument.
+_lazy_completion bun "" "SHELL=bash bun completions" _bun_completion
 _lazy_completion kubectl "k" "kubectl completion bash"
 # mise's generated completion (usage-argv) defines _usage_complete_mise
 # instead of the __start_mise convention.
@@ -40,6 +42,15 @@ _lazy_completion mr "" "mise completion bash" _mr
 _lazy_completion gh "" "gh completion -s bash"
 _lazy_completion orb "" "orb completion bash"
 unset -f _lazy_completion
+
+_bun_completion() {
+  # Bun 1.4.3 references this regex without defining it. An empty regex errors
+  # on macOS; use a never-matching pattern for that unused branch instead.
+  # Bash's dynamic scope keeps the workaround local to Bun's completion call.
+  # shellcheck disable=SC2034
+  local re_comp_word_script='a^'
+  _bun_completions
+}
 
 # mr expands to "mise run", so its entry point rewrites the completion state
 # before delegating to _mise; without it usage completes mise's top-level
