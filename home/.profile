@@ -27,7 +27,6 @@ XDG_CONFIG_HOME="$HOME/.config"
 TERMINAL="ghostty"
 unset VISUAL
 EDITOR="nvim"
-BASH_ENV="$HOME/.bashrc.d/noninteractive.bash"
 
 # =============================================================================
 # Platform-specific
@@ -102,8 +101,7 @@ if [ -t 0 ]; then
   stty -ixon
 fi
 
-# Noninteractive login Bash needs shims; interactive Bash gets them through
-# full activation in .bashrc.
+# Noninteractive login Bash needs shims; interactive Bash gets full activation.
 case $- in
 *i*) ;;
 *)

@@ -1,5 +1,5 @@
-# Bash reads this file for noninteractive invocations through BASH_ENV.
-# Keep it to environment defaults; interactive startup belongs in .bashrc.
+# Opt-in defaults for unattended commands, not general shell/session startup.
+# Use BASH_ENV="$HOME/.bashrc.d/noninteractive.bash" bash -c '...' explicitly.
 unset VISUAL
 export EDITOR=false
 export GIT_EDITOR="${GIT_EDITOR:-true}"

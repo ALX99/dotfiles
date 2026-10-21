@@ -15,9 +15,6 @@
 case $- in
 *i*) ;;
 *)
-  # Login shells set BASH_ENV after startup, so load these defaults here too.
-  # shellcheck disable=SC1091
-  . "$HOME/.bashrc.d/noninteractive.bash"
   return
   ;;
 esac
