@@ -1,31 +1,23 @@
-# Repository Map
+# Repository Guide
 
-## Repository Purpose
+## Layout and sources of truth
 
-This Stow-managed personal repository holds shell tooling, desktop applications, system setup, and AI-agent configuration. `.local/`, `home/`, and `.config/` are packages installed into `~/.local`, `~`, and `~/.config`; `.stowrc` deliberately disables Stow folding.
+- This is a Stow repo: `.local/`, `home/`, and `.config/` install to `~/.local`, `~`, and `~/.config`. `.stowrc` disables folding; keep tracked symlinks intact, especially `home/.bash_profile` → `.profile` and the Claude/Codex instruction links to the shared `home/.agents/AGENTS.md` (installed as `~/.agents/AGENTS.md`).
+- `.local/bin/` owns user executables; `home/` owns shell and agent configuration; `.config/` owns application configuration; `misc/` owns system, keyboard, and generated assets. Start shell work at `home/.profile`, `home/.bashrc`, and `home/.bashrc.d/`.
+- `.devcontainer/` defines the Arch development environment, not the installed host configuration. Herdr plugins share CLI/workspace helpers in `.config/herdr/plugins/_shared/herdrlib.py`; plugin-specific Git and install policy stays with each plugin.
+- `home/.agents/AGENTS.md` is the shared general instruction source for Claude and Codex; `home/.agents/skills/` contains harness-independent skills. Pi configuration and extensions live in the separate `~/projects/pi-lot` repository, which owns installation into `~/.pi/agent`. Dotfiles must not Stow or install Pi resources.
+- `misc/themes/twilight-bloom.cue` is the theme source for the Ghostty and Herdr outputs. Colemak-DH mappings are coordinated across Nvim, tmux, Sail, keyd, Ghostty, and readline.
+- Interactive macOS Bash maps GNU utility names to private aliases instead of adding GNU directories to `PATH`; keep GNU-option aliases in `home/.aliasrc` consistent with those aliases.
 
-## Architecture and Ownership
+## Commands
 
-- `.local/bin/` owns user executables. `home/` owns configuration, including Bash, SSH, Git, and agent files. Start shell changes at `home/.profile`, `home/.bashrc`, and `home/.bashrc.d/`.
-- `.config/` owns application configuration. Neovim starts at `.config/nvim/init.lua`; compositor, terminal, and other desktop settings live beside it. Herdr plugins share CLI execution and validated workspace fields through `.config/herdr/plugins/_shared/herdrlib.py`; each plugin owns its Git or installation policy.
-- `misc/` owns Arch, systemd, pacman-hook, and keyboard assets. `.devcontainer/` defines the Arch development environment rather than the installed host configuration.
-- `home/.agents/skills/` contains harness-independent skills. Pi configuration and extensions now live in `~/projects/pi-lot`, which owns installation into `~/.pi/agent`; dotfiles must not Stow or install Pi resources.
+- `mise.toml` and `.mise/tasks/` define tools, setup, generators, and checks. CI runs `mise run check`; `mise run fmt` formats the repo and `mise run gen` runs every generator.
+- For generated assets, edit the source first, then run `mise run gen:theme` / `mise run theme:check`.
+- `mise run shell:check` runs ShellCheck and shfmt on repository shell scripts.
 
-## Key Flows and Sources of Truth
+## Host changes
 
-`mise run install` restows the three user packages and links shared skills; it can change `$HOME` and enable the user `ssh-agent`. `mise.toml` owns the bootstrap manifest and tools; `.mise/tasks/` owns automation as standalone scripts (entry points flat, subsystem work namespaced like `shell:check`, generators inverted as `gen:<area>` and run together by `mise run gen`). Together they are the source for installation and host setup. GitHub Actions installs the tools from `mise.toml` and runs `mise run check` for every push and pull request.
+- `mise run install` changes `$HOME`: it restows packages, synchronizes skill links (including stale repo-managed links), and may enable the user `ssh-agent`. Do not run it for routine code verification.
+- `MISE_ENV=linux mise bootstrap` and `mise run linux-system` apply real Linux host configuration; `linux-system` uses privileged commands. Run them only when host setup is explicitly requested.
 
-## Where to Start
-
-- For user commands or shell behavior, inspect `.local/bin/` and the `home/` shell file.
-- For an application or desktop change, begin under `.config/`; follow related Colemak-DH mappings across affected applications.
-- For Twilight Bloom changes, edit `misc/themes/twilight-bloom.cue`, then run `mise run gen:theme` and `mise run theme:check`. It generates Ghostty and Herdr themes.
-- For system provisioning or keymaps, begin at `misc/` and `mise.linux.toml`. Do not casually run `MISE_ENV=linux mise bootstrap` or the `linux-system` task; they make privileged host changes.
-
-## Critical Constraints
-
-Keep tracked links as links: `CLAUDE.md` targets this file, `home/.bash_profile` targets `.profile`, and the Claude/Codex instruction links resolve through `~/.pi/agent/APPEND_SYSTEM.md`, installed by pi-lot. Colemak-DH navigation is coordinated across Nvim, tmux, Sail, keyd, Ghostty, and readline. `misc/themes/twilight-bloom.cue` is the source of truth for the Ghostty and Herdr themes. Bash PS1 and LS_COLORS consume the Ghostty ANSI palette directly. Interactive macOS Bash maps GNU utility names to private aliases in `home/.bashrc`, without adding GNU directories to PATH; child processes such as coding agents therefore retain the inherited native-utility PATH. Keep GNU-option aliases in `home/.aliasrc` consistent with those private aliases.
-
-## Maintenance
-
-Keep this repository map current. When a change adds, removes, or relocates a major subsystem; changes an architectural boundary or source of truth; or introduces a critical repository-wide constraint, update `AGENTS.md` in the same commit. Do not record routine implementation details or file-level churn.
+Keep this file limited to verified ownership, source-of-truth, and workflow facts; update it when those change.

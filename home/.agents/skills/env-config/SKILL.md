@@ -32,7 +32,7 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 
 - `.config/mise/*.toml` stow to `~/.config/mise/` and load in every directory. `[tools]` merges additively: profile entries add to the shared config and never replace it.
 - Root `mise.*.toml` files are project configs: they load only from inside the repository working tree, and they carry bootstrap packages, tasks, and generators, not runtime tools.
-- `mise.toml` (shared root) also defines repo tooling (`cue`, `jq`, `shfmt`, `shellcheck`, `bun`) in `[tools]`.
+- `mise.toml` (shared root) also defines repo tooling (`cue`, `jq`, `shfmt`, `shellcheck`) in `[tools]`.
 
 ## Common changes
 
