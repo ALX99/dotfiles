@@ -3,7 +3,7 @@
 #MISE hide=true
 set -euo pipefail
 if [[ ${DOTFILES_FMT_DISPATCH:-} != fmt ]]; then
-  printf '%s\n' 'Run `mise run fmt`; formatter subtasks are internal.' >&2
+  printf '%s\n' 'Run "mise run fmt"; formatter subtasks are internal.' >&2
   exit 2
 fi
 cd "$(git rev-parse --show-toplevel)"

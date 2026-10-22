@@ -3,6 +3,7 @@
 
 # Keep Omarchy's session/tool shim available to interactive and non-interactive
 # shells, while retaining the repository's shell setup below.
+# shellcheck disable=SC1091
 [[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] &&
   source /usr/share/omarchy/default/bash/env-bootstrap
 
@@ -210,7 +211,13 @@ _mise_add_prompt_command 2>/dev/null || true
 # checkwinsize check the window size after each external command and, if necessary, updates the values of $LINES and $COLUMNSk
 # cmdhist save multiple-line commands in the same history entry
 # huponexit send SIGHUP to all jobs when an interactive login shell exits
-shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist huponexit
+# globstar lets ** match directories recursively in interactive globs
+# globskipdots keeps * from matching . and .. (bash 5.2+)
+shopt -s autocd cdspell dirspell histappend checkjobs direxpand checkwinsize cmdhist huponexit globstar globskipdots
+
+# Render man pages through bat, matching the `cat` alias. bat keeps its pager,
+# so .bash_profile's LESS settings still apply.
+export MANPAGER='sh -c "col -bx | bat --language man --style plain"'
 
 # Shell-integration cache used by .aliasrc.
 if [[ -r $HOME/.bashrc.d/integration-cache.bash ]]; then

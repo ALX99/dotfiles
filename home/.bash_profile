@@ -5,7 +5,32 @@
 # PATH
 # =============================================================================
 export PNPM_HOME="$HOME/.local/share/pnpm"
-export PATH="$PATH:$HOME/go/bin:$HOME/.cargo/bin:$PNPM_HOME:$HOME/.local/pipxbin:$HOME/.orbstack/bin:$HOME/.local/bin"
+
+# Login shells inherit PATH from their parent, so add each directory only when
+# it is missing. Nested login shells (agents, `bash -lc`) would otherwise
+# append the same directories again at every level.
+__path_add() {
+  local mode=$1 dir
+  shift
+  for dir in "$@"; do
+    case ":$PATH:" in
+    *":$dir:"*) continue ;;
+    esac
+    if [[ $mode == prepend ]]; then
+      PATH="$dir${PATH:+:$PATH}"
+    else
+      PATH="${PATH:+$PATH:}$dir"
+    fi
+  done
+}
+
+if [[ $OSTYPE == darwin* ]]; then
+  __path_add prepend /opt/homebrew/bin
+fi
+__path_add append \
+  "$HOME/go/bin" "$HOME/.cargo/bin" "$PNPM_HOME" "$PNPM_HOME/bin" \
+  "$HOME/.local/pipxbin" "$HOME/.orbstack/bin" "$HOME/.local/bin"
+unset -f __path_add
 
 # =============================================================================
 # XDG
@@ -22,8 +47,6 @@ export EDITOR="nvim"
 # Platform-specific
 # =============================================================================
 if [[ $OSTYPE == darwin* ]]; then
-  export PATH="/opt/homebrew/bin:$PATH"
-
   export CGO_LDFLAGS="-w"
   export XDG_CACHE_HOME="$HOME/Library/Caches"
 else
@@ -51,12 +74,11 @@ export LESS='-R --use-color -Dd+r$Du+b$'
 export LESSKEYIN="$XDG_CONFIG_HOME/less/lesskey"
 export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/rgrc"
 export GH_PAGER="delta"
-export NPM_CONFIG_IGNORE_SCRIPTS=true
 export DISABLE_TELEMETRY=1 # Disable claude code telemetry
 
 # Twilight Bloom LS_COLORS uses Ghostty's ANSI palette, so all terminal apps
 # get the same vivid semantic colors without a separate xterm-256 palette.
-export LS_COLORS='di=1;34:ln=4;36:or=1;31:mi=1;31:ex=1;32:su=1;33:sg=1;33:tw=1;35:ow=1;33:st=2;90:pi=33:so=35:bd=36:cd=1;36:do=35:fi=0:no=0'':*.zip=32:*.tar=32:*.tgz=32:*.gz=32:*.bz2=32:*.xz=32:*.zst=32:*.rar=32:*.7z=32:*.deb=33:*.rpm=33:*.sh=34:*.bash=34:*.zsh=34:*.fish=34:*.py=34:*.js=34:*.ts=34:*.jsx=34:*.tsx=34:*.go=36:*.rs=36:*.c=36:*.h=36:*.cc=36:*.cpp=36:*.hpp=36:*.lua=34:*.vim=34'':*.json=33:*.yaml=33:*.yml=33:*.toml=33:*.ini=90:*.conf=90:*.cfg=90:*.xml=33:*.csv=36:*.sql=35:*.md=33:*.markdown=33:*.txt=90:*.rst=33:*.adoc=33:*.pdf=35:*README=4;33:*README.md=4;33:*LICENSE=33:*CHANGELOG=33:*CLAUDE.md=1;4;35:*AGENTS.md=1;4;35:*claude.md=1;4;35:*agents.md=1;4;35'':*.png=35:*.jpg=35:*.jpeg=35:*.gif=35:*.webp=35:*.svg=36:*.mp3=35:*.flac=35:*.wav=35:*.mp4=35:*.mov=35:*.mkv=35:*.webm=35:*Dockerfile=1;32:*Containerfile=1;32:*Makefile=1;32:*Justfile=1;32:*justfile=1;32:*Cargo.toml=36:*Cargo.lock=90:*go.mod=36:*go.sum=90:*package.json=36:*package-lock.json=90:*id_rsa=1;31:*id_ed25519=1;31:*.pem=1;31:*.key=1;31:*.crt=33:*.env=1;31:*.env.*=1;31:*.tmp=2;90:*.temp=2;90:*.swp=2;90:*.swo=2;90:*.o=2;90:*.obj=2;90:*.class=2;90:*.pyc=2;90:*.cache=2;90:*.DS_Store=2;90'
+export LS_COLORS='di=1;34:ln=4;36:or=1;31:mi=1;31:ex=1;32:su=1;33:sg=1;33:tw=1;35:ow=1;33:st=2;90:pi=33:so=35:bd=36:cd=1;36:do=35:fi=0:no=0:*.zip=32:*.tar=32:*.tgz=32:*.gz=32:*.bz2=32:*.xz=32:*.zst=32:*.rar=32:*.7z=32:*.deb=33:*.rpm=33:*.sh=34:*.bash=34:*.zsh=34:*.fish=34:*.py=34:*.js=34:*.ts=34:*.jsx=34:*.tsx=34:*.go=36:*.rs=36:*.c=36:*.h=36:*.cc=36:*.cpp=36:*.hpp=36:*.lua=34:*.vim=34:*.json=33:*.yaml=33:*.yml=33:*.toml=33:*.ini=90:*.conf=90:*.cfg=90:*.xml=33:*.csv=36:*.sql=35:*.md=33:*.markdown=33:*.txt=90:*.rst=33:*.adoc=33:*.pdf=35:*README=4;33:*README.md=4;33:*LICENSE=33:*CHANGELOG=33:*CLAUDE.md=1;4;35:*AGENTS.md=1;4;35:*claude.md=1;4;35:*agents.md=1;4;35:*.png=35:*.jpg=35:*.jpeg=35:*.gif=35:*.webp=35:*.svg=36:*.mp3=35:*.flac=35:*.wav=35:*.mp4=35:*.mov=35:*.mkv=35:*.webm=35:*Dockerfile=1;32:*Containerfile=1;32:*Makefile=1;32:*Justfile=1;32:*justfile=1;32:*Cargo.toml=36:*Cargo.lock=90:*go.mod=36:*go.sum=90:*package.json=36:*package-lock.json=90:*id_rsa=1;31:*id_ed25519=1;31:*.pem=1;31:*.key=1;31:*.crt=33:*.env=1;31:*.env.*=1;31:*.tmp=2;90:*.temp=2;90:*.swp=2;90:*.swo=2;90:*.o=2;90:*.obj=2;90:*.class=2;90:*.pyc=2;90:*.cache=2;90:*.DS_Store=2;90'
 
 # Disable terminal flow control once per login session.
 if [ -t 0 ]; then
