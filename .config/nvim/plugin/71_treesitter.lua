@@ -67,7 +67,14 @@ local parsers = {
 }
 
 vim.schedule(function()
-  require('nvim-treesitter').install(parsers):await(function(err)
+  local treesitter = require('nvim-treesitter')
+  local installed = treesitter.get_installed('parsers')
+  local missing = vim.tbl_filter(function(lang)
+    return not vim.list_contains(installed, lang)
+  end, parsers)
+  if #missing == 0 then return end
+
+  treesitter.install(missing):await(function(err)
     if err then return end
 
     -- A failed language lookup is cached until 'runtimepath' is assigned.

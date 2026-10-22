@@ -1,10 +1,5 @@
 -- nvim-lspconfig
--- Depends on: blink_cmp.lua (get_lsp_capabilities called eagerly at load time)
 if vim.g.vscode then return end
-
-vim.lsp.config('*', {
-  capabilities = require('blink.cmp').get_lsp_capabilities(),
-})
 
 vim.lsp.handlers["window/showMessage"] = function(_, result, ctx)
   if not (result and result.message) then return end

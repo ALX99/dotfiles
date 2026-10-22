@@ -2,6 +2,7 @@
 if vim.g.vscode then return end
 
 require('fff').setup({
+  lazy_sync = true, -- Start indexing on the first picker, not UIEnter.
   prompt = '❯ ',
   keymaps = {
     -- Insert mode up: <C-e> from snacks, <C-p> + <Up> from fff defaults
