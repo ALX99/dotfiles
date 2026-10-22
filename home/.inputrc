@@ -1,13 +1,40 @@
-set show-all-if-unmodified on
+# Silence the terminal bell when an editing or completion action fails.
+set bell-style none
+
+# Show completion matches on the first Tab when multiple matches exist.
 set show-all-if-ambiguous on
-# Color files by types
-# Note that this may cause completion text blink in some terminals (e.g. xterm).
-set colored-stats On
-# Append char to indicate type
-set visible-stats On
-# Mark symlinked directories
-set mark-symlinked-directories On
-# Color the common prefix
-set colored-completion-prefix On
-# Color the common prefix in menu-complete
-set menu-complete-display-prefix On
+
+# Color completion entries by file type using LS_COLORS.
+set colored-stats on
+
+# Append file-type indicators such as / for directories and * for executables.
+set visible-stats on
+
+# Append a slash when completing a symlink that points to a directory.
+set mark-symlinked-directories on
+
+# Highlight the common prefix in the list of completion matches.
+set colored-completion-prefix on
+
+# Show the common prefix first when cycling matches with menu-complete.
+set menu-complete-display-prefix on
+
+# Match filenames regardless of capitalization during completion.
+set completion-ignore-case on
+
+# Avoid duplicating matching text after the cursor when completing mid-word.
+set skip-completed-text on
+
+# Preserve the cursor position where possible when navigating history.
+set history-preserve-point on
+
+# Restore original history entries after accepting an edited recalled command.
+set revert-all-at-newline on
+
+# Apply these history keybindings only in Bash.
+$if Bash
+# Search backward for commands starting with the text before the cursor.
+"\e[A": history-search-backward
+# Search forward for commands starting with the text before the cursor.
+"\e[B": history-search-forward
+$endif
