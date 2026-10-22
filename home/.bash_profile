@@ -45,19 +45,6 @@ else
   XDG_DOWNLOAD_DIR="$HOME/Downloads"
   BUN_INSTALL_CACHE_DIR="$XDG_CACHE_HOME/bun"
 
-  # Default programs
-  BROWSER="brave"
-  FILE="pcmanfm"
-
-  # SSH
-  SSH_ASKPASS_REQUIRE="prefer"
-  SSH_ASKPASS="/usr/bin/lxqt-openssh-askpass"
-  if [ -z "${SSH_CONNECTION:-}" ] &&
-    [ -n "${XDG_RUNTIME_DIR:-}" ] &&
-    [ -S "$XDG_RUNTIME_DIR/ssh-agent.socket" ]; then
-    SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
-  fi
-
   # Clean up ~/ (https://wiki.archlinux.org/title/XDG_Base_Directory)
   LESSHISTFILE="-"
   LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
