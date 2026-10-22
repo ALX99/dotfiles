@@ -1,55 +1,61 @@
 [tools]
-# Core things
+# Language runtimes
 go = "latest"
 node = "latest"
-rust = "stable"
 python = "latest"
+rust = "stable"
 zig = "latest"
+
+# JavaScript and TypeScript tooling
 "aqua:oven-sh/bun" = "latest"
 "aqua:pnpm/pnpm" = "latest"
 "npm:typescript" = "latest"
 "npm:oxlint" = "latest"
 
-# Harnesses
+# AI and agent tooling
 # Harness releases are time-sensitive, so they take a 1h holdback instead of the
 # global 24h (`minimum_release_age` here overrides the `[settings]` default).
 "aqua:openai/codex" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
 "npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
-
-# AI stuff
 "npm:skills" = "latest"
 "aqua:ogulcancelik/herdr" = "latest"
+"npm:@anthropic-ai/sandbox-runtime" = "latest"
 
-# Dev
-"aqua:mvdan/sh" = "latest"
-"aqua:astral-sh/uv" = "latest"
-"pipx:black" = "latest"
+# Language and build tools
+# Go
 "aqua:golangci/golangci-lint" = "latest"
 "go:golang.org/x/tools/gopls" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
+# Python
+"aqua:astral-sh/uv" = "latest"
+"pipx:black" = "latest"
+# Shell
+"aqua:mvdan/sh" = "latest"
 
-# CLIs
+# Git and version control
 "aqua:cli/cli" = "latest"
-# Lightpanda ships bare per-platform binaries named `lightpanda-<arch>-<os>`,
-# so `bin` gives the downloaded file its tool name. `latest` is avoided on
-# purpose: the repo's "Latest release" is the rolling `nightly` tag, whose
-# assets are re-uploaded every build and break checksum verification.
-"github:lightpanda-io/browser" = { version = "1", bin = "lightpanda" }
+"aqua:jesseduffield/lazygit" = "latest"
+"aqua:dandavison/delta" = "latest"
+
+# Search and file navigation
 "aqua:sharkdp/bat" = "latest"
 "aqua:sharkdp/fd" = "latest"
 "aqua:junegunn/fzf" = "latest"
-"aqua:dandavison/delta" = "latest"
-"aqua:jqlang/jq" = "latest"
-"aqua:jesseduffield/lazygit" = "latest"
 "aqua:BurntSushi/ripgrep" = "latest"
-"aqua:tree-sitter/tree-sitter" = "latest"
+
+# Editors, syntax tools, and terminals
 "aqua:neovim/neovim" = "latest"
+"aqua:tree-sitter/tree-sitter" = "latest"
 # tmux ships official static builds, so both platforms take it from mise
 # instead of source-built Homebrew or distro packages.
 "aqua:tmux/tmux-builds" = "latest"
+
+# Data and configuration tools
+"aqua:jqlang/jq" = "latest"
 "aqua:mikefarah/yq" = "latest"
+
+# Mise integration
 "aqua:jdx/usage" = "latest" # mise's generated shell completions shell out to it
-"npm:@anthropic-ai/sandbox-runtime" = "latest"
 
 [settings]
 minimum_release_age = "24h"
@@ -64,4 +70,3 @@ AUBE_TRUST_POLICY = "no-downgrade"
 AUBE_MINIMUM_RELEASE_AGE_STRICT = "true"
 AUBE_STRICT_STORE_INTEGRITY = "true"
 AUBE_STRICT_DEP_BUILDS = "true"
-AUBE_ALLOWED_UNPOPULAR_PACKAGES = "skills,portless"

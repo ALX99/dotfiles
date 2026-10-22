@@ -2,31 +2,42 @@
 # Loaded on top of config.toml when MISE_ENV=personal (see home/.profile).
 # [tools] merges additively; entries here never affect the default env.
 [tools]
-# Core things
+# Language runtimes
 rust = "stable"
 
-# AI stuff
+# AI coding tools
+opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
+
+# Browser and agent tools
 # npm backend: `skills get` reads the package's version-matched skill-data/ tree,
 # which the aqua release asset (bare binary) does not ship.
 "npm:agent-browser" = "latest"
+# Lightpanda ships bare per-platform binaries named `lightpanda-<arch>-<os>`,
+# so `bin` gives the downloaded file its tool name. `latest` is avoided on
+# purpose: the repo's "Latest release" is the rolling `nightly` tag, whose
+# assets are re-uploaded every build and break checksum verification.
+"github:lightpanda-io/browser" = { version = "1", bin = "lightpanda" }
 
-# Neovim language servers: enabled in nvim/plugin/78_lsp.lua.
+# Language servers enabled in nvim/plugin/78_lsp.lua.
 # Black, gopls, and oxlint are already provided by the shared config.
-"npm:@astrojs/language-server" = "latest"
-"npm:pyright" = "latest"
-"npm:@tailwindcss/language-server" = "latest"
 "npm:@actions/languageserver" = "latest"
+"npm:@astrojs/language-server" = "latest"
+"npm:@tailwindcss/language-server" = "latest"
+"npm:pyright" = "latest"
 "aqua:hashicorp/terraform-ls" = "latest"
 "aqua:LuaLS/lua-language-server" = "latest"
 "go:github.com/docker/docker-language-server/cmd/docker-language-server" = "latest"
 
-# CLIs
-"aqua:syncthing/syncthing" = "latest"
-"aqua:sharkdp/hyperfine" = "latest"
+# Developer tools
 "aqua:koalaman/shellcheck" = "latest"
+"aqua:sharkdp/hyperfine" = "latest"
+"cargo:tokei" = "latest"
+
+# Infrastructure and synchronization
+"aqua:syncthing/syncthing" = "latest"
 # npm backend: the aqua/npm binaries skip the postinstall build steps that
 # esbuild, sharp, and workerd need.
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
+
+# Terminal tools
 "npm:@kitlangton/terminal-control-darwin-arm64" = "latest"
-"cargo:tokei" = "latest"
-opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
