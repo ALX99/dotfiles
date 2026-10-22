@@ -1,1 +1,9 @@
 include "/usr/share/nano/*.nanorc"
+
+set autoindent
+set linenumbers
+set smarthome
+set softwrap
+set atblanks
+set indicator
+set positionlog
