@@ -1,5 +1,12 @@
+-- Wildcard ranges include prereleases; only accept stable semver tags.
+local stable = vim.version.range('*')
+function stable:has(version)
+  if type(version) == 'string' then version = vim.version.parse(version) end
+  return version ~= nil and version.prerelease == nil
+end
+
 local packages = {
-  { src = 'https://github.com/nvim-mini/mini.nvim', version = vim.version.range('*') },
+  { src = 'https://github.com/nvim-mini/mini.nvim', version = stable },
 }
 
 if not vim.g.vscode then
@@ -24,11 +31,10 @@ if not vim.g.vscode then
     'https://github.com/nvim-treesitter/nvim-treesitter',
     'https://github.com/rebelot/kanagawa.nvim',
     'https://github.com/folke/flash.nvim',
-    { src = 'https://github.com/OXY2DEV/markview.nvim',  version = vim.version.range('*') },
-    { src = 'https://github.com/dmtrKovalenko/fff.nvim', version = vim.version.range('*') },
-    { src = 'https://github.com/folke/snacks.nvim',      version = vim.version.range('*') },
+    { src = 'https://github.com/OXY2DEV/markview.nvim',  version = stable },
+    { src = 'https://github.com/dmtrKovalenko/fff.nvim', version = stable },
+    { src = 'https://github.com/folke/snacks.nvim',      version = stable },
     { src = 'https://github.com/neovim/nvim-lspconfig',  version = 'master' },
-    { src = 'https://github.com/mason-org/mason.nvim',   version = vim.version.range('*') },
   })
 end
 
