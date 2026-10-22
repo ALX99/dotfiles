@@ -10,6 +10,16 @@ rust = "stable"
 # which the aqua release asset (bare binary) does not ship.
 "npm:agent-browser" = "latest"
 
+# Neovim language servers: enabled in nvim/plugin/78_lsp.lua.
+# Black, gopls, and oxlint are already provided by the shared config.
+"npm:@astrojs/language-server" = "latest"
+"npm:pyright" = "latest"
+"npm:@tailwindcss/language-server" = "latest"
+"npm:@actions/languageserver" = "latest"
+"aqua:hashicorp/terraform-ls" = "latest"
+"aqua:LuaLS/lua-language-server" = "latest"
+"go:github.com/docker/docker-language-server/cmd/docker-language-server" = "latest"
+
 # CLIs
 "aqua:syncthing/syncthing" = "latest"
 "aqua:sharkdp/hyperfine" = "latest"
