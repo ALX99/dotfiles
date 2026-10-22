@@ -1,2 +1,0 @@
-# allow members of group wheel to execute any command without password
-%wheel ALL=(ALL:ALL) NOPASSWD: ALL
