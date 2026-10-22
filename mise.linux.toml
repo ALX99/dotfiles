@@ -120,16 +120,11 @@
 "aur:visual-studio-code-bin" = {}
 
 [bootstrap.directories]
-"/etc/systemd/sleep.conf.d" = { mode = "0755" }
-"/etc/systemd/logind.conf.d" = { mode = "0755" }
 "/etc/systemd/resolved.conf.d" = { mode = "0755" }
 
 [bootstrap.files]
 "/usr/share/X11/xkb/symbols/colemak" = { source = "misc/keymaps/colemak" }
 "/etc/keyd/default.conf" = { source = "misc/keymaps/keyd.conf" }
-"/etc/systemd/zram-generator.conf" = { source = "misc/systemd-config/zram-generator.conf" }
-"/etc/systemd/sleep.conf.d/99-sleep.conf" = { source = "misc/systemd-config/99-sleep.conf" }
-"/etc/systemd/logind.conf.d/99-logind.conf" = { source = "misc/systemd-config/99-logind.conf" }
 "/etc/sudoers.d/99-sudoers" = { source = "misc/99-sudoers", mode = "0644" }
 
 [bootstrap.services]
