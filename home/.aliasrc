@@ -9,6 +9,7 @@ alias \
   q="exit" \
   c="clear" \
   e="\$EDITOR" \
+  g='git' \
   k='kubectl' \
   mr="mise run" \
   se="sudoedit" \
