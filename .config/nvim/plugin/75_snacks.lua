@@ -34,7 +34,10 @@ local map = require('utils').map
 local Snacks = require('snacks')
 
 -- Preserve the picker-backed selection UI without initializing a picker yet.
-vim.ui.select = function(...) return Snacks.picker.select(...) end
+local function select(...)
+  return Snacks.picker.select(...)
+end
+vim.ui.select = select
 
 -- file finding and grep moved to 74_fff.lua
 

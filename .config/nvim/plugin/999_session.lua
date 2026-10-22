@@ -76,7 +76,7 @@ _G.Config.new_autocmd("VimEnter", {
       if vim.fn.filereadable(active_session_file) ~= 0 then
         -- Session restoration relies on normal buffer and filetype events so
         -- filetype plugins can initialize each restored buffer.
-        local ok, err = pcall(vim.cmd, "source " .. vim.fn.fnameescape(active_session_file))
+        local ok, err = pcall(vim.cmd.source, { active_session_file })
         discard_deleted_file_buffers()
         if not ok then
           vim.notify('Session restore failed: ' .. err, vim.log.levels.WARN)

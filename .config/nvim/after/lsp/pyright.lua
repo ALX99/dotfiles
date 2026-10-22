@@ -9,7 +9,7 @@ local function use_project_venv(_, config)
   config.settings.python.pythonPath = python
 end
 
+---@type vim.lsp.Config
 return {
-  ---@type lspconfig.settings.pyright
   before_init = use_project_venv,
 }

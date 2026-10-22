@@ -24,11 +24,12 @@ require('mini.misc').setup_restore_cursor()
 require('mini.input').setup({})
 require("mini.notify").setup({ lsp_progress = { enable = false } })
 require("mini.icons").setup({})
-require('mini.completion').setup({
+local completion = require('mini.completion')
+completion.setup({
   window = { info = { border = 'none' } },
   lsp_completion = {
     process_items = function(items, base)
-      items = MiniCompletion.default_process_items(items, base)
+      items = completion.default_process_items(items, base)
       for _, item in ipairs(items) do
         item.labelDetails = nil
       end
@@ -50,7 +51,7 @@ Config.new_autocmd('FileType', {
     vim.b[args.buf].minicompletion_disable = true
   end,
 })
-vim.lsp.config('*', { capabilities = MiniCompletion.get_lsp_capabilities() })
+vim.lsp.config('*', { capabilities = completion.get_lsp_capabilities() })
 
 -- Match Blink's Enter behavior without inserting a candidate while typing.
 vim.keymap.set('i', '<CR>', function()
@@ -65,19 +66,20 @@ require('mini.trailspace').setup({})
 
 require('mini.extra').setup({})
 
-require('mini.statusline').setup({
+local statusline = require('mini.statusline')
+statusline.setup({
   content = {
     active = function()
-      local mode, mode_hl = MiniStatusline.section_mode({ trunc_width = 120 })
-      local diagnostics   = MiniStatusline.section_diagnostics({ trunc_width = 75 })
-      local lsp           = MiniStatusline.section_lsp({ trunc_width = 75 })
+      local mode, mode_hl = statusline.section_mode({ trunc_width = 120 })
+      local diagnostics   = statusline.section_diagnostics({ trunc_width = 75 })
+      local lsp           = statusline.section_lsp({ trunc_width = 75 })
 
-      local filename      = MiniStatusline.section_filename({ trunc_width = 140 })
-      local fileinfo      = MiniStatusline.section_fileinfo({ trunc_width = 120 })
-      local location      = MiniStatusline.section_location({ trunc_width = 75 })
-      local search        = MiniStatusline.section_searchcount({ trunc_width = 75 })
+      local filename      = statusline.section_filename({ trunc_width = 140 })
+      local fileinfo      = statusline.section_fileinfo({ trunc_width = 120 })
+      local location      = statusline.section_location({ trunc_width = 75 })
+      local search        = statusline.section_searchcount({ trunc_width = 75 })
 
-      return MiniStatusline.combine_groups({
+      return statusline.combine_groups({
         { hl = mode_hl,                 strings = { mode } },
         { hl = 'MiniStatuslineDevinfo', strings = { lsp } },
         '%<',
@@ -140,7 +142,8 @@ _G.Config.new_autocmd('FileType', {
 })
 
 -- mini.files
-require('mini.files').setup({
+local files = require('mini.files')
+files.setup({
   mappings = {
     go_in       = '<Right>',
     go_in_plus  = '',
@@ -151,7 +154,7 @@ require('mini.files').setup({
 
 require('utils').map('n', '<leader>ft', function()
   local dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':h')
-  MiniFiles.open(dir ~= '' and dir or nil)
+  files.open(dir ~= '' and dir or nil)
 end, { desc = "MiniFiles" })
 
 -- mini.clue

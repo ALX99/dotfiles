@@ -14,7 +14,7 @@ function M.map(mode, lhs, rhs, opts)
 end
 
 --- Copy the selected code block to clipboard
----@param opts vim.api.keyset.user_command
+---@param opts vim.api.keyset.create_user_command.command_args
 function M.copy_code_block(opts)
   local lines = vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, true)
 
