@@ -28,7 +28,6 @@ if not vim.g.vscode then
     { src = 'https://github.com/OXY2DEV/markview.nvim',  version = vim.version.range('*') },
     { src = 'https://github.com/dmtrKovalenko/fff.nvim', version = vim.version.range('*') },
     { src = 'https://github.com/folke/snacks.nvim',      version = vim.version.range('*') },
-    { src = 'https://github.com/saghen/blink.cmp',       version = vim.version.range('1.*') },
     { src = 'https://github.com/neovim/nvim-lspconfig',  version = 'master' },
     { src = 'https://github.com/mason-org/mason.nvim',   version = vim.version.range('*') },
   })

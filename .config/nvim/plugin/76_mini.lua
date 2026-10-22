@@ -24,6 +24,39 @@ require('mini.misc').setup_restore_cursor()
 require('mini.input').setup({})
 require("mini.notify").setup({ lsp_progress = { enable = false } })
 require("mini.icons").setup({})
+require('mini.completion').setup({
+  window = { info = { border = 'none' } },
+  lsp_completion = {
+    process_items = function(items, base)
+      items = MiniCompletion.default_process_items(items, base)
+      for _, item in ipairs(items) do
+        item.labelDetails = nil
+      end
+      return items
+    end,
+  },
+})
+Config.new_autocmd('User', {
+  pattern = 'MiniCompletionWindowOpen',
+  callback = function(args)
+    if args.data.kind ~= 'info' then return end
+    vim.wo[args.data.win_id].winhighlight = 'Normal:Pmenu,NormalFloat:Pmenu'
+    vim.wo[args.data.win_id].winblend = vim.o.pumblend
+  end,
+})
+Config.new_autocmd('FileType', {
+  pattern = 'fff_input',
+  callback = function(args)
+    vim.b[args.buf].minicompletion_disable = true
+  end,
+})
+vim.lsp.config('*', { capabilities = MiniCompletion.get_lsp_capabilities() })
+
+-- Match Blink's Enter behavior without inserting a candidate while typing.
+vim.keymap.set('i', '<CR>', function()
+  if vim.fn.pumvisible() == 0 then return '<CR>' end
+  return vim.fn.complete_info().selected == -1 and '<C-n><C-y>' or '<C-y>'
+end, { expr = true, desc = 'Accept completion or insert newline' })
 require('mini.cmdline').setup({})
 require('mini.bracketed').setup({
   undo = { suffix = '' },
