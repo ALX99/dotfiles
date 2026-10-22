@@ -24,7 +24,6 @@ if not vim.g.vscode then
     'https://github.com/nvim-treesitter/nvim-treesitter',
     'https://github.com/rebelot/kanagawa.nvim',
     'https://github.com/folke/flash.nvim',
-    'https://github.com/FabijanZulj/blame.nvim',
     { src = 'https://github.com/OXY2DEV/markview.nvim',  version = vim.version.range('*') },
     { src = 'https://github.com/dmtrKovalenko/fff.nvim', version = vim.version.range('*') },
     { src = 'https://github.com/folke/snacks.nvim',      version = vim.version.range('*') },

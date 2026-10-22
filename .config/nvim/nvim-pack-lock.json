@@ -1,9 +1,5 @@
 {
   "plugins": {
-    "blame.nvim": {
-      "rev": "179da7aaacce7c52874af636255ede72dd6fe796",
-      "src": "https://github.com/FabijanZulj/blame.nvim"
-    },
     "fff.nvim": {
       "rev": "f64bab291f0229187908f21025770698fc9c8b1e",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
