@@ -3,6 +3,7 @@ if vim.g.vscode then return end
 require('snacks').setup({
   bigfile = {},
   picker = {
+    enabled = false, -- Initialize on first picker, not UIEnter.
     win = {
       input = {
         keys = {
@@ -31,6 +32,9 @@ require('snacks').setup({
 
 local map = require('utils').map
 local Snacks = require('snacks')
+
+-- Preserve the picker-backed selection UI without initializing a picker yet.
+vim.ui.select = function(...) return Snacks.picker.select(...) end
 
 -- file finding and grep moved to 74_fff.lua
 

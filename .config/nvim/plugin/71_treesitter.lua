@@ -87,3 +87,18 @@ vim.schedule(function()
     end
   end)
 end)
+
+-- Markview briefly stops/restarts Treesitter to change its queries. Avoid loading
+-- regex syntax during that gap, but keep it as a fallback after a genuine stop.
+vim.api.nvim_clear_autocmds({ group = 'syntaxset', event = 'FileType' })
+vim.api.nvim_create_autocmd('FileType', {
+  group = 'syntaxset',
+  callback = function(event)
+    if vim.b[event.buf].ts_highlight then return end
+    vim.schedule(function()
+      if vim.g.syntax_on == 1 and vim.api.nvim_buf_is_loaded(event.buf) and not vim.b[event.buf].ts_highlight then
+        vim.bo[event.buf].syntax = vim.bo[event.buf].filetype
+      end
+    end)
+  end,
+})
