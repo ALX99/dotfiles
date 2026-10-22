@@ -1,5 +1,5 @@
 # Personal profile: tools only wanted on personal machines.
-# Loaded on top of config.toml when MISE_ENV=personal (see home/.profile).
+# Loaded on top of config.toml when MISE_ENV=personal (see home/.bash_profile).
 # [tools] merges additively; entries here never affect the default env.
 [tools]
 # Language runtimes

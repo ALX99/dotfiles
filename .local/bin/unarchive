@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Extract archive into a directory named after the archive, unless the
 # archive already contains a single top-level entry (in which case it
-# extracts in place). Relies on GNU tar (see home/.profile) for
+# extracts in place). Relies on GNU tar for
 # --one-top-level.
 
 set -euo pipefail

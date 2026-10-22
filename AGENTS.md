@@ -2,8 +2,8 @@
 
 ## Layout and sources of truth
 
-- This is a Stow repo: `.local/`, `home/`, and `.config/` install to `~/.local`, `~`, and `~/.config`. `.stowrc` disables folding; keep tracked symlinks intact, especially `home/.bash_profile` → `.profile` and the Claude/Codex instruction links to the shared `home/.agents/AGENTS.md` (installed as `~/.agents/AGENTS.md`).
-- `.local/bin/` owns user executables; `home/` owns shell and agent configuration; `.config/` owns application configuration; `misc/` owns system, keyboard, and generated assets. Start shell work at `home/.profile`, `home/.bashrc`, and `home/.bashrc.d/`.
+- This is a Stow repo: `.local/`, `home/`, and `.config/` install to `~/.local`, `~`, and `~/.config`. `.stowrc` disables folding; keep tracked symlinks intact, especially the Claude/Codex instruction links to the shared `home/.agents/AGENTS.md` (installed as `~/.agents/AGENTS.md`).
+- `.local/bin/` owns user executables; `home/` owns shell and agent configuration; `.config/` owns application configuration; `misc/` owns system, keyboard, and generated assets. Start shell work at `home/.bash_profile`, `home/.bashrc`, and `home/.bashrc.d/`.
 - Herdr plugins share CLI/workspace helpers in `.config/herdr/plugins/_shared/herdrlib.py`; plugin-specific Git and install policy stays with each plugin.
 - `home/.agents/AGENTS.md` is the shared general instruction source for Claude and Codex; `home/.agents/skills/` contains harness-independent skills. Pi configuration and extensions live in the separate `~/projects/pi-lot` repository, which owns installation into `~/.pi/agent`. Dotfiles must not Stow or install Pi resources.
 - `misc/themes/twilight-bloom.cue` is the theme source for the Ghostty and Herdr outputs. Colemak-DH mappings are coordinated across Nvim, tmux, Sail, keyd, Ghostty, and readline.

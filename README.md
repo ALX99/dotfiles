@@ -35,7 +35,7 @@ check them out in the [skills directory](home/.agents/skills/) or run
 
 for reference, here's roughly what's in here:
 
-- [.profile](https://github.com/ALX99/dotfiles/blob/master/home/.profile)
+- [.bash_profile](https://github.com/ALX99/dotfiles/blob/master/home/.bash_profile)
       - Generic profile
 - [.bashrc](https://github.com/ALX99/dotfiles/blob/master/home/.bashrc)
       - Bashrc

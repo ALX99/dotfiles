@@ -11,7 +11,7 @@
 [ -f "$HOME/.privrc" ] && . "$HOME/.privrc"
 
 # Keep noninteractive shells that source .bashrc lightweight. Login shells
-# source it through .profile, and remote shells may source it as well.
+# source it through .bash_profile, and remote shells may source it as well.
 case $- in
 *i*) ;;
 *)
@@ -158,7 +158,7 @@ __prompt_render() {
   local bright='\[\e[97m\]'
   # Terminal palette slots, not RGB values, so the prompt follows whichever
   # Ghostty theme is active instead of pinning one palette's truecolor values.
-  # The slots match LS_COLORS in home/.profile, so a directory, a branch, and a
+  # The slots match LS_COLORS in home/.bash_profile, so a directory, a branch, and a
   # failure read the same color everywhere.
   local plain='\[\e[37m\]'
   local alert='\[\e[31m\]'
