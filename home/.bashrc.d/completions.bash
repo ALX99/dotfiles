@@ -44,8 +44,9 @@ _lazy_completion orb "" "orb completion bash"
 unset -f _lazy_completion
 
 _bun_completion() {
-  # Bun 1.4.3 references this regex without defining it. An empty regex errors
-  # on macOS; use a never-matching pattern for that unused branch instead.
+  # https://github.com/oven-sh/bun/issues/42274
+  # Still reproduced in Bun 1.4.4: this regex is referenced but never defined.
+  # An empty regex errors on macOS; use a never-matching pattern instead.
   # Bash's dynamic scope keeps the workaround local to Bun's completion call.
   # shellcheck disable=SC2034
   local re_comp_word_script='a^'
