@@ -123,7 +123,6 @@
 "/etc/systemd/resolved.conf.d" = { mode = "0755" }
 
 [bootstrap.files]
-"/usr/share/X11/xkb/symbols/colemak" = { source = "misc/keymaps/colemak" }
 "/etc/keyd/default.conf" = { source = "misc/keymaps/keyd.conf" }
 "/etc/sudoers.d/99-sudoers" = { source = "misc/99-sudoers", mode = "0644" }
 
