@@ -1,5 +1,5 @@
 # Base config, auto-loaded everywhere. Machine-specific packages layer in via
-# MISE_ENV from mise.personal.toml / mise.linux.toml.
+# MISE_ENV-selected profile configs.
 
 # On brew because they're source-built, dependency-coupled, or self-referential.
 [bootstrap.packages]

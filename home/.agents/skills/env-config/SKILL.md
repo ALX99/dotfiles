@@ -25,10 +25,10 @@ This user's dotfiles live in `~/dotfiles` (on this machine `/Users/dozy/dotfiles
 
 Profile files are named `mise.<profile>.toml` and sit next to the shared file in each of two layers:
 
-| Layer | Shared (all machines) | `personal` | `linux` |
-| --- | --- | --- | --- |
-| Runtime tools | `.config/mise/config.toml` | `.config/mise/mise.personal.toml` | (none yet) |
-| Bootstrap and host setup | `mise.toml` | `mise.personal.toml` | `mise.linux.toml` |
+| Layer | Shared (all machines) | `personal` |
+| --- | --- | --- |
+| Runtime tools | `.config/mise/config.toml` | `.config/mise/mise.personal.toml` |
+| Bootstrap and host setup | `mise.toml` | `mise.personal.toml` |
 
 - `.config/mise/*.toml` stow to `~/.config/mise/` and load in every directory. `[tools]` merges additively: profile entries add to the shared config and never replace it.
 - Root `mise.*.toml` files are project configs: they load only from inside the repository working tree, and they carry bootstrap packages, tasks, and generators, not runtime tools.
@@ -37,7 +37,7 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 ## Common changes
 
 - Add a runtime tool wanted everywhere: edit `.config/mise/config.toml`, then `mise install <tool>`.
-- Add a runtime tool for the current machine only: edit `.config/mise/mise.<profile>.toml` (create it if the layer has none for that profile), then `mise install <tool>`. A global-only tool for `linux` needs a new `.config/mise/mise.linux.toml`.
+- Add a runtime tool for the current machine only: edit `.config/mise/mise.<profile>.toml` (create it if the layer has none for that profile), then `mise install <tool>`.
 - Add a bootstrap package: edit the shared root `mise.toml` or the profile root `mise.<profile>.toml` (matching the active `MISE_ENV`) under `[bootstrap.packages]`, then run `MISE_ENV=<profile> mise bootstrap` from the repo root.
 - Add host files, directories, or services: same root `mise.*.toml` files, in their bootstrap sections.
 - Run tasks: `mise run <task>` or `mise tasks`. Generators: edit the source, then `mise run gen:<area>` and the matching `mise run <area>:check`.

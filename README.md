@@ -52,4 +52,4 @@ for reference, here's roughly what's in here:
 - [skills/](https://github.com/ALX99/dotfiles/tree/master/home/.agents/skills)
       - Agent skills
 - [misc/](https://github.com/ALX99/dotfiles/tree/master/misc)
-      - System-level configs (systemd, keymaps, pacman-hooks)
+      - Keyboard layouts and generated theme assets
