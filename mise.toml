@@ -32,7 +32,7 @@
 "aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
 "aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
 
-# Task files live in .mise/tasks/: flat entry points (install, linux-system),
+# Task files live in .mise/tasks/: flat entry points (install),
 # subsystem tasks (shell:check), internal formatter
 # subtasks (fmt:cue, fmt:shell), and generator subcommands (gen:<area>).
 # Aggregate tasks (check, fmt) and `gen` are defined here;

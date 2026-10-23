@@ -18,6 +18,5 @@
 ## Host changes
 
 - `mise run install` changes `$HOME`: it restows packages, synchronizes skill links (including stale repo-managed links), and may enable the user `ssh-agent`. Do not run it for routine code verification.
-- `mise run linux-system` applies Linux host settings and uses privileged commands. Run it only when host setup is explicitly requested.
 
 Keep this file limited to verified ownership, source-of-truth, and workflow facts; update it when those change.
