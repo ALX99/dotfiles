@@ -45,10 +45,13 @@ Config.new_autocmd('User', {
     vim.wo[args.data.win_id].winblend = vim.o.pumblend
   end,
 })
-Config.new_autocmd('FileType', {
-  pattern = 'fff_input',
+Config.new_autocmd({ 'BufEnter', 'InsertEnter' }, {
+  desc = 'Disable completion in pickers, prompts, and other special buffers',
   callback = function(args)
-    vim.b[args.buf].minicompletion_disable = true
+    local buftype = vim.bo[args.buf].buftype
+    if buftype ~= '' and buftype ~= 'acwrite' then
+      vim.b[args.buf].minicompletion_disable = true
+    end
   end,
 })
 vim.lsp.config('*', { capabilities = completion.get_lsp_capabilities() })
