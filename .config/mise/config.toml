@@ -26,9 +26,6 @@ zig = "latest"
 "aqua:golangci/golangci-lint" = "latest"
 "go:golang.org/x/tools/gopls" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
-# Python
-"aqua:astral-sh/uv" = "latest"
-"pipx:black" = "latest"
 # Shell
 "aqua:mvdan/sh" = "latest"
 
