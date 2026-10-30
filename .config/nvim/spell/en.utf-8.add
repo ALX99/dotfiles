@@ -16,7 +16,6 @@ colemak
 TUI
 config
 neovim
-tmux
 Anki
 dotfiles
 Kubernetes

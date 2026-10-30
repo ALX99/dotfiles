@@ -1,4 +1,4 @@
--- Herdr-inspired shortcuts for Rex. Cmd+A is the shared tmux-style prefix.
+-- Herdr-inspired shortcuts for Rex. Cmd+A is the shared prefix.
 ---@diagnostic disable-next-line: undefined-global -- Injected by the Rex host.
 local rex = rex
 local prefix = "cmd+a>"

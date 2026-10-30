@@ -46,9 +46,6 @@ zig = "latest"
 # Editors, syntax tools, and terminals
 "aqua:neovim/neovim" = "latest"
 "aqua:tree-sitter/tree-sitter" = "latest"
-# tmux ships official static builds, so both platforms take it from mise
-# instead of source-built Homebrew or distro packages.
-"aqua:tmux/tmux-builds" = "latest"
 
 # Data and configuration tools
 "aqua:jqlang/jq" = "latest"

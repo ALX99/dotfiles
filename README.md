@@ -18,7 +18,6 @@ check them out in the [skills directory](home/.agents/skills/) or run
 - browser: [brave](https://brave.com/)
 - editor: [neovim](https://neovim.io/)
 - terminal emulator: [ghostty](https://ghostty.org/)
-- terminal multiplexer: [tmux](https://github.com/tmux/tmux)
 - shell: [bash](https://www.gnu.org/software/bash/)
 
 ## pictures

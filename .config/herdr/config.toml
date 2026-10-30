@@ -33,10 +33,10 @@ shell_mode = "auto"
 new_cwd = "follow"
 
 [keys]
-# Match tmux's M-a prefix. Ghostty is configured to pass Option as Alt.
+# Ghostty is configured to pass Option as Alt.
 prefix = "alt+a"
 
-# Keep the familiar tmux navigation and split keys.
+# Tab navigation and split keys.
 new_tab = "prefix+c"
 previous_tab = "prefix+m"
 next_tab = "prefix+i"
@@ -48,7 +48,6 @@ zoom = ["prefix+z", "alt+f"]
 detach = "prefix+q"
 reload_config = "prefix+shift+r"
 
-# Herdr's workspace/session surfaces take the place of tmux's session switcher.
 workspace_picker = ["prefix+h", "alt+g"]
 goto = "prefix+w"
 new_worktree = "prefix+shift+y"
@@ -64,7 +63,7 @@ navigate_pane_down = "n"
 navigate_pane_up = "e"
 navigate_pane_right = "i"
 
-# Keep the tmux pane-swap muscle memory without colliding with tab movement.
+# Pane swapping without colliding with tab movement.
 swap_pane_down = "prefix+n"
 swap_pane_up = "prefix+e"
 swap_pane_left = "prefix+shift+left"
@@ -79,7 +78,6 @@ resize_pane_down = "alt+shift+n"
 resize_pane_up = "alt+shift+e"
 resize_pane_right = "alt+shift+i"
 
-# Herdr copy mode already provides tmux-style scrolling and selection.
 copy_mode = "prefix+["
 
 [ui]
@@ -124,7 +122,7 @@ resume_agents_on_restore = true
 manage_ssh_config = true
 
 [advanced]
-# Approximate tmux's history-limit = 200000 with a byte-based scrollback cap.
+# Cap scrollback by size.
 scrollback_limit_bytes = 100_000_000
 
 [[keys.command]]
@@ -159,7 +157,7 @@ description = "open GitHub PR for worktree"
 key = "alt+t"
 type = "popup"
 # Herdr forwards popup input to the child shell, so the marker lets
-# .bashrc make Cmd+T/Alt+T exit this scratch popup like tmux's popup table.
+# .bashrc make Cmd+T/Alt+T exit this scratch popup.
 command = 'HERDR_SCRATCH_POPUP=1 exec "${SHELL:-bash}"'
 description = "toggle scratch shell"
 width = "95%"

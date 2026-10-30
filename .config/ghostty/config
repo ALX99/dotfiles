@@ -14,7 +14,7 @@ shell-integration-features = ssh-env,ssh-terminfo
 custom-shader = ~/.config/ghostty/cursor-blaze.glsl
 custom-shader-animation = true
 
-# Twilight Bloom is shared with Pi, Herdr, Bash, LS_COLORS, and tmux.
+# Twilight Bloom is shared with Pi, Herdr, Bash, and LS_COLORS.
 # The dark plum base lets the vivid rose, mint, amber, periwinkle, and orchid
 # accents carry meaning without relying on muted gray-blue distinctions.
 # These two variants follow the desktop appearance setting and are hand-pinned;
@@ -38,7 +38,7 @@ keybind = shift+enter=text:\n
 # make shift+insert act as a newline too (parity with shift+enter)
 keybind = shift+insert=text:\n
 
-# passthrough for tmux/shell
+# Pass shortcuts through to terminal applications and the shell.
 keybind = cmd+a=text:\x1ba
 keybind = cmd+f=text:\x1bf
 keybind = cmd+m=text:\x1bm

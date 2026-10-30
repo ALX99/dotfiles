@@ -16,5 +16,3 @@ _G.Config.new_autocmd = function(event, opts)
   opts.group = opts.group or gr
   vim.api.nvim_create_autocmd(event, opts)
 end
-
-require('custom.ai').setup()

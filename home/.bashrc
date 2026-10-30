@@ -239,9 +239,8 @@ if [[ -r $HOME/.bashrc.d/completions.bash ]]; then
   . "$HOME/.bashrc.d/completions.bash"
 fi
 
-# Herdr popups forward keys directly to their child shell. Match tmux's
-# popup toggle by making Cmd+T (Ghostty sends this as Alt+T) close the
-# dedicated scratch shell.
+# Herdr popups forward keys to the child shell. Make Cmd+T (sent as
+# Alt+T by Ghostty) close the dedicated scratch shell.
 if [[ ${HERDR_SCRATCH_POPUP:-} == 1 ]]; then
   bind -x '"\et":exit'
   unset HERDR_SCRATCH_POPUP
