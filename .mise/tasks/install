@@ -181,7 +181,29 @@ mkdir -p "$HOME/.config" "$HOME/.local" "$HOME/.agents/skills" "$HOME/.claude/sk
 
 sync_agents_skills
 
-stow --dir "$repo_dir" --target "$HOME/.local" --restow .local
+# Remove only links to the old package locations before restowing the merged tree.
+python3 - "$repo_dir" "$HOME" <<'PY'
+import os
+import sys
+
+repo, home = map(os.path.abspath, sys.argv[1:])
+for package in (".config", ".local"):
+    source = os.path.join(repo, "home", package)
+    for root, dirs, files in os.walk(source, followlinks=False):
+        for name in dirs + files:
+            path = os.path.join(root, name)
+            if os.path.isdir(path) and not os.path.islink(path):
+                continue
+            relative = os.path.relpath(path, source)
+            target = os.path.join(home, package, relative)
+            old = os.path.join(repo, package, relative)
+            if os.path.islink(target) and os.path.abspath(
+                os.path.join(os.path.dirname(target), os.readlink(target))
+            ) == old:
+                print(f"Removing old package link: {target}")
+                os.unlink(target)
+PY
+
 stow --dir "$repo_dir" --target "$HOME" --restow home
 
 sync_claude_skills
@@ -190,8 +212,6 @@ sync_cursor_rule
 repo_skill_count=$(wc -w <<<"$repo_skill_list")
 printf 'Agent skills: %d repo-linked; external kept:%s; pruned:%s\n' \
   "$repo_skill_count" "${kept_external_list:- none}" "${pruned_list:- none}"
-
-stow --dir "$repo_dir" --target "$HOME/.config" --restow .config
 
 if command -v herdr >/dev/null 2>&1 &&
   [[ -d "$HOME/.config/herdr/plugins" ]]; then

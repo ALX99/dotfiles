@@ -16,7 +16,7 @@ Config.new_autocmd('FileType', {
       vim.notify(prefix .. " " .. result.message, level)
     end
 
-    -- Install dependencies with mise; see .config/mise/mise.personal.toml.
+    -- Install dependencies with mise; see home/.config/mise/mise.personal.toml.
     -- Keep server overrides in after/lsp/<name>.lua.
     local enabled_lsps = {
       "astro",

@@ -9,11 +9,9 @@ This user's dotfiles live in `~/dotfiles` (on this machine `/Users/dozy/dotfiles
 
 ## Stow layout
 
-- `.local/` installs to `~/.local`.
-- `home/` installs to `~`.
-- `.config/` installs to `~/.config`.
+- `home/` installs to `~`, including `home/.local/` to `~/.local` and `home/.config/` to `~/.config`.
 - `.stowrc` uses `--no-folding`, so tracked paths must remain symlinks.
-- `mise run install` from the repo root restows all three packages and syncs shared skills. It changes `$HOME`; do not run it for routine verification.
+- `mise run install` from the repo root restows the `home` package and syncs shared skills. It changes `$HOME`; do not run it for routine verification.
 
 ## Mise profiles
 
@@ -27,17 +25,17 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 
 | Layer | Shared (all machines) | `personal` |
 | --- | --- | --- |
-| Runtime tools | `.config/mise/config.toml` | `.config/mise/mise.personal.toml` |
+| Runtime tools | `home/.config/mise/config.toml` | `home/.config/mise/mise.personal.toml` |
 | Bootstrap and host setup | `mise.toml` | `mise.personal.toml` |
 
-- `.config/mise/*.toml` stow to `~/.config/mise/` and load in every directory. `[tools]` merges additively: profile entries add to the shared config and never replace it.
+- `home/.config/mise/*.toml` stow to `~/.config/mise/` and load in every directory. `[tools]` merges additively: profile entries add to the shared config and never replace it.
 - Root `mise.*.toml` files are project configs: they load only from inside the repository working tree, and they carry bootstrap packages and tasks, not runtime tools.
 - `mise.toml` (shared root) also defines repo tooling (`jq`, `shfmt`, `shellcheck`) in `[tools]`.
 
 ## Common changes
 
-- Add a runtime tool wanted everywhere: edit `.config/mise/config.toml`, then `mise install <tool>`.
-- Add a runtime tool for the current machine only: edit `.config/mise/mise.<profile>.toml` (create it if the layer has none for that profile), then `mise install <tool>`.
+- Add a runtime tool wanted everywhere: edit `home/.config/mise/config.toml`, then `mise install <tool>`.
+- Add a runtime tool for the current machine only: edit `home/.config/mise/mise.<profile>.toml` (create it if the layer has none for that profile), then `mise install <tool>`.
 - Add a bootstrap package: edit the shared root `mise.toml` or the profile root `mise.<profile>.toml` (matching the active `MISE_ENV`) under `[bootstrap.packages]`, then run `MISE_ENV=<profile> mise bootstrap` from the repo root.
 - Add host files, directories, or services: same root `mise.*.toml` files, in their bootstrap sections.
 - Run tasks: `mise run <task>` or `mise tasks`.
@@ -55,7 +53,7 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 - Repo skills live in `home/.agents/skills/<name>/SKILL.md`.
 - Installed skills are linked from `~/.agents/skills/` by `mise run install`.
 - Claude mirrors them from `~/.claude/skills/`.
-- Pi configuration lives in the separate `~/projects/pi-lot` repository and is not managed here.
+- Pi user settings live in `home/.pi/agent/settings.json` and Stow to `~/.pi/agent/settings.json`. Pi extensions and other resources remain in the separate pi-lot repository.
 
 ## Effective config inspection
 

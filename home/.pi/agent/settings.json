@@ -1,0 +1,44 @@
+{
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-6.1-terra",
+  "defaultThinkingLevel": "medium",
+  "defaultProjectTrust": "always",
+  "defaultTools": [
+    "+codemode"
+  ],
+  "codemode": {
+    "mode": "on"
+  },
+  "collapseChangelog": true,
+  "quietStartup": false,
+  "npmCommand": [
+    "bun"
+  ],
+  "lastChangelogVersion": "1.5.0",
+  "retry": {
+    "maxRetries": 20,
+    "enabled": true
+  },
+  "packages": [
+    "npm:@ff-labs/pi-fff",
+    "../../projects/mono/pi-lot"
+  ],
+  "enabledModels": [
+    "openai-codex/gpt-6-luna",
+    "openai-codex/gpt-6.1-terra",
+    "openai-codex/gpt-6.1-sol",
+    "openai-codex/gpt-6-astra"
+  ],
+  "showCacheMissNotices": true,
+  "enableInstallTelemetry": false,
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "tuiMode": "fullscreen",
+  "hideThinkingBlock": true,
+  "markdown": {
+    "mermaid": "streaming"
+  },
+  "doubleEscapeAction": "tree",
+  "fullscreenExitOutput": "transcript"
+}

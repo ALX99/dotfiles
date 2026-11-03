@@ -23,10 +23,10 @@ alias \
   ...='cd ../..' \
   ....='cd ../../..' \
   h='cd ~' \
-  bin='cd ~/dotfiles/.local/bin' \
+  bin='cd ~/dotfiles/home/.local/bin' \
   dl='cd ~/Downloads' \
   dots='cd ~/dotfiles' \
-  config='cd ~/dotfiles/.config'
+  config='cd ~/dotfiles/home/.config'
 
 # =============================================================================
 # Better defaults

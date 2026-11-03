@@ -4,6 +4,14 @@ this is my personal dotfiles repo. mostly a place to keep the config i use
 across machines, but there are a few aliases and scripts in here that might be
 useful to you as well.
 
+## Pi settings
+
+`home/.pi/agent/settings.json` installs to `~/.pi/agent/settings.json` through
+`mise run install` (the Stow `home` package). Before the first install, back up
+and move aside any existing regular settings file; Stow will not overwrite it.
+Pi settings edits also update this tracked file through the symlink.
+Extensions and other Pi resources are managed separately in the pi-lot repository.
+
 ## skills
 
 i like to keep things fairly minimal. if you are interested in my skills,
@@ -42,11 +50,11 @@ for reference, here's roughly what's in here:
       - Bashrc includes
 - [.aliasrc](https://github.com/ALX99/dotfiles/blob/master/home/.aliasrc)
       - Aliases
-- [bin/](https://github.com/ALX99/dotfiles/tree/master/.local/bin)
+- [bin/](https://github.com/ALX99/dotfiles/tree/master/home/.local/bin)
       - Shell scripts
-- [.config/](https://github.com/ALX99/dotfiles/tree/master/.config)
+- [.config/](https://github.com/ALX99/dotfiles/tree/master/home/.config)
       - Program configs
-- [.config/nvim](https://github.com/ALX99/dotfiles/tree/master/.config/nvim)
+- [.config/nvim](https://github.com/ALX99/dotfiles/tree/master/home/.config/nvim)
       - Neovim config
 - [skills/](https://github.com/ALX99/dotfiles/tree/master/home/.agents/skills)
       - Agent skills

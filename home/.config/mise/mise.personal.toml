@@ -26,14 +26,16 @@ opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 "npm:pyright" = "latest"
 "aqua:hashicorp/terraform-ls" = "latest"
 "aqua:LuaLS/lua-language-server" = "latest"
-"go:github.com/docker/docker-language-server/cmd/docker-language-server" = "latest"
 
 # Developer tools
+uv = "latest"
 "aqua:koalaman/shellcheck" = "latest"
 "aqua:sharkdp/hyperfine" = "latest"
 "cargo:tokei" = "latest"
 
 # Infrastructure and synchronization
+"aqua:FiloSottile/age" = "latest"
+"aqua:getsops/sops" = "latest"
 "aqua:syncthing/syncthing" = "latest"
 # npm backend: the aqua/npm binaries skip the postinstall build steps that
 # esbuild, sharp, and workerd need.
