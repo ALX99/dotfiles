@@ -31,8 +31,8 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 | Bootstrap and host setup | `mise.toml` | `mise.personal.toml` |
 
 - `.config/mise/*.toml` stow to `~/.config/mise/` and load in every directory. `[tools]` merges additively: profile entries add to the shared config and never replace it.
-- Root `mise.*.toml` files are project configs: they load only from inside the repository working tree, and they carry bootstrap packages, tasks, and generators, not runtime tools.
-- `mise.toml` (shared root) also defines repo tooling (`cue`, `jq`, `shfmt`, `shellcheck`) in `[tools]`.
+- Root `mise.*.toml` files are project configs: they load only from inside the repository working tree, and they carry bootstrap packages and tasks, not runtime tools.
+- `mise.toml` (shared root) also defines repo tooling (`jq`, `shfmt`, `shellcheck`) in `[tools]`.
 
 ## Common changes
 
@@ -40,7 +40,7 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 - Add a runtime tool for the current machine only: edit `.config/mise/mise.<profile>.toml` (create it if the layer has none for that profile), then `mise install <tool>`.
 - Add a bootstrap package: edit the shared root `mise.toml` or the profile root `mise.<profile>.toml` (matching the active `MISE_ENV`) under `[bootstrap.packages]`, then run `MISE_ENV=<profile> mise bootstrap` from the repo root.
 - Add host files, directories, or services: same root `mise.*.toml` files, in their bootstrap sections.
-- Run tasks: `mise run <task>` or `mise tasks`. Generators: edit the source, then `mise run gen:<area>` and the matching `mise run <area>:check`.
+- Run tasks: `mise run <task>` or `mise tasks`.
 - Install dotfiles and skills: `mise run install` from the repo root.
 
 ## Environment and shell

@@ -27,27 +27,19 @@
 "~/Library/Keyboard Layouts/Colemak-DH-ANSI.keylayout" = { source = "misc/keymaps/Colemak-DH-ANSI.keylayout", mode = "0644" }
 
 [tools]
-"aqua:cue-lang/cue" = { version = "latest", lazy = true, lazy_bins = ["cue"] } # gen:theme, theme:check
 "aqua:jqlang/jq" = { version = "latest", lazy = true, lazy_bins = ["jq"] }
 "aqua:mvdan/sh" = { version = "latest", lazy = true, lazy_bins = ["shfmt"] }
 "aqua:koalaman/shellcheck" = { version = "latest", lazy = true, lazy_bins = ["shellcheck"] }
 
 # Task files live in .mise/tasks/: flat entry points (install),
-# subsystem tasks (shell:check), internal formatter
-# subtasks (fmt:cue, fmt:shell), and generator subcommands (gen:<area>).
-# Aggregate tasks (check, fmt) and `gen` are defined here;
-# `gen` depends on every `gen:*` task, so new generators need no registration.
+# subsystem tasks (shell:check), and internal formatter subtasks (fmt:shell).
+# Aggregate tasks (check, fmt) are defined here.
 [tasks.check]
 description = "Run all repository checks"
-depends = ["shell:check", "theme:check"]
+depends = ["shell:check"]
 
 [tasks.fmt]
 description = "Run all repository formatters"
 depends = [
-  { task = "fmt:cue", env = { DOTFILES_FMT_DISPATCH = "fmt" } },
   { task = "fmt:shell", env = { DOTFILES_FMT_DISPATCH = "fmt" } },
 ]
-
-[tasks.gen]
-description = "Run every generator (gen:<area>) task"
-depends = ["gen:*"]

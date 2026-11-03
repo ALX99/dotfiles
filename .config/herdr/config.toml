@@ -8,7 +8,6 @@ dark_name = "terminal"
 light_name = "terminal"
 
 # BEGIN GENERATED: Twilight Bloom theme
-# Generated from misc/themes/twilight-bloom.cue; do not edit here.
 [theme.custom.dark]
 text = "#d0d0d0"
 overlay1 = "#d0d0d0"

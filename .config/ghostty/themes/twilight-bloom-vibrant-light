@@ -1,7 +1,5 @@
-# Hand-pinned vibrant Twilight Bloom palette, light counterpart of
-# twilight-bloom-vibrant: same accent hues, darkened until each one clears
-# WCAG AA on the light background. Intentionally outside generation; the
-# generator's variants are twilight-bloom and twilight-bloom-light.
+# Light counterpart of twilight-bloom-vibrant, with accent hues darkened
+# for WCAG AA contrast on the light background.
 background = #f6f1fb
 foreground = #2b1e3a
 selection-background = #dccbf0

@@ -1,6 +1,4 @@
-# Hand-pinned vibrant Twilight Bloom palette, intentionally outside generation.
-# The generator's appearance-following variants are twilight-bloom and
-# twilight-bloom-light.
+# Vibrant Twilight Bloom palette.
 background = #18121f
 foreground = #f4eaff
 selection-background = #5a3b70

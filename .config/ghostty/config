@@ -17,8 +17,7 @@ custom-shader-animation = true
 # Twilight Bloom is shared with Pi, Herdr, Bash, and LS_COLORS.
 # The dark plum base lets the vivid rose, mint, amber, periwinkle, and orchid
 # accents carry meaning without relying on muted gray-blue distinctions.
-# These two variants follow the desktop appearance setting and are hand-pinned;
-# themes/twilight-bloom{,-light} stay the generator's output (mise run gen:theme).
+# These two variants follow the desktop appearance setting.
 theme = light:twilight-bloom-vibrant-light,dark:twilight-bloom-vibrant
 # background-opacity = 0.85
 # background-blur = true
