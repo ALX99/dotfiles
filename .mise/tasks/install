@@ -156,6 +156,27 @@ sync_claude_skills() {
   done
 }
 
+sync_cursor_rule() {
+  local rule_dir="$HOME/.cursor/rules" rule="$HOME/.cursor/rules/general.mdc"
+  local marker='<!-- Managed by dotfiles: mise run install -->' tmp
+  mkdir -p "$rule_dir"
+  if [[ -e $rule || -L $rule ]]; then
+    if [[ -L $rule || ! -f $rule ]] || ! grep -Fxq "$marker" "$rule"; then
+      printf 'Refusing to overwrite unmanaged Cursor rule: %s\n' "$rule" >&2
+      return 1
+    fi
+  fi
+  tmp=$(mktemp "$rule_dir/.general.mdc.XXXXXX")
+  if ! {
+    printf '%s\n' '---' 'alwaysApply: true' '---' '' "$marker"
+    cat "$repo_dir/home/.agents/AGENTS.md"
+  } >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv -f "$tmp" "$rule"
+}
+
 mkdir -p "$HOME/.config" "$HOME/.local" "$HOME/.agents/skills" "$HOME/.claude/skills"
 
 sync_agents_skills
@@ -164,6 +185,7 @@ stow --dir "$repo_dir" --target "$HOME/.local" --restow .local
 stow --dir "$repo_dir" --target "$HOME" --restow home
 
 sync_claude_skills
+sync_cursor_rule
 
 repo_skill_count=$(wc -w <<<"$repo_skill_list")
 printf 'Agent skills: %d repo-linked; external kept:%s; pruned:%s\n' \
