@@ -1,6 +1,6 @@
 ---
 name: pkgsite-cli
-description: Discovers public Go packages and modules and retrieves their published pkg.go.dev metadata with pkgsite-cli. Use for package search, versions, symbols, dependencies, vulnerabilities, licenses, and remote documentation.
+description: Use when looking up Go package or module documentation, APIs, exported symbols, examples, or versions on pkg.go.dev; discovering packages; or checking imports, dependencies, vulnerabilities, and licenses. Uses pkgsite-cli for published public Go packages and modules.
 ---
 
 # pkgsite-cli
