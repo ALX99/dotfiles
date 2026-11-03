@@ -19,7 +19,7 @@ opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 "github:lightpanda-io/browser" = { version = "1", bin = "lightpanda" }
 
 # Language servers enabled in nvim/plugin/78_lsp.lua.
-# Black, gopls, and oxlint are already provided by the shared config.
+# gopls and oxlint are already provided by the shared config.
 "npm:@actions/languageserver" = "latest"
 "npm:@astrojs/language-server" = "latest"
 "npm:@tailwindcss/language-server" = "latest"
@@ -28,6 +28,8 @@ opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 "aqua:LuaLS/lua-language-server" = "latest"
 
 # Developer tools
+"aqua:astral-sh/ruff" = "latest"
+"aqua:mvdan/sh" = "latest"
 uv = "latest"
 "aqua:koalaman/shellcheck" = "latest"
 "aqua:sharkdp/hyperfine" = "latest"

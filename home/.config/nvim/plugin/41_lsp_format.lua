@@ -13,7 +13,7 @@ local lsp_formatters = {
 
 local external_formatters = {
   python = function(filename)
-    return { 'black', '--quiet', '--stdin-filename', filename ~= '' and filename or 'stdin.py', '-' }
+    return { 'ruff', 'format', '--stdin-filename', filename ~= '' and filename or 'stdin.py', '-' }
   end,
   sh = function()
     return { 'shfmt', '-i', '2', '-s' }
@@ -27,10 +27,17 @@ local function replace_buffer(buf, lines)
   vim.fn.winrestview(view)
 end
 
-local function format_external(buf, command)
+local function format_external(buf, command, notify)
   local executable = command[1]
-  if vim.fn.executable(executable) == 0 then
-    vim.notify(executable .. ' not found', vim.log.levels.WARN)
+  local path = vim.fn.exepath(executable)
+  local mise = vim.fn.exepath('mise')
+  local available = path ~= ''
+  if available and mise ~= '' and vim.fn.resolve(path) == vim.fn.resolve(mise) then
+    vim.fn.systemlist({ mise, 'which', executable })
+    available = vim.v.shell_error == 0
+  end
+  if not available then
+    if notify then vim.notify(executable .. ' not found', vim.log.levels.WARN) end
     return
   end
 
@@ -105,7 +112,7 @@ local function format_buffer(buf, opts)
   opts = opts or {}
   local external = external_formatters[vim.bo[buf].filetype]
   if external then
-    format_external(buf, external(vim.api.nvim_buf_get_name(buf)))
+    format_external(buf, external(vim.api.nvim_buf_get_name(buf)), opts.notify)
     return
   end
 
