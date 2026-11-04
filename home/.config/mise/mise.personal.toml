@@ -6,6 +6,8 @@
 rust = "stable"
 
 # AI coding tools
+# Match the shorter release holdback used for shared harnesses.
+"npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
 opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 
 # Browser and agent tools
