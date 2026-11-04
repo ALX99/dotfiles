@@ -25,7 +25,6 @@ opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 "npm:@actions/languageserver" = "latest"
 "npm:@astrojs/language-server" = "latest"
 "npm:@tailwindcss/language-server" = "latest"
-"npm:pyright" = "latest"
 "aqua:hashicorp/terraform-ls" = "latest"
 "aqua:LuaLS/lua-language-server" = "latest"
 

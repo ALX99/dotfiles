@@ -25,7 +25,6 @@ Config.new_autocmd('FileType', {
       "gopls",
       "lua_ls",
       "oxlint",
-      "pyright",
       "tailwindcss",
       "terraformls",
       "tsc",
