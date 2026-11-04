@@ -22,10 +22,7 @@ opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 
 # Language servers enabled in nvim/plugin/78_lsp.lua.
 # gopls and oxlint are already provided by the shared config.
-"npm:@actions/languageserver" = "latest"
 "npm:@astrojs/language-server" = "latest"
-"npm:@tailwindcss/language-server" = "latest"
-"aqua:hashicorp/terraform-ls" = "latest"
 "aqua:LuaLS/lua-language-server" = "latest"
 
 # Developer tools

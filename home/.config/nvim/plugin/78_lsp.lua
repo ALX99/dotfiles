@@ -21,12 +21,9 @@ Config.new_autocmd('FileType', {
     local enabled_lsps = {
       "astro",
       "docker_language_server",
-      "gh_actions_ls",
       "gopls",
       "lua_ls",
       "oxlint",
-      "tailwindcss",
-      "terraformls",
       "tsc",
     }
 
