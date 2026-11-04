@@ -3,12 +3,14 @@
 # [tools] merges additively; entries here never affect the default env.
 [tools]
 # Language runtimes
-rust = "stable"
+rust = { version = "stable", minimum_release_age = "1d" }
+zig = { version = "latest", minimum_release_age = "1d" }
+"aqua:oven-sh/bun" = { version = "latest", minimum_release_age = "1d" }
 
 # AI coding tools
 # Match the shorter release holdback used for shared harnesses.
 "npm:@earendil-works/pi-coding-agent" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
-opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
+opencode = { version = "latest", minimum_release_age = "1d", allow_builds = ["@opencode/cli"] }
 
 # Browser and agent tools
 # npm backend: `skills get` reads the package's version-matched skill-data/ tree,

@@ -1,20 +1,17 @@
 [tools]
-# Language runtimes
-go = "latest"
-node = "latest"
-python = "latest"
-rust = "stable"
-zig = "latest"
+# Language runtimes: trusted upstreams get a shorter release holdback.
+go = { version = "latest", minimum_release_age = "1d" }
+node = { version = "latest", minimum_release_age = "1d" }
+python = { version = "latest", minimum_release_age = "1d" }
 
 # JavaScript and TypeScript tooling
-"aqua:oven-sh/bun" = "latest"
 "aqua:pnpm/pnpm" = "latest"
 "npm:typescript" = "latest"
 "npm:oxlint" = "latest"
 
 # AI and agent tooling
 # Harness releases are time-sensitive, so they take a 1h holdback instead of the
-# global 24h (`minimum_release_age` here overrides the `[settings]` default).
+# global 7d (`minimum_release_age` here overrides the `[settings]` default).
 "aqua:openai/codex" = { version = "latest", minimum_release_age = "1h", auto_update = "12h" }
 "npm:skills" = "latest"
 "aqua:ogulcancelik/herdr" = "latest"
@@ -50,7 +47,7 @@ zig = "latest"
 "aqua:jdx/usage" = "latest" # mise's generated shell completions shell out to it
 
 [settings]
-minimum_release_age = "24h"
+minimum_release_age = "7d"
 auto_update = true
 
 # --- aube policy (mise's native npm installer) -------------------------------
