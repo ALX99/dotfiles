@@ -60,7 +60,6 @@ else
   export LESSHISTFILE="-"
   export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
   export GTK2_RC_FILES="$XDG_CONFIG_HOME/gtk-2.0/gtkrc"
-  export NPM_CONFIG_USERCONFIG="$HOME/.config/npm/npmrc"
   export npm_config_prefix="$HOME/.local"
 fi
 
