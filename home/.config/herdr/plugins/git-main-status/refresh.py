@@ -15,7 +15,6 @@ operations are left alone and reported as skipped.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -36,13 +35,6 @@ from herdrlib import (  # noqa: E402
 
 FETCH_TIMEOUT_SECONDS = 20
 PULL_TIMEOUT_SECONDS = 60
-
-
-@dataclass(frozen=True)
-class Workspace:
-    label: str
-    repo: Path | None
-    error: str | None = None
 
 
 def repository_identity(repo: Path) -> Path:
@@ -73,24 +65,9 @@ def pane_repo(workspace_id: str) -> Path | None:
     return None
 
 
-def workspace_record(ref: WorkspaceRef) -> Workspace:
-    """Resolve the repository a workspace is anchored to.
-
-    Workspaces report their worktree checkout when they have one; otherwise
-    the panes' current directories are probed for a repository.
-    """
-    try:
-        repo = git_repo(ref.checkout_path)
-
-        if repo is None:
-            repo = pane_repo(ref.workspace_id)
-    except (PluginError, OSError) as error:
-        return Workspace(ref.label, None, str(error))
-    return Workspace(ref.label, repo)
-
-
-def all_workspaces() -> list[Workspace]:
-    return [workspace_record(ref) for ref in workspace_list()]
+def workspace_repo(ref: WorkspaceRef) -> Path | None:
+    """Use the workspace checkout, or look for a repository in its panes."""
+    return git_repo(ref.checkout_path) or pane_repo(ref.workspace_id)
 
 
 def upstream_remote(repo: Path) -> str | None:
@@ -161,10 +138,6 @@ def shorten_error(message: str, limit: int = 160) -> str:
     return "update failed"
 
 
-def abort_rebase(repo: Path) -> None:
-    git_run(repo, ["rebase", "--abort"], timeout=10)
-
-
 def unmerged_paths(repo: Path) -> list[str]:
     """Return the paths Git still reports as unmerged."""
     text = git_text(repo, ["diff", "--name-only", "--diff-filter=U"])
@@ -229,13 +202,13 @@ def pull_checkout(repo: Path) -> str | None:
                 f"({', '.join(conflicted)})"
             )
         return None
-    abort_rebase(repo)
+    git_run(repo, ["rebase", "--abort"], timeout=10)
     message = rebased.stderr.strip() or rebased.stdout.strip()
     detail = shorten_error(message) if message else "automatic rebase failed"
     return f"needs manual rebase ({detail})"
 
 
-def refresh(workspaces: Sequence[Workspace]) -> int:
+def refresh(workspaces: Sequence[WorkspaceRef]) -> int:
     failures: list[str] = []
     skipped: list[str] = []
     # Fetch state per shared repository: target -> failure message or None.
@@ -245,10 +218,11 @@ def refresh(workspaces: Sequence[Workspace]) -> int:
     seen_checkouts: set[Path] = set()
 
     for workspace in workspaces:
-        if workspace.error:
-            failures.append(f"{workspace.label}: {workspace.error}")
+        try:
+            repo = workspace_repo(workspace)
+        except (PluginError, OSError) as error:
+            failures.append(f"{workspace.label}: {error}")
             continue
-        repo = workspace.repo
         if repo is None:
             continue
         try:
@@ -302,9 +276,9 @@ def main(argv: Sequence[str]) -> int:
         workspace_id = workspace_id_from_context()
         if not workspace_id:
             raise PluginError("workspace event did not include a workspace id")
-        return refresh([workspace_record(workspace_get(workspace_id))])
+        return refresh([workspace_get(workspace_id)])
     if action == "refresh-all":
-        return refresh(all_workspaces())
+        return refresh(workspace_list())
     raise PluginError(f"unknown action: {action}")
 
 
