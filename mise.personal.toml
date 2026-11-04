@@ -1,7 +1,0 @@
-# Personal-machine packages, loaded with MISE_ENV=personal.
-[bootstrap.packages]
-"brew:ffmpeg" = {} # dep-heavy; brew builds
-"brew:imagemagick" = {} # dep-heavy; brew builds
-"brew:optipng" = {}
-"brew:p7zip" = {}
-"brew:squashfs" = {}
