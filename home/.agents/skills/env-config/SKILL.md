@@ -45,7 +45,7 @@ Profile files are named `mise.<profile>.toml` and sit next to the shared file in
 
 - `~/.bash_profile` owns PATH, XDG paths, and default programs.
 - `~/.bashrc` activates mise interactively; noninteractive login shells activate shims through `~/.bash_profile`. Never export unattended-command defaults through session-wide `BASH_ENV`: display managers also run noninteractive login shells. `~/.bashrc.d/noninteractive.bash` is explicit opt-in only.
-- On macOS, GNU utilities are exposed as private aliases in interactive shells, not through PATH. Child processes and agents may not see them; use `/opt/homebrew/opt/<package>/libexec/gnubin/<tool>` when GNU semantics are required.
+- On macOS, shell configuration does not replace system utilities with Homebrew GNU utilities.
 - Preferred search tools: `fd` and `rg`.
 
 ## Agent skills
