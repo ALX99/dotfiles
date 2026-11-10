@@ -18,7 +18,6 @@ Use alongside the **go-code** skill. Follow the repository's supported Go versio
 - Tests encode requested behavior and applicable language, API, framework, and project contracts; those contracts need not all be restated locally.
 - Do not add invalid-input cases merely because a value can be represented.
 - Add boundary and malformed-input tests when code parses or accepts user, network, file, configuration, database, or other external data.
-- Use table-driven tests when multiple cases genuinely share setup and assertions.
 - Use `t.Parallel()` only when isolation is clear and parallel execution provides value.
 - Do not change an implementation contract merely to satisfy a newly invented test case.
 
@@ -32,9 +31,9 @@ Use alongside the **go-code** skill. Follow the repository's supported Go versio
 
 ## Structure
 
-- Use `_test.go` files, usually beside the implementation. Group by behavior when that is clearer than matching implementation files.
+- When adding or refactoring tests, default to `<file>_test.go` beside `<file>.go`. Extend that test file when it exists instead of creating a new file for each scenario, bug, or task. Use a separate behavior- or integration-focused file only when tests span implementation files or an established repository convention requires it; do not rename unrelated files as incidental cleanup.
 - Use descriptive `Test...` names that identify the behavior or API under test; follow repository naming conventions.
-- Prefer direct tests for one or two cases. Use subtests or tables only when they improve clarity.
+- Prefer ordinary table-driven tests for multiple related cases: a slice of structs with a `name` field, iterated with `t.Run`. Add cases to an existing table when setup and assertions match rather than creating separate test functions. Use a direct test for a single case or when distinct setup or assertions would make a table awkward; do not force unrelated behaviors into one table.
 - Use current testing APIs only when supported by the module's declared Go version.
 
 ```go

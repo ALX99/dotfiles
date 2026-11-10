@@ -14,7 +14,7 @@
   "npmCommand": [
     "bun"
   ],
-  "lastChangelogVersion": "1.5.0",
+  "lastChangelogVersion": "1.5.1",
   "retry": {
     "maxRetries": 20,
     "enabled": true
