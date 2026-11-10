@@ -4,6 +4,24 @@ Use these features when they improve the code and the module's compatibility
 target supports them. This is a selection guide, not a mandatory migration
 checklist. Verify APIs against documentation for the target version.
 
+## Go 1.27+
+
+- Generic methods can declare type parameters, but cannot implement interface
+  methods. Use them when the operation belongs on the receiver:
+
+  ```go
+  n := rng.N(int32(10)) // math/rand/v2.Rand
+  ```
+
+- Keyed struct literals support promoted fields; generic function inference
+  works in more contexts, including composite literals and channel sends.
+- Consider `encoding/json/v2` for new code. It rejects duplicate names and
+  invalid UTF-8 by default; migrating from v1 can change wire behavior.
+- Use `uuid` for UUIDs, `strings.CutLast` or `bytes.CutLast` for last-separator
+  splits, and `url.URL.Clone` or `url.Values.Clone` for independent copies.
+- `httptest.NewTestServer` supports in-memory HTTP tests with `synctest`.
+  The `goroutineleak` profile detects some, not all, blocked goroutine leaks.
+
 ## Go 1.26+
 
 Prefer `errors.AsType` for ordinary type-safe error-tree matching:
