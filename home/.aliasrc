@@ -35,15 +35,17 @@ if [[ $OSTYPE != darwin* ]]; then
   alias \
     ls='command ls -hN --color=auto --group-directories-first' \
     ll='command ls -hNlA --color=auto' \
-    grep='command grep --color=auto' \
-    diff='command diff --color=auto' \
     df='command df --human-readable --output=source,target,size,used,avail,pcent' \
     du='command du --human-readable' \
     dd='command dd bs=512k status=progress'
 else
-  alias ll='ls -lhA'
+  alias \
+    ls='command ls -Gh' \
+    ll='command ls -GlhA'
 fi
 alias \
+  grep='command grep --color=auto' \
+  diff='command diff --color=auto' \
   ip="ip -color=auto" \
   cp="cp -i" \
   mv="mv -i" \
