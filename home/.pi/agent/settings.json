@@ -21,7 +21,7 @@
   },
   "packages": [
     "npm:@ff-labs/pi-fff",
-    "../../projects/mono/pi-lot",
+    "../../projects/mono/ai",
     "npm:pi-autoresearch"
   ],
   "enabledModels": [

@@ -1,11 +1,20 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "worker",
+  "plugins": ["/Users/dozy/projects/mono/ai"],
+  "skills": ["/Users/dozy/projects/mono/ai/shared/skills"],
+  "instructions": ["~/.agents/AGENTS.md"],
   "agents": {
+    "worker": {
+      "description": "Implementation and investigation with shared engineering instructions",
+      "mode": "all",
+      "system": "{file:/Users/dozy/projects/mono/ai/shared/instructions/worker.md}",
+    },
     "plan": { "disabled": true },
     "build": { "disabled": true },
   },
   "permissions": [
     { "action": "*", "resource": "*", "effect": "allow" },
+    { "action": "lsp_references", "resource": "*", "effect": "ask" },
   ],
 }
