@@ -38,8 +38,10 @@ Think like a long-term maintainer within the authorized scope. Pursue the user's
 
 ## Testing
 
-- Before adding a lasting test, name the bug it would catch. Test behavior callers rely on, including failures caused by configuration or wiring; don't merely restate a setting or retest a library.
-- For bug fixes, add a regression test where the failure is observable. Show it fails before the fix and passes afterward when practical.
+- Add a permanent test only when you can name a plausible bug in our code, who or what it would affect, and why existing coverage would miss it. Otherwise, verify the change without adding a test.
+- Focus on behavior someone relies on: business rules, state transitions, boundary validation, failure handling, and public contracts. Assert the outcome directly, not a message claiming it happened.
+- Don't assert on routine logs, logger calls, incidental wording, formatting, or third-party behavior. Test text or log output only when a concrete requirement or known consumer depends on it; assert only the required property (a documented CLI field, a required audit event, or the absence of a secret).
+- Apply the same criteria to bug fixes. When regression coverage is warranted, show it fails before the fix and passes afterward when practical.
 - Prefer observable behavior through stable interfaces over implementation details. Favor real implementations; use fakes or mocks where speed, determinism, or hard-to-exercise failures warrant them.
 - Favor focused, readable tests with clear failures. Extend existing coverage where useful; choose test levels for feedback and fidelity rather than a fixed formula.
 - Never delete, skip, or weaken a test just to get green. If behavior legitimately changed, update the test and say so.
